@@ -22,4 +22,25 @@ export interface ScamCheckResult {
   createdAt: string
   completedAt: string | null
   retentionExpiresAt: string
+  aiDetails: {
+    scanId: string
+    createdAt: string | null
+    tierExecuted: 1 | 2
+    verdict: {
+      riskLevel: "SAFE" | "SUSPICIOUS" | "DANGEROUS" | "UNKNOWN"
+      riskScore: number | null
+      scamType: string | null
+      confidence: number
+      summary: string
+    }
+    radarMetrics: Record<"urgency" | "authority_impersonation" | "financial_lure" | "suspicious_channel" | "data_harvesting", number> | null
+    recommendations: string[]
+    councilAudit: {
+      consensusRatio: string | null
+      leadModel: string | null
+      earlyExit: boolean
+      defenderIntervened: boolean
+      agents: { role: string; verdict: string; score: number }[]
+    } | null
+  } | null
 }

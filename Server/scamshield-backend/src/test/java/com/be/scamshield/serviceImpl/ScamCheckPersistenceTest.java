@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +37,8 @@ class ScamCheckPersistenceTest {
         entityManager.persist(check);
         CheckVerdict verdict = CheckVerdict.builder().checkRequest(check).verdict("UNKNOWN")
                 .decidedByStage("NONE").unknownReason("AI_NOT_IMPLEMENTED")
+                .aiSnapshot("{\"scanId\":\"SC-123\",\"tierExecuted\":1}")
+                .riskScore(new BigDecimal("68.50"))
                 .createdAt(check.getCreatedAt()).build();
         verdict.getReasons().add(CheckVerdictReason.builder().verdict(verdict)
                 .reasonCode("AI_NOT_IMPLEMENTED").sourceStage("NONE").build());
@@ -45,6 +48,8 @@ class ScamCheckPersistenceTest {
 
         CheckVerdict reloaded = verdicts.findByCheckRequestId(id).orElseThrow();
         assertThat(reloaded.getCheckRequest().getRawInput()).isEqualTo(text);
+        assertThat(reloaded.getAiSnapshot()).contains("SC-123");
+        assertThat(reloaded.getRiskScore()).isEqualByComparingTo("68.50");
         assertThat(reloaded.getReasons()).singleElement()
                 .extracting(CheckVerdictReason::getReasonCode).isEqualTo("AI_NOT_IMPLEMENTED");
     }

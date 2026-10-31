@@ -100,6 +100,7 @@ export function GuestScamCheck() {
         aria-busy={busy}
         onSubmit={(event) => {
           event.preventDefault()
+          if (inputType === "URL") setContent(content.trim())
           void submit({ inputType, content })
         }}
       >
@@ -157,6 +158,10 @@ export function GuestScamCheck() {
               onChange={(event) => {
                 setContent(event.target.value)
                 clearResult()
+              }}
+              onBlur={() => {
+                if (inputType === "URL" && content !== content.trim())
+                  setContent(content.trim())
               }}
               placeholder={selected.placeholder}
               maxLength={10000}
@@ -323,9 +328,7 @@ export function GuestScamCheck() {
       <div className="sr-only" role="status" aria-live="polite">
         {result
           ? `Đã có kết quả kiểm tra số ${result.checkId}. ${
-              result.decidedByStage === "VISOBERT"
-                ? `${result.verdict === "LOW_RISK" ? "Mức độ rủi ro thấp" : result.verdict === "SCAM_RISK" ? "Có nguy cơ lừa đảo" : "Chưa đủ cơ sở kết luận"}. ${result.confidence == null ? "Chưa có thông tin về độ tin cậy." : `Độ tin cậy của kết quả: ${result.confidence.toLocaleString("vi-VN", { style: "percent", maximumFractionDigits: 1 })}.`}`
-                : result.explanation || ""
+              `${result.verdict === "LOW_RISK" ? "Mức độ rủi ro thấp" : result.verdict === "SCAM_RISK" ? "Có nguy cơ lừa đảo" : result.verdict === "SUSPICIOUS" ? "Có dấu hiệu đáng ngờ" : "Chưa đủ cơ sở kết luận"}. ${result.explanation || ""}`
             }`
           : ""}
       </div>

@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -80,6 +81,27 @@ class ScamCheckDecisionServiceTest {
         assertThat(decision.verdict().getUnknownReason()).isEqualTo("AI_UNAVAILABLE");
         assertThat(decision.verdict().getReasons()).hasSize(1);
         verifyNoInteractions(indicators, blacklist, whitelist);
+    }
+
+    @Test
+    void phoneAndBankAccountWithoutDecisiveMatchNeverCallAi() {
+        for (String type : List.of("PHONE", "BANK_ACCOUNT")) {
+            var decision = service.decide(check(type), List.of());
+            assertThat(decision.verdict().getVerdict()).isEqualTo("UNKNOWN");
+            assertThat(decision.verdict().getUnknownReason()).isEqualTo("NO_DECISIVE_CURATED_MATCH");
+            assertThat(decision.verdict().getAiSnapshot()).isNull();
+        }
+        verifyNoInteractions(aiClient);
+    }
+
+    @Test
+    void sendsOriginalMessageContentToAi() {
+        when(aiClient.scan(any(), anyString(), any())).thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
+        var check = check("MESSAGE");
+        check.setRawInput("Số 0912345678");
+        check.setMaskedInput("Số [NUMBER]");
+        service.decide(check, List.of());
+        verify(aiClient).scan(null, "MESSAGE", "Số 0912345678");
     }
 
     private CheckRequest check(String inputType) {

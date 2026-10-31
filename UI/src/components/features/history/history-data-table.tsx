@@ -18,6 +18,7 @@ import {
 } from "@phosphor-icons/react"
 import { HistoryItem } from "@/features/history/types/history.types"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 interface HistoryDataTableProps {
   items: HistoryItem[]
@@ -97,7 +98,7 @@ export function HistoryDataTable({
   }
 
   const renderVerdict = (item: HistoryItem) => {
-    const scoreStr = (item.riskScore != null ? item.riskScore : 0).toString().padStart(2, "0")
+    const scoreStr = item.riskScore != null ? item.riskScore.toString().padStart(2, "0") : null
     const status = item.verdictStatus?.toUpperCase()
 
     switch (status) {
@@ -109,7 +110,7 @@ export function HistoryDataTable({
               <span>{item.verdictLabel || "Lừa Đảo Nguy Cơ Cao"}</span>
             </div>
             <p className="font-mono text-[11px] font-semibold text-[#BA1A1A] dark:text-rose-400">
-              Chỉ số rủi ro: {scoreStr}/100
+              {scoreStr != null && `Chỉ số rủi ro: ${scoreStr}/100`}
             </p>
           </div>
         )
@@ -121,7 +122,7 @@ export function HistoryDataTable({
               <span>{item.verdictLabel || "An Toàn Chính Hãng"}</span>
             </div>
             <p className="font-mono text-[11px] font-semibold text-[#00875A] dark:text-emerald-400">
-              Chỉ số rủi ro: {scoreStr}/100
+              {scoreStr != null && `Chỉ số rủi ro: ${scoreStr}/100`}
             </p>
           </div>
         )
@@ -133,7 +134,7 @@ export function HistoryDataTable({
               <span>{item.verdictLabel || "Nghi Vấn Rủi Ro"}</span>
             </div>
             <p className="font-mono text-[11px] font-semibold text-[#B45309] dark:text-amber-400">
-              Chỉ số rủi ro: {scoreStr}/100
+              {scoreStr != null && `Chỉ số rủi ro: ${scoreStr}/100`}
             </p>
           </div>
         )
@@ -146,7 +147,7 @@ export function HistoryDataTable({
               <span>{item.verdictLabel || "Chưa Đủ Dữ Liệu"}</span>
             </div>
             <p className="font-mono text-[11px] font-semibold text-[#475569] dark:text-slate-400">
-              Chỉ số rủi ro: {scoreStr}/100
+              {scoreStr != null && `Chỉ số rủi ro: ${scoreStr}/100`}
             </p>
           </div>
         )
@@ -230,6 +231,9 @@ export function HistoryDataTable({
                         <p className="font-semibold text-[#131B2E] dark:text-foreground">
                           {item.timestamp}
                         </p>
+                        <Link className="text-xs font-semibold text-primary underline-offset-2 hover:underline" href={`/user/history/${item.id}`}>
+                          Xem kết quả
+                        </Link>
                         <p className="text-[11px] text-[#45464D] dark:text-muted-foreground">
                           IP: {item.ip}
                         </p>

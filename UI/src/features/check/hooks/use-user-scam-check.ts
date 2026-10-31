@@ -3,7 +3,10 @@
 import { useRef, useState } from "react"
 import { isAxiosError } from "axios"
 import { checkScamContent } from "../services/check.service"
-import { validateScamCheck } from "../utils/check-validation"
+import {
+  normalizeScamCheckRequest,
+  validateScamCheck,
+} from "../utils/check-validation"
 import { useUserQuotaStore } from "../store/user-quota.store"
 import type {
   ScamCheckInputType,
@@ -40,7 +43,7 @@ export function useUserScamCheck() {
 
   const analyze = async () => {
     if (locked.current) return
-    const payload = { inputType, content: content.trim() }
+    const payload = normalizeScamCheckRequest({ inputType, content })
     const validationError = validateScamCheck(payload)
     setErrors((previous) => ({ ...previous, [inputType]: validationError }))
     if (validationError) return
