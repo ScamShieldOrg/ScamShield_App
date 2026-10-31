@@ -18,8 +18,15 @@ function getFirebaseApp() {
  * a fresh child element that is removed afterwards.
  */
 export async function getRecaptchaToken(containerId: string): Promise<string> {
-  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-    throw new Error("Thiếu cấu hình Firebase (NEXT_PUBLIC_FIREBASE_*).")
+  if (
+    !process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
+    !process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||
+    !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+    !process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  ) {
+    throw new Error(
+      "Chức năng xác thực điện thoại chưa được cấu hình đầy đủ. Vui lòng liên hệ hỗ trợ."
+    )
   }
   const parent = document.getElementById(containerId)
   if (!parent) {
@@ -28,13 +35,50 @@ export async function getRecaptchaToken(containerId: string): Promise<string> {
   const mount = document.createElement("div")
   parent.appendChild(mount)
 
-  const verifier = new RecaptchaVerifier(getAuth(getFirebaseApp()), mount, {
-    size: "invisible",
-  })
+  let verifier: RecaptchaVerifier | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    return await verifier.verify()
+    verifier = new RecaptchaVerifier(getAuth(getFirebaseApp()), mount, {
+      size: "invisible",
+    })
+    const token = await Promise.race([
+      verifier.verify(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("verification-timeout")),
+          120_000
+        )
+      }),
+    ])
+    if (!token || !parent.isConnected) {
+      throw new Error("verification-unavailable")
+    }
+    return token
+  } catch (error) {
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? error.code
+        : undefined
+    if (code === "auth/network-request-failed") {
+      throw new Error(
+        "Không thể kết nối dịch vụ xác thực bảo mật. Vui lòng kiểm tra mạng và thử lại."
+      )
+    }
+    if (code === "auth/too-many-requests") {
+      throw new Error(
+        "Bạn đã thử xác thực quá nhiều lần. Vui lòng chờ một lúc rồi thử lại."
+      )
+    }
+    throw new Error(
+      "Xác thực bảo mật chưa hoàn tất hoặc đã hết hạn. Vui lòng nhấn Gửi mã OTP để thử lại."
+    )
   } finally {
-    verifier.clear()
+    if (timer) clearTimeout(timer)
+    try {
+      verifier?.clear()
+    } catch {
+      // Cleanup must not replace the verification result or its error.
+    }
     mount.remove()
   }
 }

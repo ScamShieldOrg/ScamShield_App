@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
 import {
@@ -13,10 +13,13 @@ import {
   Info,
 } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
-import { authServices } from "@/features/auth/services/auth-services"
+import {
+  isPhoneVerificationCurrent,
+  registerGoogleWithPhoneVerification,
+  sendGoogleRegistrationOtp,
+  type VerifiedGooglePhone,
+} from "@/features/auth/services/google-registration.service"
 import { decodeGoogleIdToken } from "@/lib/google/google-auth"
-import { getRecaptchaToken } from "@/lib/firebase/recaptcha"
-import { cn } from "@/lib/utils"
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -64,75 +67,114 @@ export function GoogleRegisterModal({
   idToken,
   initialPhone = "",
 }: GoogleRegisterModalProps) {
+  if (!isOpen) return null
+
+  return (
+    <GoogleRegisterSession
+      key={`${idToken}:${initialPhone}`}
+      idToken={idToken}
+      initialPhone={initialPhone}
+      onClose={onClose}
+    />
+  )
+}
+
+function GoogleRegisterSession({
+  idToken,
+  initialPhone,
+  onClose,
+}: Omit<GoogleRegisterModalProps, "isOpen">) {
   const router = useRouter()
   const payload = decodeGoogleIdToken(idToken)
 
-  const [phone, setPhone] = useState(initialPhone)
+  const [phone, setPhone] = useState(initialPhone || "")
   const [otp, setOtp] = useState("")
   const [agreeTerms, setAgreeTerms] = useState(true)
   const [receiveAlerts, setReceiveAlerts] = useState(true)
 
-  const [isSendingOtp, setIsSendingOtp] = useState(false)
+  const [step, setStep] = useState<
+    "idle" | "sending" | "verifying" | "registering"
+  >("idle")
   const [otpSentTo, setOtpSentTo] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
+  const [resendAt, setResendAt] = useState(0)
+  const [verification, setVerification] = useState<VerifiedGooglePhone | null>(
+    null
+  )
+  const busyRef = useRef(false)
+  const activeRef = useRef(true)
 
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isBusy = step !== "idle"
+  const isSendingOtp = step === "sending"
 
   useEffect(() => {
-    if (cooldown <= 0) return
-    const timer = setTimeout(() => setCooldown((s) => s - 1), 1000)
-    return () => clearTimeout(timer)
-  }, [cooldown])
+    activeRef.current = true
+    return () => {
+      activeRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
-    if (initialPhone) setPhone(initialPhone)
-  }, [initialPhone])
-
-  if (!isOpen) return null
+    if (!resendAt) return
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((resendAt - Date.now()) / 1000))
+      setCooldown(remaining)
+      if (!remaining) clearInterval(timer)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [resendAt])
 
   const googleEmail = payload?.email || "Chưa xác định"
   const googleName = payload?.name || "Người dùng Google"
 
   async function handleSendOtp() {
+    if (busyRef.current || Date.now() < resendAt) return
     const trimmedPhone = phone.trim()
     if (!/^0\d{9}$/.test(trimmedPhone)) {
       setError("Số điện thoại phải bắt đầu bằng số 0 và gồm đúng 10 chữ số.")
       return
     }
 
-    if (isSendingOtp || cooldown > 0) return
-
-    setIsSendingOtp(true)
+    busyRef.current = true
+    setStep("sending")
     setError(null)
+    setVerification(null)
+    setOtpSentTo(null)
+    setOtp("")
 
     try {
-      let recaptchaToken = "dummy_token"
-      try {
-        recaptchaToken = await getRecaptchaToken(RECAPTCHA_CONTAINER_ID)
-      } catch (e) {
-        console.warn("Firebase reCAPTCHA not available or bypassed:", e)
-      }
-      await authServices.sendPhoneOtp(trimmedPhone, recaptchaToken)
+      await sendGoogleRegistrationOtp(trimmedPhone, RECAPTCHA_CONTAINER_ID)
+      if (!activeRef.current) return
       setOtpSentTo(trimmedPhone)
+      setResendAt(Date.now() + OTP_RESEND_SECONDS * 1000)
       setCooldown(OTP_RESEND_SECONDS)
       toast.success("Đã gửi yêu cầu mã OTP đến " + trimmedPhone)
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "Không thể gửi mã OTP."
+      if (!activeRef.current) return
+      const errMsg =
+        err instanceof Error ? err.message : "Không thể gửi mã OTP."
       setError(errMsg)
-      toast.warn("Cổng SMS OTP thật đang cấu hình. Trong môi trường test, vui lòng sử dụng mã OTP thử nghiệm.")
+      toast.error(errMsg)
     } finally {
-      setIsSendingOtp(false)
+      busyRef.current = false
+      if (activeRef.current) setStep("idle")
     }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (busyRef.current) return
     const trimmedPhone = phone.trim()
     const trimmedOtp = otp.trim()
 
     if (!/^0\d{9}$/.test(trimmedPhone)) {
       setError("Số điện thoại phải bắt đầu bằng số 0 và gồm đúng 10 chữ số.")
+      return
+    }
+
+    if (otpSentTo !== trimmedPhone) {
+      setError("Vui lòng gửi mã OTP cho số điện thoại này trước khi đăng ký.")
       return
     }
 
@@ -146,50 +188,70 @@ export function GoogleRegisterModal({
       return
     }
 
-    setIsSubmitting(true)
+    if (!payload?.sub || !payload.email) {
+      setError(
+        "Phiên Google không hợp lệ. Vui lòng đóng cửa sổ và chọn lại tài khoản Google."
+      )
+      return
+    }
+
+    if (
+      verification &&
+      !isPhoneVerificationCurrent(verification, trimmedPhone)
+    ) {
+      setVerification(null)
+      setOtpSentTo(null)
+      setOtp("")
+      setError("Xác nhận điện thoại đã hết hạn. Vui lòng gửi mã OTP mới.")
+      return
+    }
+
+    busyRef.current = true
+    setStep(verification ? "registering" : "verifying")
     setError(null)
 
     try {
-      let verificationToken: string | undefined
-      try {
-        const verifyRes = await authServices.verifyContacts(
-          trimmedPhone,
-          trimmedOtp
-        )
-        verificationToken = verifyRes.verificationToken
-      } catch {
-        // Fallback: nếu verifyContacts chưa kết nối SMS thật, gửi trực tiếp phoneOtp
-      }
+      await registerGoogleWithPhoneVerification(
+        {
+          idToken,
+          phoneNumber: trimmedPhone,
+          phoneOtp: trimmedOtp,
+          agreeTerms,
+          receiveAlerts,
+        },
+        verification,
+        (verified) => {
+          if (!activeRef.current) throw new Error("Phiên đăng ký đã đóng.")
+          setVerification(verified)
+          setStep("registering")
+        }
+      )
 
-      await authServices.registerGoogle({
-        idToken,
-        phoneNumber: trimmedPhone,
-        verificationToken,
-        phoneOtp: trimmedOtp,
-        agreeTerms,
-        receiveAlerts,
-      })
-
+      if (!activeRef.current) return
       toast.success("Đăng ký tài khoản qua Google thành công!")
       onClose()
       router.push("/user")
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Đăng ký qua Google thất bại"
+      if (!activeRef.current) return
+      const msg =
+        err instanceof Error ? err.message : "Đăng ký qua Google thất bại"
       setError(msg)
       toast.error(msg)
     } finally {
-      setIsSubmitting(false)
+      busyRef.current = false
+      if (activeRef.current) setStep("idle")
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-sm duration-200 fade-in">
       <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
         {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          disabled={isBusy}
+          className="absolute top-4 right-4 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Đóng"
         >
           <X size={18} />
@@ -205,7 +267,7 @@ export function GoogleRegisterModal({
               Hoàn Tất Đăng Ký Với Google
             </h3>
             <p className="text-xs text-muted-foreground">
-              Xác thực số điện thoại định danh theo Nghị định 13/2023/NĐ-CP
+              Xác thực số điện thoại để hoàn tất đăng ký.
             </p>
           </div>
         </div>
@@ -238,31 +300,51 @@ export function GoogleRegisterModal({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+        <form
+          onSubmit={handleSubmit}
+          aria-busy={isBusy}
+          className="mt-4 flex flex-col gap-4"
+        >
           {/* Phone Input */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-foreground">
-              Số điện thoại chính chủ <span className="text-destructive">*</span>
+            <label
+              htmlFor="google-register-phone"
+              className="text-xs font-semibold text-foreground"
+            >
+              Số điện thoại chính chủ{" "}
+              <span className="text-destructive">*</span>
             </label>
             <div className="relative">
               <div className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground">
                 <Phone size={16} />
               </div>
               <input
+                id="google-register-phone"
                 type="tel"
+                autoComplete="tel-national"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                disabled={isBusy}
+                onChange={(e) => {
+                  setPhone(e.target.value.replace(/\D/g, ""))
+                  setOtp("")
+                  setOtpSentTo(null)
+                  setVerification(null)
+                  setError(null)
+                }}
                 placeholder="0912345678"
                 maxLength={10}
                 required
-                className="h-11 w-full rounded-xl border border-input bg-muted/30 pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="h-11 w-full rounded-xl border border-input bg-muted/30 pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/30 focus:outline-none"
               />
             </div>
           </div>
 
           {/* OTP Input with Send Button */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-foreground">
+            <label
+              htmlFor="google-register-otp"
+              className="text-xs font-semibold text-foreground"
+            >
               Mã xác thực OTP SMS <span className="text-destructive">*</span>
             </label>
             <div className="flex items-center gap-2">
@@ -271,8 +353,15 @@ export function GoogleRegisterModal({
                   <ShieldCheck size={16} />
                 </div>
                 <input
+                  id="google-register-otp"
                   type="text"
                   inputMode="numeric"
+                  autoComplete="one-time-code"
+                  disabled={
+                    isBusy ||
+                    otpSentTo !== phone.trim() ||
+                    isPhoneVerificationCurrent(verification, phone.trim())
+                  }
                   value={otp}
                   onChange={(e) =>
                     setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
@@ -280,7 +369,7 @@ export function GoogleRegisterModal({
                   placeholder="Nhập mã 6 chữ số"
                   maxLength={6}
                   required
-                  className="h-11 w-full rounded-xl border border-input bg-muted/30 pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="h-11 w-full rounded-xl border border-input bg-muted/30 pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/30 focus:outline-none"
                 />
               </div>
               <Button
@@ -288,7 +377,9 @@ export function GoogleRegisterModal({
                 variant="outline"
                 size="sm"
                 onClick={handleSendOtp}
-                disabled={isSendingOtp || cooldown > 0}
+                disabled={
+                  isBusy || cooldown > 0 || !/^0\d{9}$/.test(phone.trim())
+                }
                 className="h-11 shrink-0 px-4 text-xs font-semibold"
               >
                 {isSendingOtp
@@ -301,11 +392,17 @@ export function GoogleRegisterModal({
               </Button>
             </div>
             <div id={RECAPTCHA_CONTAINER_ID} />
-            {/* Helpful Developer / Tester Notice */}
-            <div className="flex items-start gap-1.5 pt-1 text-[11px] text-muted-foreground">
+            <div
+              role="status"
+              className="flex items-start gap-1.5 pt-1 text-[11px] text-muted-foreground"
+            >
               <Info size={14} className="mt-0.5 shrink-0 text-amber-500" />
               <span>
-                Lưu ý: Cổng SMS OTP viễn thông đang trong quá trình nghiệm thu. Trong môi trường kiểm thử, vui lòng sử dụng mã OTP hệ thống cung cấp.
+                {verification
+                  ? "Số điện thoại đã được xác thực. Bạn có thể tiếp tục hoàn tất đăng ký."
+                  : otpSentTo === phone.trim()
+                    ? `Đã gửi yêu cầu OTP đến ${otpSentTo}. Vui lòng nhập mã nhận được qua SMS.`
+                    : "Nhấn Gửi mã OTP để nhận mã xác thực qua SMS."}
               </span>
             </div>
           </div>
@@ -316,6 +413,7 @@ export function GoogleRegisterModal({
               <input
                 type="checkbox"
                 checked={agreeTerms}
+                disabled={isBusy}
                 onChange={(e) => setAgreeTerms(e.target.checked)}
                 className="mt-0.5 size-4 rounded accent-primary"
               />
@@ -336,6 +434,7 @@ export function GoogleRegisterModal({
               <input
                 type="checkbox"
                 checked={receiveAlerts}
+                disabled={isBusy}
                 onChange={(e) => setReceiveAlerts(e.target.checked)}
                 className="mt-0.5 size-4 rounded accent-primary"
               />
@@ -348,11 +447,23 @@ export function GoogleRegisterModal({
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isSubmitting || !phone || !otp}
+            disabled={
+              isBusy ||
+              otpSentTo !== phone.trim() ||
+              !/^\d{6}$/.test(otp) ||
+              !agreeTerms
+            }
             className="mt-2 h-11 w-full gap-2 rounded-xl text-sm font-bold"
           >
-            {isSubmitting ? (
-              <span className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+            {step === "verifying" || step === "registering" ? (
+              <>
+                <span className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                <span>
+                  {step === "verifying"
+                    ? "Đang xác thực OTP..."
+                    : "Đang tạo tài khoản..."}
+                </span>
+              </>
             ) : (
               <>
                 <span>Hoàn tất đăng ký</span>
