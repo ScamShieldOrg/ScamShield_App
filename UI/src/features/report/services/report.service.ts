@@ -1,4 +1,6 @@
 import { authorizeApi } from "@/lib/api/instance"
+import axios from "axios"
+import { validateReportFiles } from "@/features/report/utils/report-upload"
 import {
   RecentReportItem,
   TrackingReportItem,
@@ -8,7 +10,29 @@ import {
   ScamCategoryItem,
   TrackingReportsFilterParams,
   PaginatedTrackingReports,
+  ReportStatus,
+  ReportThreatType,
 } from "../types/report.types"
+
+interface TrackingReportResponse extends Partial<TrackingReportItem> {
+  rawId?: number
+  createdAt?: string
+  evidenceCount?: number
+}
+
+interface RecentReportResponse {
+  id: number
+  reportCode?: string
+  targetIdentifier?: string
+  threatType?: ReportThreatType
+  categoryName?: string
+  category?: string
+  createdAt?: string
+  evidenceCount?: number
+  evidences?: unknown[]
+  status?: ReportStatus
+  rewardPoints?: number
+}
 
 export const DEFAULT_SUMMARY_METRICS: ReportSummaryMetrics = {
   totalReports: 0,
@@ -51,7 +75,10 @@ export async function getReportSummaryMetrics(): Promise<ReportSummaryMetrics> {
       }
     }
   } catch (error) {
-    console.warn("Không thể tải thống kê metrics, dùng dữ liệu mặc định:", error)
+    console.warn(
+      "Không thể tải thống kê metrics, dùng dữ liệu mặc định:",
+      error
+    )
   }
   return DEFAULT_SUMMARY_METRICS
 }
@@ -100,8 +127,10 @@ export async function getTrackingReports(
 
     if (res.data?.success && res.data?.data) {
       const pageData = res.data.data
-      const rawList = Array.isArray(pageData.data) ? pageData.data : []
-      const items: TrackingReportItem[] = rawList.map((item: any) => ({
+      const rawList: TrackingReportResponse[] = Array.isArray(pageData.data)
+        ? pageData.data
+        : []
+      const items: TrackingReportItem[] = rawList.map((item) => ({
         id: item.id || (item.rawId ? `#RPT-${item.rawId}` : "#RPT-0000"),
         hashId: item.hashId || "---",
         targetType: item.targetType || "PHONE",
@@ -186,33 +215,109 @@ export interface SubmitReportResponse {
   success: boolean
   reportId: string
   message: string
+  evidenceCount: number
+  rewardPoints: number
 }
 
 /**
- * Nộp báo cáo đối tượng lừa đảo qua API backend /api/reports/json
- * Sử dụng authorizeApi từ hệ thống (kèm Bearer token)
+ * Submit the JSON request and original evidence files together as multipart.
+ * The API base URL already includes /api.
  */
 export async function submitScamReport(
-  payload: CreateReportPayload
+  payload: CreateReportPayload,
+  onUploadProgress?: (percentage: number) => void
 ): Promise<SubmitReportResponse> {
-  const res = await authorizeApi.post("/api/reports/json", {
-    threatType: payload.threatType,
-    targetIdentifier: payload.targetIdentifier,
-    category: payload.category,
-    description: payload.description,
-    isConfirmed: payload.isConfirmed,
-    attachmentUrls: payload.attachments,
-  })
+  const fileError = validateReportFiles(payload.attachments)
+  if (fileError) throw new Error(fileError)
 
-  const data = res.data?.data
-  const reportId =
-    data?.reportCode ||
-    (data?.id ? `#RPT-${data.id}` : `#RPT-${Date.now().toString().slice(-4)}`)
+  const formData = new FormData()
+  formData.append(
+    "request",
+    new Blob(
+      [
+        JSON.stringify({
+          threatType: payload.threatType,
+          targetIdentifier: payload.targetIdentifier.trim(),
+          category: payload.category,
+          description: payload.description.trim(),
+          isConfirmed: payload.isConfirmed,
+        }),
+      ],
+      { type: "application/json" }
+    )
+  )
+  payload.attachments.forEach((file) =>
+    formData.append("files", file, file.name)
+  )
 
-  return {
-    success: true,
-    reportId,
-    message: res.data?.message || "Gửi báo cáo lừa đảo thành công! (+50 điểm uy tín)",
+  try {
+    const res = await authorizeApi.post("/reports", formData, {
+      // Remove the Axios JSON default; the browser supplies the multipart boundary.
+      headers: { "Content-Type": undefined },
+      timeout: 120_000,
+      onUploadProgress: (event) => {
+        if (event.total && onUploadProgress) {
+          onUploadProgress(
+            Math.min(100, Math.round((event.loaded * 100) / event.total))
+          )
+        }
+      },
+    })
+    const data = res.data?.data
+    if (res.data?.isSuccess !== true) {
+      throw new Error(
+        res.data?.message || "Không thể gửi báo cáo. Vui lòng thử lại."
+      )
+    }
+    if (!data?.id || typeof data.id !== "number") {
+      throw new Error(
+        "Chưa nhận được xác nhận lưu báo cáo. Vui lòng kiểm tra Báo cáo của tôi trước khi gửi lại."
+      )
+    }
+
+    return {
+      success: true,
+      reportId: data.reportCode || `#RPT-${data.id}`,
+      message: res.data?.message || "Gửi báo cáo lừa đảo thành công!",
+      evidenceCount: data.evidenceCount ?? payload.attachments.length,
+      rewardPoints: data.rewardPoints ?? 0,
+    }
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+        throw new Error(
+          "Tải tệp mất quá nhiều thời gian. Vui lòng kiểm tra Báo cáo của tôi trước khi gửi lại."
+        )
+      }
+      if (!error.response) {
+        throw new Error(
+          "Mất kết nối khi gửi báo cáo. Vui lòng kiểm tra mạng và Báo cáo của tôi trước khi gửi lại."
+        )
+      }
+      const status = error.response.status
+      if (status === 413)
+        throw new Error(
+          "Dung lượng tệp đính kèm vượt giới hạn của máy chủ. Vui lòng giảm dung lượng và thử lại."
+        )
+      if (status === 401)
+        throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.")
+      if (status >= 500)
+        throw new Error(
+          "Máy chủ chưa thể lưu báo cáo hoặc tệp đính kèm. Vui lòng thử lại sau."
+        )
+      const message = error.response.data?.message
+      if (
+        typeof message === "string" &&
+        /[Đđ\u00c0-\u1ef9]/.test(message) &&
+        !/<[^>]+>/.test(message)
+      ) {
+        throw new Error(message)
+      }
+      throw new Error(
+        "Không thể gửi báo cáo và tệp đính kèm. Vui lòng thử lại."
+      )
+    }
+    throw error
   }
 }
 
@@ -221,18 +326,21 @@ export async function submitScamReport(
  */
 export async function getMyReports(): Promise<RecentReportItem[]> {
   try {
-    const res = await authorizeApi.get("/api/reports/my-reports")
-    if (res.data?.success && Array.isArray(res.data?.data)) {
-      return res.data.data.map((item: any) => ({
+    const res = await authorizeApi.get<{
+      isSuccess: boolean
+      data: RecentReportResponse[]
+    }>("/reports/my-reports")
+    if (res.data?.isSuccess && Array.isArray(res.data?.data)) {
+      return res.data.data.map((item) => ({
         id: item.reportCode || (item.id ? `#RPT-${item.id}` : "#RPT-0000"),
         targetValue: item.targetIdentifier || "",
-        targetType: (item.threatType as any) || "PHONE",
+        targetType: item.threatType || "PHONE",
         category: item.categoryName || item.category || "Chưa phân loại",
         submittedDate: item.createdAt
           ? new Date(item.createdAt).toLocaleString("vi-VN")
           : "Vừa xong",
         evidenceCount: item.evidenceCount || (item.evidences?.length ?? 0),
-        status: (item.status as any) || "PENDING",
+        status: item.status || "PENDING",
         rewardPoints: item.rewardPoints || 0,
       }))
     }

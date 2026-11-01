@@ -5,13 +5,15 @@ import { cn } from "@/lib/utils"
 import { ReportThreatType } from "@/features/report/types/report.types"
 
 interface ReportThreatTypeSelectorProps {
-  selectedType: ReportThreatType
+  selectedType: ReportThreatType | null
   onSelect: (type: ReportThreatType) => void
+  invalid?: boolean
 }
 
 export function ReportThreatTypeSelector({
   selectedType,
   onSelect,
+  invalid = false,
 }: ReportThreatTypeSelectorProps) {
   const options: {
     type: ReportThreatType
@@ -40,7 +42,12 @@ export function ReportThreatTypeSelector({
   ]
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div
+      role="group"
+      aria-label="Loại đe dọa"
+      aria-describedby={invalid ? "report-threat-type-error" : undefined}
+      className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+    >
       {options.map((option) => {
         const Icon = option.icon
         const isSelected = selectedType === option.type
@@ -49,9 +56,11 @@ export function ReportThreatTypeSelector({
           <button
             key={option.type}
             type="button"
+            aria-pressed={isSelected}
+            data-invalid={invalid || undefined}
             onClick={() => onSelect(option.type)}
             className={cn(
-              "flex cursor-pointer items-center gap-3.5 rounded-xl border p-3.5 text-left transition-all",
+              "flex cursor-pointer items-center gap-3.5 rounded-xl border p-3.5 text-left transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary data-[invalid=true]:border-destructive",
               isSelected
                 ? "border-[#0B132B] bg-[#E2E7FF]/50 ring-1 ring-[#0B132B]/30 dark:border-primary dark:bg-primary/10 dark:ring-primary/40"
                 : "border-[#C6C6CE]/50 bg-white hover:bg-[#FAF8FF] dark:border-border dark:bg-card dark:hover:bg-muted/40"

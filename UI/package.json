@@ -10,7 +10,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "test:google-registration": "node --test tests/google-registration.test.mjs"
+    "test:google-registration": "node --test tests/google-registration.test.mjs",
+    "test:report-upload": "node --test tests/report-upload.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

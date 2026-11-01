@@ -13,6 +13,7 @@ import com.be.scamshield.entity.Report;
 import com.be.scamshield.entity.ReportEvidence;
 import com.be.scamshield.entity.ScamCategory;
 import com.be.scamshield.entity.User;
+import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.UnauthorizedException;
 import com.be.scamshield.repository.IndicatorRepository;
 import com.be.scamshield.repository.ReportEvidenceRepository;
@@ -50,6 +51,15 @@ public class ReportServiceImpl implements IReportService {
     @Override
     @Transactional
     public ReportResponse createReport(CreateReportRequest request, List<MultipartFile> files, UserPrincipal currentUser) {
+        // Check ownership before creating indicators/reports, uploading files, or awarding points.
+        User reporterUser = resolveReporterUser(currentUser);
+        if ("PHONE".equalsIgnoreCase(request.getThreatType().trim())
+                && StringUtils.hasText(reporterUser.getPhoneNumber())
+                && normalizePhoneForOwnershipCheck(reporterUser.getPhoneNumber())
+                        .equals(normalizePhoneForOwnershipCheck(request.getTargetIdentifier()))) {
+            throw new BadRequestException("Không thể tự báo cáo chính mình.");
+        }
+
         // 1. Resolve & normalize target indicator
         String normalizedValue = normalizeIdentifier(request.getTargetIdentifier());
         Indicator indicator = indicatorRepository
@@ -69,9 +79,6 @@ public class ReportServiceImpl implements IReportService {
 
         // 2. Resolve Scam Category
         ScamCategory category = resolveCategory(request.getCategory());
-
-        // 3. Resolve Reporter User
-        User reporterUser = resolveReporterUser(currentUser);
 
         // 4. Create & Save Report Entity
         Report report = Report.builder()
@@ -215,6 +222,22 @@ public class ReportServiceImpl implements IReportService {
     private String normalizeIdentifier(String identifier) {
         if (!StringUtils.hasText(identifier)) return "";
         return identifier.replaceAll("\\s+", "").toLowerCase();
+    }
+
+    private String normalizePhoneForOwnershipCheck(String phone) {
+        if (!StringUtils.hasText(phone)) return "";
+        String normalized = phone.replaceAll("[\\s\\p{Z}().-]", "");
+        if (normalized.startsWith("+84")) {
+            normalized = normalized.substring(3);
+        } else if (normalized.startsWith("0084")) {
+            normalized = normalized.substring(4);
+        } else if (normalized.startsWith("84") && (normalized.length() == 11
+                || (normalized.length() == 12 && normalized.charAt(2) == '0'))) {
+            normalized = normalized.substring(2);
+        } else {
+            return normalized;
+        }
+        return normalized.startsWith("0") ? normalized : "0" + normalized;
     }
 
     private ScamCategory resolveCategory(String categoryInput) {

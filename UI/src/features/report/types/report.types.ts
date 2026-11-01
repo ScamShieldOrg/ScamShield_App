@@ -48,7 +48,7 @@ export interface CreateReportPayload {
   targetIdentifier: string
   category: string
   description: string
-  attachments: string[]
+  attachments: File[]
   isConfirmed: boolean
 }
 
@@ -86,4 +86,3 @@ export interface PaginatedTrackingReports {
   hasNext: boolean
   hasPrevious: boolean
 }
-
