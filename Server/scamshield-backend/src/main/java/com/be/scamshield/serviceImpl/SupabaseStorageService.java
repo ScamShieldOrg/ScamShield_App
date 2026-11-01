@@ -261,16 +261,23 @@ public class SupabaseStorageService {
     }
 
     public String createDisputeDownloadUrl(String objectKey) {
+        return createDisputeDownloadUrl(objectKey, null);
+    }
+
+    public String createDisputeDownloadUrl(String objectKey, String contentDisposition) {
         requireDisputeStorageConfigured();
         requireDisputeObjectKey(objectKey);
         if (disputeUrlExpirationSeconds <= 0 || disputeUrlExpirationSeconds > 604800) {
             throw new DisputeStorageException("Thời hạn liên kết tài liệu khiếu nại chưa được cấu hình hợp lệ");
         }
         try (S3Presigner presigner = createS3Presigner(true)) {
-            GetObjectRequest objectRequest = GetObjectRequest.builder()
+            GetObjectRequest.Builder objectRequestBuilder = GetObjectRequest.builder()
                     .bucket(getDisputeBucketName())
-                    .key(objectKey)
-                    .build();
+                    .key(objectKey);
+            if (StringUtils.hasText(contentDisposition)) {
+                objectRequestBuilder.responseContentDisposition(contentDisposition);
+            }
+            GetObjectRequest objectRequest = objectRequestBuilder.build();
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                     .signatureDuration(Duration.ofSeconds(disputeUrlExpirationSeconds))
                     .getObjectRequest(objectRequest)

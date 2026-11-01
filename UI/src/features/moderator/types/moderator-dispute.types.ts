@@ -16,6 +16,7 @@ export interface DisputeEvidence {
   name: string
   type: "pdf" | "image" | "video" | string
   url?: string
+  downloadUrl?: string
 }
 
 export interface ModeratorDisputeItem {

@@ -378,11 +378,20 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
     private ModeratorEvidenceResponse mapToModeratorEvidenceResponse(DisputeEvidence ev) {
         if (ev == null) return null;
         String fileUrl = ev.getFileUrl();
+        String downloadUrl = ev.getFileUrl();
         if (StringUtils.hasText(ev.getStorageObjectKey())) {
             try {
-                fileUrl = storageService.createDisputeDownloadUrl(ev.getStorageObjectKey());
+                fileUrl = storageService.createDisputeDownloadUrl(
+                        ev.getStorageObjectKey(), "inline");
+                String safeFileName = ev.getFileName() == null
+                        ? "evidence"
+                        : ev.getFileName().replaceAll("[^A-Za-z0-9._-]", "_");
+                downloadUrl = storageService.createDisputeDownloadUrl(
+                        ev.getStorageObjectKey(), "attachment; filename=\"" + safeFileName + "\"");
             } catch (Exception ex) {
-                log.debug("Could not presign URL for dispute evidence {}: {}", ev.getId(), ex.getMessage());
+                log.warn("Could not create signed URLs for dispute evidence {}", ev.getId());
+                fileUrl = null;
+                downloadUrl = null;
             }
         }
 
@@ -392,6 +401,7 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
                 .name(ev.getFileName() != null ? ev.getFileName() : "tai-lieu-" + ev.getId())
                 .type(determineEvidenceType(ev))
                 .url(fileUrl)
+                .downloadUrl(downloadUrl)
                 .build();
     }
 
