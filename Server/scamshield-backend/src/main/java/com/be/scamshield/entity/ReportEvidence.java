@@ -34,14 +34,10 @@ public class ReportEvidence {
     @Column(name = "file_hash")
     private String fileHash;
 
-    @Column(name = "extracted_text")
-    private String extractedText;
 
     @Column(name = "ocr_text")
     private String ocrText;
 
-    @Column(name = "source_url")
-    private String sourceUrl;
 
     @Column(name = "verification_status", nullable = false)
     private String verificationStatus;

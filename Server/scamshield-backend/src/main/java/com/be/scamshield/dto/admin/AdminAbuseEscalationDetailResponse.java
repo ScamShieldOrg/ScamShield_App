@@ -94,8 +94,6 @@ public class AdminAbuseEscalationDetailResponse {
         private String evidenceType;
         private String fileName;
         private String fileUrl;
-        private String sourceUrl;
-        private String extractedText;
         private String ocrText;
         @Schema(description = "Trạng thái xác minh bằng chứng; null nếu giá trị dữ liệu cũ không được hỗ trợ")
         private EvidenceVerificationStatus verificationStatus;

@@ -631,7 +631,7 @@ class AdminAbuseEscalationPersistenceTest {
         Indicator indicator = Indicator.builder().type("URL").normalizedValue(value).createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(indicator);
         Report report = Report.builder().reporterUser(user).indicator(indicator).status("REJECTED")
-                .reportCountSignal(1).coordinatedReportSuspected(false).moderationLocked(false)
+
                 .createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(report);
         return report;

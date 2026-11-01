@@ -253,7 +253,7 @@ class ScamDashboardPersistenceTest {
 
     private void report(Indicator indicator, ScamCategory category, String regionCode, String createdAt) {
         entityManager.persist(Report.builder().reporterUser(reporter).indicator(indicator).status("PENDING")
-                .category(category).regionCode(regionCode).reportCountSignal(1).coordinatedReportSuspected(false)
-                .moderationLocked(false).createdAt(LocalDateTime.parse(createdAt)).updatedAt(NOW).build());
+                .category(category).regionCode(regionCode)
+                .createdAt(LocalDateTime.parse(createdAt)).updatedAt(NOW).build());
     }
 }

@@ -238,7 +238,6 @@ class UserReportTrackingServiceImplTest {
                 .indicator(indicator)
                 .status("PENDING")
                 .ipHash("IP_HASH_SHOULD_BE_IGNORED")
-                .deviceFingerprintHash("DEVICE_HASH_SHOULD_BE_IGNORED")
                 .createdAt(fixedNow.minusMinutes(14))
                 .updatedAt(fixedNow)
                 .build();

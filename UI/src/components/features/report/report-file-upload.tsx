@@ -40,7 +40,7 @@ export function ReportFileUpload({
         htmlFor="report-evidence-files"
         className="text-xs font-bold text-[#131B2E] dark:text-foreground"
       >
-        Tệp minh chứng (ảnh chat, biên lai, tin nhắn){" "}
+        Tệp minh chứng (Ảnh chụp đoạn chat, biên lai){" "}
         <span className="text-destructive">*</span>
       </label>
       <input

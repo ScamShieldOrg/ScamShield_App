@@ -107,7 +107,7 @@ export function RegisterIndividualForm() {
     password: "",
     confirmPassword: "",
     agreeTerms: false,
-    receiveAlerts: true,
+    receiveAlerts: false,
   })
 
   const [touched, setTouched] = useState<Record<string, boolean>>({})

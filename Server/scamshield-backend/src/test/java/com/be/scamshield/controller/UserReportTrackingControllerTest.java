@@ -64,6 +64,13 @@ class UserReportTrackingControllerTest {
     }
 
     @Test
+    void rejectsSortingByRemovedPriorityScore() throws Exception {
+        mvc.perform(get(BASE_URL + "/tracking").param("sort", "priorityScore,desc")
+                        .with(authentication(auth)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void getSummaryMetricsReturnsValidMetrics() throws Exception {
         ReportSummaryMetricsResponse metrics = ReportSummaryMetricsResponse.builder()
                 .totalReports(18L)

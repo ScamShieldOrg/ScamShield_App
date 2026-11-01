@@ -89,8 +89,8 @@ function GoogleRegisterSession({
 
   const [phone, setPhone] = useState(initialPhone || "")
   const [otp, setOtp] = useState("")
-  const [agreeTerms, setAgreeTerms] = useState(true)
-  const [receiveAlerts, setReceiveAlerts] = useState(true)
+  const [agreeTerms, setAgreeTerms] = useState(false)
+  const [receiveAlerts, setReceiveAlerts] = useState(false)
 
   const [step, setStep] = useState<
     "idle" | "sending" | "verifying" | "registering"
@@ -162,6 +162,11 @@ function GoogleRegisterSession({
     }
   }
 
+  function showValidationError(message: string) {
+    setError(message)
+    toast.warn(message, { toastId: "google-register-validation" })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (busyRef.current) return
@@ -169,22 +174,26 @@ function GoogleRegisterSession({
     const trimmedOtp = otp.trim()
 
     if (!/^0\d{9}$/.test(trimmedPhone)) {
-      setError("Số điện thoại phải bắt đầu bằng số 0 và gồm đúng 10 chữ số.")
+      showValidationError(
+        "Số điện thoại phải bắt đầu bằng số 0 và gồm đúng 10 chữ số."
+      )
       return
     }
 
     if (otpSentTo !== trimmedPhone) {
-      setError("Vui lòng gửi mã OTP cho số điện thoại này trước khi đăng ký.")
+      showValidationError(
+        "Vui lòng gửi mã OTP cho số điện thoại này trước khi đăng ký."
+      )
       return
     }
 
     if (!/^\d{6}$/.test(trimmedOtp)) {
-      setError("Mã OTP SMS phải gồm đúng 6 chữ số.")
+      showValidationError("Mã OTP SMS phải gồm đúng 6 chữ số.")
       return
     }
 
     if (!agreeTerms) {
-      setError("Bạn phải đồng ý với Điều khoản dịch vụ để tiếp tục.")
+      showValidationError("Bạn phải đồng ý với Điều khoản dịch vụ để tiếp tục.")
       return
     }
 
@@ -302,6 +311,7 @@ function GoogleRegisterSession({
 
         <form
           onSubmit={handleSubmit}
+          noValidate
           aria-busy={isBusy}
           className="mt-4 flex flex-col gap-4"
         >
@@ -413,9 +423,10 @@ function GoogleRegisterSession({
               <input
                 type="checkbox"
                 checked={agreeTerms}
+                required
                 disabled={isBusy}
                 onChange={(e) => setAgreeTerms(e.target.checked)}
-                className="mt-0.5 size-4 rounded accent-primary"
+                className="mt-0.5 size-4 shrink-0 rounded accent-primary"
               />
               <span>
                 Tôi đồng ý với{" "}
@@ -436,7 +447,7 @@ function GoogleRegisterSession({
                 checked={receiveAlerts}
                 disabled={isBusy}
                 onChange={(e) => setReceiveAlerts(e.target.checked)}
-                className="mt-0.5 size-4 rounded accent-primary"
+                className="mt-0.5 size-4 shrink-0 rounded accent-primary"
               />
               <span>
                 Nhận cảnh báo sớm về các chiêu trò lừa đảo mới qua Email/SMS.
@@ -447,13 +458,14 @@ function GoogleRegisterSession({
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={
-              isBusy ||
+            disabled={isBusy}
+            data-incomplete={
+              !/^0\d{9}$/.test(phone.trim()) ||
               otpSentTo !== phone.trim() ||
-              !/^\d{6}$/.test(otp) ||
+              !/^\d{6}$/.test(otp.trim()) ||
               !agreeTerms
             }
-            className="mt-2 h-11 w-full gap-2 rounded-xl text-sm font-bold"
+            className="mt-2 h-11 w-full gap-2 rounded-xl text-sm font-bold data-[incomplete=true]:bg-primary/50 data-[incomplete=true]:hover:bg-primary/50"
           >
             {step === "verifying" || step === "registering" ? (
               <>

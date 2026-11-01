@@ -19,7 +19,7 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
                    i.type AS resourceType,
                    COALESCE(i.displayValue, i.normalizedValue) AS title,
                    ci.publicReason AS description,
-                   (SELECT COALESCE(SUM(COALESCE(r.reportCountSignal, 1)), 0L)
+                   (SELECT COUNT(r)
                       FROM Report r
                      WHERE r.indicator = i
                        AND r.status IN ('APPROVED', 'MERGED')) AS warningCount,

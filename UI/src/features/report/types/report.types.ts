@@ -48,6 +48,7 @@ export interface CreateReportPayload {
   targetIdentifier: string
   category: string
   description: string
+  reportedMessage?: string
   attachments: File[]
   isConfirmed: boolean
 }

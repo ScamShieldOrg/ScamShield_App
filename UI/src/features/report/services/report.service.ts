@@ -240,6 +240,9 @@ export async function submitScamReport(
           targetIdentifier: payload.targetIdentifier.trim(),
           category: payload.category,
           description: payload.description.trim(),
+          reportedMessage: payload.reportedMessage?.trim()
+            ? payload.reportedMessage
+            : undefined,
           isConfirmed: payload.isConfirmed,
         }),
       ],

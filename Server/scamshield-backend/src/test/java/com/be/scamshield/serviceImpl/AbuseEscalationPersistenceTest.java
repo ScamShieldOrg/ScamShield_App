@@ -220,7 +220,7 @@ class AbuseEscalationPersistenceTest {
                 .createdAt(NOW).updatedAt(NOW).firstSeenAt(NOW).lastSeenAt(NOW).build();
         entityManager.persist(indicator);
         Report report = Report.builder().reporterUser(reporter).indicator(indicator).status("REJECTED")
-                .reportCountSignal(1).coordinatedReportSuspected(false).moderationLocked(false)
+
                 .createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(report);
         return report;

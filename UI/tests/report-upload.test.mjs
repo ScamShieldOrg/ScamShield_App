@@ -182,6 +182,25 @@ test("send JSON metadata and original file bytes in separate multipart parts", a
   assert.equal(result.evidenceCount, 2)
 })
 
+test("preserve optional pasted message separately from the report description", async () => {
+  const h = createHarness()
+  const reportedMessage = "  Tin nhắn gốc:\n" + "Chuyển tiền ngay. ".repeat(30)
+  await h.submitScamReport({ ...payload(), reportedMessage })
+  const request = JSON.parse(await h.requests[0].body.get("request").text())
+  assert.equal(request.reportedMessage, reportedMessage)
+  assert.equal(request.description, "Gửi SMS yêu cầu cung cấp mã OTP.")
+})
+
+test("omit the optional message when absent, empty or whitespace only", async () => {
+  for (const reportedMessage of [undefined, "", " \n\t "]) {
+    const h = createHarness()
+    await h.submitScamReport({ ...payload(), reportedMessage })
+    const request = JSON.parse(await h.requests[0].body.get("request").text())
+    assert.equal(Object.hasOwn(request, "reportedMessage"), false)
+    assert.equal(request.description, "Gửi SMS yêu cầu cung cấp mã OTP.")
+  }
+})
+
 test("a report without evidence is rejected before contacting the backend", async () => {
   const h = createHarness()
   await assert.rejects(

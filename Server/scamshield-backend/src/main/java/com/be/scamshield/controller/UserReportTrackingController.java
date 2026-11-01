@@ -39,8 +39,6 @@ public class UserReportTrackingController {
             "status",
             "reportedMessage",
             "description",
-            "priorityScore",
-            "reportCountSignal",
             "regionCode"
     );
 

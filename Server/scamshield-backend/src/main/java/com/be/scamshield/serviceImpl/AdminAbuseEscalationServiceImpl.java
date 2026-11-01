@@ -228,8 +228,8 @@ public class AdminAbuseEscalationServiceImpl implements IAdminAbuseEscalationSer
                         .createdAt(action.getCreatedAt()).build())
                 .evidences(evidences.stream().map(evidence -> Evidence.builder()
                         .id(evidence.getId()).evidenceType(evidence.getEvidenceType()).fileName(evidence.getFileName())
-                        .fileUrl(evidence.getFileUrl()).sourceUrl(evidence.getSourceUrl())
-                        .extractedText(evidence.getExtractedText()).ocrText(evidence.getOcrText())
+                        .fileUrl(evidence.getFileUrl())
+                        .ocrText(evidence.getOcrText())
                         .verificationStatus(EvidenceVerificationStatus.fromStoredValue(evidence.getVerificationStatus())).createdAt(evidence.getCreatedAt()).build()).toList())
                 .build();
     }

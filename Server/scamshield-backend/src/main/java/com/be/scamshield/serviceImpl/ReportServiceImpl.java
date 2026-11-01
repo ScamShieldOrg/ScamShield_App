@@ -1,6 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.external.SupabaseStorageService;
+import com.be.scamshield.constant.VietnamProvince;
 
 import com.be.scamshield.dto.request.CreateReportRequest;
 import com.be.scamshield.dto.request.EvidenceItemDto;
@@ -31,10 +32,17 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +61,10 @@ public class ReportServiceImpl implements IReportService {
     public ReportResponse createReport(CreateReportRequest request, List<MultipartFile> files, UserPrincipal currentUser) {
         // Check ownership before creating indicators/reports, uploading files, or awarding points.
         User reporterUser = resolveReporterUser(currentUser);
+        String regionCode = StringUtils.hasText(request.getRegionCode()) ? request.getRegionCode().strip() : null;
+        if (regionCode != null && VietnamProvince.fromCode(regionCode).isEmpty()) {
+            throw new BadRequestException("Mã tỉnh/thành không hợp lệ; vui lòng chọn từ danh sách tỉnh/thành");
+        }
         if ("PHONE".equalsIgnoreCase(request.getThreatType().trim())
                 && StringUtils.hasText(reporterUser.getPhoneNumber())
                 && normalizePhoneForOwnershipCheck(reporterUser.getPhoneNumber())
@@ -81,17 +93,20 @@ public class ReportServiceImpl implements IReportService {
         ScamCategory category = resolveCategory(request.getCategory());
 
         // 4. Create & Save Report Entity
+        ServletRequestAttributes attributes = RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes servletAttributes
+                ? servletAttributes : null;
+        String clientIp = attributes != null ? attributes.getRequest().getRemoteAddr() : null;
         Report report = Report.builder()
+                .ipHash(hashClientSignal(clientIp))
                 .reporterUser(reporterUser)
                 .indicator(indicator)
                 .category(category)
+                .regionCode(regionCode)
                 .description(request.getDescription())
-                .reportedMessage(request.getDescription())
+                .reportedMessage(StringUtils.hasText(request.getReportedMessage()) ? request.getReportedMessage() : null)
                 .status("PENDING")
-                .priorityScore(BigDecimal.valueOf(1.0))
-                .reportCountSignal(1)
-                .coordinatedReportSuspected(false)
-                .moderationLocked(false)
+
+
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -123,11 +138,13 @@ public class ReportServiceImpl implements IReportService {
             if (files != null && !files.isEmpty()) {
                 for (MultipartFile file : files) {
                     if (!file.isEmpty()) {
+                        String evidenceType = resolveEvidenceType(null, file.getOriginalFilename(), null);
                         SupabaseStorageService.UploadResult uploadResult = supabaseStorageService.uploadFile(file, "evidences");
                         uploadedKeys.add(uploadResult.objectKey());
                         ReportEvidence evidence = ReportEvidence.builder()
                                 .report(savedReport)
-                                .evidenceType(getEvidenceType(file.getOriginalFilename()))
+                                .evidenceType(evidenceType)
+                                .fileName(file.getOriginalFilename())
                                 .fileUrl(uploadResult.fileUrl())
                                 .fileHash(uploadResult.fileHash())
                                 .verificationStatus("PENDING")
@@ -156,7 +173,8 @@ public class ReportServiceImpl implements IReportService {
                 if (StringUtils.hasText(dto.getFileUrl())) {
                     ReportEvidence evidence = ReportEvidence.builder()
                             .report(savedReport)
-                            .evidenceType(StringUtils.hasText(dto.getEvidenceType()) ? dto.getEvidenceType() : "IMAGE")
+                            .evidenceType(resolveEvidenceType(dto.getEvidenceType(), dto.getFileName(), dto.getFileUrl()))
+                            .fileName(dto.getFileName())
                             .fileUrl(dto.getFileUrl())
                             .fileHash(dto.getFileHash())
                             .verificationStatus("PENDING")
@@ -173,7 +191,7 @@ public class ReportServiceImpl implements IReportService {
                 if (StringUtils.hasText(url)) {
                     ReportEvidence evidence = ReportEvidence.builder()
                             .report(savedReport)
-                            .evidenceType("IMAGE")
+                            .evidenceType(resolveEvidenceType(null, null, url))
                             .fileUrl(url)
                             .verificationStatus("PENDING")
                             .createdAt(LocalDateTime.now())
@@ -271,12 +289,43 @@ public class ReportServiceImpl implements IReportService {
                 .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin tài khoản người dùng đăng nhập."));
     }
 
-    private String getEvidenceType(String filename) {
-        if (filename == null) return "IMAGE";
-        String lower = filename.toLowerCase();
+    private String resolveEvidenceType(String declaredType, String fileName, String fileUrl) {
+        String declared = StringUtils.hasText(declaredType) ? declaredType.strip().toUpperCase(Locale.ROOT) : null;
+        if (declared != null) {
+            declared = switch (declared) {
+                case "JPEG" -> "JPG";
+                case "JPG", "PNG", "PDF" -> declared;
+                default -> throw new BadRequestException("Loại minh chứng chỉ được là JPG, PNG hoặc PDF");
+            };
+        }
+        String name = fileName;
+        if (!StringUtils.hasText(name) && StringUtils.hasText(fileUrl)) {
+            try {
+                name = URI.create(fileUrl).getPath();
+            } catch (IllegalArgumentException ex) {
+                throw new BadRequestException("URL minh chứng không hợp lệ");
+            }
+        }
+        String detected = detectEvidenceType(name);
+        if (StringUtils.hasText(fileName) && detected == null) {
+            throw new BadRequestException("Tệp minh chứng chỉ hỗ trợ JPG, PNG hoặc PDF");
+        }
+        if (declared != null && detected != null && !declared.equals(detected)) {
+            throw new BadRequestException("Loại minh chứng không khớp định dạng tệp");
+        }
+        if (detected == null && declared == null) {
+            throw new BadRequestException("Không xác định được định dạng minh chứng; cần tên tệp hoặc evidenceType JPG, PNG, PDF");
+        }
+        return detected != null ? detected : declared;
+    }
+
+    private String detectEvidenceType(String filename) {
+        if (!StringUtils.hasText(filename)) return null;
+        String lower = filename.strip().toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "JPG";
+        if (lower.endsWith(".png")) return "PNG";
         if (lower.endsWith(".pdf")) return "PDF";
-        if (lower.endsWith(".doc") || lower.endsWith(".docx")) return "DOCUMENT";
-        return "IMAGE";
+        return null;
     }
 
     private ReportResponse mapToResponse(Report report, List<ReportEvidence> evidences, int rewardPoints) {
@@ -299,6 +348,8 @@ public class ReportServiceImpl implements IReportService {
                 .threatType(report.getIndicator() != null ? report.getIndicator().getType() : "")
                 .categoryName(report.getCategory() != null ? report.getCategory().getName() : "")
                 .description(report.getDescription())
+                .reportedMessage(report.getReportedMessage())
+                .regionCode(report.getRegionCode())
                 .status(report.getStatus())
                 .rewardPoints(rewardPoints)
                 .evidenceCount(evidenceResponses.size())
@@ -306,4 +357,14 @@ public class ReportServiceImpl implements IReportService {
                 .createdAt(report.getCreatedAt())
                 .build();
     }
-}
+    private String hashClientSignal(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.trim().getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", e);
+        }
+    }}

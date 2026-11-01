@@ -37,6 +37,7 @@ export function ReportForm({
   const [targetIdentifier, setTargetIdentifier] = useState("")
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
+  const [reportedMessage, setReportedMessage] = useState("")
   const [attachments, setAttachments] = useState<ReportAttachment[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -161,6 +162,7 @@ export function ReportForm({
         targetIdentifier: targetIdentifier.trim(),
         category,
         description: description.trim(),
+        reportedMessage,
         attachments: attachments.map((item) => item.file),
         isConfirmed,
       })
@@ -171,6 +173,7 @@ export function ReportForm({
       setTargetIdentifier("")
       setCategory("")
       setDescription("")
+      setReportedMessage("")
       setAttachments([])
       objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
       objectUrls.current.clear()
@@ -388,6 +391,31 @@ export function ReportForm({
                 Vui lòng mô tả ngắn gọn hành vi cần báo cáo.
               </p>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              htmlFor="report-message"
+              className="text-xs font-bold text-[#131B2E] dark:text-foreground"
+            >
+              Nội dung tin nhắn lừa đảo (tùy chọn)
+            </label>
+            <textarea
+              id="report-message"
+              rows={4}
+              maxLength={10000}
+              aria-describedby="report-message-hint"
+              value={reportedMessage}
+              onChange={(e) => setReportedMessage(e.target.value)}
+              placeholder="Dán nguyên văn tin nhắn nghi lừa đảo mà bạn nhận được..."
+              className="w-full resize-y rounded-xl border border-[#C6C6CE]/50 bg-[#FAF8FF] p-3 text-xs leading-relaxed text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-muted/30 dark:text-foreground"
+            />
+            <p
+              id="report-message-hint"
+              className="text-[11px] text-muted-foreground"
+            >
+              Có thể bỏ trống nếu không có tin nhắn. Tối đa 10.000 ký tự.
+            </p>
           </div>
 
           {/* Evidence Attachments Upload Zone */}
