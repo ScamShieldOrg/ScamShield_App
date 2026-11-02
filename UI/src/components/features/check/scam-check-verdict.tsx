@@ -11,6 +11,10 @@ import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import type { ScamCheckResult } from "@/features/check/types/scam-check.types"
 import { cn } from "@/lib/utils"
+import {
+  parseCouncilExplanation,
+  ScamCouncilSummary,
+} from "./scam-council-summary"
 
 const appearances = {
   LOW_RISK: {
@@ -63,10 +67,13 @@ export function ScamCheckVerdict({ result }: { result: ScamCheckResult }) {
         ? appearances.SCAM_RISK
         : result.verdict === "SUSPICIOUS"
           ? appearances.SUSPICIOUS
-        : appearances.UNKNOWN
+          : appearances.UNKNOWN
   const { Icon } = appearance
   const isVisoBert = result.decidedByStage === "VISOBERT"
-  const isAi = isVisoBert || result.decidedByStage === "LLM" || result.decidedByStage === "URL_REPUTATION"
+  const isAi =
+    isVisoBert ||
+    result.decidedByStage === "LLM" ||
+    result.decidedByStage === "URL_REPUTATION"
   const confidence =
     result.confidence != null &&
     Number.isFinite(result.confidence) &&
@@ -76,8 +83,15 @@ export function ScamCheckVerdict({ result }: { result: ScamCheckResult }) {
       : null
   const isUrlReputation = result.decidedByStage === "URL_REPUTATION"
   const isUncertainUrl = isUrlReputation && result.verdict === "UNKNOWN"
+  const councilAudit = result.aiDetails?.councilAudit ?? null
+  const parsedCouncil = parseCouncilExplanation(result.explanation)
+  const isCouncil = councilAudit != null || parsedCouncil.hasCouncilMarkup
   const showConfidence =
-    confidence != null && result.verdict !== "UNKNOWN" && !isUrlReputation
+    confidence != null &&
+    confidence > 0 &&
+    result.verdict !== "UNKNOWN" &&
+    !isUrlReputation &&
+    !isCouncil
   const stage =
     {
       BLACKLIST: "Danh sách cảnh báo đã xác minh",
@@ -153,13 +167,15 @@ export function ScamCheckVerdict({ result }: { result: ScamCheckResult }) {
                 appearance.color
               )}
             >
-              {isUncertainUrl ? "Cần xác minh trước khi sử dụng" : appearance.badge}
+              {isUncertainUrl
+                ? "Cần xác minh trước khi sử dụng"
+                : appearance.badge}
             </span>
           </div>
         </div>
 
         {isUncertainUrl && (
-          <div className="rounded-2xl border border-amber-600/20 bg-amber-500/5 p-5 text-sm leading-relaxed dark:border-amber-400/20 sm:p-6 sm:text-base">
+          <div className="rounded-2xl border border-amber-600/20 bg-amber-500/5 p-5 text-sm leading-relaxed sm:p-6 sm:text-base dark:border-amber-400/20">
             <h3 className="font-semibold text-amber-800 dark:text-amber-300">
               Kết quả đối chiếu nguồn cảnh báo
             </h3>
@@ -209,7 +225,17 @@ export function ScamCheckVerdict({ result }: { result: ScamCheckResult }) {
           </div>
         )}
 
-        {!isUncertainUrl && result.explanation && (
+        {!isUncertainUrl && isCouncil && (
+          <ScamCouncilSummary
+            verdict={result.verdict}
+            parsed={parsedCouncil}
+            councilAudit={councilAudit}
+            accentColorClass={appearance.color}
+            accentSurfaceClass={appearance.iconSurface}
+          />
+        )}
+
+        {!isUncertainUrl && !isCouncil && result.explanation && (
           <p className="text-sm leading-relaxed break-words whitespace-pre-line sm:text-base">
             {explanationParts
               ? explanationParts.map((part, index) => {
@@ -229,7 +255,9 @@ export function ScamCheckVerdict({ result }: { result: ScamCheckResult }) {
                       className="font-semibold text-primary underline underline-offset-2 hover:text-primary/80 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                       aria-label={`Tìm hiểu ${source === "phishtank" ? "PhishTank" : "Google Safe Browsing"} (mở tab mới)`}
                     >
-                      {source === "phishtank" ? "PhishTank" : "Google Safe Browsing"}
+                      {source === "phishtank"
+                        ? "PhishTank"
+                        : "Google Safe Browsing"}
                     </a>
                   )
                 })
@@ -293,44 +321,68 @@ export function ScamCheckVerdict({ result }: { result: ScamCheckResult }) {
           <div className="space-y-5 rounded-2xl border border-border bg-muted/30 p-5">
             <h3 className="font-semibold">Chi tiết phân tích AI</h3>
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-              <p>Điểm rủi ro: <strong>{result.aiDetails.verdict.riskScore == null ? "Chưa xác định" : `${result.aiDetails.verdict.riskScore}/100`}</strong></p>
-              {result.aiDetails.verdict.scamType && <p>Phân loại AI: <strong>{result.aiDetails.verdict.scamType}</strong></p>}
+              <p>
+                Điểm rủi ro:{" "}
+                <strong>
+                  {result.aiDetails.verdict.riskScore == null
+                    ? "Chưa xác định"
+                    : `${result.aiDetails.verdict.riskScore}/100`}
+                </strong>
+              </p>
+              {result.aiDetails.verdict.scamType && (
+                <p>
+                  Phân loại AI:{" "}
+                  <strong>{result.aiDetails.verdict.scamType}</strong>
+                </p>
+              )}
             </div>
             {result.aiDetails.radarMetrics && (
               <div>
-                <h4 className="mb-3 text-sm font-semibold">Các dấu hiệu rủi ro</h4>
-                {isUrlReputation && <p className="mb-3 text-xs text-muted-foreground">Các chỉ số này không phải xác suất URL an toàn.</p>}
+                <h4 className="mb-3 text-sm font-semibold">
+                  Các dấu hiệu rủi ro
+                </h4>
+                {isUrlReputation && (
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    Các chỉ số này không phải xác suất URL an toàn.
+                  </p>
+                )}
                 <dl className="space-y-2">
-                  {([
-                    ["urgency", "Thúc giục khẩn cấp"],
-                    ["authority_impersonation", "Giả mạo thẩm quyền"],
-                    ["financial_lure", "Dụ dỗ tài chính"],
-                    ["suspicious_channel", "Kênh liên hệ đáng ngờ"],
-                    ["data_harvesting", "Thu thập dữ liệu"],
-                  ] as const).map(([key, label]) => (
-                    <div key={key} className="grid grid-cols-[minmax(0,1fr)_3rem] items-center gap-2 text-sm">
-                      <dt>{label}</dt><dd className="text-right tabular-nums">{result.aiDetails!.radarMetrics![key]}/100</dd>
-                      <div className="col-span-2 h-2 overflow-hidden rounded-full bg-border" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={result.aiDetails!.radarMetrics![key]}>
-                        <div className={cn("h-full", appearance.meter)} style={{ width: `${result.aiDetails!.radarMetrics![key]}%` }} />
+                  {(
+                    [
+                      ["urgency", "Thúc giục khẩn cấp"],
+                      ["authority_impersonation", "Giả mạo thẩm quyền"],
+                      ["financial_lure", "Dụ dỗ tài chính"],
+                      ["suspicious_channel", "Kênh liên hệ đáng ngờ"],
+                      ["data_harvesting", "Thu thập dữ liệu"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <div
+                      key={key}
+                      className="grid grid-cols-[minmax(0,1fr)_3rem] items-center gap-2 text-sm"
+                    >
+                      <dt>{label}</dt>
+                      <dd className="text-right tabular-nums">
+                        {result.aiDetails!.radarMetrics![key]}/100
+                      </dd>
+                      <div
+                        className="col-span-2 h-2 overflow-hidden rounded-full bg-border"
+                        role="meter"
+                        aria-label={label}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={result.aiDetails!.radarMetrics![key]}
+                      >
+                        <div
+                          className={cn("h-full", appearance.meter)}
+                          style={{
+                            width: `${result.aiDetails!.radarMetrics![key]}%`,
+                          }}
+                        />
                       </div>
                     </div>
                   ))}
                 </dl>
               </div>
-            )}
-            {result.aiDetails.councilAudit && (
-              <details className="text-sm">
-                <summary className="cursor-pointer font-semibold">Thông tin hội đồng đánh giá</summary>
-                <div className="mt-3 space-y-2">
-                  {result.aiDetails.councilAudit.consensusRatio && <p>Mức đồng thuận: {result.aiDetails.councilAudit.consensusRatio}</p>}
-                  {result.aiDetails.councilAudit.leadModel && <p>Mô hình điều phối: {result.aiDetails.councilAudit.leadModel}</p>}
-                  {result.aiDetails.councilAudit.earlyExit && <p>Hội đồng kết luận sớm.</p>}
-                  {result.aiDetails.councilAudit.defenderIntervened && <p>Có bước phản biện bổ sung.</p>}
-                  {result.aiDetails.councilAudit.agents.map((agent, index) => (
-                    <p key={`${agent.role}-${index}`}>{agent.role}: {agent.verdict} ({agent.score}/100)</p>
-                  ))}
-                </div>
-              </details>
             )}
           </div>
         )}

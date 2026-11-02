@@ -328,7 +328,7 @@ export function GuestScamCheck() {
       <div className="sr-only" role="status" aria-live="polite">
         {result
           ? `Đã có kết quả kiểm tra số ${result.checkId}. ${
-              `${result.verdict === "LOW_RISK" ? "Mức độ rủi ro thấp" : result.verdict === "SCAM_RISK" ? "Có nguy cơ lừa đảo" : result.verdict === "SUSPICIOUS" ? "Có dấu hiệu đáng ngờ" : "Chưa đủ cơ sở kết luận"}. ${result.explanation || ""}`
+              `${result.verdict === "LOW_RISK" ? "Mức độ rủi ro thấp" : result.verdict === "SCAM_RISK" ? "Có nguy cơ lừa đảo" : result.verdict === "SUSPICIOUS" ? "Có dấu hiệu đáng ngờ" : "Chưa đủ cơ sở kết luận"}.`
             }`
           : ""}
       </div>
