@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -110,6 +112,26 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
 
         List<DisputeEvidence> evidences = evidenceRepository.findByDisputeIdOrderByCreatedAtAscIdAsc(disputeId);
         return mapToModeratorDisputeResponse(dispute, evidences);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getEvidenceDownloadUrl(String idOrCode, Long evidenceId) {
+        Long disputeId = parseDisputeId(idOrCode);
+        DisputeEvidence evidence = evidenceRepository.findById(evidenceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài liệu bằng chứng"));
+        if (evidence.getDispute() == null || !disputeId.equals(evidence.getDispute().getId())) {
+            throw new ResourceNotFoundException("Tài liệu không thuộc hồ sơ khiếu nại này");
+        }
+
+        String disposition = buildAttachmentDisposition(evidence.getFileName());
+        if (StringUtils.hasText(evidence.getStorageObjectKey())) {
+            return storageService.createDisputeDownloadUrl(evidence.getStorageObjectKey(), disposition);
+        }
+        if (!StringUtils.hasText(evidence.getFileUrl())) {
+            throw new ResourceNotFoundException("Tài liệu chưa có đường dẫn tải xuống");
+        }
+        return evidence.getFileUrl();
     }
 
     @Override
@@ -380,21 +402,21 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
     private ModeratorEvidenceResponse mapToModeratorEvidenceResponse(DisputeEvidence ev) {
         if (ev == null) return null;
         String fileUrl = ev.getFileUrl();
-        String downloadUrl = ev.getFileUrl();
+        String downloadUrl = null;
         if (StringUtils.hasText(ev.getStorageObjectKey())) {
             try {
                 fileUrl = storageService.createDisputeDownloadUrl(
                         ev.getStorageObjectKey(), "inline");
-                String safeFileName = ev.getFileName() == null
-                        ? "evidence"
-                        : ev.getFileName().replaceAll("[^A-Za-z0-9._-]", "_");
                 downloadUrl = storageService.createDisputeDownloadUrl(
-                        ev.getStorageObjectKey(), "attachment; filename=\"" + safeFileName + "\"");
+                        ev.getStorageObjectKey(), buildAttachmentDisposition(ev.getFileName()));
             } catch (Exception ex) {
                 log.warn("Could not create signed URLs for dispute evidence {}", ev.getId());
                 fileUrl = null;
                 downloadUrl = null;
             }
+        } else if (StringUtils.hasText(ev.getFileUrl())) {
+            downloadUrl = "/api/moderator/disputes/" + ev.getDispute().getId()
+                    + "/evidence/" + ev.getId() + "/download";
         }
 
         return ModeratorEvidenceResponse.builder()
@@ -405,6 +427,17 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
                 .url(fileUrl)
                 .downloadUrl(downloadUrl)
                 .build();
+    }
+
+    private String buildAttachmentDisposition(String fileName) {
+        String originalName = StringUtils.hasText(fileName) ? fileName : "evidence";
+        String asciiFallback = originalName
+                .replaceAll("[^\\x20-\\x7E]", "_")
+                .replaceAll("[\\\\\";\\r\\n]", "_");
+        String encodedName = URLEncoder.encode(originalName, StandardCharsets.UTF_8)
+                .replace("+", "%20")
+                .replace("%7E", "~");
+        return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodedName;
     }
 
     private String determineEvidenceType(DisputeEvidence ev) {

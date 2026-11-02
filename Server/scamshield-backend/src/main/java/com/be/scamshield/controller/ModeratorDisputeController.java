@@ -17,6 +17,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,6 +25,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.URI;
 import java.util.Set;
 
 @RestController
@@ -69,6 +71,19 @@ public class ModeratorDisputeController {
     ) {
         ModeratorDisputeResponse response = moderatorDisputeService.getDisputeById(id);
         return ResponseEntity.ok(new BaseResponse<>(true, "Lấy chi tiết hồ sơ khiếu nại thành công", response));
+    }
+
+    @GetMapping("/{id}/evidence/{evidenceId}/download")
+    @Operation(summary = "Tải bằng chứng khiếu nại", description = "Tạo liên kết tải mới cho bằng chứng và chuyển trình duyệt tới tệp.")
+    public ResponseEntity<Void> downloadEvidence(
+            @PathVariable String id,
+            @PathVariable Long evidenceId
+    ) {
+        String downloadUrl = moderatorDisputeService.getEvidenceDownloadUrl(id, evidenceId);
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(downloadUrl))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment")
+                .build();
     }
 
     @PutMapping(value = {"/{id}/decision", "/{id}"})

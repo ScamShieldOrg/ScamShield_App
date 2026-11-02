@@ -97,7 +97,7 @@ export function DisputeDetailView({
         </div>
 
         {/* Card: Bằng chứng phản bác */}
-        <DisputeEvidencePreview evidences={item.evidences} />
+        <DisputeEvidencePreview disputeId={item.id} evidences={item.evidences} />
 
         {/* Card: Phán quyết kháng nghị Form */}
         <DisputeVerdictForm

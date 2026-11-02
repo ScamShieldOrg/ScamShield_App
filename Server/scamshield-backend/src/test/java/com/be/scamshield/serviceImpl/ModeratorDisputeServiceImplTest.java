@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -155,6 +156,36 @@ class ModeratorDisputeServiceImplTest {
         assertThat(item.getOriginalDecision()).isEqualTo("Approved");
         assertThat(item.getEvidences()).hasSize(1);
         assertThat(item.getEvidences().get(0).getType()).isEqualTo("pdf");
+        assertThat(item.getEvidences().get(0).getUrl()).isEqualTo("https://storage.example/doc1.pdf");
+        assertThat(item.getEvidences().get(0).getDownloadUrl())
+                .isEqualTo("/api/moderator/disputes/41/evidence/1/download");
+    }
+
+    @Test
+    @DisplayName("getDisputeById creates inline and attachment URLs with UTF-8 filename for stored evidence")
+    void getDisputeById_StoredEvidence_PreservesUtf8DownloadFilename() {
+        when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
+        DisputeEvidence evidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(sampleDispute)
+                .fileName("Tài liệu xác minh.pdf")
+                .fileUrl("s3://private/evidence.pdf")
+                .storageObjectKey("disputes/41/evidence.pdf")
+                .build();
+        when(evidenceRepository.findByDisputeIdOrderByCreatedAtAscIdAsc(41L)).thenReturn(List.of(evidence));
+        when(storageService.createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), anyString()))
+                .thenReturn("https://storage.example/signed");
+
+        ModeratorDisputeResponse response = service.getDisputeById("AP-2024-0041");
+
+        assertThat(response.getEvidences()).hasSize(1);
+        assertThat(response.getEvidences().get(0).getUrl()).isEqualTo("https://storage.example/signed");
+        assertThat(response.getEvidences().get(0).getDownloadUrl()).isEqualTo("https://storage.example/signed");
+        ArgumentCaptor<String> dispositionCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storageService, times(2)).createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), dispositionCaptor.capture());
+        assertThat(dispositionCaptor.getAllValues())
+                .contains("inline")
+                .anyMatch(value -> value.startsWith("attachment; filename=\"T_i li_u x_c minh.pdf\"; filename*=UTF-8''"));
     }
 
     @Test

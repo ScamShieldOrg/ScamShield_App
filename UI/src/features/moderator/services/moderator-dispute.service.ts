@@ -149,6 +149,24 @@ export async function getModeratorDisputeById(
   }
 }
 
+export async function downloadModeratorEvidenceFile(
+  downloadUrl: string,
+  fileName: string
+): Promise<void> {
+  const apiPath = downloadUrl.startsWith("/api/")
+    ? downloadUrl.slice("/api".length)
+    : downloadUrl
+  const response = await authorizeApi.get<Blob>(apiPath, { responseType: "blob" })
+  const objectUrl = URL.createObjectURL(response.data)
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}
+
 /**
  * PUT: Kiểm duyệt viên đưa ra phán quyết kháng nghị (RETRACT: Thu hồi chỉ số / UPHOLD: Duy trì quyết định gốc)
  */
