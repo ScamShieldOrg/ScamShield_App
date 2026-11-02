@@ -194,6 +194,36 @@ class ModeratorDisputeServiceImplTest {
     }
 
     @Test
+    @DisplayName("getDisputeById throws BadRequestException when code format is malformed")
+    void getDisputeById_InvalidCodeFormat_ThrowsBadRequestException() {
+        assertThatThrownBy(() -> service.getDisputeById("INVALID-CODE-XYZ"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Định dạng mã khiếu nại không hợp lệ");
+
+        assertThatThrownBy(() -> service.getDisputeById(""))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Mã hoặc ID hồ sơ khiếu nại không hợp lệ");
+    }
+
+    @Test
+    @DisplayName("getDisputeQueue returns empty items and preserves pagination when no disputes match")
+    void getDisputeQueue_EmptyResult_ReturnsValidPagination() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(disputeRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(Collections.emptyList(), pageable, 0));
+        when(disputeRepository.countByStatusIn(any())).thenReturn(0L);
+
+        ModeratorDisputeFilterRequest filter = new ModeratorDisputeFilterRequest();
+        ModeratorDisputeQueueResponse response = service.getDisputeQueue(filter, pageable);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getPendingCount()).isZero();
+        assertThat(response.getTotalItems()).isZero();
+        assertThat(response.getTotalPages()).isZero();
+    }
+
+    @Test
     @DisplayName("makeDecision with RETRACT verdict approves dispute and retracts confirmed indicator")
     void makeDecision_Retract_Success() {
         when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
@@ -352,5 +382,60 @@ class ModeratorDisputeServiceImplTest {
         assertThat(sampleDispute.getResolvedByUser()).isNull();
         verify(userRepository, never()).findByEmailOrPhoneNumber(any());
         verify(disputeRepository).save(sampleDispute);
+    }
+
+    @Test
+    @DisplayName("makeDecision accepts alias verdict APPROVED as RETRACT")
+    void makeDecision_AliasApproved_TreatedAsRetract() {
+        when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
+        when(userRepository.findByEmailOrPhoneNumber("moderator@scamshield.vn")).thenReturn(Optional.of(moderator));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DisputeVerdictRequest request = DisputeVerdictRequest.builder()
+                .verdict("APPROVED")
+                .reason("Bằng chứng đầy đủ tính pháp lý và thông tin đã được thẩm tra chuẩn xác.")
+                .build();
+
+        ModeratorDisputeResponse response = service.makeDecision("41", request, "moderator@scamshield.vn");
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo("Chấp nhận");
+        assertThat(sampleDispute.getStatus()).isEqualTo(DisputeStatus.APPROVED);
+        assertThat(confirmedIndicator.getStatus()).isEqualTo("RETRACTED");
+    }
+
+    @Test
+    @DisplayName("makeDecision accepts alias verdict REJECTED as UPHOLD")
+    void makeDecision_AliasRejected_TreatedAsUphold() {
+        when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
+        when(userRepository.findByEmailOrPhoneNumber("moderator@scamshield.vn")).thenReturn(Optional.of(moderator));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DisputeVerdictRequest request = DisputeVerdictRequest.builder()
+                .verdict("REJECTED")
+                .reason("Bằng chứng không chứng minh được quyền sử dụng hợp pháp của người yêu cầu.")
+                .build();
+
+        ModeratorDisputeResponse response = service.makeDecision("41", request, "moderator@scamshield.vn");
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo("Từ chối");
+        assertThat(sampleDispute.getStatus()).isEqualTo(DisputeStatus.REJECTED);
+        assertThat(confirmedIndicator.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("makeDecision throws ResourceNotFoundException when dispute is not found")
+    void makeDecision_DisputeNotFound_ThrowsResourceNotFoundException() {
+        when(disputeRepository.findById(999L)).thenReturn(Optional.empty());
+
+        DisputeVerdictRequest request = DisputeVerdictRequest.builder()
+                .verdict("RETRACT")
+                .reason("Bằng chứng hợp lệ đủ 20 ký tự giải trình thẩm định...")
+                .build();
+
+        assertThatThrownBy(() -> service.makeDecision("999", request, "moderator@scamshield.vn"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("999");
     }
 }
