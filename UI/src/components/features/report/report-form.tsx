@@ -1,5 +1,11 @@
 "use client"
 
+import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
+
+import { Combobox } from "@base-ui/react/combobox"
+
+import { dashboardService } from "@/features/dashboard/services/dashboard.service"
+import type { DashboardRegionOption } from "@/features/dashboard/types/dashboard.types"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "react-toastify"
 import { cn } from "@/lib/utils"
@@ -35,6 +41,24 @@ export function ReportForm({
 }: ReportFormProps) {
   const [threatType, setThreatType] = useState<ReportThreatType | null>(null)
   const [targetIdentifier, setTargetIdentifier] = useState("")
+  const [regions, setRegions] = useState<DashboardRegionOption[]>([])
+  const [regionName, setRegionName] = useState("")
+  const [regionError, setRegionError] = useState("")
+  const regionRef = useRef<HTMLInputElement>(null)
+  const regionCode = regions.find((r) => r.name === regionName)?.code ?? ""
+  const loadRegions = () =>
+    dashboardService
+      .getFilters()
+      .then((data) => {
+        setRegions(data.regions)
+        setRegionError("")
+      })
+      .catch(() =>
+        setRegionError("Không thể tải tỉnh/thành. Vui lòng thử lại.")
+      )
+  useEffect(() => {
+    void loadRegions()
+  }, [])
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
   const [reportedMessage, setReportedMessage] = useState("")
@@ -59,6 +83,7 @@ export function ReportForm({
     threatType &&
     targetIdentifier.trim() &&
     category.trim() &&
+    regionCode &&
     description.trim() &&
     attachments.length > 0 &&
     isConfirmed
@@ -122,6 +147,7 @@ export function ReportForm({
         !threatType ||
           !targetIdentifier.trim() ||
           !category.trim() ||
+          !regionCode ||
           !description.trim()
           ? "Vui lòng nhập đầy đủ các trường thông tin bắt buộc."
           : attachments.length === 0
@@ -142,6 +168,11 @@ export function ReportForm({
                     "button"
                   )
                 : confirmationRef.current
+      if (!regionCode) {
+        regionRef.current?.focus()
+        regionRef.current?.scrollIntoView({ block: "center" })
+        return
+      }
       firstMissing?.focus({ preventScroll: true })
       firstMissing?.scrollIntoView({
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -159,10 +190,14 @@ export function ReportForm({
     try {
       await onSubmit({
         threatType,
-        targetIdentifier: targetIdentifier.trim(),
+        targetIdentifier:
+          threatType === "PHONE"
+            ? targetIdentifier.replace(/\s/g, "")
+            : targetIdentifier.trim(),
         category,
         description: description.trim(),
         reportedMessage,
+        regionCode,
         attachments: attachments.map((item) => item.file),
         isConfirmed,
       })
@@ -172,6 +207,7 @@ export function ReportForm({
       setThreatType(null)
       setTargetIdentifier("")
       setCategory("")
+      setRegionName("")
       setDescription("")
       setReportedMessage("")
       setAttachments([])
@@ -287,7 +323,11 @@ export function ReportForm({
                   aria-describedby={
                     targetMissing ? "report-target-error" : undefined
                   }
-                  value={targetIdentifier}
+                  value={
+                    threatType === "PHONE" || threatType === null
+                      ? formatReportPhoneInput(targetIdentifier)
+                      : targetIdentifier
+                  }
                   onChange={(e) => setTargetIdentifier(e.target.value)}
                   placeholder={
                     !threatType
@@ -312,6 +352,79 @@ export function ReportForm({
             </div>
 
             {/* Category Dropdown */}
+            <div className="space-y-2">
+              <label htmlFor="report-region" className="text-sm font-semibold">
+                Tỉnh/thành của bạn khi gửi báo cáo{" "}
+                <span className="text-destructive">*</span>
+              </label>
+              <Combobox.Root
+                items={regions.map((r) => r.name)}
+                value={regionCode ? regionName : null}
+                inputValue={regionName}
+                onInputValueChange={setRegionName}
+                onValueChange={(value) => setRegionName(value ?? "")}
+                disabled={isBusy || regions.length === 0}
+              >
+                <Combobox.Input
+                  ref={regionRef}
+                  id="report-region"
+                  required
+                  autoComplete="off"
+                  placeholder="Nhập tên để tìm và chọn tỉnh/thành"
+                  aria-invalid={hasAttemptedSubmit && !regionCode}
+                  aria-describedby="report-region-help"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-ring/30 focus:outline-none"
+                />
+                <Combobox.Portal>
+                  <Combobox.Positioner
+                    anchor={regionRef}
+                    align="start"
+                    sideOffset={6}
+                    className="z-50 w-[var(--anchor-width)] max-w-[var(--available-width)]"
+                  >
+                    <Combobox.Popup className="w-full overflow-hidden rounded-xl border border-border bg-popover py-1 text-sm text-popover-foreground shadow-lg">
+                      <Combobox.Empty className="px-3 py-3 text-muted-foreground">
+                        Không tìm thấy tỉnh/thành phù hợp.
+                      </Combobox.Empty>
+                      <Combobox.List className="max-h-64 overflow-y-auto overscroll-contain">
+                        {(name: string) => (
+                          <Combobox.Item
+                            key={name}
+                            value={name}
+                            className="cursor-pointer px-3 py-2.5 transition-colors outline-none data-[highlighted]:bg-muted data-[selected]:font-semibold"
+                          >
+                            {name}
+                          </Combobox.Item>
+                        )}
+                      </Combobox.List>
+                    </Combobox.Popup>
+                  </Combobox.Positioner>
+                </Combobox.Portal>
+              </Combobox.Root>
+              <p
+                id="report-region-help"
+                className="text-xs text-muted-foreground"
+              >
+                Chọn tỉnh/thành nơi bạn đang có mặt khi gửi báo cáo.
+              </p>
+              {hasAttemptedSubmit && !regionCode && (
+                <p role="alert" className="text-sm text-destructive">
+                  Vui lòng chọn một tỉnh/thành trong danh sách.
+                </p>
+              )}
+              {regionError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {regionError}{" "}
+                  <button
+                    type="button"
+                    onClick={() => void loadRegions()}
+                    className="underline"
+                  >
+                    Tải lại danh sách
+                  </button>
+                </p>
+              )}
+            </div>
             <div className="space-y-1.5">
               <label
                 htmlFor="report-category"

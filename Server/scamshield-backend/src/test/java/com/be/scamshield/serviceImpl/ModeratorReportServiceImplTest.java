@@ -39,6 +39,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ModeratorReportServiceImplTest {
+    @Mock private IndicatorRepository indicatorRepository;
 
     @Mock
     private ReportRepository reportRepository;
@@ -307,8 +308,8 @@ class ModeratorReportServiceImplTest {
         verify(auditLogRepository, times(2)).save(any(AuditLog.class));
         verify(notificationRepository, times(2)).save(any(Notification.class));
         verify(reputationTransactionRepository, times(2)).save(any(ReputationTransaction.class));
-        assertThat(testUser.getReputationPoints()).isEqualTo(80); // 50 + 30
-        assertThat(secondUser.getReputationPoints()).isEqualTo(40); // 10 + 30
+        assertThat(testUser.getReputationPoints()).isEqualTo(100); // 50 + 50
+        assertThat(secondUser.getReputationPoints()).isEqualTo(60); // 10 + 50
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.be.scamshield.controller;
 
 import com.be.scamshield.config.SecurityConfig;
+import com.be.scamshield.service.IOwnReportService;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.response.*;
 import com.be.scamshield.security.CustomAccessDeniedHandler;
@@ -27,6 +28,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import org.springframework.http.MediaType;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -34,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(UserReportTrackingController.class)
 @Import({SecurityConfig.class, JwtAuthenticationEntryPoint.class, CustomAccessDeniedHandler.class})
 class UserReportTrackingControllerTest {
+    @MockitoBean private IOwnReportService ownReportService;
 
     private static final String BASE_URL = "/api/user/reports";
 
@@ -61,6 +68,37 @@ class UserReportTrackingControllerTest {
                 .build();
 
         auth = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
+    }
+
+    @Test
+    void ownerCanWithdrawReport() throws Exception {
+        mvc.perform(delete(BASE_URL + "/41").with(authentication(auth)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.isSuccess").value(true));
+        verify(ownReportService).withdraw(eq(41L), any(UserPrincipal.class));
+    }
+
+    @Test
+    void ownerCanUpdateReport() throws Exception {
+        mvc.perform(put(BASE_URL + "/41").with(authentication(auth)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"Thông tin bổ sung cho báo cáo\"}"))
+                .andExpect(status().isOk());
+        verify(ownReportService).update(eq(41L), any(), any(UserPrincipal.class));
+    }
+
+    @Test
+    void updateRejectsEmptyDescriptionAndInvalidEvidenceBeforeCallingService() throws Exception {
+        mvc.perform(put(BASE_URL + "/41").with(authentication(auth)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"\",\"evidences\":[{\"fileUrl\":\"\"}]}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(ownReportService);
+    }
+
+    @Test
+    void anonymousCannotEditOrWithdraw() throws Exception {
+        mvc.perform(delete(BASE_URL + "/41")).andExpect(status().isUnauthorized());
+        mvc.perform(put(BASE_URL + "/41").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(ownReportService);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.constant.VietnamProvince;
 
@@ -62,7 +63,7 @@ public class ReportServiceImpl implements IReportService {
         // Check ownership before creating indicators/reports, uploading files, or awarding points.
         User reporterUser = resolveReporterUser(currentUser);
         String regionCode = StringUtils.hasText(request.getRegionCode()) ? request.getRegionCode().strip() : null;
-        if (regionCode != null && VietnamProvince.fromCode(regionCode).isEmpty()) {
+        if (regionCode == null || VietnamProvince.fromCode(regionCode).isEmpty()) {
             throw new BadRequestException("Mã tỉnh/thành không hợp lệ; vui lòng chọn từ danh sách tỉnh/thành");
         }
         if ("PHONE".equalsIgnoreCase(request.getThreatType().trim())
@@ -201,15 +202,8 @@ public class ReportServiceImpl implements IReportService {
             }
         }
 
-        // 7. Award Reputation Points (+50 points for submitting a report)
-        int rewardPoints = 50;
-        if (reporterUser != null) {
-            int currentPoints = reporterUser.getReputationPoints() != null ? reporterUser.getReputationPoints() : 0;
-            reporterUser.setReputationPoints(currentPoints + rewardPoints);
-            userRepository.save(reporterUser);
-        }
-
-        return mapToResponse(savedReport, evidenceList, rewardPoints);
+        // Reputation is awarded only after a moderator approves the report.
+        return mapToResponse(savedReport, evidenceList, 0);
     }
 
     @Override
@@ -287,45 +281,6 @@ public class ReportServiceImpl implements IReportService {
         }
         return userRepository.findById(currentUser.getId())
                 .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin tài khoản người dùng đăng nhập."));
-    }
-
-    private String resolveEvidenceType(String declaredType, String fileName, String fileUrl) {
-        String declared = StringUtils.hasText(declaredType) ? declaredType.strip().toUpperCase(Locale.ROOT) : null;
-        if (declared != null) {
-            declared = switch (declared) {
-                case "JPEG" -> "JPG";
-                case "JPG", "PNG", "PDF" -> declared;
-                default -> throw new BadRequestException("Loại minh chứng chỉ được là JPG, PNG hoặc PDF");
-            };
-        }
-        String name = fileName;
-        if (!StringUtils.hasText(name) && StringUtils.hasText(fileUrl)) {
-            try {
-                name = URI.create(fileUrl).getPath();
-            } catch (IllegalArgumentException ex) {
-                throw new BadRequestException("URL minh chứng không hợp lệ");
-            }
-        }
-        String detected = detectEvidenceType(name);
-        if (StringUtils.hasText(fileName) && detected == null) {
-            throw new BadRequestException("Tệp minh chứng chỉ hỗ trợ JPG, PNG hoặc PDF");
-        }
-        if (declared != null && detected != null && !declared.equals(detected)) {
-            throw new BadRequestException("Loại minh chứng không khớp định dạng tệp");
-        }
-        if (detected == null && declared == null) {
-            throw new BadRequestException("Không xác định được định dạng minh chứng; cần tên tệp hoặc evidenceType JPG, PNG, PDF");
-        }
-        return detected != null ? detected : declared;
-    }
-
-    private String detectEvidenceType(String filename) {
-        if (!StringUtils.hasText(filename)) return null;
-        String lower = filename.strip().toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "JPG";
-        if (lower.endsWith(".png")) return "PNG";
-        if (lower.endsWith(".pdf")) return "PDF";
-        return null;
     }
 
     private ReportResponse mapToResponse(Report report, List<ReportEvidence> evidences, int rewardPoints) {

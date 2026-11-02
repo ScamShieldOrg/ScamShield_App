@@ -1,17 +1,12 @@
 "use client"
 
+import { RecentReportsTable } from "./recent-reports-table"
 import { useState } from "react"
 import {
   MagnifyingGlass,
   CaretDown,
   CalendarBlank,
   ArrowsClockwise,
-  Phone,
-  Bank,
-  Globe,
-  ChatCircle,
-  FileCode,
-  Paperclip,
 } from "@phosphor-icons/react"
 import {
   TrackingReportItem,
@@ -58,21 +53,28 @@ export function ReportTrackingTable({
   currentPage: controlledCurrentPage,
   totalPages = 1,
   totalItems = 0,
-  pageSize = 10,
+
   onPageChange,
   onRefresh,
 }: ReportTrackingTableProps) {
   const [internalSearch, setInternalSearch] = useState("")
-  const [internalStatus, setInternalStatus] = useState<"ALL" | ReportStatus>("ALL")
+  const [internalStatus, setInternalStatus] = useState<"ALL" | ReportStatus>(
+    "ALL"
+  )
   const [internalCategory, setInternalCategory] = useState("all")
   const [internalDays, setInternalDays] = useState("30")
   const [internalPage, setInternalPage] = useState(1)
 
-  const search = controlledSearch !== undefined ? controlledSearch : internalSearch
-  const selectedStatus = controlledStatus !== undefined ? controlledStatus : internalStatus
-  const selectedCategory = controlledCategory !== undefined ? controlledCategory : internalCategory
-  const selectedDays = controlledDays !== undefined ? controlledDays : internalDays
-  const currentPage = controlledCurrentPage !== undefined ? controlledCurrentPage : internalPage
+  const search =
+    controlledSearch !== undefined ? controlledSearch : internalSearch
+  const selectedStatus =
+    controlledStatus !== undefined ? controlledStatus : internalStatus
+  const selectedCategory =
+    controlledCategory !== undefined ? controlledCategory : internalCategory
+  const selectedDays =
+    controlledDays !== undefined ? controlledDays : internalDays
+  const currentPage =
+    controlledCurrentPage !== undefined ? controlledCurrentPage : internalPage
 
   const handleSearchChange = (val: string) => {
     if (onSearchChange) onSearchChange(val)
@@ -130,77 +132,18 @@ export function ReportTrackingTable({
       dotColor: "bg-[#64748B]",
     },
     {
+      status: "WITHDRAWN",
+      label: "Đã thu hồi",
+      count: statusCounts?.withdrawn ?? 0,
+      dotColor: "bg-slate-400",
+    },
+    {
       status: "REJECTED",
       label: "Bị từ chối",
       count: statusCounts?.rejected ?? 0,
       dotColor: "bg-[#EF4444]",
     },
   ]
-
-  const renderTargetIcon = (type: TrackingReportItem["targetType"]) => {
-    const props = { size: 18, weight: "fill" as const }
-    switch (type) {
-      case "PHONE":
-        return (
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#E2E7FF] text-[#008CC7] dark:bg-muted dark:text-primary">
-            <Phone {...props} />
-          </div>
-        )
-      case "BANK":
-        return (
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[#334155] dark:bg-slate-800 dark:text-slate-300">
-            <Bank {...props} />
-          </div>
-        )
-      case "WEBSITE":
-        return (
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
-            <Globe {...props} />
-          </div>
-        )
-      case "TELEGRAM":
-        return (
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
-            <ChatCircle {...props} />
-          </div>
-        )
-      case "APK":
-        return (
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-[#BA1A1A] dark:bg-rose-950/60 dark:text-rose-300">
-            <FileCode {...props} />
-          </div>
-        )
-    }
-  }
-
-  const renderSlaBadge = (item: TrackingReportItem) => {
-    switch (item.slaStatus) {
-      case "completed":
-        return (
-          <span className="text-[11px] font-semibold text-[#00875A] dark:text-emerald-400">
-            {item.slaTime}
-          </span>
-        )
-      case "processing":
-        return (
-          <span className="text-[11px] font-semibold text-[#B45309] dark:text-amber-400">
-            {item.slaTime}
-          </span>
-        )
-      case "merged":
-        return (
-          <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
-            {item.slaTime}
-          </span>
-        )
-      default:
-        return (
-          <span className="text-[11px] font-semibold text-[#45464D] dark:text-muted-foreground">
-            {item.slaTime}
-          </span>
-        )
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -217,7 +160,7 @@ export function ReportTrackingTable({
             type="text"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Tìm theo mã #RPT, Số điện thoại, STK ngân hàng, Tên miền..."
+            placeholder="Tìm số điện thoại, tài khoản ngân hàng, tên miền..."
             className="w-full rounded-xl border border-[#C6C6CE]/50 bg-white py-2.5 pr-4 pl-9 text-xs text-[#131B2E] placeholder:text-muted-foreground/70 focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-card dark:text-foreground"
           />
         </div>
@@ -321,113 +264,29 @@ export function ReportTrackingTable({
           )}
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-[#C6C6CE]/30 bg-[#FAF8FF] text-[11px] font-bold tracking-wider text-[#45464D] uppercase dark:border-border dark:bg-muted/30 dark:text-muted-foreground">
-                <th className="px-5 py-3">Mã báo cáo</th>
-                <th className="px-4 py-3">Mục tiêu nghi vấn</th>
-                <th className="px-4 py-3">Thủ đoạn</th>
-                <th className="px-4 py-3">Ngày gửi & Đối soát</th>
-                <th className="px-5 py-3">Bằng chứng</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#C6C6CE]/30 dark:divide-border">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <div className="size-6 animate-spin rounded-full border-2 border-[#008CC7] border-t-transparent dark:border-primary dark:border-t-transparent" />
-                      <p className="text-xs font-medium text-[#45464D] dark:text-muted-foreground">
-                        Đang tải dữ liệu tiến trình báo cáo...
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-1.5 text-[#45464D] dark:text-muted-foreground">
-                      <p className="text-xs font-semibold text-[#131B2E] dark:text-foreground">
-                        Chưa có báo cáo nào phù hợp
-                      </p>
-                      <p className="text-[11px]">
-                        Thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm để xem kết quả.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="transition-colors hover:bg-[#FAF8FF]/70 dark:hover:bg-muted/20"
-                  >
-                    {/* Mã báo cáo */}
-                    <td className="px-5 py-4 align-top">
-                      <p className="font-mono text-xs font-bold text-[#131B2E] dark:text-foreground">
-                        {item.id}
-                      </p>
-                      <p className="font-mono text-[10px] text-[#45464D] dark:text-muted-foreground">
-                        Hash: {item.hashId}
-                      </p>
-                    </td>
-
-                    {/* Mục tiêu */}
-                    <td className="px-4 py-4 align-top">
-                      <div className="flex items-start gap-3">
-                        {renderTargetIcon(item.targetType)}
-                        <div className="space-y-0.5">
-                          <p className="font-mono text-xs font-bold text-[#131B2E] dark:text-foreground">
-                            {item.targetValue}
-                          </p>
-                          <p className="text-[11px] text-[#45464D] dark:text-muted-foreground">
-                            {item.targetSub}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Thủ đoạn */}
-                    <td className="px-4 py-4 align-top">
-                      <span className="inline-block rounded-md bg-[#E2E7FF]/60 px-2.5 py-1 text-[11px] font-semibold text-[#131B2E] dark:bg-muted dark:text-foreground">
-                        {item.category}
-                      </span>
-                    </td>
-
-                    {/* Ngày gửi & Đối soát */}
-                    <td className="px-4 py-4 align-top">
-                      <p className="text-xs font-medium text-[#131B2E] dark:text-foreground">
-                        {item.submittedDate}
-                      </p>
-                      {renderSlaBadge(item)}
-                    </td>
-
-                    {/* Bằng chứng */}
-                    <td className="px-5 py-4 align-top">
-                      <div className="inline-flex items-center gap-1.5 rounded-full border border-[#C6C6CE]/50 bg-[#FAF8FF] px-2.5 py-1 text-[11px] font-semibold text-[#131B2E] dark:border-border dark:bg-muted dark:text-foreground">
-                        <Paperclip size={12} weight="bold" />
-                        <span>{item.evidenceBadge}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <RecentReportsTable
+          embedded
+          isLoading={isLoading}
+          onRefresh={onRefresh}
+          items={items.map((item) => ({
+            id: String(item.rawId ?? item.id),
+            targetValue: item.targetValue,
+            targetType:
+              item.targetType === "BANK"
+                ? "BANK_ACCOUNT"
+                : item.targetType === "WEBSITE"
+                  ? "WEBSITE"
+                  : "PHONE",
+            category: item.category,
+            submittedDate: item.submittedDate,
+            evidenceCount: Number(item.evidenceBadge.match(/\d+/)?.[0] ?? 0),
+            status: item.status,
+            rewardPoints: null,
+          }))}
+        />
 
         {/* Footer Pagination */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#C6C6CE]/30 px-5 py-3 dark:border-border">
-          <p className="text-[11px] text-[#45464D] dark:text-muted-foreground">
-            {totalItems > 0
-              ? `Hiển thị ${(currentPage - 1) * pageSize + 1} - ${Math.min(
-                  currentPage * pageSize,
-                  totalItems
-                )} trên tổng số ${totalItems} báo cáo`
-              : "Hiển thị 0 báo cáo"}
-          </p>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#C6C6CE]/30 px-5 py-3 dark:border-border">
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -458,7 +317,9 @@ export function ReportTrackingTable({
             })}
             <button
               type="button"
-              onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+              onClick={() =>
+                handlePageChange(Math.min(totalPages, currentPage + 1))
+              }
               disabled={currentPage >= totalPages || isLoading}
               className="rounded-lg border border-[#C6C6CE]/50 bg-white px-2.5 py-1 text-xs font-semibold text-[#45464D] hover:bg-[#FAF8FF] disabled:cursor-not-allowed disabled:opacity-40 dark:border-border dark:bg-card dark:text-muted-foreground"
             >
@@ -470,4 +331,3 @@ export function ReportTrackingTable({
     </div>
   )
 }
-

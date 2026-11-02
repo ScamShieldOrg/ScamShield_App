@@ -1,0 +1,95 @@
+package com.be.scamshield.serviceImpl;
+
+import com.be.scamshield.dto.request.UpdateOwnReportRequest;
+import com.be.scamshield.entity.*;
+import com.be.scamshield.repository.*;
+import com.be.scamshield.security.UserPrincipal;
+import com.be.scamshield.service.IUserReportTrackingService;
+import com.be.scamshield.exception.ResourceNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.web.server.ResponseStatusException;
+import java.time.Clock;
+import java.util.List;
+import java.util.Optional;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.assertj.core.api.Assertions.*;
+
+class OwnReportServiceTest {
+    private final ReportRepository reports = mock(ReportRepository.class);
+    private final IndicatorRepository indicators = mock(IndicatorRepository.class);
+    private final ReportEvidenceRepository evidence = mock(ReportEvidenceRepository.class);
+    private final ModerationActionRepository moderation = mock(ModerationActionRepository.class);
+    private final ScamCategorieRepository categories = mock(ScamCategorieRepository.class);
+    private final AuditLogRepository audits = mock(AuditLogRepository.class);
+    private final IUserReportTrackingService tracking = mock(IUserReportTrackingService.class);
+    private final OwnReportService service = new OwnReportService(reports, indicators, evidence, moderation,
+            categories, audits, tracking, Clock.systemUTC());
+    private final UserPrincipal principal = UserPrincipal.builder().id(7L).build();
+    private Report report;
+
+    @BeforeEach
+    void setup() {
+        report = Report.builder().id(1L).status("PENDING").reporterUser(User.builder().id(7L).build()).build();
+        when(reports.findByIdAndReporterUserId(1L, 7L)).thenReturn(Optional.of(report));
+    }
+
+    @Test
+    void withdrawPreservesRecordAndWritesAudit() {
+        service.withdraw(1L, principal);
+        assertThat(report.getStatus()).isEqualTo("WITHDRAWN");
+        verify(reports).save(report);
+        verify(reports, never()).delete(any(Report.class));
+        verify(audits).save(any(AuditLog.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"IN_REVIEW", "APPROVED", "REJECTED", "WITHDRAWN"})
+    void cannotChangeReportAfterPending(String status) {
+        report.setStatus(status);
+        assertThatThrownBy(() -> service.withdraw(1L, principal)).isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> service.update(1L, request(), principal)).isInstanceOf(ResponseStatusException.class);
+        verify(reports, never()).save(any());
+    }
+
+    @Test
+    void anotherOwnersReportIsHidden() {
+        when(reports.findByIdAndReporterUserId(1L, 7L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.withdraw(1L, principal)).isInstanceOf(ResourceNotFoundException.class);
+        verify(reports, never()).save(any());
+    }
+
+    @Test
+    void moderationHistoryBlocksEvenPendingReport() {
+        when(moderation.findByReportIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(new ModerationAction()));
+        assertThatThrownBy(() -> service.update(1L, request(), principal)).isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void updatePreservesEvidenceWhenNotProvidedAndDoesNotChangeTargetOrCreationTime() {
+        Indicator target = new Indicator();
+        report.setIndicator(target);
+        service.update(1L, request(), principal);
+        assertThat(report.getDescription()).isEqualTo("Mô tả mới");
+        assertThat(report.getIndicator()).isSameAs(target);
+        assertThat(report.getStatus()).isEqualTo("PENDING");
+        verifyNoInteractions(evidence);
+        verify(tracking).getReportDetail(7L, 1L);
+    }
+
+    @Test
+    void explicitEmptyEvidenceListClearsEvidence() {
+        var request = request();
+        request.setEvidences(List.of());
+        when(evidence.findByReportId(1L)).thenReturn(List.of(new ReportEvidence()));
+        service.update(1L, request, principal);
+        verify(evidence).deleteAll(anyList());
+    }
+
+    private UpdateOwnReportRequest request() {
+        return UpdateOwnReportRequest.builder().description("Mô tả mới").build();
+    }
+}

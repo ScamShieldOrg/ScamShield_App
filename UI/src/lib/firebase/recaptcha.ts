@@ -39,7 +39,7 @@ export async function getRecaptchaToken(containerId: string): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     verifier = new RecaptchaVerifier(getAuth(getFirebaseApp()), mount, {
-      size: "invisible",
+      size: "normal",
     })
     const token = await Promise.race([
       verifier.verify(),

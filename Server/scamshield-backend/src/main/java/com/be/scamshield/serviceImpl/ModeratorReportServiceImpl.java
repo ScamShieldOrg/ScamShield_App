@@ -44,6 +44,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             ReportStatus.IN_REVIEW.name()
     );
 
+    private final IndicatorRepository indicatorRepository;
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final UserRepository userRepository;
@@ -134,6 +135,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             UserPrincipal currentUser,
             ModeratorDecisionRequest request) {
 
+        indicatorRepository.lockForReport(reportId);
         Report report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ báo cáo với ID: " + reportId));
 
@@ -219,8 +221,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 String targetVal = r.getIndicator() != null ? r.getIndicator().getDisplayValue() : ("#RPT-" + r.getId());
 
                 if (request.getDecision() == ModeratorDecisionRequest.DecisionType.APPROVE) {
-                    // Reward reputation points (+30 points)
-                    int bonusPoints = 30;
+                    // Reward reputation points only after approval (+50 points per report).
+                    int bonusPoints = 50;
                     int currentPoints = reporter.getReputationPoints() != null ? reporter.getReputationPoints() : 0;
                     reporter.setReputationPoints(currentPoints + bonusPoints);
                     userRepository.save(reporter);

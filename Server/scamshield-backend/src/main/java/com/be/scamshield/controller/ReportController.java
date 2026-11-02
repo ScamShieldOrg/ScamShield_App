@@ -40,7 +40,7 @@ public class ReportController {
         
         ReportResponse response = reportService.createReport(request, files, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new BaseResponse<>(true, "Gửi báo cáo lừa đảo thành công! (+50 điểm uy tín)", response));
+                .body(new BaseResponse<>(true, "Gửi báo cáo lừa đảo thành công!", response));
     }
 
     @PreAuthorize("isAuthenticated()")
@@ -53,7 +53,7 @@ public class ReportController {
         
         ReportResponse response = reportService.createReport(request, null, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new BaseResponse<>(true, "Gửi báo cáo lừa đảo thành công! (+50 điểm uy tín)", response));
+                .body(new BaseResponse<>(true, "Gửi báo cáo lừa đảo thành công!", response));
     }
 
     @PreAuthorize("isAuthenticated()")

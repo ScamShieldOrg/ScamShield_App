@@ -66,6 +66,27 @@ class UserReportTrackingServiceImplTest {
     }
 
     @Test
+    void detailIncludesCategoryIdAndRegionForEditingWithoutDataLoss() {
+        ScamCategory category = ScamCategory.builder().id(2L).name("Trúng thưởng").build();
+        Indicator indicator = Indicator.builder().id(3L).type("PHONE").normalizedValue("0912345678").build();
+        Report report = Report.builder().id(41L).indicator(indicator).category(category).regionCode("01")
+                .status("PENDING").createdAt(fixedNow).updatedAt(fixedNow).build();
+        when(reportRepository.findByIdAndReporterUserId(41L, 1L)).thenReturn(Optional.of(report));
+        var detail = service.getReportDetail(1L, 41L);
+        assertThat(detail.getCategoryId()).isEqualTo(2L);
+        assertThat(detail.getRegionCode()).isEqualTo("01");
+    }
+
+    @Test
+    void withdrawalsDoNotLowerAccuracy() {
+        when(reportRepository.countByReporterUserId(1L)).thenReturn(5L);
+        when(reportRepository.countByReporterUserIdAndStatus(1L, "PENDING")).thenReturn(1L);
+        when(reportRepository.countByReporterUserIdAndStatus(1L, "WITHDRAWN")).thenReturn(2L);
+        when(reportRepository.countByReporterUserIdAndStatus(1L, "APPROVED_BLACKLIST")).thenReturn(2L);
+        assertThat(service.getSummaryMetrics(1L).getAccuracyRate()).isEqualTo(100.0);
+    }
+
+    @Test
     void getSummaryMetricsCalculatesCorrectly() {
         Long userId = 1L;
         when(reportRepository.countByReporterUserId(userId)).thenReturn(18L);

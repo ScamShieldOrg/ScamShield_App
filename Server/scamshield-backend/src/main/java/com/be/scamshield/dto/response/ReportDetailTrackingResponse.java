@@ -39,6 +39,8 @@ public class ReportDetailTrackingResponse {
 
     @Schema(description = "Danh mục lừa đảo", example = "Mạo danh cán bộ thuế/A05")
     private String category;
+    private Long categoryId;
+    private String regionCode;
 
     @Schema(description = "Nội dung tin nhắn / cuộc gọi lừa đảo")
     private String reportedMessage;
@@ -75,6 +77,7 @@ public class ReportDetailTrackingResponse {
         private Long id;
         private String evidenceType;
         private String fileUrl;
+        private String fileName;
         private String fileHash;
         private String ocrText;
         private String verificationStatus;

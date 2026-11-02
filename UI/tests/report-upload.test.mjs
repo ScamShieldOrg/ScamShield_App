@@ -54,6 +54,7 @@ const payload = (attachments = [image()]) => ({
   threatType: "PHONE",
   targetIdentifier: " 0912345678 ",
   category: "Mạo danh ngân hàng",
+  regionCode: "01",
   description: " Gửi SMS yêu cầu cung cấp mã OTP. ",
   isConfirmed: true,
   attachments,
@@ -166,6 +167,7 @@ test("send JSON metadata and original file bytes in separate multipart parts", a
     threatType: "PHONE",
     targetIdentifier: "0912345678",
     category: "Mạo danh ngân hàng",
+  regionCode: "01",
     description: "Gửi SMS yêu cầu cung cấp mã OTP.",
     isConfirmed: true,
   })

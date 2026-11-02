@@ -136,7 +136,7 @@ public class OtpServiceImpl implements IOtpService {
     public void sendPhoneOtp(String phoneNumber, String recaptchaToken) {
         String nationalPhone = VietnamPhoneNumbers.nationalMobile(phoneNumber);
         if (recaptchaToken == null || recaptchaToken.isBlank() || recaptchaToken.length() > 8192) {
-            throw new BadRequestException("Cần reCAPTCHA token hợp lệ trước khi gửi OTP SMS");
+            throw new BadRequestException("Vui lòng xác thực reCAPTCHA mới cho mỗi lần gửi OTP SMS");
         }
         firebasePhoneClient.requireConfigured();
         OtpEntry reservation;
@@ -146,6 +146,7 @@ public class OtpServiceImpl implements IOtpService {
             // A rejected reservation must never reach Firebase, including serialization conflicts.
             throw new SmsProviderException("Không thể đặt lượt gửi SMS lúc này; vui lòng thử lại sau");
         }
+        // Firebase validates freshness and single use of the reCAPTCHA token on every send.
         String session = firebasePhoneClient.send(VietnamPhoneNumbers.e164(nationalPhone), recaptchaToken);
         reservation.setProviderSessionInfo(session);
         otpStore.save(reservation, Duration.ofMillis(phoneOtpExpirationMs));

@@ -90,7 +90,8 @@ class ReportServiceImplTest {
             case "BANK_ACCOUNT" -> "0912345678";
             default -> "https://example.com";
         };
-        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        User reporter = reporter("0912345678");
+        when(users.findById(1L)).thenReturn(Optional.of(reporter));
         when(indicators.findByTypeAndNormalizedValue(type, target))
                 .thenReturn(Optional.of(Indicator.builder().type(type).displayValue(target).build()));
         when(categories.findByCode("OTHER"))
@@ -105,6 +106,9 @@ class ReportServiceImplTest {
 
         assertEquals("PENDING", result.getStatus());
         assertEquals(42L, result.getId());
+        assertEquals(0, result.getRewardPoints());
+        assertEquals(100, reporter.getReputationPoints());
+        verify(users, never()).save(any());
         verify(reports).save(any(Report.class));
         verifyNoInteractions(storage);
     }
@@ -151,9 +155,8 @@ class ReportServiceImplTest {
     }
 
     @ParameterizedTest
-    @NullAndEmptySource
-    @ValueSource(strings = {"   ", "01", "79", " 01 "})
-    void storesOptionalProvinceCodeAndReturnsIt(String regionCode) {
+    @ValueSource(strings = {"01", "79", " 01 "})
+    void storesRequiredProvinceCodeAndReturnsIt(String regionCode) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
         when(indicators.findByTypeAndNormalizedValue("PHONE", "0987654321"))
                 .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
@@ -177,7 +180,8 @@ class ReportServiceImplTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"00", "99", "1", "Hà Nội"})
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "00", "99", "1", "Hà Nội"})
     void rejectsInvalidProvinceBeforeSavingOrUploading(String regionCode) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
         CreateReportRequest request = request("PHONE", "0987654321");
@@ -274,6 +278,6 @@ class ReportServiceImplTest {
 
     private CreateReportRequest request(String type, String target) {
         return CreateReportRequest.builder().threatType(type).targetIdentifier(target)
-                .category("OTHER").description("Nội dung báo cáo").isConfirmed(true).build();
+                .regionCode("01").category("OTHER").description("Nội dung báo cáo").isConfirmed(true).build();
     }
 }

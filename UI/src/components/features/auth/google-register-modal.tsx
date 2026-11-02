@@ -20,6 +20,8 @@ import {
   type VerifiedGooglePhone,
 } from "@/features/auth/services/google-registration.service"
 import { decodeGoogleIdToken } from "@/lib/google/google-auth"
+import { formatPhoneInput, normalizePhoneInput } from "@/lib/utils/phone"
+import { formatOtpInput, normalizeOtpInput } from "@/lib/utils/otp"
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -87,7 +89,7 @@ function GoogleRegisterSession({
   const router = useRouter()
   const payload = decodeGoogleIdToken(idToken)
 
-  const [phone, setPhone] = useState(initialPhone || "")
+  const [phone, setPhone] = useState(normalizePhoneInput(initialPhone))
   const [otp, setOtp] = useState("")
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [receiveAlerts, setReceiveAlerts] = useState(false)
@@ -152,8 +154,11 @@ function GoogleRegisterSession({
       toast.success("Đã gửi yêu cầu mã OTP đến " + trimmedPhone)
     } catch (err) {
       if (!activeRef.current) return
-      const errMsg =
+      const message =
         err instanceof Error ? err.message : "Không thể gửi mã OTP."
+      const errMsg = /recaptcha|xác thực bảo mật|xác thực ứng dụng/i.test(message)
+        ? "Chưa thể xác thực bảo mật. Vui lòng thử gửi lại OTP."
+        : message
       setError(errMsg)
       toast.error(errMsg)
     } finally {
@@ -321,7 +326,7 @@ function GoogleRegisterSession({
               htmlFor="google-register-phone"
               className="text-xs font-semibold text-foreground"
             >
-              Số điện thoại chính chủ{" "}
+              Số điện thoại{" "}
               <span className="text-destructive">*</span>
             </label>
             <div className="relative">
@@ -331,18 +336,19 @@ function GoogleRegisterSession({
               <input
                 id="google-register-phone"
                 type="tel"
+                inputMode="numeric"
                 autoComplete="tel-national"
-                value={phone}
+                value={formatPhoneInput(phone)}
                 disabled={isBusy}
                 onChange={(e) => {
-                  setPhone(e.target.value.replace(/\D/g, ""))
+                  setPhone(normalizePhoneInput(e.target.value))
                   setOtp("")
                   setOtpSentTo(null)
                   setVerification(null)
                   setError(null)
                 }}
-                placeholder="0912345678"
-                maxLength={10}
+                placeholder="0912 345 678"
+                maxLength={12}
                 required
                 className="h-11 w-full rounded-xl border border-input bg-muted/30 pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/30 focus:outline-none"
               />
@@ -355,7 +361,7 @@ function GoogleRegisterSession({
               htmlFor="google-register-otp"
               className="text-xs font-semibold text-foreground"
             >
-              Mã xác thực OTP SMS <span className="text-destructive">*</span>
+              Mã xác thực OTP <span className="text-destructive">*</span>
             </label>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -372,12 +378,12 @@ function GoogleRegisterSession({
                     otpSentTo !== phone.trim() ||
                     isPhoneVerificationCurrent(verification, phone.trim())
                   }
-                  value={otp}
+                  value={formatOtpInput(otp)}
                   onChange={(e) =>
-                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    setOtp(normalizeOtpInput(e.target.value))
                   }
                   placeholder="Nhập mã 6 chữ số"
-                  maxLength={6}
+                  maxLength={7}
                   required
                   className="h-11 w-full rounded-xl border border-input bg-muted/30 pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/30 focus:outline-none"
                 />

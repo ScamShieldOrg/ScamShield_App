@@ -6,6 +6,7 @@ import com.be.scamshield.exception.OtpRateLimitException;
 import com.be.scamshield.exception.SmsProviderException;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -17,6 +18,7 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FirebasePhoneClient {
     private final RestClient firebasePhoneRestClient;
     private final FirebasePhoneProperties properties;
@@ -44,11 +46,18 @@ public class FirebasePhoneClient {
             return response.sessionInfo();
         } catch (HttpClientErrorException ex) {
             String code = errorCode(ex);
+            log.warn("Firebase SMS send rejected: status={}, code={}", ex.getStatusCode().value(), code);
             if (ex.getStatusCode().value() == 429 || code.equals("TOO_MANY_ATTEMPTS_TRY_LATER") || code.equals("QUOTA_EXCEEDED")) {
                 throw new OtpRateLimitException("Firebase đã giới hạn gửi SMS; vui lòng thử lại sau");
             }
-            if (code.contains("CAPTCHA") || code.equals("INVALID_APP_CREDENTIAL") || code.equals("MISSING_APP_CREDENTIAL")) {
-                throw new BadRequestException("reCAPTCHA không hợp lệ hoặc đã hết hạn; vui lòng xác thực lại");
+            if (code.equals("MISSING_APP_CREDENTIAL")) {
+                throw new SmsProviderException("Firebase từ chối xác thực ứng dụng (" + code
+                        + "): kiểm tra Authorized domains cho domain đang mở, cấu hình reCAPTCHA và Firebase project của UI/backend");
+            }
+            if (code.contains("CAPTCHA") || code.equals("INVALID_APP_CREDENTIAL")) {
+                throw new BadRequestException("Firebase từ chối reCAPTCHA (" + code
+                        + "): token không hợp lệ, đã dùng/hết hạn hoặc domain chưa được cho phép; vui lòng gửi lại OTP. "
+                        + "Nếu lỗi lặp lại, kiểm tra Authorized domains trong Firebase Authentication");
             }
             if (code.equals("INVALID_PHONE_NUMBER")) {
                 throw new BadRequestException("Số điện thoại không được Firebase chấp nhận");

@@ -35,8 +35,9 @@ public class CreateReportRequest {
     @Schema(description = "Nguyên văn tin nhắn nghi lừa đảo do người dùng sao chép; không bắt buộc, tối đa 10.000 ký tự")
     private String reportedMessage;
 
-    @Pattern(regexp = "^\\s*(?:[0-9]{2})?\\s*$", message = "Mã tỉnh/thành phải gồm 2 chữ số hoặc để trống")
-    @Schema(description = "Mã tỉnh/thành nơi xảy ra sự việc, lấy từ /api/dashboard/filters; không bắt buộc", example = "01")
+    @Pattern(regexp = "^\\s*(?:[0-9]{2})?\\s*$", message = "Mã tỉnh/thành phải gồm 2 chữ số")
+    @Schema(description = "Mã tỉnh/thành nơi người gửi đang có mặt khi tạo báo cáo, lấy từ /api/dashboard/filters; bắt buộc", example = "01")
+    @NotBlank(message = "Vui lòng chọn tỉnh/thành nơi bạn đang có mặt khi gửi báo cáo")
     private String regionCode;
 
     @NotNull(message = "Bạn cần xác nhận thông tin cung cấp là trung thực")

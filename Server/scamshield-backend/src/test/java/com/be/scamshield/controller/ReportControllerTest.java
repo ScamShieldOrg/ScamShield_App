@@ -51,7 +51,7 @@ class ReportControllerTest {
 
     private static final String REQUEST = """
             {"threatType":"PHONE","targetIdentifier":"0912345678","category":"OTHER",
-             "description":"Nội dung báo cáo","isConfirmed":true}
+             "description":"Nội dung báo cáo","regionCode":"01","isConfirmed":true}
             """;
 
     @Test
@@ -129,7 +129,7 @@ class ReportControllerTest {
     void bindsProvinceCodeForJsonAndMultipart(boolean multipartRequest) throws Exception {
         when(reports.createReport(any(CreateReportRequest.class), any(), any(UserPrincipal.class)))
                 .thenReturn(ReportResponse.builder().id(42L).regionCode("01").build());
-        String body = REQUEST.replace("\"description\"", "\"regionCode\":\"01\",\"description\"");
+        String body = REQUEST;
         if (multipartRequest) {
             mvc.perform(multipart("/api/reports")
                             .file(new MockMultipartFile("request", "request.json", "application/json", body.getBytes(StandardCharsets.UTF_8)))

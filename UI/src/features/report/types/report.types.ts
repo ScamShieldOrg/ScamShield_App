@@ -1,7 +1,13 @@
 export type ReportThreatType = "PHONE" | "WEBSITE" | "BANK_ACCOUNT"
 
 export type ReportStatus =
-  "APPROVED_BLACKLIST" | "PENDING" | "MERGED_DUPLICATE" | "REJECTED"
+  | "APPROVED_BLACKLIST"
+  | "PENDING"
+  | "MERGED_DUPLICATE"
+  | "REJECTED"
+  | "APPROVED"
+  | "IN_REVIEW"
+  | "WITHDRAWN"
 
 export interface RecentReportItem {
   id: string
@@ -12,12 +18,13 @@ export interface RecentReportItem {
   submittedDate: string
   evidenceCount: number
   status: ReportStatus
-  rewardPoints: number
+  rewardPoints: number | null
   rejectionReason?: string
   duplicateRef?: string
 }
 
 export interface TrackingReportItem {
+  rawId?: number
   id: string
   hashId: string
   targetType: "PHONE" | "BANK" | "WEBSITE" | "TELEGRAM" | "APK"
@@ -26,7 +33,7 @@ export interface TrackingReportItem {
   category: string
   submittedDate: string
   slaTime: string
-  slaStatus: "completed" | "processing" | "merged"
+  slaStatus: "completed" | "processing" | "merged" | "withdrawn"
   evidenceBadge: string
   status: ReportStatus
 }
@@ -44,6 +51,7 @@ export interface ReportSummaryMetrics {
 }
 
 export interface CreateReportPayload {
+  regionCode: string
   threatType: ReportThreatType
   targetIdentifier: string
   category: string
@@ -54,6 +62,7 @@ export interface CreateReportPayload {
 }
 
 export interface ReportStatusCounts {
+  withdrawn?: number
   all: number
   pending: number
   approvedBlacklist: number
@@ -86,4 +95,50 @@ export interface PaginatedTrackingReports {
   pageSize: number
   hasNext: boolean
   hasPrevious: boolean
+}
+
+export interface OwnReportEvidence {
+  fileName?: string | null
+  fileHash?: string | null
+  id?: number
+  fileUrl: string | null
+  evidenceType: string
+  verificationStatus?: string
+  ocrText?: string | null
+}
+
+export interface OwnReportDetail {
+  id: string
+  rawId: number
+  targetType: string
+  targetValue: string
+  category: string
+  categoryId: number | null
+  regionCode: string | null
+  description: string | null
+  reportedMessage: string | null
+  status: ReportStatus
+  createdAt: string
+  updatedAt: string
+  evidences: OwnReportEvidence[]
+  moderationHistory: {
+    id: number
+    action: string
+    reason: string | null
+    moderatorName: string | null
+    createdAt: string
+  }[]
+}
+
+export interface UpdateOwnReportPayload {
+  description: string
+  reportedMessage: string | null
+  categoryId: number | null
+  regionCode: string | null
+  evidences?: {
+    fileUrl: string
+    evidenceType: string
+    fileName?: string | null
+    fileHash?: string | null
+  }[]
 }

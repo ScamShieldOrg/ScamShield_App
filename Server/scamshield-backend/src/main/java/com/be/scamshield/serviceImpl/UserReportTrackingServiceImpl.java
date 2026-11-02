@@ -54,7 +54,8 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
         long queriesProtected = blacklistedCount * 230L;
 
         // Accuracy rate = (blacklisted / totalProcessed) * 100
-        long processedCount = totalReports - pendingCount;
+        long withdrawnCount = reportRepository.countByReporterUserIdAndStatus(userId, "WITHDRAWN");
+        long processedCount = totalReports - pendingCount - withdrawnCount;
         double accuracyRate = 0.0;
         if (processedCount > 0) {
             accuracyRate = Math.round(((double) blacklistedCount / processedCount) * 1000.0) / 10.0;
@@ -107,6 +108,7 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
         long rejected = reportRepository.countByReporterUserIdAndStatus(userId, "REJECTED");
 
         return ReportStatusCountsResponse.builder()
+                .withdrawn(reportRepository.countByReporterUserIdAndStatus(userId, "WITHDRAWN"))
                 .all(all)
                 .pending(pending)
                 .approvedBlacklist(approvedBlacklist)
@@ -239,6 +241,7 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
                         .id(ev.getId())
                         .evidenceType(ev.getEvidenceType())
                         .fileUrl(ev.getFileUrl())
+                        .fileName(ev.getFileName())
                         .fileHash(ev.getFileHash())
                         .ocrText(ev.getOcrText())
                         .verificationStatus(ev.getVerificationStatus())
@@ -267,6 +270,8 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
                 .targetValue(targetValue)
                 .targetSub(targetSub)
                 .category(report.getCategory() != null ? report.getCategory().getName() : "Chưa phân loại")
+                .categoryId(report.getCategory() == null ? null : report.getCategory().getId())
+                .regionCode(report.getRegionCode())
                 .reportedMessage(report.getReportedMessage())
                 .description(report.getDescription())
                 .status(report.getStatus())
@@ -462,6 +467,8 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
 
     private SlaInfo calculateSla(Report report, List<ModerationAction> moderationActions, LocalDateTime now) {
         String status = report.getStatus() != null ? report.getStatus().toUpperCase(Locale.ROOT) : "PENDING";
+
+        if ("WITHDRAWN".equals(status)) return new SlaInfo("Đã thu hồi", "withdrawn");
 
         if ("MERGED_DUPLICATE".equals(status)) {
             return new SlaInfo("Tự động gộp chéo", "merged");

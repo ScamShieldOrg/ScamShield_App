@@ -349,6 +349,7 @@ function mockRecaptcha(t, behavior) {
   }
   let removed = 0
   let cleared = 0
+  const mounts = []
   const previousDocument = globalThis.document
   globalThis.document = {
     getElementById: () => ({ appendChild() {}, isConnected: true }),
@@ -367,8 +368,10 @@ function mockRecaptcha(t, behavior) {
     "firebase/auth": {
       getAuth: () => ({}),
       RecaptchaVerifier: class {
-        constructor() {
+        constructor(_auth, mount, options) {
           if (behavior === "constructor-error") throw new Error("SDK error")
+          assert.equal(options.size, "normal")
+          mounts.push(mount)
         }
         async verify() {
           if (behavior instanceof Error) throw behavior
@@ -380,8 +383,17 @@ function mockRecaptcha(t, behavior) {
       },
     },
   })
-  return { ...recaptchaModule, counts: () => ({ removed, cleared }) }
+  return { ...recaptchaModule, mounts, counts: () => ({ removed, cleared }) }
 }
+
+test("each OTP retry creates a separate visible reCAPTCHA and clears it", async (t) => {
+  const h = mockRecaptcha(t, "actual-token")
+  await h.getRecaptchaToken("captcha")
+  await h.getRecaptchaToken("captcha")
+  assert.equal(h.mounts.length, 2)
+  assert.notEqual(h.mounts[0], h.mounts[1])
+  assert.deepEqual(h.counts(), { removed: 2, cleared: 2 })
+})
 
 test("reCAPTCHA construction failure cleans up the DOM and returns a Vietnamese error", async (t) => {
   const h = mockRecaptcha(t, "constructor-error")
