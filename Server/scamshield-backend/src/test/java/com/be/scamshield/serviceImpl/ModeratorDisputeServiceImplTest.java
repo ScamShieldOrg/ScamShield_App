@@ -189,6 +189,104 @@ class ModeratorDisputeServiceImplTest {
     }
 
     @Test
+    @DisplayName("getEvidenceDownloadUrl returns signed URL with attachment disposition when storage key is present")
+    void getEvidenceDownloadUrl_StorageKey_ReturnsSignedUrlWithAttachmentDisposition() {
+        DisputeEvidence evidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(sampleDispute)
+                .fileName("ChungTuHopLe.pdf")
+                .storageObjectKey("disputes/41/evidence.pdf")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(evidence));
+        when(storageService.createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), anyString()))
+                .thenReturn("https://storage.example/signed-download");
+
+        String downloadUrl = service.getEvidenceDownloadUrl("AP-2024-0041", 7L);
+
+        assertThat(downloadUrl).isEqualTo("https://storage.example/signed-download");
+        ArgumentCaptor<String> dispositionCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storageService).createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), dispositionCaptor.capture());
+        assertThat(dispositionCaptor.getValue())
+                .startsWith("attachment; filename=\"ChungTuHopLe.pdf\"; filename*=UTF-8''ChungTuHopLe.pdf");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl falls back to stored fileUrl when storageObjectKey is null or blank")
+    void getEvidenceDownloadUrl_FallbackToFileUrl_Success() {
+        DisputeEvidence evidence = DisputeEvidence.builder()
+                .id(8L)
+                .dispute(sampleDispute)
+                .fileName("legacy_proof.pdf")
+                .storageObjectKey(null)
+                .fileUrl("https://legacy-storage.example/proof.pdf")
+                .build();
+        when(evidenceRepository.findById(8L)).thenReturn(Optional.of(evidence));
+
+        String downloadUrl = service.getEvidenceDownloadUrl("41", 8L);
+
+        assertThat(downloadUrl).isEqualTo("https://legacy-storage.example/proof.pdf");
+        verify(storageService, never()).createDisputeDownloadUrl(any(), any());
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl throws ResourceNotFoundException when evidence is not found")
+    void getEvidenceDownloadUrl_EvidenceNotFound_ThrowsResourceNotFoundException() {
+        when(evidenceRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getEvidenceDownloadUrl("41", 999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Không tìm thấy tài liệu bằng chứng");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl throws ResourceNotFoundException when evidence belongs to a different dispute")
+    void getEvidenceDownloadUrl_EvidenceOwnedByDifferentDispute_ThrowsResourceNotFoundException() {
+        Dispute otherDispute = Dispute.builder().id(99L).build();
+        DisputeEvidence evidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(otherDispute)
+                .fileName("other_evidence.pdf")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(evidence));
+
+        assertThatThrownBy(() -> service.getEvidenceDownloadUrl("41", 7L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Tài liệu không thuộc hồ sơ khiếu nại này");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl throws ResourceNotFoundException when evidence dispute reference is null")
+    void getEvidenceDownloadUrl_EvidenceNullDispute_ThrowsResourceNotFoundException() {
+        DisputeEvidence orphanEvidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(null)
+                .fileName("orphan_evidence.pdf")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(orphanEvidence));
+
+        assertThatThrownBy(() -> service.getEvidenceDownloadUrl("41", 7L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Tài liệu không thuộc hồ sơ khiếu nại này");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl throws ResourceNotFoundException when both storageKey and fileUrl are blank")
+    void getEvidenceDownloadUrl_BlankUrls_ThrowsResourceNotFoundException() {
+        DisputeEvidence emptyEvidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(sampleDispute)
+                .fileName("no_url.pdf")
+                .storageObjectKey("")
+                .fileUrl("")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(emptyEvidence));
+
+        assertThatThrownBy(() -> service.getEvidenceDownloadUrl("41", 7L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Tài liệu chưa có đường dẫn tải xuống");
+    }
+
+    @Test
     @DisplayName("getDisputeById accepts formatted dispute code e.g. AP-2024-0041")
     void getDisputeById_FormattedCode_Success() {
         when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
