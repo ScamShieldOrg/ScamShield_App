@@ -1,13 +1,16 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback } from "react"
 import axios from "axios"
 import { toast } from "react-toastify"
 import { usePathname } from "next/navigation"
-import { useAuthStore } from "@/store/auth.store"
+import { restoreAuthSession, useAuthStore } from "@/store/auth.store"
 import { decodeJwt } from "@/lib/utils/jwtUtil"
 import { UserRole } from "@/types/user"
-import { authServices, RefreshTokenResult } from "@/features/auth/services/auth-services"
+import {
+  authServices,
+  RefreshTokenResult,
+} from "@/features/auth/services/auth-services"
 
 export type { RefreshTokenResult }
 
@@ -20,7 +23,6 @@ export function useRefreshToken() {
   const [isLoading, setIsLoading] = useState<boolean>(!token)
   const [isInitialized, setIsInitialized] = useState<boolean>(Boolean(token))
   const [error, setError] = useState<string | null>(null)
-  const initializedRef = useRef(false)
 
   const refresh = useCallback(async (): Promise<RefreshTokenResult | null> => {
     setIsLoading(true)
@@ -46,7 +48,8 @@ export function useRefreshToken() {
 
       // Only show session expired toast if the session actually expired,
       // and avoid showing it on auth pages (login/register) or when no cookie was ever present.
-      const isAuthPage = pathname?.startsWith("/login") || pathname?.startsWith("/register")
+      const isAuthPage =
+        pathname?.startsWith("/login") || pathname?.startsWith("/register")
       if (!isCookieMissing && !isAuthPage) {
         toast.error("Phiên đã kết thúc, vui lòng đăng nhập lại", {
           toastId: "session-expired",
@@ -63,26 +66,20 @@ export function useRefreshToken() {
 
   useEffect(() => {
     // Only attempt initial refresh once per page lifecycle
-    if (initializedRef.current) {
-      return
-    }
-    initializedRef.current = true
-
-    // If token is already present in store, no need to refresh on initial mount
-    if (useAuthStore.getState().token) {
-      setIsLoading(false)
-      setIsInitialized(true)
-      return
-    }
 
     let isMounted = true
-
-    refresh().then(() => {
-      if (isMounted) {
-        setIsLoading(false)
-        setIsInitialized(true)
+    async function initialize() {
+      await restoreAuthSession()
+      if (useAuthStore.getState().token) {
+        if (isMounted) {
+          setIsLoading(false)
+          setIsInitialized(true)
+        }
+        return
       }
-    })
+      await refresh()
+    }
+    void initialize()
 
     return () => {
       isMounted = false
@@ -106,4 +103,3 @@ export function useRefreshToken() {
     refresh,
   }
 }
-
