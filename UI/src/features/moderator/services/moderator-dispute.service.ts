@@ -153,21 +153,11 @@ export async function downloadModeratorEvidenceFile(
   downloadUrl: string,
   fileName: string
 ): Promise<void> {
-  if (/^https?:\/\//i.test(downloadUrl)) {
-    const link = document.createElement("a")
-    link.href = downloadUrl
-    link.download = fileName
-    link.target = "_blank"
-    link.rel = "noopener noreferrer"
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    return
+  if (!downloadUrl.startsWith("/api/moderator/disputes/")) {
+    throw new Error("Đường dẫn tải tài liệu không hợp lệ")
   }
 
-  const apiPath = downloadUrl.startsWith("/api/")
-    ? downloadUrl.slice("/api".length)
-    : downloadUrl
+  const apiPath = downloadUrl.slice("/api".length)
   const response = await authorizeApi.get<Blob>(apiPath, { responseType: "blob" })
   const objectUrl = URL.createObjectURL(response.data)
   const link = document.createElement("a")

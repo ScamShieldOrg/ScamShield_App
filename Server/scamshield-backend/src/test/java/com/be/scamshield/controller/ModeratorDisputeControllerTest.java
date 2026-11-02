@@ -233,4 +233,14 @@ class ModeratorDisputeControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("Moderator evidence download does not fall back to an unauthenticated redirect")
+    void downloadEvidence_AsModerator_Success() throws Exception {
+        when(moderatorDisputeService.getEvidenceDownloadUrl("AP-2024-0041", 1L))
+                .thenReturn("https://storage.example/signed-download");
+
+        mvc.perform(get(BASE_URL + "/AP-2024-0041/evidence/1/download").with(authentication(moderatorAuth)))
+                .andExpect(status().isBadGateway());
+    }
 }

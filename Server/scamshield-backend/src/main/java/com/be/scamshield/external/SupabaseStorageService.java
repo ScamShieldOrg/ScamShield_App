@@ -282,7 +282,8 @@ public class SupabaseStorageService {
                     .signatureDuration(Duration.ofSeconds(disputeUrlExpirationSeconds))
                     .getObjectRequest(objectRequest)
                     .build();
-            return presigner.presignGetObject(presignRequest).url().toString();
+            String presignedUrl = presigner.presignGetObject(presignRequest).url().toString();
+            return enforceHttps(presignedUrl);
         } catch (Exception ex) {
             throw new DisputeStorageException("Không thể tạo liên kết tải tài liệu khiếu nại lúc này; vui lòng thử lại sau", ex);
         }
@@ -340,7 +341,7 @@ public class SupabaseStorageService {
                     .build();
 
             PresignedPutObjectRequest presignedRequest = presigner.presignPutObject(presignRequest);
-            String uploadUrl = presignedRequest.url().toString();
+            String uploadUrl = enforceHttps(presignedRequest.url().toString());
             String fileUrl = buildPublicUrl(objectKey);
 
             return PresignedUrlResponse.builder()
@@ -360,9 +361,9 @@ public class SupabaseStorageService {
         if (StringUtils.hasText(override)) {
             if (override.contains("supabase.co") || override.contains("/storage/v1/s3")) {
                 String baseUrl = override.replaceAll("/storage/v1/s3/?$", "").replaceAll("/+$", "");
-                return String.format("%s/storage/v1/object/public/%s/%s", baseUrl, getBucketName(), objectKey);
+                return enforceHttps(String.format("%s/storage/v1/object/public/%s/%s", baseUrl, getBucketName(), objectKey));
             }
-            return String.format("%s/%s/%s", override, getBucketName(), objectKey);
+            return enforceHttps(String.format("%s/%s/%s", override, getBucketName(), objectKey));
         }
         return String.format("https://%s.s3.%s.amazonaws.com/%s", getBucketName(), getRegion(), objectKey);
     }
@@ -404,6 +405,7 @@ public class SupabaseStorageService {
 
         String override = getEndpointOverride();
         if (StringUtils.hasText(override)) {
+            override = enforceHttps(override);
             builder.endpointOverride(URI.create(override));
             if (pathStyleAccessEnabled) {
                 builder.serviceConfiguration(S3Configuration.builder()
@@ -412,6 +414,15 @@ public class SupabaseStorageService {
             }
         }
         return builder.build();
+    }
+
+    private String enforceHttps(String url) {
+        if (url != null && url.startsWith("http://")) {
+            if (!url.contains("://localhost") && !url.contains("://127.0.0.1")) {
+                return "https://" + url.substring("http://".length());
+            }
+        }
+        return url;
     }
 
     public record UploadResult(String fileUrl, String fileHash, String objectKey, String originalFilename) {}

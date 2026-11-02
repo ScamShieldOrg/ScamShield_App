@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.net.URLEncoder;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -131,7 +132,15 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
         if (!StringUtils.hasText(evidence.getFileUrl())) {
             throw new ResourceNotFoundException("Tài liệu chưa có đường dẫn tải xuống");
         }
-        return evidence.getFileUrl();
+        String legacyUrl = evidence.getFileUrl();
+        try {
+            if (!"https".equalsIgnoreCase(URI.create(legacyUrl).getScheme())) {
+                throw new BadRequestException("Chỉ hỗ trợ tải tài liệu qua HTTPS");
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Đường dẫn tài liệu không hợp lệ");
+        }
+        return legacyUrl;
     }
 
     @Override
@@ -403,20 +412,18 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
         if (ev == null) return null;
         String fileUrl = ev.getFileUrl();
         String downloadUrl = null;
+        if (StringUtils.hasText(ev.getStorageObjectKey()) || StringUtils.hasText(ev.getFileUrl())) {
+            downloadUrl = "/api/moderator/disputes/" + ev.getDispute().getId()
+                    + "/evidence/" + ev.getId() + "/download";
+        }
         if (StringUtils.hasText(ev.getStorageObjectKey())) {
             try {
                 fileUrl = storageService.createDisputeDownloadUrl(
                         ev.getStorageObjectKey(), "inline");
-                downloadUrl = storageService.createDisputeDownloadUrl(
-                        ev.getStorageObjectKey(), buildAttachmentDisposition(ev.getFileName()));
             } catch (Exception ex) {
                 log.warn("Could not create signed URLs for dispute evidence {}", ev.getId());
                 fileUrl = null;
-                downloadUrl = null;
             }
-        } else if (StringUtils.hasText(ev.getFileUrl())) {
-            downloadUrl = "/api/moderator/disputes/" + ev.getDispute().getId()
-                    + "/evidence/" + ev.getId() + "/download";
         }
 
         return ModeratorEvidenceResponse.builder()

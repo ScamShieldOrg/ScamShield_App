@@ -162,7 +162,7 @@ class ModeratorDisputeServiceImplTest {
     }
 
     @Test
-    @DisplayName("getDisputeById creates inline and attachment URLs with UTF-8 filename for stored evidence")
+    @DisplayName("getDisputeById uses the authenticated backend endpoint for evidence downloads")
     void getDisputeById_StoredEvidence_PreservesUtf8DownloadFilename() {
         when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
         DisputeEvidence evidence = DisputeEvidence.builder()
@@ -173,19 +173,16 @@ class ModeratorDisputeServiceImplTest {
                 .storageObjectKey("disputes/41/evidence.pdf")
                 .build();
         when(evidenceRepository.findByDisputeIdOrderByCreatedAtAscIdAsc(41L)).thenReturn(List.of(evidence));
-        when(storageService.createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), anyString()))
+        when(storageService.createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), eq("inline")))
                 .thenReturn("https://storage.example/signed");
 
         ModeratorDisputeResponse response = service.getDisputeById("AP-2024-0041");
 
         assertThat(response.getEvidences()).hasSize(1);
         assertThat(response.getEvidences().get(0).getUrl()).isEqualTo("https://storage.example/signed");
-        assertThat(response.getEvidences().get(0).getDownloadUrl()).isEqualTo("https://storage.example/signed");
-        ArgumentCaptor<String> dispositionCaptor = ArgumentCaptor.forClass(String.class);
-        verify(storageService, times(2)).createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), dispositionCaptor.capture());
-        assertThat(dispositionCaptor.getAllValues())
-                .contains("inline")
-                .anyMatch(value -> value.startsWith("attachment; filename=\"T_i li_u x_c minh.pdf\"; filename*=UTF-8''"));
+        assertThat(response.getEvidences().get(0).getDownloadUrl())
+                .isEqualTo("/api/moderator/disputes/41/evidence/7/download");
+        verify(storageService).createDisputeDownloadUrl("disputes/41/evidence.pdf", "inline");
     }
 
     @Test
