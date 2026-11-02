@@ -20,3 +20,14 @@ export async function checkScamContent(
     throw new Error(data.message || "Chưa thể phân tích nội dung.")
   return data.data
 }
+
+export async function getScamCheckResult(checkId: number): Promise<ScamCheckResult> {
+  const { data } = await authorizeApi.get<{
+    isSuccess: boolean
+    message: string
+    data: ScamCheckResult
+  }>(`/scam-checks/${checkId}`)
+  if (!data.isSuccess || !data.data)
+    throw new Error(data.message || "Không thể tải kết quả kiểm tra.")
+  return data.data
+}

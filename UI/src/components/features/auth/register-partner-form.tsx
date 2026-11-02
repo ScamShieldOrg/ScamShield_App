@@ -43,7 +43,12 @@ const FORM_STORAGE_KEY = "scamshield_partner_register_form"
 const COOLDOWN_STORAGE_KEY = "scamshield_partner_otp_cooldown_until"
 const OTP_OPEN_STORAGE_KEY = "scamshield_partner_otp_open"
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PHONE_ONLY_DIGITS = /^\d+$/
+const TAX_CODE_REGEX = /^[0-9]{10}(-?[0-9]{3})?$/
+const MOBILE_PHONE_REGEX =
+  /^[\s().-]*(?:0|\+[\s().-]*8[\s().-]*4)[\s().-]*[35789](?:[\s().-]*[0-9]){8}[\s().-]*$/
+const DOMAIN_REGEX =
+  /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+const SMS_BRAND_REGEX = /^[A-Z0-9][A-Z0-9 _-]*$/
 const MAX_FILE_SIZE = 25 * 1024 * 1024
 const MAX_TOTAL_SIZE = 75 * 1024 * 1024
 const MAX_FILES = 10
@@ -53,13 +58,6 @@ const SUPPORTED_FILE_TYPES: Record<string, string> = {
   jpeg: "image/jpeg",
   png: "image/png",
 }
-const PUBLIC_EMAIL_DOMAINS = [
-  "gmail.com",
-  "yahoo.com",
-  "hotmail.com",
-  "outlook.com",
-]
-
 interface PartnerFormState {
   companyName: string
   taxCode: string
@@ -101,6 +99,7 @@ interface FileUploadBoxProps {
   label: string
   required?: boolean
   description: string
+  accept?: string
   files: File[]
   onFilesSelect: (selected: FileList | null) => void
   onRemoveFile: (index: number) => void
@@ -112,6 +111,7 @@ function FileUploadBox({
   label,
   required,
   description,
+  accept = ".pdf,.jpg,.jpeg,.png",
   files,
   onFilesSelect,
   onRemoveFile,
@@ -163,7 +163,7 @@ function FileUploadBox({
           type="file"
           id={id}
           multiple
-          accept=".pdf,.jpg,.jpeg,.png"
+          accept={accept}
           aria-required={required}
           aria-invalid={!!error}
           aria-describedby={`${id}-description${error ? ` ${id}-error` : ""}`}
@@ -362,52 +362,64 @@ export function RegisterPartnerForm() {
         const val = String(value).trim()
         if (!val) return "Vui lòng nhập tên doanh nghiệp hoặc ngân hàng."
         if (val.length < 3) return "Tên doanh nghiệp phải có ít nhất 3 ký tự."
+        if (val.length > 255) return "Tên doanh nghiệp tối đa 255 ký tự."
         return undefined
       }
       case "taxCode": {
         const val = String(value).trim()
         if (!val) return "Vui lòng nhập mã số thuế / mã số doanh nghiệp."
-        if (val.length < 9)
-          return "Mã số thuế không hợp lệ (thường từ 10 - 13 số)."
+        if (!TAX_CODE_REGEX.test(val))
+          return "Mã số thuế gồm 10 hoặc 13 chữ số, có thể có dấu gạch nối trước 3 số cuối."
         return undefined
       }
       case "businessEmail": {
         const val = String(value).trim()
-        if (!val) return "Vui lòng nhập email công vụ của tổ chức."
+        if (!val) return "Vui lòng nhập email liên hệ."
         if (!EMAIL_REGEX.test(val)) return "Địa chỉ email không đúng định dạng."
-        const domain = val.split("@")[1]?.toLowerCase()
-        if (domain && PUBLIC_EMAIL_DOMAINS.includes(domain)) {
-          return "Hệ thống chỉ chấp nhận email doanh nghiệp (không dùng @gmail, @yahoo,...)."
-        }
+        if (val.length > 254) return "Email tối đa 254 ký tự."
         return undefined
       }
       case "representativeName": {
         const val = String(value).trim()
         if (!val) return "Vui lòng nhập họ tên & chức vụ người đại diện."
+        if (val.length > 255)
+          return "Thông tin người đại diện tối đa 255 ký tự."
         return undefined
       }
       case "contactPhone": {
         const val = String(value).trim()
-        if (!PHONE_ONLY_DIGITS.test(val))
-          return "Số điện thoại chỉ bao gồm chữ số."
-        if (val.length !== 10) return "Số điện thoại phải gồm đúng 10 số."
+        if (!MOBILE_PHONE_REGEX.test(val) || val.length > 30)
+          return "Số điện thoại phải là số di động Việt Nam hợp lệ, ví dụ 0912345678 hoặc +84912345678."
         return undefined
       }
       case "officialDomains": {
         const val = String(value).trim()
         if (!val) return "Vui lòng nhập tên miền chính thống."
-        if (val.includes(",") || /\s/.test(val))
-          return "Mỗi hồ sơ chỉ đăng ký một tên miền; không dùng dấu phẩy hoặc khoảng trắng."
+        let domain = ""
+        try {
+          if (!/^[^\s/:?#@]+$/.test(val)) throw new Error("Invalid hostname")
+          domain = new URL(`http://${val}`).hostname.toLowerCase()
+        } catch {
+          return "Tên miền không đúng định dạng; chỉ nhập hostname, không nhập URL."
+        }
+        if (domain.length > 253 || !DOMAIN_REGEX.test(domain))
+          return "Tên miền không đúng định dạng; ví dụ: example.com.vn."
         return undefined
       }
       case "officialHotline": {
         const val = String(value).trim()
         if (!val) return "Vui lòng nhập hotline hoặc đầu số tổng đài."
+        if (val.length > 30) return "Hotline tối đa 30 ký tự."
+        const phone = val.replace(/[\s().-]/g, "")
+        if (!/^\+?[0-9]{6,15}$/.test(phone))
+          return "Hotline phải gồm 6 đến 15 chữ số; chỉ dùng thêm dấu + ở đầu."
         return undefined
       }
       case "smsBrandname": {
         const val = String(value).trim()
         if (!val) return "Vui lòng nhập tên định danh SMS Brandname."
+        if (val.length > 100 || !SMS_BRAND_REGEX.test(val.toUpperCase()))
+          return "SMS Brandname tối đa 100 ký tự và chỉ gồm chữ Latin, số, khoảng trắng, dấu - hoặc _."
         return undefined
       }
       case "agreeCommitment": {
@@ -464,11 +476,14 @@ export function RegisterPartnerForm() {
       return (
         !file.size ||
         file.size > MAX_FILE_SIZE ||
-        SUPPORTED_FILE_TYPES[extension] !== file.type
+        SUPPORTED_FILE_TYPES[extension] !== file.type ||
+        (field === "businessLicenseFiles" && file.type !== "application/pdf")
       )
     })
     const error = invalidFile
-      ? `Tệp ${invalidFile.name} phải là PDF, JPG hoặc PNG và không vượt quá 25MB.`
+      ? field === "businessLicenseFiles"
+        ? `Tệp ${invalidFile.name} phải là PDF và không vượt quá 25MB.`
+        : `Tệp ${invalidFile.name} phải là PDF, JPG hoặc PNG và không vượt quá 25MB.`
       : allFiles.length > MAX_FILES
         ? "Tối đa 10 tệp cho một hồ sơ."
         : allFiles.reduce((total, file) => total + file.size, 0) >
@@ -820,11 +835,11 @@ export function RegisterPartnerForm() {
                     />
 
                     <AuthInput
-                      label="Email công vụ / doanh nghiệp"
+                      label="Email liên hệ"
                       required
                       type="email"
                       icon={<EnvelopeSimple size={18} weight="regular" />}
-                      placeholder="contact@vietcombank.com.vn"
+                      placeholder="Ví dụ: partner@gmail.com"
                       value={form.businessEmail}
                       onChange={(e) =>
                         handleChange("businessEmail", e.target.value)
@@ -838,8 +853,7 @@ export function RegisterPartnerForm() {
                   <div className="flex items-center gap-2 rounded-lg bg-[#D0D9FD]/30 px-3 py-2 text-xs text-[#545D7C] dark:bg-muted/60 dark:text-muted-foreground">
                     <Info size={15} weight="bold" className="shrink-0" />
                     <span>
-                      Lưu ý: Hệ thống chỉ chấp nhận email theo tên miền tổ chức
-                      (@domain.com/.vn), không hỗ trợ @gmail.com, @yahoo.com
+                      Email cá nhân hoặc email doanh nghiệp đều được chấp nhận.
                     </span>
                   </div>
 
@@ -967,7 +981,7 @@ export function RegisterPartnerForm() {
                       label="Hotline / Đầu số tổng đài chính thống"
                       required
                       icon={<Headset size={18} weight="regular" />}
-                      placeholder="Ví dụ: 1900 545413, 1800 xxxx"
+                      placeholder="Ví dụ: 1900 545413"
                       value={form.officialHotline}
                       onChange={(e) =>
                         handleChange("officialHotline", e.target.value)
@@ -1012,7 +1026,8 @@ export function RegisterPartnerForm() {
                     id="businessLicenseFiles"
                     label="1. Giấy phép ĐKKD / Giấy phép hoạt động"
                     required
-                    description="Bản scan GPKD hoặc giấy phép hoạt động ngân hàng"
+                    accept=".pdf"
+                    description="Bản PDF giấy phép ĐKKD hoặc giấy phép hoạt động ngân hàng"
                     files={businessLicenseFiles}
                     onFilesSelect={(selected) =>
                       handleFilesSelect("businessLicenseFiles", selected)
@@ -1065,8 +1080,8 @@ export function RegisterPartnerForm() {
                   </p>
                   <ul className="mt-1.5 flex flex-col gap-1 text-[#45464D] dark:text-muted-foreground">
                     <li>
-                      • Định dạng hỗ trợ: PDF, JPG, PNG. Dung lượng tối đa:
-                      25MB/tệp.
+                      • Giấy phép ĐKKD chỉ hỗ trợ PDF; tài liệu khác hỗ trợ PDF,
+                      JPG, PNG. Dung lượng tối đa: 25MB/tệp.
                     </li>
                     <li>
                       • Toàn bộ hồ sơ không vượt quá 10 tệp và tổng dung lượng

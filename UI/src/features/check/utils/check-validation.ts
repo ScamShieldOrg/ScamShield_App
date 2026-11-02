@@ -1,5 +1,11 @@
 import type { ScamCheckRequest } from "../types/scam-check.types"
 
+export function normalizeScamCheckRequest(
+  request: ScamCheckRequest
+): ScamCheckRequest {
+  return { ...request, content: request.content.trim() }
+}
+
 export function validateScamCheck({
   inputType,
   content,

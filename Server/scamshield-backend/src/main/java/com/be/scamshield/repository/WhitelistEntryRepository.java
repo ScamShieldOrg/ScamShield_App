@@ -8,8 +8,13 @@ import org.springframework.data.jpa.repository.Query;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface WhitelistEntryRepository extends JpaRepository<WhitelistEntry, Long> {
+    boolean existsByIndicatorIdAndVerificationStatusAndPartnerIdNot(Long indicatorId, String verificationStatus, Long partnerId);
+
+    Optional<WhitelistEntry> findByIndicatorIdAndPartnerId(Long indicatorId, Long partnerId);
+
     @Query("""
             SELECT w FROM WhitelistEntry w JOIN w.partner p
             WHERE w.indicator.id IN :ids AND w.verificationStatus = 'VERIFIED'

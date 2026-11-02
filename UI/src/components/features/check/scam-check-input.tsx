@@ -149,6 +149,10 @@ export function ScamCheckInput({
               {...fieldProps}
               rows={5}
               onChange={(event) => onContentChange(event.target.value)}
+              onBlur={() => {
+                if (inputType === "URL" && content !== content.trim())
+                  onContentChange(content.trim())
+              }}
               className={cn(fieldProps.className, "resize-y")}
             />
           )}
