@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { isAxiosError } from "axios"
-import { validateScamCheck } from "../utils/check-validation"
+import {
+  normalizeScamCheckRequest,
+  validateScamCheck,
+} from "../utils/check-validation"
 import {
   getGuestQuota,
   restoreGuestSession,
@@ -109,7 +112,8 @@ export function useGuestScamCheck(inputType: GuestInputType) {
 
   const submit = async (request: GuestCheckRequest) => {
     if (locked.current) return
-    const validationError = validateScamCheck(request)
+    const payload = normalizeScamCheckRequest(request)
+    const validationError = validateScamCheck(payload)
     setError(validationError)
     if (validationError) return
     locked.current = true
@@ -129,10 +133,7 @@ export function useGuestScamCheck(inputType: GuestInputType) {
       setPhase("scanning")
       attemptedScan = true
       setResult(
-        await submitGuestCheck(session.sessionToken, {
-          ...request,
-          content: request.content.trim(),
-        })
+        await submitGuestCheck(session.sessionToken, payload)
       )
     } catch (err) {
       setError(errorMessage(err))

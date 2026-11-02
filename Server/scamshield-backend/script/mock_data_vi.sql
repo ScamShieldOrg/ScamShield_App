@@ -145,32 +145,194 @@ SELECT v.type, v.value, v.display_value,
        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '10 days',
        CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
 FROM (VALUES
-    ('URL', 'dispute-pending.example', 'dispute-pending.example'),
-    ('PHONE', '0919000091', '091.900.0091 (Hotline doanh nghiệp mẫu)'),
-    ('BANK_ACCOUNT', 'MOCK-DSP-BANK-001', 'STK Techcombank 1029999.xxxx (mẫu)'),
-    ('URL', 'dispute-techcorp.example', 'dispute-techcorp.example'),
-    ('PHONE', '0919000092', '091.900.0092 (Hotline đã được giải tỏa)'),
-    ('URL', 'dispute-rejected.example', 'dispute-rejected.example'),
-    ('URL', 'dispute-partner.example', 'dispute-partner.example'),
-    ('BANK_ACCOUNT', 'MOCK-DSP-BANK-002', '1029999.xxxx'),
-    ('PHONE', '0919000094', '091.900.0094'),
-    ('URL', 'dispute-review-shop.example', 'dispute-review-shop.example'),
-    ('URL', 'dispute-supplement-overdue.example', 'dispute-supplement-overdue.example'),
-    ('URL', 'dispute-approved-active.example', 'dispute-approved-active.example'),
-    ('BANK_ACCOUNT', 'MOCK-DSP-BANK-003', '1902999.xxxx'),
-    ('URL', 'dispute-khoi-verified.example', 'Tên miền chính chủ của Trần Minh Khôi'),
-    ('BANK_ACCOUNT', 'MOCK-DSP-LINH-VERIFIED', 'Tài khoản chính chủ của Phạm Ngọc Linh')
+    ('PHONE', '0236.688.8766', '0236.688.8766'),
+    ('BANK_ACCOUNT', '061810876', 'STK ngân hàng VIB 061810876'),
+    ('PHONE', '02488860469', '0248.886.0469'),
+    ('BANK_ACCOUNT', '19040027069013', 'STK ngân hàng Techcombank 19040027069013'),
+    ('PHONE', '0889050231', '0889.050.231'),
+    ('PHONE', '0917896904', '0917.896.904'),
+    ('BANK_ACCOUNT', '10981888886', 'STK ngân hàng TPBank 10981888886'),
+    ('BANK_ACCOUNT', '0375588149', 'STK ngân hàng MB 0375588149')
 ) AS v(type, value, display_value)
 WHERE NOT EXISTS (SELECT 1 FROM indicators i WHERE i.type = v.type AND i.normalized_value = v.value);
 
+-- URL blacklist từ dữ liệu đầu vào ngày 30/10/2026.
+WITH source_data (normalized_value, display_value, source_created_at) AS (
+    VALUES
+    ('formulary-hype-squad-event.com', 'http://formulary-hype-squad-event.com', '2026-10-30T12:36:04.616208'),
+    ('23.94.136.170', 'https://23.94.136.170', '2026-10-30T12:36:24.728818'),
+    ('id9828.shop', 'https://id9828.shop', '2026-10-30T06:04:20.056137'),
+    ('biuvca.top', 'http://biuvca.top', '2026-10-30T09:02:50.500653'),
+    ('1.20.150.71', 'https://1.20.150.71', '2026-10-30T12:43:01.478159'),
+    ('fq8bgcyp3t.suijidaohxl.top', 'https://fq8bgcyp3t.suijidaohxl.top', '2026-10-30T17:36:28.007160'),
+    ('juzhen202601.com', 'https://juzhen202601.com', '2026-10-30T00:54:15.483993'),
+    ('327012.xyz', 'https://327012.xyz', '2026-10-30T07:57:45.182729'),
+    ('ka7edrsxzm.suijidaohxl.top', 'https://ka7edrsxzm.suijidaohxl.top', '2026-10-30T05:41:11.956587'),
+    ('ggptt.biz', 'https://ggptt.biz', '2026-10-30T08:32:36.786801'),
+    ('777t87u8.weebly.com', 'http://777t87u8.weebly.com', '2026-10-30T04:24:34.869650'),
+    ('yhhld.gpjfuh.info', 'http://yhhld.gpjfuh.info', '2026-10-30T13:12:28.172399'),
+    ('mail.calvarylight.com', 'https://mail.calvarylight.com', '2026-10-30T15:43:15.220558'),
+    ('xgtnkehtzn.suijidaohxl.top', 'https://xgtnkehtzn.suijidaohxl.top', '2026-10-30T09:15:13.334365'),
+    ('15.181.16.225', 'http://15.181.16.225', '2026-10-30T15:40:09.711871'),
+    ('dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev', 'http://dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev', '2026-10-30T16:22:19.486451'),
+    ('padgnwtnm4.suijidaohxl.top', 'http://padgnwtnm4.suijidaohxl.top', '2026-10-30T09:13:25.490353'),
+    ('netflixnet.webmailsegurancasempreltda.store', 'https://netflixnet.webmailsegurancasempreltda.store', '2026-10-30T11:48:40.414509'),
+    ('ntdy8m8yac.3355799com-dh.top', 'http://ntdy8m8yac.3355799com-dh.top', '2026-10-30T11:21:03.315340'),
+    ('kcdxh8n5hd.suijidaohxl.top', 'https://kcdxh8n5hd.suijidaohxl.top', '2026-10-30T06:04:27.276699'),
+    ('mebh4hbwyy.suijidaohxl.top', 'http://mebh4hbwyy.suijidaohxl.top', '2026-10-30T12:04:08.474174'),
+    ('revollutbonus.cfd', 'http://revollutbonus.cfd', '2026-10-30T13:13:08.300768'),
+    ('uhsvdcnvvvd.cfd', 'http://uhsvdcnvvvd.cfd', '2026-10-30T17:23:27.421381'),
+    ('rtryfx.blogspot.gr', 'http://rtryfx.blogspot.gr', '2026-10-30T03:33:33.370457'),
+    ('24onlinetradecity.live', 'https://24onlinetradecity.live', '2026-10-30T02:57:21.192455'),
+    ('t3w8yf5ji2.suijidaohxl.top', 'https://t3w8yf5ji2.suijidaohxl.top', '2026-10-30T11:54:13.211672'),
+    ('sso-ledgr-com-strt.square.site', 'https://sso-ledgr-com-strt.square.site', '2026-10-30T02:54:02.813645'),
+    ('atualizacao-mais-seguro-cliente-empresa.000webhostapp.com', 'https://atualizacao-mais-seguro-cliente-empresa.000webhostapp.com', '2026-10-30T04:00:34.218689'),
+    ('mailsyncsss.weebly.com', 'https://mailsyncsss.weebly.com', '2026-10-30T11:44:25.232083'),
+    ('authorityphire.weebly.com', 'https://authorityphire.weebly.com', '2026-10-30T01:41:05.350659'),
+    ('jhophiqnkjbbntyjvwn.com', 'http://jhophiqnkjbbntyjvwn.com', '2026-10-30T01:32:32.343148'),
+    ('com-trackesven.top', 'http://com-trackesven.top', '2026-10-30T08:42:22.357694'),
+    ('sk3ecncejy.suijidaohxl.top', 'https://sk3ecncejy.suijidaohxl.top', '2026-10-30T06:06:40.659054'),
+    ('8fbwgu.dzwiekuje.pl', 'http://8fbwgu.dzwiekuje.pl', '2026-10-30T10:50:08.499923'),
+    ('t-mobile.ztrskf.top', 'http://t-mobile.ztrskf.top', '2026-10-30T08:36:32.095723'),
+    ('myhammockvacations.worldofpowerfulyouth.org', 'http://myhammockvacations.worldofpowerfulyouth.org', '2026-10-30T13:12:54.871059'),
+    ('wwuwwwiki2.aomngbr.cc', 'https://wwuwwwiki2.aomngbr.cc', '2026-10-30T08:33:15.150952'),
+    ('6g1adz4wfw.622629dhxl.top', 'https://6g1adz4wfw.622629dhxl.top', '2026-10-30T18:15:10.662594'),
+    ('teaezorapp.webflow.io', 'http://teaezorapp.webflow.io', '2026-10-30T21:29:18.025024'),
+    ('officialpostship.top', 'http://officialpostship.top', '2026-10-30T03:27:09.211588'),
+    ('haodage.cc', 'http://haodage.cc', '2026-10-30T09:27:09.187602'),
+    ('222.149.49.160', 'http://222.149.49.160', '2026-10-30T02:22:14.907119'),
+    ('thebergsignal-gpt.com', 'http://thebergsignal-gpt.com', '2026-10-30T01:53:17.472520'),
+    ('tseswfz.blogspot.am', 'http://tseswfz.blogspot.am', '2026-10-30T11:21:29.063229'),
+    ('mentyxrx4y.3355799com-dh.top', 'https://mentyxrx4y.3355799com-dh.top', '2026-10-30T10:34:00.929465'),
+    ('iph5sayjxx.suijidaohxl.top', 'http://iph5sayjxx.suijidaohxl.top', '2026-10-30T06:42:54.364857'),
+    ('1kxykd5bga.622629dhxl.top', 'http://1kxykd5bga.622629dhxl.top', '2026-10-30T01:32:08.402252'),
+    ('bakermeekins.com', 'https://bakermeekins.com', '2026-10-30T16:08:15.103403'),
+    ('rpkfxtr7jk.suijidaohxl.top', 'http://rpkfxtr7jk.suijidaohxl.top', '2026-10-30T07:51:08.090586'),
+    ('ww17.uhdmovies.foo', 'https://ww17.uhdmovies.foo', '2026-10-30T16:05:11.721363')
+)
+INSERT INTO indicators
+    (type, normalized_value, display_value, first_seen_at, last_seen_at, created_at, updated_at)
+SELECT
+    'URL', source_data.normalized_value, source_data.display_value,
+    source_data.source_created_at::timestamp,
+    source_data.source_created_at::timestamp,
+    source_data.source_created_at::timestamp,
+    CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
+FROM source_data
+WHERE NOT EXISTS (
+    SELECT 1 FROM indicators existing
+    WHERE existing.type = 'URL'
+      AND existing.normalized_value = source_data.normalized_value
+);
+
+-- 10 URL whitelist: lưu indicator trước khi gắn xác minh bên dưới.
+INSERT INTO indicators (type, normalized_value, display_value, first_seen_at, last_seen_at, created_at, updated_at)
+SELECT 'URL', v.domain, v.url, v.source_created_at::timestamp,
+       v.source_created_at::timestamp, v.source_created_at::timestamp,
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
+FROM (VALUES
+    ('oviland.ru', 'https://oviland.ru', '2026-08-27T08:40:15.088962'),
+    ('nyulawglobal.org', 'https://nyulawglobal.org', '2026-08-27T08:40:15.088962'),
+    ('brooklynfabric.com', 'https://brooklynfabric.com', '2026-08-27T08:40:15.088962'),
+    ('nar.az', 'https://nar.az', '2026-08-27T08:40:15.088962'),
+    ('vmos.cn', 'https://vmos.cn', '2026-08-27T08:40:15.088962'),
+    ('crockford.com', 'https://crockford.com', '2026-08-27T08:40:15.088962'),
+    ('portaransas.org', 'https://portaransas.org', '2026-08-27T08:40:15.088962'),
+    ('assortedinternet.com', 'https://assortedinternet.com', '2026-08-27T08:40:15.088962'),
+    ('koreagift.com', 'https://koreagift.com', '2026-08-27T08:40:15.088962'),
+    ('oshioshi.co.il', 'https://oshioshi.co.il', '2026-08-27T08:40:15.088962')
+) AS v(domain, url, source_created_at)
+WHERE NOT EXISTS (
+    SELECT 1 FROM indicators i
+    WHERE i.type = 'URL' AND i.normalized_value = v.domain
+);
+
 -- 12. partner_profiles
-INSERT INTO partner_profiles (user_id, legal_name, brand_name, partner_type, verification_status, created_at) VALUES
-((SELECT id FROM users WHERE email='partner@shopee.vn'), 'Công ty TNHH Shopee', 'Shopee', 'BUSINESS', 'VERIFIED', NOW());
+-- Tài khoản mẫu riêng cho từng website; email miền .test không đại diện chủ sở hữu thật.
+INSERT INTO users (full_name, phone_number, email, password_hash, role_id, status, reputation_points,
+                   is_phone_verified, created_at, updated_at)
+SELECT v.brand_name, v.phone_number, 'partner+' || v.domain || '@scamshield.test',
+       '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2',
+       r.id, 'ACTIVE', 0, false,
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
+FROM (VALUES
+    ('oviland.ru', 'Овиленд', '0900000101'),
+    ('nyulawglobal.org', 'Hauser Global Law School Program', '0900000102'),
+    ('brooklynfabric.com', 'Brooklyn Fabric Company', '0900000103'),
+    ('nar.az', 'Nar', '0900000104'),
+    ('vmos.cn', 'VMOS', '0900000105'),
+    ('crockford.com', 'Douglas Crockford', '0900000106'),
+    ('portaransas.org', 'Port Aransas Chamber of Commerce & Tourist Bureau', '0900000107'),
+    ('assortedinternet.com', 'Assorted Internet', '0900000108'),
+    ('koreagift.com', '고려기프트', '0900000109'),
+    ('oshioshi.co.il', 'אושי אושי', '0900000110')
+) AS v(domain, brand_name, phone_number)
+JOIN roles r ON r.name = 'BUSINESS_PARTNER'
+WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.email = 'partner+' || v.domain || '@scamshield.test');
+
+-- Tên pháp lý dùng theo nguồn công khai khi có; nếu chưa rõ, dùng nhãn website làm dữ liệu mẫu.
+-- VERIFIED ở đây là trạng thái mock của whitelist, không xác nhận quan hệ đối tác thật.
+INSERT INTO partner_profiles (user_id, legal_name, brand_name, partner_type,
+                              verification_status, verified_by, verified_at,
+                              official_domain, created_at, updated_at)
+SELECT u.id, v.legal_name, v.brand_name, 'BUSINESS', 'VERIFIED', admin.id,
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
+       v.domain, CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
+FROM (VALUES
+    ('shopee.vn', 'Công ty TNHH Shopee', 'Shopee'),
+    ('oviland.ru', 'ИП Текунов И.С.', 'Овиленд'),
+    ('nyulawglobal.org', 'New York University School of Law', 'Hauser Global Law School Program'),
+    ('brooklynfabric.com', 'Brooklyn Fabric Company', 'Brooklyn Fabric Company'),
+    ('nar.az', 'Azerfon LLC', 'Nar'),
+    ('vmos.cn', 'VMOS', 'VMOS'),
+    ('crockford.com', 'Douglas Crockford', 'Douglas Crockford'),
+    ('portaransas.org', 'Port Aransas Chamber of Commerce & Tourist Bureau', 'Visit Port Aransas'),
+    ('assortedinternet.com', 'Assorted Internet', 'Assorted Internet'),
+    ('koreagift.com', '고려기프트(주)', '고려기프트'),
+    ('oshioshi.co.il', 'אושי אושי', 'אושי אושי')
+) AS v(domain, legal_name, brand_name)
+JOIN users u ON u.email = CASE
+    WHEN v.domain = 'shopee.vn' THEN 'partner@shopee.vn'
+    ELSE 'partner+' || v.domain || '@scamshield.test'
+END
+JOIN users admin ON admin.email = 'admin@scamshield.vn'
+WHERE NOT EXISTS (SELECT 1 FROM partner_profiles p WHERE p.user_id = u.id);
 
 -- 13. whitelist_entries
-INSERT INTO whitelist_entries (partner_id, indicator_id, verification_status, auto_lock_moderation, created_at) VALUES
-((SELECT id FROM partner_profiles WHERE brand_name='Shopee'), (SELECT id FROM indicators WHERE normalized_value='shopee.vn'), 'VERIFIED', true, NOW()),
-((SELECT id FROM partner_profiles WHERE brand_name='Shopee'), (SELECT id FROM indicators WHERE normalized_value='vietcombank'), 'VERIFIED', true, NOW());
+INSERT INTO whitelist_entries (partner_id, indicator_id, verification_status,
+                               verified_by, verified_at, auto_lock_moderation, created_at, updated_at)
+SELECT p.id, i.id, 'VERIFIED', u.id,
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh', true,
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
+FROM (VALUES
+    ('Shopee', 'URL', 'shopee.vn'),
+    ('oviland.ru', 'URL', 'oviland.ru'),
+    ('nyulawglobal.org', 'URL', 'nyulawglobal.org'),
+    ('brooklynfabric.com', 'URL', 'brooklynfabric.com'),
+    ('nar.az', 'URL', 'nar.az'),
+    ('vmos.cn', 'URL', 'vmos.cn'),
+    ('crockford.com', 'URL', 'crockford.com'),
+    ('portaransas.org', 'URL', 'portaransas.org'),
+    ('assortedinternet.com', 'URL', 'assortedinternet.com'),
+    ('koreagift.com', 'URL', 'koreagift.com'),
+    ('oshioshi.co.il', 'URL', 'oshioshi.co.il')
+) AS v(partner_key, indicator_type, indicator_value)
+JOIN users u ON u.email = 'admin@scamshield.vn'
+JOIN partner_profiles p ON p.partner_type = 'BUSINESS'
+    AND (p.official_domain = v.partner_key OR (v.partner_key = 'Shopee' AND p.brand_name = 'Shopee'))
+JOIN LATERAL (
+    SELECT id FROM indicators
+    WHERE type = v.indicator_type AND normalized_value = v.indicator_value
+    ORDER BY id LIMIT 1
+) i ON true
+WHERE NOT EXISTS (
+    SELECT 1 FROM whitelist_entries w
+    WHERE w.partner_id = p.id AND w.indicator_id = i.id
+      AND w.verification_status = 'VERIFIED'
+);
 
 -- 14. check_requests
 INSERT INTO check_requests (user_id, input_type, raw_input, normalized_input, masked_input, status, created_at) VALUES
@@ -197,15 +359,28 @@ INSERT INTO rule_definitions (code, name, rule_type, version, is_active, is_froz
 ('R001', 'Phát hiện tên miền trúng thưởng ảo', 'URL_PATTERN', 1, true, false, NOW(), NOW());
 
 -- 17. reports
-INSERT INTO reports (reporter_user_id, indicator_id, status, category_id, report_count_signal, coordinated_report_suspected, moderation_locked, created_at, updated_at) VALUES
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), (SELECT id FROM indicators WHERE normalized_value='0987654321'), 'APPROVED', (SELECT id FROM scam_categories WHERE code='TRUNG_THUONG'), 1, false, false, NOW(), NOW());
-
--- Nhiều báo cáo dùng chung một indicator để kiểm tra blacklist không bị đếm trùng.
--- Báo cáo pending, đã thu hồi và thiếu tỉnh vẫn tính vào tổng lượt báo cáo.
-INSERT INTO reports (reporter_user_id, indicator_id, status, category_id, region_code, description,
-                     report_count_signal, coordinated_report_suspected, moderation_locked, created_at, updated_at)
+-- Một INSERT cho báo cáo cơ bản, dashboard, hàng đợi kiểm duyệt và blacklist.
+-- Các nhánh blacklist chỉ thêm báo cáo đã duyệt nếu indicator chưa có báo cáo được tính.
+INSERT INTO reports (reporter_user_id, indicator_id, status, category_id, region_code,
+                     description, reported_message, priority, priority_score, report_count_signal,
+                     coordinated_report_suspected, moderation_locked, locked_by_user_id, locked_at,
+                     created_at, updated_at)
+SELECT u.id, i.id, 'APPROVED', c.id, NULL::varchar, NULL::text, NULL::text,
+       NULL::varchar, NULL::numeric, 1, false, false,
+       NULL::bigint, NULL::timestamp, NOW()::timestamp, NOW()::timestamp
+FROM users u
+JOIN indicators i ON i.normalized_value = '0987654321'
+JOIN scam_categories c ON c.code = 'TRUNG_THUONG'
+WHERE u.email = 'nguyenvana@gmail.com'
+  AND NOT EXISTS (
+      SELECT 1 FROM reports r
+      WHERE r.reporter_user_id = u.id AND r.indicator_id = i.id
+        AND r.status = 'APPROVED'
+  )
+UNION ALL
 SELECT u.id, i.id, v.status, c.id, v.region_code, 'DASHBOARD-MOCK:' || v.key,
-       1, false, false,
+       NULL::text, NULL::varchar, NULL::numeric, 1, false, false,
+       NULL::bigint, NULL::timestamp,
        COALESCE(v.fixed_at, DATE_TRUNC('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.day_offset * INTERVAL '1 day'),
        COALESCE(v.fixed_at, DATE_TRUNC('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.day_offset * INTERVAL '1 day')
 FROM (VALUES
@@ -245,23 +420,15 @@ FROM (VALUES
 JOIN users u ON u.email = 'nguyenvana@gmail.com'
 JOIN indicators i ON i.normalized_value = v.value
 JOIN scam_categories c ON c.code = v.category_code
-WHERE NOT EXISTS (SELECT 1 FROM reports r WHERE r.description = 'DASHBOARD-MOCK:' || v.key);
-
--- 28 báo cáo của 5 người gửi: đủ PENDING, IN_REVIEW, APPROVED, REJECTED.
--- Khóa kiểm duyệt là cờ riêng, không thêm trạng thái LOCKED ngoài ReportStatus.
--- Các khóa REPORT-MOCK giúp chọn đúng báo cáo và không phụ thuộc ID tự tăng.
-INSERT INTO reports (reporter_user_id, indicator_id, status, category_id, region_code,
-                     description, reported_message, priority, priority_score, report_count_signal,
-                     coordinated_report_suspected, moderation_locked, locked_by_user_id, locked_at,
-                     created_at, updated_at)
+WHERE NOT EXISTS (SELECT 1 FROM reports r WHERE r.description = 'DASHBOARD-MOCK:' || v.key)
+UNION ALL
 SELECT u.id, i.id, v.status, c.id, v.region_code,
        'REPORT-MOCK:' || v.key || ' — ' || v.description, v.description,
        v.priority, v.priority_score, 1, v.coordinated, v.locked,
        CASE WHEN v.locked THEN moderator.id ELSE NULL END,
-       CASE WHEN v.locked THEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')
-            - v.hours_ago * INTERVAL '1 hour' + INTERVAL '15 minutes' ELSE NULL END,
-       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - v.hours_ago * INTERVAL '1 hour',
-       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - v.hours_ago * INTERVAL '1 hour'
+       CASE WHEN v.locked THEN CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh' - v.hours_ago * INTERVAL '1 hour' + INTERVAL '15 minutes' ELSE NULL END,
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh' - v.hours_ago * INTERVAL '1 hour',
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh' - v.hours_ago * INTERVAL '1 hour'
             + CASE WHEN v.status IN ('APPROVED', 'REJECTED') THEN INTERVAL '30 minutes' ELSE INTERVAL '15 minutes' END
 FROM (VALUES
     ('khoi-01', 'khoi.tran@gmail.com', 'shopee.vn', 'VIEC_LAM', '01', 'REJECTED', 'HIGH', 65, true, false, 24, 'Báo cáo website chính thức nhưng chưa cung cấp căn cứ chứng minh hành vi giả mạo.'),
@@ -298,7 +465,112 @@ JOIN users u ON u.email = v.email
 JOIN indicators i ON i.normalized_value = v.indicator_value
 JOIN scam_categories c ON c.code = v.category_code
 JOIN users moderator ON moderator.email = 'moderator.phuong@scamshield.vn'
-WHERE NOT EXISTS (SELECT 1 FROM reports r WHERE r.description = 'REPORT-MOCK:' || v.key || ' — ' || v.description);
+WHERE NOT EXISTS (SELECT 1 FROM reports r WHERE r.description = 'REPORT-MOCK:' || v.key || ' — ' || v.description)
+UNION ALL
+SELECT u.id, i.id, 'APPROVED', NULL, NULL, 'BLACKLIST-MOCK:' || v.domain,
+       'URL nằm trong danh sách cảnh báo được cung cấp cho admin xác nhận',
+       NULL, NULL, 1, false, false, NULL, NULL, i.created_at, i.created_at
+FROM (VALUES
+    ('formulary-hype-squad-event.com'),
+    ('23.94.136.170'),
+    ('id9828.shop'),
+    ('biuvca.top'),
+    ('1.20.150.71'),
+    ('fq8bgcyp3t.suijidaohxl.top'),
+    ('juzhen202601.com'),
+    ('327012.xyz'),
+    ('ka7edrsxzm.suijidaohxl.top'),
+    ('ggptt.biz'),
+    ('777t87u8.weebly.com'),
+    ('yhhld.gpjfuh.info'),
+    ('mail.calvarylight.com'),
+    ('xgtnkehtzn.suijidaohxl.top'),
+    ('15.181.16.225'),
+    ('dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev'),
+    ('padgnwtnm4.suijidaohxl.top'),
+    ('netflixnet.webmailsegurancasempreltda.store'),
+    ('ntdy8m8yac.3355799com-dh.top'),
+    ('kcdxh8n5hd.suijidaohxl.top'),
+    ('mebh4hbwyy.suijidaohxl.top'),
+    ('revollutbonus.cfd'),
+    ('uhsvdcnvvvd.cfd'),
+    ('rtryfx.blogspot.gr'),
+    ('24onlinetradecity.live'),
+    ('t3w8yf5ji2.suijidaohxl.top'),
+    ('sso-ledgr-com-strt.square.site'),
+    ('atualizacao-mais-seguro-cliente-empresa.000webhostapp.com'),
+    ('mailsyncsss.weebly.com'),
+    ('authorityphire.weebly.com'),
+    ('jhophiqnkjbbntyjvwn.com'),
+    ('com-trackesven.top'),
+    ('sk3ecncejy.suijidaohxl.top'),
+    ('8fbwgu.dzwiekuje.pl'),
+    ('t-mobile.ztrskf.top'),
+    ('myhammockvacations.worldofpowerfulyouth.org'),
+    ('wwuwwwiki2.aomngbr.cc'),
+    ('6g1adz4wfw.622629dhxl.top'),
+    ('teaezorapp.webflow.io'),
+    ('officialpostship.top'),
+    ('haodage.cc'),
+    ('222.149.49.160'),
+    ('thebergsignal-gpt.com'),
+    ('tseswfz.blogspot.am'),
+    ('mentyxrx4y.3355799com-dh.top'),
+    ('iph5sayjxx.suijidaohxl.top'),
+    ('1kxykd5bga.622629dhxl.top'),
+    ('bakermeekins.com'),
+    ('rpkfxtr7jk.suijidaohxl.top'),
+    ('ww17.uhdmovies.foo')
+) AS v(domain)
+JOIN indicators i ON i.type = 'URL' AND i.normalized_value = v.domain
+JOIN users u ON u.email = 'nguyenvana@gmail.com'
+WHERE NOT EXISTS (
+    SELECT 1 FROM reports r
+    WHERE r.indicator_id = i.id AND r.status IN ('APPROVED', 'MERGED')
+)
+UNION ALL
+SELECT u.id, i.id, 'APPROVED', c.id, NULL, 'BLACKLIST-MOCK:' || v.value,
+       'Báo cáo mẫu cho mục blacklist đã được admin xác nhận',
+       NULL, NULL, 1, false, false, NULL, NULL, CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
+FROM (VALUES
+    ('dispute-pending.example', 'VIEC_LAM'),
+    ('0919000091', 'GIA_DANH_CQCN'),
+    ('MOCK-DSP-BANK-001', 'GIA_DANH_NGAN_HANG'),
+    ('dispute-rejected.example', 'VIEC_LAM'),
+    ('dispute-partner.example', 'VIEC_LAM'),
+    ('MOCK-DSP-BANK-002', 'GIA_DANH_NGAN_HANG'),
+    ('0919000094', 'GIA_DANH_CQCN'),
+    ('dispute-review-shop.example', 'VIEC_LAM'),
+    ('dispute-supplement-overdue.example', 'VIEC_LAM'),
+    ('MOCK-DSP-BANK-003', 'GIA_DANH_NGAN_HANG')
+) AS v(value, category_code)
+JOIN users u ON u.email = 'nguyenvana@gmail.com'
+JOIN indicators i ON i.normalized_value = v.value
+JOIN scam_categories c ON c.code = v.category_code
+WHERE NOT EXISTS (
+    SELECT 1 FROM reports r
+    WHERE r.indicator_id = i.id AND r.status IN ('APPROVED', 'MERGED')
+)
+UNION ALL
+SELECT u.id, i.id, 'APPROVED', NULL, NULL, 'BLACKLIST-MOCK:' || v.value,
+       'Chỉ báo mẫu được đưa vào danh sách cảnh báo',
+       NULL, NULL, 1, false, false, NULL, NULL, i.created_at, i.created_at
+FROM (VALUES
+    ('PHONE', '0236.688.8766'),
+    ('BANK_ACCOUNT', '061810876'),
+    ('PHONE', '02488860469'),
+    ('BANK_ACCOUNT', '19040027069013'),
+    ('PHONE', '0889050231'),
+    ('PHONE', '0917896904'),
+    ('BANK_ACCOUNT', '10981888886'),
+    ('BANK_ACCOUNT', '0375588149')
+) AS v(type, value)
+JOIN indicators i ON i.type = v.type AND i.normalized_value = v.value
+JOIN users u ON u.email = 'nguyenvana@gmail.com'
+WHERE NOT EXISTS (
+    SELECT 1 FROM reports r
+    WHERE r.indicator_id = i.id AND r.status IN ('APPROVED', 'MERGED')
+);
 
 -- 18. confirmed_indicators
 INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, confirmed_at) VALUES
@@ -364,6 +636,102 @@ JOIN indicators i ON i.normalized_value = v.value
 JOIN scam_categories c ON c.code = v.category_code
 JOIN users u ON u.email = 'admin@scamshield.vn'
 WHERE NOT EXISTS (SELECT 1 FROM confirmed_indicators ci WHERE ci.indicator_id = i.id);
+
+-- 8 số điện thoại và tài khoản ngân hàng mẫu được xác nhận vào blacklist.
+INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, source_report_id,
+                                  confirmed_at, public_reason)
+SELECT i.id, NULL, 'ACTIVE', admin.id, r.id,
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
+       'Chỉ báo mẫu được đưa vào danh sách cảnh báo'
+FROM (VALUES
+    ('PHONE', '0236.688.8766'),
+    ('BANK_ACCOUNT', '061810876'),
+    ('PHONE', '02488860469'),
+    ('BANK_ACCOUNT', '19040027069013'),
+    ('PHONE', '0889050231'),
+    ('PHONE', '0917896904'),
+    ('BANK_ACCOUNT', '10981888886'),
+    ('BANK_ACCOUNT', '0375588149')
+) AS v(type, value)
+JOIN indicators i ON i.type = v.type AND i.normalized_value = v.value
+JOIN users admin ON admin.email = 'admin@scamshield.vn'
+JOIN LATERAL (
+    SELECT id FROM reports
+    WHERE indicator_id = i.id AND status IN ('APPROVED', 'MERGED')
+    ORDER BY id LIMIT 1
+) r ON true
+WHERE NOT EXISTS (
+    SELECT 1 FROM confirmed_indicators ci WHERE ci.indicator_id = i.id
+);
+
+-- 50 URL blacklist từ dữ liệu đầu vào: không suy đoán danh mục lừa đảo.
+INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, source_report_id,
+                                  confirmed_at, public_reason)
+SELECT i.id, NULL, 'ACTIVE', u.id, r.id,
+       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
+       'URL nằm trong danh sách cảnh báo được cung cấp cho admin xác nhận'
+FROM (VALUES
+    ('formulary-hype-squad-event.com'),
+    ('23.94.136.170'),
+    ('id9828.shop'),
+    ('biuvca.top'),
+    ('1.20.150.71'),
+    ('fq8bgcyp3t.suijidaohxl.top'),
+    ('juzhen202601.com'),
+    ('327012.xyz'),
+    ('ka7edrsxzm.suijidaohxl.top'),
+    ('ggptt.biz'),
+    ('777t87u8.weebly.com'),
+    ('yhhld.gpjfuh.info'),
+    ('mail.calvarylight.com'),
+    ('xgtnkehtzn.suijidaohxl.top'),
+    ('15.181.16.225'),
+    ('dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev'),
+    ('padgnwtnm4.suijidaohxl.top'),
+    ('netflixnet.webmailsegurancasempreltda.store'),
+    ('ntdy8m8yac.3355799com-dh.top'),
+    ('kcdxh8n5hd.suijidaohxl.top'),
+    ('mebh4hbwyy.suijidaohxl.top'),
+    ('revollutbonus.cfd'),
+    ('uhsvdcnvvvd.cfd'),
+    ('rtryfx.blogspot.gr'),
+    ('24onlinetradecity.live'),
+    ('t3w8yf5ji2.suijidaohxl.top'),
+    ('sso-ledgr-com-strt.square.site'),
+    ('atualizacao-mais-seguro-cliente-empresa.000webhostapp.com'),
+    ('mailsyncsss.weebly.com'),
+    ('authorityphire.weebly.com'),
+    ('jhophiqnkjbbntyjvwn.com'),
+    ('com-trackesven.top'),
+    ('sk3ecncejy.suijidaohxl.top'),
+    ('8fbwgu.dzwiekuje.pl'),
+    ('t-mobile.ztrskf.top'),
+    ('myhammockvacations.worldofpowerfulyouth.org'),
+    ('wwuwwwiki2.aomngbr.cc'),
+    ('6g1adz4wfw.622629dhxl.top'),
+    ('teaezorapp.webflow.io'),
+    ('officialpostship.top'),
+    ('haodage.cc'),
+    ('222.149.49.160'),
+    ('thebergsignal-gpt.com'),
+    ('tseswfz.blogspot.am'),
+    ('mentyxrx4y.3355799com-dh.top'),
+    ('iph5sayjxx.suijidaohxl.top'),
+    ('1kxykd5bga.622629dhxl.top'),
+    ('bakermeekins.com'),
+    ('rpkfxtr7jk.suijidaohxl.top'),
+    ('ww17.uhdmovies.foo')
+) AS v(domain)
+JOIN indicators i ON i.type = 'URL' AND i.normalized_value = v.domain
+JOIN users u ON u.email = 'admin@scamshield.vn'
+JOIN LATERAL (
+    SELECT id FROM reports
+    WHERE indicator_id = i.id AND status IN ('APPROVED', 'MERGED')
+    ORDER BY id LIMIT 1
+) r ON true
+WHERE NOT EXISTS (
+    SELECT 1 FROM confirmed_indicators ci WHERE ci.indicator_id = i.id
+);
 
 -- 19. report_evidence
 -- Report được duyệt chỉ sau khi toàn bộ bằng chứng đã VERIFIED.
