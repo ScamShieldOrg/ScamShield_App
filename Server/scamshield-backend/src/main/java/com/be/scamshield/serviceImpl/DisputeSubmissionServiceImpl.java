@@ -1,5 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.SupabaseStorageService;
+
+import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.DisputeIndicatorType;
 import com.be.scamshield.constant.DisputePriority;
 import com.be.scamshield.constant.DisputeStatus;
@@ -140,7 +143,7 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
             for (var file : evidenceRepository.findFilesForDisputes(drafts.stream().map(Dispute::getId).toList())) {
                 attachments.computeIfAbsent(file.getDisputeId(), key -> new ArrayList<>()).add(new Attachment(file.getId(),
                         file.getEvidenceType(), file.getFileName(), downloadUrl(file.getFileUrl(), file.getStorageObjectKey()),
-                        file.getFileSize(), file.getContentType(), file.getDescription(), file.getVerificationStatus(), file.getCreatedAt()));
+                        file.getFileSize(), file.getContentType(), file.getDescription(), EvidenceVerificationStatus.fromStoredValue(file.getVerificationStatus()), file.getCreatedAt()));
             }
         }
         return PaginatedResponse.buildPaginatedResponse(drafts.map(draft -> formResponse(draft,
@@ -356,7 +359,7 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
                     .evidenceType("application/pdf".equals(file.contentType()) ? "DOCUMENT" : "IMAGE")
                     .fileName(file.name()).fileUrl(uploaded.fileUrl()).fileHash(uploaded.fileHash())
                     .storageObjectKey(uploaded.objectKey()).fileSize(file.size()).contentType(file.contentType())
-                    .verificationStatus("PENDING").createdAt(now).build();
+                    .verificationStatus(EvidenceVerificationStatus.PENDING.name()).createdAt(now).build();
             evidence.add(evidenceRepository.save(attachment));
         }
         evidenceRepository.flush();
@@ -365,7 +368,7 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
     private DisputeFormResponse toResponse(Dispute dispute, List<DisputeEvidence> evidence) {
         List<Attachment> attachments = evidence.stream().map(e -> new Attachment(e.getId(), e.getEvidenceType(), e.getFileName(),
                 downloadUrl(e.getFileUrl(), e.getStorageObjectKey()), e.getFileSize(), e.getContentType(), e.getDescription(),
-                e.getVerificationStatus(), e.getCreatedAt())).toList();
+                EvidenceVerificationStatus.fromStoredValue(e.getVerificationStatus()), e.getCreatedAt())).toList();
         return formResponse(dispute, attachments);
     }
 

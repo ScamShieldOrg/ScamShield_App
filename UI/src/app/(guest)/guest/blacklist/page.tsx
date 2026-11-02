@@ -232,13 +232,6 @@ function GuestBlacklistContent({
     useState<WhitelistItem | null>(null)
   const [selectedBlacklistItem, setSelectedBlacklistItem] =
     useState<BlackItem | null>(null)
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
-  const [reportSubmitted, setReportSubmitted] = useState(false)
-  const [newReportTarget, setNewReportTarget] = useState("")
-  const [newReportType, setNewReportType] = useState<
-    "phone" | "website" | "bank" | "sms"
-  >("phone")
-  const [newReportDesc, setNewReportDesc] = useState("")
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   const handleCopy = (text: string, key: string) => {
@@ -388,18 +381,6 @@ function GuestBlacklistContent({
         window.scrollTo({ top: 380, behavior: "smooth" })
       }
     }
-  }
-
-  const handleReportSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newReportTarget) return
-    setReportSubmitted(true)
-    setTimeout(() => {
-      setIsReportModalOpen(false)
-      setReportSubmitted(false)
-      setNewReportTarget("")
-      setNewReportDesc("")
-    }, 1800)
   }
 
   return (
@@ -832,17 +813,13 @@ function GuestBlacklistContent({
                 </div>
 
                 {/* Red CTA Button: Report new scam target */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReportSubmitted(false)
-                    setIsReportModalOpen(true)
-                  }}
+                <Link
+                  href="/login"
                   className="inline-flex items-center gap-1.5 rounded-xl bg-[#A31D1D] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#8B1818] active:scale-95"
                 >
                   <SirenIcon size={14} weight="fill" />
                   <span>Báo cáo đối tượng mới</span>
-                </button>
+                </Link>
               </div>
             </div>
 
@@ -1044,13 +1021,13 @@ function GuestBlacklistContent({
                     Đăng ký Whitelist Doanh Nghiệp & Đơn vị Chính thức
                   </h3>
                   <p className="mt-1 text-sm text-[#45464D] dark:text-muted-foreground">
-                    Bảo vệ thương hiệu, xác thực số hotline, SMS Brandname và
+                    Bảo vệ thương hiệu, xác thực số hotline và
                     tên miền chính thức để phòng tránh tội phạm mạng mạo danh.
                   </p>
                 </div>
               </div>
               <Link
-                href="/guest/dispute"
+                href="/login"
                 className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#131A33] px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-[#131A33]/90 dark:bg-primary dark:text-primary-foreground"
               >
                 <span>Nộp hồ sơ thẩm định tổ chức</span>
@@ -1172,137 +1149,6 @@ function GuestBlacklistContent({
                 Đóng hồ sơ
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Scam Report Modal */}
-      {isReportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-white p-6 shadow-2xl dark:bg-card">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-border pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-xl bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400">
-                  <SirenIcon size={24} weight="fill" />
-                </div>
-                <div>
-                  <h3 className="font-heading text-lg font-bold text-[#131B2E] dark:text-foreground">
-                    Báo Cáo Đối Tượng Lừa Đảo Mới
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Đóng góp thông tin vào cơ sở dữ liệu quốc gia ScamShield VN
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsReportModalOpen(false)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Đóng"
-              >
-                <XIcon size={18} weight="bold" />
-              </button>
-            </div>
-
-            {/* Form Body */}
-            {reportSubmitted ? (
-              <div className="py-8 text-center">
-                <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
-                  <CheckCircleIcon size={32} weight="fill" />
-                </div>
-                <h4 className="mt-3 text-base font-bold text-foreground">
-                  Đã gửi báo cáo thành công!
-                </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Đội ngũ điều phối và kiểm duyệt ScamShield VN sẽ tiến hành
-                  thẩm định kỹ thuật và cập nhật vào danh sách cảnh báo.
-                </p>
-              </div>
-            ) : (
-              <form
-                onSubmit={handleReportSubmit}
-                className="mt-4 space-y-4 text-xs"
-              >
-                {/* Target Type Selector */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-foreground">
-                    Loại hình vi phạm
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {(
-                      [
-                        { key: "phone", label: "Số điện thoại" },
-                        { key: "website", label: "Website / URL" },
-                        { key: "bank", label: "Tài khoản bank" },
-                        { key: "sms", label: "SMS Brandname" },
-                      ] as const
-                    ).map((t) => (
-                      <button
-                        key={t.key}
-                        type="button"
-                        onClick={() => setNewReportType(t.key)}
-                        className={cn(
-                          "rounded-lg border py-2 text-center text-xs font-semibold transition-all",
-                          newReportType === t.key
-                            ? "border-red-600 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/40 dark:text-red-300"
-                            : "border-border text-muted-foreground hover:bg-muted"
-                        )}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Target Value */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-foreground">
-                    Thông tin đối tượng nghi vấn
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newReportTarget}
-                    onChange={(e) => setNewReportTarget(e.target.value)}
-                    placeholder="Ví dụ: 028.9999.xxxx, domain-lua-dao.xyz, STK..."
-                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-xs text-foreground focus:border-primary focus:outline-hidden"
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="mb-1.5 block font-semibold text-foreground">
-                    Mô tả thủ đoạn / Bằng chứng
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={newReportDesc}
-                    onChange={(e) => setNewReportDesc(e.target.value)}
-                    placeholder="Mô tả chi tiết kịch bản lừa đảo, số tiền bị chiếm đoạt hoặc đính kèm link bằng chứng..."
-                    className="w-full rounded-lg border border-border bg-background p-3 text-xs text-foreground focus:border-primary focus:outline-hidden"
-                  />
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex justify-end gap-2 border-t border-border pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsReportModalOpen(false)}
-                    className="rounded-lg border border-border px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#A31D1D] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#8B1818]"
-                  >
-                    <SirenIcon size={14} weight="fill" />
-                    <span>Gửi báo cáo thẩm định</span>
-                  </button>
-                </div>
-              </form>
-            )}
           </div>
         </div>
       )}

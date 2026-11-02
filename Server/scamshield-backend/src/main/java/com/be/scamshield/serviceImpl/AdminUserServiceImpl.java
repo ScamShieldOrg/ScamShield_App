@@ -216,6 +216,10 @@ public class AdminUserServiceImpl implements IAdminUserService {
             throw new BadRequestException("Cờ lạm dụng này không thuộc về tài khoản người dùng ID: " + userId);
         }
 
+        if (!"OPEN".equals(flag.getStatus())) {
+            throw new BadRequestException("Chỉ được giải tỏa cờ đang có hiệu lực; hồ sơ chờ duyệt phải được xét duyệt trước");
+        }
+
         flag.setStatus("RESOLVED");
         flag.setResolvedAt(LocalDateTime.now());
         AbuseFlag savedFlag = abuseFlagRepository.save(flag);

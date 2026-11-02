@@ -1,5 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.BusinessLicenseOcrClient;
+import com.be.scamshield.external.XinvoiceBusinessClient;
+
 import com.be.scamshield.config.PartnerBusinessVerificationProperties;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.SourceStatus;
 import java.net.SocketTimeoutException;

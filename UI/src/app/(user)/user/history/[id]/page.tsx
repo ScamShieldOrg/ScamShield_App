@@ -1,3 +1,5 @@
+import { UserHistoryDetail } from "@/components/features/history/user-history-detail"
+
 export default async function UserHistoryDetailPage({
   params,
 }: {
@@ -5,5 +7,5 @@ export default async function UserHistoryDetailPage({
 }) {
   const { id } = await params
 
-  return <div>This is user history detail page (id: {id})</div>
+  return <UserHistoryDetail checkId={Number(id)} />
 }

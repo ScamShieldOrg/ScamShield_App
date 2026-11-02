@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.BusinessLicenseOcrClient;
+import com.be.scamshield.external.FirebasePhoneClient;
+import com.be.scamshield.external.XinvoiceBusinessClient;
+
 import com.be.scamshield.constant.OtpType;
 import com.be.scamshield.config.PartnerBusinessVerificationProperties;
 import com.be.scamshield.constant.PartnerVerificationStatus;

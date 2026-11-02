@@ -1,6 +1,7 @@
 package com.be.scamshield.security;
 
 import io.jsonwebtoken.JwtException;
+import org.springframework.security.authentication.DisabledException;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,19 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain, never()).doFilter(any(), any());
+        verify(unauthorizedHandler).commence(any(), any(), any());
+    }
+
+    @Test
+    void existingTokenOfRestrictedAccountCannotReachSecuredEndpoint() throws Exception {
+        MockHttpServletRequest request = requestWithBearerToken("/api/users/me");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+        when(tokenProvider.getUsernameFromJWT("bad-token")).thenReturn("restricted@example.test");
+        when(customUserDetailsService.loadUserByUsername("restricted@example.test"))
+                .thenThrow(new DisabledException("Tài khoản bị khóa"));
+        filter.doFilter(request, response, chain);
+        verify(chain, never()).doFilter(any(), any());
         verify(unauthorizedHandler).commence(any(), any(), any());
     }
 

@@ -24,6 +24,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
+import com.be.scamshield.dto.response.ScamCheckAiDetails;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -164,7 +166,8 @@ public class ScamCheckServiceImpl implements IScamCheckService {
                         indicator.getId(), indicator.getType(), indicator.getNormalizedValue()),
                 verdict.getReasons().stream().map(r -> new ScamCheckResponse.Reason(
                         r.getReasonCode(), r.getSourceStage(), r.getDetail())).toList(),
-                check.getCreatedAt(), check.getCompletedAt(), check.getRetentionExpiresAt());
+                check.getCreatedAt(), check.getCompletedAt(), check.getRetentionExpiresAt(),
+                verdict.getAiSnapshot() == null ? null : new ObjectMapper().readValue(verdict.getAiSnapshot(), ScamCheckAiDetails.class));
     }
 
     private LocalDateTime now() {

@@ -1,5 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.FirebasePhoneClient;
+import com.be.scamshield.external.InMemoryOtpStore;
+
 import com.be.scamshield.constant.OtpType;
 import com.be.scamshield.dto.OtpEntry;
 import com.be.scamshield.exception.SmsProviderException;

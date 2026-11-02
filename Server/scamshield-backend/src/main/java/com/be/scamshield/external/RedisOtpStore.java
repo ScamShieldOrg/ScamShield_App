@@ -1,4 +1,4 @@
-package com.be.scamshield.serviceImpl;
+package com.be.scamshield.external;
 
 import com.be.scamshield.constant.OtpType;
 import com.be.scamshield.dto.OtpEntry;

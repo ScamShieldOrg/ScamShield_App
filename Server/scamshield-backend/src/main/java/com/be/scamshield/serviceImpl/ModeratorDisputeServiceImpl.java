@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.SupabaseStorageService;
+
 import com.be.scamshield.constant.DisputeStatus;
 import com.be.scamshield.dto.request.DisputeVerdictRequest;
 import com.be.scamshield.dto.request.ModeratorDisputeFilterRequest;
