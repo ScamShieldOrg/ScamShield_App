@@ -3,3 +3,7 @@
 skills-lock.json
 .agents
 docs
+
+# Local documentation and diagrams must not be committed.
+/Server/scamshield-backend/docs/
+/Server/scamshield-backend/diagrams/

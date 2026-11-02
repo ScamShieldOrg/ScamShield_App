@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.FirebasePhoneClient;
+
 import com.be.scamshield.constant.OtpType;
 import com.be.scamshield.dto.OtpEntry;
 import com.be.scamshield.exception.BadRequestException;
@@ -167,7 +169,14 @@ public class OtpServiceImpl implements IOtpService {
     @Transactional(propagation = Propagation.MANDATORY, noRollbackFor = IllegalArgumentException.class)
     public boolean verifyContactOtps(String email, String emailCode, String phone, String phoneCode) {
         OtpEntry emailOtp = validateContactOtp(email, emailCode, OtpType.EMAIL, "email");
-        OtpEntry phoneOtp = validateContactOtp(phone, phoneCode, OtpType.PHONE, "điện thoại");
+        OtpEntry phoneOtp;
+        try {
+            phoneOtp = validateContactOtp(phone, phoneCode, OtpType.PHONE, "điện thoại");
+        } catch (RuntimeException ex) {
+            // The correct email code remains unconsumed; release only this attempt's reservation.
+            otpStore.decrementFailedAttemptsIfMatching(emailOtp);
+            throw ex;
+        }
         // Both checks must succeed before either challenge is consumed.
         markVerified(emailOtp);
         markVerified(phoneOtp);
@@ -183,12 +192,15 @@ public class OtpServiceImpl implements IOtpService {
     }
 
     private void markVerified(OtpEntry otp) {
+        boolean success = otpStore.markVerified(otp.getTarget(), otp.getType());
+        if (!success) {
+            throw new IllegalArgumentException("Vui lòng gửi yêu cầu lấy mã OTP mới");
+        }
         otp.setVerified(true);
         String sessionInfo = otp.getProviderSessionInfo();
         if (otp.getType() == OtpType.PHONE) {
             otp.setProviderSessionInfo(null);
         }
-        otpStore.markVerified(otp.getTarget(), otp.getType());
 
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -230,8 +242,13 @@ public class OtpServiceImpl implements IOtpService {
                 throw new IllegalArgumentException("Vui lòng gửi yêu cầu lấy mã OTP mới");
             }
 
-            if (otpEntry.getFailedAttempts() >= 5) {
-                throw new IllegalArgumentException("Vui lòng gửi yêu cầu lấy mã OTP mới");
+            if (type == OtpType.PHONE && (otpCode == null || !otpCode.matches("^[0-9]{6}$"))) {
+                throw new IllegalArgumentException("OTP SMS phải gồm 6 chữ số");
+            }
+
+            int attempt = otpStore.incrementAndGetFailedAttempts(target, type);
+            if (attempt > 5) {
+                throw new IllegalArgumentException("Mã OTP đã bị vô hiệu hóa do nhập sai quá 5 lần. Vui lòng yêu cầu mã mới.");
             }
 
             if (type == OtpType.PHONE) {
@@ -239,25 +256,25 @@ public class OtpServiceImpl implements IOtpService {
                     throw new IllegalArgumentException("Phiên SMS chưa sẵn sàng; vui lòng yêu cầu OTP mới");
                 }
                 try {
-                    if (otpCode == null || !otpCode.matches("^[0-9]{6}$")) {
-                        throw new IllegalArgumentException("OTP SMS phải gồm 6 chữ số");
-                    }
                     firebasePhoneClient.verify(otpEntry.getProviderSessionInfo(), otpCode,
                             VietnamPhoneNumbers.e164(target));
                 } catch (IllegalArgumentException ex) {
-                    otpStore.incrementFailedAttempts(target, type);
-                    int currentFailed = otpEntry.getFailedAttempts() + 1;
+                    int attemptsLeft = 5 - attempt;
                     throw new IllegalArgumentException("OTP SMS không đúng hoặc đã hết hạn. Còn "
-                            + (5 - currentFailed) + " lần thử; hết lượt cần yêu cầu OTP mới.");
+                            + attemptsLeft + " lần thử; hết lượt cần yêu cầu OTP mới.");
+                } catch (RuntimeException ex) {
+                    // Provider network or server outage does not count as incorrect code
+                    otpStore.decrementFailedAttempts(target, type);
+                    throw ex;
                 }
+                otpEntry.setFailedAttempts(attempt);
                 return otpEntry;
             }
             if (otpEntry.getOtpCode().equals(otpCode)) {
+                otpEntry.setFailedAttempts(attempt);
                 return otpEntry;
             } else {
-                otpStore.incrementFailedAttempts(target, type);
-                int currentFailed = otpEntry.getFailedAttempts() + 1;
-                int attemptsLeft = 5 - currentFailed;
+                int attemptsLeft = 5 - attempt;
                 if (attemptsLeft > 0) {
                     throw new IllegalArgumentException("Mã OTP không chính xác. Bạn còn " + attemptsLeft + " lần thử.");
                 } else {

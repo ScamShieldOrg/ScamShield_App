@@ -127,26 +127,28 @@ export function ReportQueueDetailView({
 
             <div className="mt-3 flex items-baseline gap-1">
               <span className="text-3xl font-black text-rose-600 dark:text-rose-500">
-                {item.aiScore}
+                {item.aiScore != null ? item.aiScore : "--"}
               </span>
-              <span className="text-sm font-semibold text-slate-400">
-                / 100
-              </span>
+              {item.aiScore != null && (
+                <span className="text-sm font-semibold text-slate-400">
+                  / 100
+                </span>
+              )}
             </div>
 
             <div className="mt-1 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
-              {item.aiRiskLevel}
+              {item.aiRiskLevel || "Đang chờ phân tích"}
             </div>
 
             <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-              Tin cậy: {item.aiConfidence}
+              Tin cậy: {item.aiConfidence || "--"}
             </p>
 
             {/* Progress bar */}
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div
                 className="h-full rounded-full bg-rose-600 transition-all duration-500 dark:bg-rose-500"
-                style={{ width: `${item.aiScore}%` }}
+                style={{ width: `${item.aiScore ?? 0}%` }}
               />
             </div>
           </div>

@@ -35,7 +35,7 @@ public class AuditLog {
     @Column(name = "new_value")
     private String newValue;
 
-    @Column(name = "reason", nullable = false)
+    @Column(name = "reason", nullable = false, columnDefinition = "text")
     private String reason;
 
     @Column(name = "ip_hash")

@@ -30,7 +30,7 @@ public class PartnerRegistrationController {
     private final IPartnerRegistrationService registrationService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Tạo tài khoản và nộp hồ sơ đối tác", description = "Cần verificationToken từ /api/auth/verify-contacts sau khi xác thực điện thoại. Part request là JSON có password; tài liệu PDF/JPG/PNG tối đa 25MB/tệp. Tạo tài khoản BUSINESS_PARTNER trạng thái INACTIVE và hồ sơ PENDING, chờ duyệt.",
+    @Operation(summary = "Tạo tài khoản và nộp hồ sơ đối tác", description = "Cần verificationToken từ /api/auth/verify-contacts sau khi xác thực điện thoại. Giấy phép kinh doanh phải là PDF; các tài liệu khác hỗ trợ PDF/JPG/PNG, tối đa 25MB/tệp. Đối soát tên doanh nghiệp và MST giữa form và XinVoice, kiểm tra status đủ điều kiện đang hoạt động; không đối soát người đại diện. OCR tạm tắt mặc định do chưa có API key: trả ocrEnabled=false và trạng thái tài liệu DISABLED, không chặn vì thiếu cấu hình OCR. Khi bật BUSINESS_LICENSE_OCR_ENABLED=true, bắt buộc tên/MST khớp cả PDF OCR. HTTP 422 nếu chưa đạt; HTTP 503 nếu dịch vụ đang dùng chưa sẵn sàng. Thành công lưu kết quả và tạo hồ sơ PENDING, tài khoản INACTIVE chờ duyệt.",
             requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
                     encoding = @Encoding(name = "request", contentType = MediaType.APPLICATION_JSON_VALUE))))
     public ResponseEntity<BaseResponse<PartnerRegistrationResponse>> register(

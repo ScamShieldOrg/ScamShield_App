@@ -20,7 +20,8 @@ public record ScamCheckResponse(
         List<Reason> reasons,
         LocalDateTime createdAt,
         LocalDateTime completedAt,
-        LocalDateTime retentionExpiresAt
+        LocalDateTime retentionExpiresAt,
+        ScamCheckAiDetails aiDetails
 ) {
     public record MatchedIndicator(Long id, String type, String value) { }
     public record Reason(String code, String sourceStage, String detail) { }

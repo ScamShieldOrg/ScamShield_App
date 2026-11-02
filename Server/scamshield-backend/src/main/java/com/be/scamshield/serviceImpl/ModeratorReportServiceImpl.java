@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.ReportPriority;
 import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.PaginatedResponse;
@@ -561,7 +562,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         int score = 30;
         score += Math.min(evidences.size(), 3) * 15;
         boolean hasVerifiedOrOcr = evidences.stream().anyMatch(e ->
-                StringUtils.hasText(e.getOcrText()) || "VERIFIED".equalsIgnoreCase(e.getVerificationStatus()));
+                StringUtils.hasText(e.getOcrText()) || EvidenceVerificationStatus.VERIFIED.name().equalsIgnoreCase(e.getVerificationStatus()));
         if (hasVerifiedOrOcr) {
             score += 15;
         }

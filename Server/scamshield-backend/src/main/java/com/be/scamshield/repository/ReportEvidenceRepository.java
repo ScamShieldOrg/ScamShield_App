@@ -11,4 +11,6 @@ import java.util.List;
 public interface ReportEvidenceRepository extends JpaRepository<ReportEvidence, Long> {
     List<ReportEvidence> findByReportId(Long reportId);
     List<ReportEvidence> findByReportIdIn(Collection<Long> reportIds);
+
+    List<ReportEvidence> findByReportIdInOrderByCreatedAtAscIdAsc(Collection<Long> reportIds);
 }

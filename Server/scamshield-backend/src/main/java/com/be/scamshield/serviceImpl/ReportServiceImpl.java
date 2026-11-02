@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.SupabaseStorageService;
+
 import com.be.scamshield.dto.request.CreateReportRequest;
 import com.be.scamshield.dto.request.EvidenceItemDto;
 import com.be.scamshield.dto.request.PresignedUrlRequest;

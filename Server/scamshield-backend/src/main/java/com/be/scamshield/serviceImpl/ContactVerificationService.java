@@ -95,6 +95,22 @@ public class ContactVerificationService {
         }
     }
 
+    public void validateForRegistration(String token, String phone) {
+        if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) {
+            throw new BadRequestException("Cần xác thực điện thoại trước khi đăng ký");
+        }
+        var entry = contactVerificationStore.findByTokenHash(hashToken(token))
+                .orElseThrow(() -> new BadRequestException("Mã xác nhận điện thoại không hợp lệ"));
+        if (entry.getUsedAt() != null || entry.getExpiresAt() == null
+                || !entry.getExpiresAt().isAfter(LocalDateTime.now(applicationClock))) {
+            throw new BadRequestException("Mã xác nhận đã dùng hoặc hết hạn; vui lòng xác thực lại");
+        }
+        if (!VietnamPhoneNumbers.nationalMobile(phone).equals(entry.getPhoneNumber())) {
+            throw new BadRequestException("Số điện thoại đã thay đổi; vui lòng xác thực lại");
+        }
+        // This preflight avoids external API calls for invalid tokens. Atomic consumption still occurs in the write transaction.
+    }
+
     public String hashToken(String token) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));

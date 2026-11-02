@@ -13,9 +13,13 @@ public interface IOtpStore {
 
     void save(OtpEntry entry, Duration ttl);
 
-    void markVerified(String target, OtpType type);
+    boolean markVerified(String target, OtpType type);
 
-    void incrementFailedAttempts(String target, OtpType type);
+    int incrementAndGetFailedAttempts(String target, OtpType type);
+
+    void decrementFailedAttempts(String target, OtpType type);
+
+    void decrementFailedAttemptsIfMatching(OtpEntry expected);
 
     void recordPhoneOtpRequest(LocalDateTime timestamp);
 

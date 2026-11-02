@@ -40,6 +40,9 @@ public class CheckVerdict {
     @Column(precision = 6, scale = 5)
     private BigDecimal confidence;
 
+    @Column(name = "risk_score", precision = 5, scale = 2)
+    private BigDecimal riskScore;
+
     @Column(columnDefinition = "text")
     private String explanation;
 
@@ -48,6 +51,9 @@ public class CheckVerdict {
 
     @Column(name = "unknown_reason", length = 50)
     private String unknownReason;
+
+    @Column(name = "ai_snapshot", columnDefinition = "text")
+    private String aiSnapshot;
 
     @Builder.Default
     @Column(name = "flagged_for_review", nullable = false)

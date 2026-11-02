@@ -56,6 +56,7 @@ public class ScamCheckHistoryRepository {
                     CASE WHEN cv.id IS NOT NULL THEN sc_v.code
                          ELSE COALESCE(sc_ci.code, sc_r.code) END AS category_code,
                     cv.verdict AS saved_verdict,
+                    cv.risk_score AS saved_risk_score,
                     pp.brand_name AS partner_brand,
                     ci.confirmed_at AS confirmed_at,
                     we.id AS whitelist_id,
@@ -103,6 +104,7 @@ public class ScamCheckHistoryRepository {
                     CASE
                         WHEN saved_verdict = 'SCAM_RISK' THEN 'DANGEROUS'
                         WHEN saved_verdict = 'LOW_RISK' THEN 'SAFE'
+                        WHEN saved_verdict = 'SUSPICIOUS' THEN 'SUSPICIOUS'
                         WHEN saved_verdict IS NOT NULL THEN 'UNKNOWN'
                         WHEN whitelist_id IS NOT NULL THEN 'SAFE'
                         WHEN confirmed_id IS NOT NULL THEN 'DANGEROUS'
@@ -112,6 +114,7 @@ public class ScamCheckHistoryRepository {
                     CASE
                         WHEN saved_verdict = 'SCAM_RISK' THEN 'Lừa Đảo Nguy Cơ Cao'
                         WHEN saved_verdict = 'LOW_RISK' THEN 'Rủi Ro Thấp'
+                        WHEN saved_verdict = 'SUSPICIOUS' THEN 'Nghi Vấn Rủi Ro'
                         WHEN saved_verdict IS NOT NULL THEN 'Chưa Đủ Dữ Liệu'
                         WHEN whitelist_id IS NOT NULL THEN 'An Toàn Chính Hãng'
                         WHEN confirmed_id IS NOT NULL THEN 'Lừa Đảo Nguy Cơ Cao'
@@ -119,6 +122,8 @@ public class ScamCheckHistoryRepository {
                         ELSE 'Chưa Đủ Dữ Liệu'
                     END AS verdict_label,
                     CASE
+                        WHEN saved_verdict IS NOT NULL AND saved_risk_score IS NOT NULL
+                            THEN CAST(saved_risk_score AS INTEGER)
                         WHEN saved_verdict IS NOT NULL THEN NULL
                         WHEN whitelist_id IS NOT NULL THEN 3
                         WHEN confirmed_id IS NOT NULL THEN 98

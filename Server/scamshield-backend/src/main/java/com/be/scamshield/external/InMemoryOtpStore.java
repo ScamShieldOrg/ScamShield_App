@@ -1,4 +1,4 @@
-package com.be.scamshield.serviceImpl;
+package com.be.scamshield.external;
 
 import com.be.scamshield.constant.OtpType;
 import com.be.scamshield.dto.OtpEntry;
@@ -39,20 +39,54 @@ public class InMemoryOtpStore implements IOtpStore {
     }
 
     @Override
-    public void markVerified(String target, OtpType type) {
+    public boolean markVerified(String target, OtpType type) {
+        final boolean[] updated = new boolean[1];
         entries.computeIfPresent(key(type, target), (k, existing) -> {
-            existing.setVerified(true);
-            if (type == OtpType.PHONE) {
-                existing.setProviderSessionInfo(null);
+            if (!existing.isVerified()) {
+                existing.setVerified(true);
+                if (type == OtpType.PHONE) {
+                    existing.setProviderSessionInfo(null);
+                }
+                updated[0] = true;
+            }
+            return existing;
+        });
+        return updated[0];
+    }
+
+    @Override
+    public int incrementAndGetFailedAttempts(String target, OtpType type) {
+        final int[] count = new int[1];
+        entries.computeIfPresent(key(type, target), (k, existing) -> {
+            int next = existing.getFailedAttempts() + 1;
+            existing.setFailedAttempts(next);
+            count[0] = next;
+            return existing;
+        });
+        return count[0];
+    }
+
+    @Override
+    public void decrementFailedAttempts(String target, OtpType type) {
+        entries.computeIfPresent(key(type, target), (k, existing) -> {
+            if (existing.getFailedAttempts() > 0) {
+                existing.setFailedAttempts(existing.getFailedAttempts() - 1);
             }
             return existing;
         });
     }
 
     @Override
-    public void incrementFailedAttempts(String target, OtpType type) {
-        entries.computeIfPresent(key(type, target), (k, existing) -> {
-            existing.setFailedAttempts(existing.getFailedAttempts() + 1);
+    public void decrementFailedAttemptsIfMatching(OtpEntry expected) {
+        if (expected.getOtpCode() == null || expected.getCreatedAt() == null) {
+            return;
+        }
+        entries.computeIfPresent(key(expected.getType(), expected.getTarget()), (k, existing) -> {
+            if (expected.getOtpCode().equals(existing.getOtpCode())
+                    && expected.getCreatedAt().equals(existing.getCreatedAt())
+                    && existing.getFailedAttempts() > 0) {
+                existing.setFailedAttempts(existing.getFailedAttempts() - 1);
+            }
             return existing;
         });
     }

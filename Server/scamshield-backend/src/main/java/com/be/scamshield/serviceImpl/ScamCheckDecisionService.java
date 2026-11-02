@@ -12,6 +12,7 @@ import com.be.scamshield.repository.WhitelistEntryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -72,15 +73,28 @@ public class ScamCheckDecisionService {
                 }
             }
         }
+        if (!List.of("MESSAGE", "URL").contains(check.getInputType())) {
+            verdict.setVerdict("UNKNOWN");
+            verdict.setDecidedByStage("NONE");
+            verdict.setUnknownReason("NO_DECISIVE_CURATED_MATCH");
+            verdict.setExplanation("Chưa có thông tin xác minh cho chỉ số này.");
+            verdict.setSafetyGuidance("Xác minh số điện thoại hoặc tài khoản qua kênh chính thức trước khi chuyển tiền hay cung cấp thông tin cá nhân.");
+            addReason(verdict, "NO_DECISIVE_CURATED_MATCH");
+            return new Decision(verdict, List.copyOf(known.values()));
+        }
         log.info("Scam check routed to AI: checkId={}, inputType={}, reason=NO_DECISIVE_CURATED_MATCH",
                 check.getId(), check.getInputType());
-        var result = aiClient.scan(check.getId(), check.getInputType(), check.getMaskedInput());
+        var result = aiClient.scan(check.getId(), check.getInputType(), check.getRawInput());
         verdict.setVerdict(result.verdict());
         verdict.setDecidedByStage(result.stage());
         verdict.setConfidence(result.confidence());
         verdict.setUnknownReason(result.unknownReason());
         verdict.setExplanation(result.summary());
         verdict.setSafetyGuidance(result.guidance());
+        if (result.aiDetails() != null) {
+            verdict.setRiskScore(result.aiDetails().verdict().riskScore());
+            verdict.setAiSnapshot(new ObjectMapper().writeValueAsString(result.aiDetails()));
+        }
         addReason(verdict, result.unknownReason() == null ? "AI_VERDICT" : result.unknownReason());
         if (result.scanId() != null) {
             verdict.getReasons().add(CheckVerdictReason.builder().verdict(verdict)

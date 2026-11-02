@@ -5,12 +5,15 @@ import com.be.scamshield.constant.RoleEnum;
 import com.be.scamshield.constant.UserStatus;
 import com.be.scamshield.dto.request.RegisterPartnerRequest;
 import com.be.scamshield.dto.response.PartnerRegistrationResponse;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse;
 import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.entity.PartnerDocument;
 import com.be.scamshield.entity.Role;
 import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.RegistrationConflictException;
+import com.be.scamshield.exception.PartnerBusinessVerificationException;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.Outcome;
 import com.be.scamshield.repository.PartnerDocumentRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.RoleRepository;
@@ -19,11 +22,11 @@ import com.be.scamshield.service.IPartnerRegistrationService;
 import com.be.scamshield.util.VietnamPhoneNumbers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.IDN;
@@ -49,9 +52,11 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ContactVerificationService contactVerificationService;
+    private final PartnerBusinessVerificationService businessVerificationService;
+    private final TransactionTemplate transactionTemplate;
+    private final ObjectMapper objectMapper;
 
     @Override
-    @Transactional
     public PartnerRegistrationResponse register(RegisterPartnerRequest request,
                                                 List<MultipartFile> businessLicenseFiles,
                                                 List<MultipartFile> ownershipProofFiles,
@@ -129,12 +134,33 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
         addDocuments(documents, businessLicenseFiles, "BUSINESS_LICENSE", profile, now);
         addDocuments(documents, ownershipProofFiles, "OWNERSHIP_PROOF", profile, now);
         addDocuments(documents, authorizationFiles, "AUTHORIZATION", profile, now);
+        if (documents.stream().filter(document -> "BUSINESS_LICENSE".equals(document.getDocumentType()))
+                .anyMatch(document -> !"application/pdf".equals(document.getContentType()))) {
+            throw new BadRequestException("Giấy phép đăng ký kinh doanh phải là PDF; tài liệu khác vẫn hỗ trợ PDF, JPG, PNG");
+        }
+        contactVerificationService.validateForRegistration(request.getVerificationToken(), profile.getContactPhone());
         Role partnerRole = roleRepository.findByName(RoleEnum.BUSINESS_PARTNER.name())
                 .orElseThrow(() -> new IllegalStateException("Chưa cấu hình role BUSINESS_PARTNER"));
+        // External calls run before the write transaction and before consuming the phone token.
+        PartnerBusinessVerificationResponse businessVerification = businessVerificationService.verify(
+                profile.getLegalName(), taxCode, documents);
+        if (businessVerification.outcome() != Outcome.MATCHED) {
+            throw new PartnerBusinessVerificationException(businessVerification);
+        }
+        profile.setBusinessVerificationResult(objectMapper.writeValueAsString(businessVerification));
+        String passwordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+        return transactionTemplate.execute(status -> persistRegistration(request, profile, documents,
+                partnerRole, passwordHash, businessVerification));
+    }
+
+    private PartnerRegistrationResponse persistRegistration(RegisterPartnerRequest request, PartnerProfile profile,
+                                                            List<PartnerDocument> documents, Role partnerRole,
+                                                            String passwordHash, PartnerBusinessVerificationResponse businessVerification) {
+        LocalDateTime now = LocalDateTime.now(applicationClock);
         contactVerificationService.consume(request.getVerificationToken(), profile.getContactPhone());
         User user = User.builder()
                 .fullName(profile.getRepresentativeNameAndTitle())
-                .email(email)
+                .email(profile.getCorporateEmail())
                 .phoneNumber(profile.getContactPhone())
                 .isPhoneVerified(true)
                 .role(partnerRole)
@@ -142,7 +168,7 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
                 .reputationPoints(0)
                 .createdAt(now)
                 .updatedAt(now)
-                .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .passwordHash(passwordHash)
                 .build();
         try {
             userRepository.saveAndFlush(user);
@@ -163,7 +189,7 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
             throw ex;
         }
         documentRepository.saveAll(documents);
-        return new PartnerRegistrationResponse(profile.getId(), user.getId(), profile.getVerificationStatus(), now);
+        return new PartnerRegistrationResponse(profile.getId(), user.getId(), profile.getVerificationStatus(), now, businessVerification);
     }
 
     private boolean isUniqueViolation(DataIntegrityViolationException ex) {

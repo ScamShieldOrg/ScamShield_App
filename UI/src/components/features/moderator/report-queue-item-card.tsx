@@ -90,11 +90,22 @@ export function ReportQueueItemCard({ item, isSelected, onSelect }: ReportQueueI
 
         <div className="flex items-center gap-2.5">
           <span className="font-bold text-slate-900 dark:text-white">
-            AI: <span className={item.aiScore >= 80 ? "text-rose-600 dark:text-rose-400" : "text-amber-600"}>{item.aiScore}</span>
+            AI:{" "}
+            <span
+              className={
+                item.aiScore != null && item.aiScore >= 80
+                  ? "text-rose-600 dark:text-rose-400"
+                  : item.aiScore != null
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-slate-400"
+              }
+            >
+              {item.aiScore != null ? item.aiScore : "--"}
+            </span>
           </span>
           <span className="flex items-center gap-0.5 text-slate-600 dark:text-slate-300">
             <Paperclip size={12} weight="bold" />
-            <span>{item.evidenceCompleteness}%</span>
+            <span>{item.evidenceCompleteness ?? 0}%</span>
           </span>
         </div>
       </div>

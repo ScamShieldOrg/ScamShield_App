@@ -13,6 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -299,6 +301,18 @@ class AdminUserServiceImplTest {
         assertThat(response.getStatus()).isEqualTo("RESOLVED");
         assertThat(response.getResolvedAt()).isNotNull();
         verify(auditLogRepository).save(any(AuditLog.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PENDING", "DISMISSED", "RESOLVED"})
+    void resolveAbuseFlag_RejectsFlagsThatAreNotOpen(String status) {
+        AbuseFlag flag = AbuseFlag.builder().id(10L).user(regularUser).status(status).build();
+        when(abuseFlagRepository.findById(10L)).thenReturn(Optional.of(flag));
+        assertThatThrownBy(() -> service.resolveAbuseFlag(722L, 10L, "hvanE.admin@scamshield.gov.vn"))
+                .isInstanceOf(BadRequestException.class);
+        assertThat(flag.getStatus()).isEqualTo(status);
+        verify(abuseFlagRepository, never()).save(any());
+        verifyNoInteractions(auditLogRepository);
     }
 
     @Test

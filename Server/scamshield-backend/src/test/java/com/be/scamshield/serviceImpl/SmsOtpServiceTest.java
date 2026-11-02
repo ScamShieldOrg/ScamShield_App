@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.FirebasePhoneClient;
+
 import com.be.scamshield.constant.OtpType;
 import com.be.scamshield.dto.OtpEntry;
 import com.be.scamshield.exception.SmsProviderException;
@@ -39,6 +41,8 @@ class SmsOtpServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(IOtpStore.class);
+        when(repository.markVerified(any(), any())).thenReturn(true);
+        when(repository.incrementAndGetFailedAttempts(any(), any())).thenAnswer(inv -> 1);
         client = mock(FirebasePhoneClient.class);
         reservations = mock(SmsOtpReservationService.class);
         Clock clock = Clock.fixed(Instant.parse("2026-10-06T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh"));
@@ -106,16 +110,17 @@ class SmsOtpServiceTest {
     @Test
     void blocksAfterFiveInvalidAttempts() {
         when(repository.findLatest("0912345678", OtpType.PHONE)).thenReturn(Optional.of(otp));
-        doAnswer(inv -> {
-            otp.setFailedAttempts(otp.getFailedAttempts() + 1);
-            return null;
-        }).when(repository).incrementFailedAttempts("0912345678", OtpType.PHONE);
+        when(repository.incrementAndGetFailedAttempts("0912345678", OtpType.PHONE)).thenAnswer(inv -> {
+            int next = otp.getFailedAttempts() + 1;
+            otp.setFailedAttempts(next);
+            return next;
+        });
         doThrow(new IllegalArgumentException("invalid code")).when(client).verify("session", "000000", "+84912345678");
         for (int attempt = 0; attempt < 6; attempt++) {
             assertThatThrownBy(() -> service.verifyOtp("0912345678", "000000", OtpType.PHONE))
                     .isInstanceOf(IllegalArgumentException.class);
         }
-        assertThat(otp.getFailedAttempts()).isEqualTo(5);
+        assertThat(otp.getFailedAttempts()).isEqualTo(6);
         verify(client, times(5)).verify("session", "000000", "+84912345678");
     }
 

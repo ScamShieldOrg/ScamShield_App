@@ -1,4 +1,4 @@
-package com.be.scamshield.serviceImpl;
+package com.be.scamshield.external;
 
 import com.be.scamshield.constant.OtpType;
 import com.be.scamshield.dto.OtpEntry;
@@ -7,11 +7,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +29,32 @@ public class RedisOtpStore implements IOtpStore {
     private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String OTP_DATA_PREFIX = "otp:data:";
     private static final String SMS_REQUESTS_KEY = "otp:sms:requests";
+
+    private static final String MARK_VERIFIED_LUA =
+            "local key = KEYS[1]\n" +
+            "local isPhone = ARGV[1]\n" +
+            "if redis.call('EXISTS', key) == 0 then return 0 end\n" +
+            "local isVerified = redis.call('HGET', key, 'isVerified')\n" +
+            "if isVerified == 'true' then return 0 end\n" +
+            "redis.call('HSET', key, 'isVerified', 'true')\n" +
+            "if isPhone == 'true' then\n" +
+            "    redis.call('HDEL', key, 'providerSessionInfo')\n" +
+            "end\n" +
+            "return 1";
+
+    private static final String DECREMENT_FAILED_LUA =
+            "local key = KEYS[1]\n" +
+            "if redis.call('EXISTS', key) == 0 then return 0 end\n" +
+            "local current = tonumber(redis.call('HGET', key, 'failedAttempts') or '0')\n" +
+            "if current > 0 then\n" +
+            "    return redis.call('HINCRBY', key, 'failedAttempts', -1)\n" +
+            "end\n" +
+            "return 0";
+
+    private static final String DECREMENT_MATCHING_FAILED_LUA =
+            "if redis.call('HGET', KEYS[1], 'otpCode') ~= ARGV[1] " +
+            "or redis.call('HGET', KEYS[1], 'createdAt') ~= ARGV[2] then return 0 end\n" +
+            DECREMENT_FAILED_LUA;
 
     private final StringRedisTemplate redisTemplate;
 
@@ -86,18 +114,35 @@ public class RedisOtpStore implements IOtpStore {
     }
 
     @Override
-    public void markVerified(String target, OtpType type) {
+    public boolean markVerified(String target, OtpType type) {
         String k = key(type, target);
-        redisTemplate.opsForHash().put(k, "isVerified", "true");
-        if (type == OtpType.PHONE) {
-            redisTemplate.opsForHash().delete(k, "providerSessionInfo");
-        }
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>(MARK_VERIFIED_LUA, Long.class);
+        Long result = redisTemplate.execute(script, Collections.singletonList(k), String.valueOf(type == OtpType.PHONE));
+        return result != null && result == 1L;
     }
 
     @Override
-    public void incrementFailedAttempts(String target, OtpType type) {
+    public int incrementAndGetFailedAttempts(String target, OtpType type) {
         String k = key(type, target);
-        redisTemplate.opsForHash().increment(k, "failedAttempts", 1);
+        Long count = redisTemplate.opsForHash().increment(k, "failedAttempts", 1);
+        return count != null ? count.intValue() : 1;
+    }
+
+    @Override
+    public void decrementFailedAttempts(String target, OtpType type) {
+        String k = key(type, target);
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>(DECREMENT_FAILED_LUA, Long.class);
+        redisTemplate.execute(script, Collections.singletonList(k));
+    }
+
+    @Override
+    public void decrementFailedAttemptsIfMatching(OtpEntry expected) {
+        if (expected.getOtpCode() == null || expected.getCreatedAt() == null) {
+            return;
+        }
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>(DECREMENT_MATCHING_FAILED_LUA, Long.class);
+        redisTemplate.execute(script, Collections.singletonList(key(expected.getType(), expected.getTarget())),
+                expected.getOtpCode(), expected.getCreatedAt().toString());
     }
 
     @Override

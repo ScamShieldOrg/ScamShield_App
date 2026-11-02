@@ -57,6 +57,9 @@ public class PartnerProfile {
     @Column(name = "verification_status", nullable = false)
     private PartnerVerificationStatus verificationStatus;
 
+    @Column(name = "business_verification_result", columnDefinition = "text")
+    private String businessVerificationResult;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")
     @ToString.Exclude

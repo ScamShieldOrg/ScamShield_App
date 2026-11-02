@@ -37,7 +37,7 @@ export function UserScamCheck() {
         {isLoading
           ? "Đang phân tích nội dung. Vui lòng chờ kết quả…"
           : result
-            ? `Đã có kết quả kiểm tra số ${result.checkId}. ${result.verdict === "LOW_RISK" ? "Mức độ rủi ro thấp." : result.verdict === "SCAM_RISK" ? "Mức độ rủi ro cao." : "Chưa đủ cơ sở kết luận."}`
+            ? `Đã có kết quả kiểm tra số ${result.checkId}. ${result.verdict === "LOW_RISK" ? "Mức độ rủi ro thấp." : result.verdict === "SCAM_RISK" ? "Mức độ rủi ro cao." : result.verdict === "SUSPICIOUS" ? "Có dấu hiệu đáng ngờ." : "Chưa đủ cơ sở kết luận."}`
             : ""}
       </div>
       {isLoading && (

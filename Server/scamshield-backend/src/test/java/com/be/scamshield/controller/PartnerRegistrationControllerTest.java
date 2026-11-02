@@ -9,6 +9,14 @@ import com.be.scamshield.security.CustomAccessDeniedHandler;
 import com.be.scamshield.security.CustomUserDetailsService;
 import com.be.scamshield.config.PartnerMultipartConfig;
 import com.be.scamshield.exception.RegistrationConflictException;
+import com.be.scamshield.exception.PartnerBusinessVerificationException;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.ActivityStatus;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.RegistryResult;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.MatchResult;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.Outcome;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.SourceStatus;
+import java.util.List;
 import com.be.scamshield.service.IPartnerRegistrationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -39,9 +47,9 @@ class PartnerRegistrationControllerTest {
     private static final String URL = "/api/partners/registrations";
     private static final String VALID_JSON = """
             {"legalName":"Công ty Example", "taxCode":"0100112437",
-             "corporateEmail":"contact@example.com.vn", "password":"Example123!", "representativeNameAndTitle":"Huy - Giám đốc",
-             "contactPhone":"0912345678", "verificationToken":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "officialDomains":["example.com.vn"],
-             "officialHotlines":["1900545413"], "smsBrandNames":["EXAMPLE"],
+             "corporateEmail":"contact@example.com.vn", "representativeNameAndTitle":"Huy - Giám đốc",
+             "contactPhone":"0912345678", "verificationToken":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "officialDomains":"example.com.vn",
+             "officialHotlines":"1900545413", "smsBrandNames":"EXAMPLE",
              "legalRepresentative":true, "agreeTerms":true}
             """;
     @MockitoBean
@@ -66,21 +74,6 @@ class PartnerRegistrationControllerTest {
                 .andExpect(jsonPath("$.data.password").doesNotExist())
                 .andExpect(jsonPath("$.data.passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.data.verificationStatus").value("PENDING"));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"", "12345", "   "})
-    void rejectsInvalidPassword(String password) throws Exception {
-        mvc.perform(multipart(URL).file(json(VALID_JSON.replace("Example123!", password))))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.data.password").exists());
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void requiresPassword() throws Exception {
-        mvc.perform(multipart(URL).file(json(VALID_JSON.replace("\"password\":\"Example123!\",", ""))))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.data.password").exists());
-        verifyNoInteractions(service);
     }
 
     @ParameterizedTest
@@ -127,8 +120,8 @@ class PartnerRegistrationControllerTest {
     }
 
     @Test
-    void rejectsNullDomainElementAndMissingConsent() throws Exception {
-        mvc.perform(multipart(URL).file(json(VALID_JSON.replace("[\"example.com.vn\"]", "[null]"))))
+    void rejectsNullDomainAndMissingConsent() throws Exception {
+        mvc.perform(multipart(URL).file(json(VALID_JSON.replace("\"officialDomains\":\"example.com.vn\"", "\"officialDomains\":null"))))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.isSuccess").value(false));
         mvc.perform(multipart(URL).file(json(VALID_JSON.replace("\"agreeTerms\":true", "\"agreeTerms\":false"))))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.data.agreeTerms").exists());
@@ -189,6 +182,24 @@ class PartnerRegistrationControllerTest {
                 new RegistrationConflictException("Mã số thuế đã có hồ sơ"));
         mvc.perform(multipart(URL).file(json(VALID_JSON))).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SUCCESS", "UNAVAILABLE", "NOT_CONFIGURED", "NOT_FOUND"})
+    void returnsStructuredBusinessFailureInsteadOfCreatingApplication(String sourceStatus) throws Exception {
+        SourceStatus source = SourceStatus.valueOf(sourceStatus);
+        var result = new PartnerBusinessVerificationResponse(Outcome.REVIEW_REQUIRED,
+                LocalDateTime.of(2026, 10, 27, 10, 0), "Công ty Example", "0100112437",
+                new RegistryResult(source, "Công ty khác", "0100112437", "NNT ngừng hoạt động và đã đóng MST",
+                        ActivityStatus.NOT_ACTIVE, null), MatchResult.MISMATCH, MatchResult.MATCHED, List.of(), true);
+        when(service.register(any(), any(), any(), any())).thenThrow(new PartnerBusinessVerificationException(result));
+        mvc.perform(multipart(URL).file(json(VALID_JSON)))
+                .andExpect(status().is(source == SourceStatus.UNAVAILABLE || source == SourceStatus.NOT_CONFIGURED ? 503 : 422))
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.data.outcome").value("REVIEW_REQUIRED"))
+                .andExpect(jsonPath("$.data.xinvoice.status").value(sourceStatus))
+                .andExpect(jsonPath("$.data.formNameVsXinvoice").value("MISMATCH"))
+                .andExpect(jsonPath("$.data.representativeNameAndTitle").doesNotExist());
     }
 
     private MockMultipartFile json(String value) {
