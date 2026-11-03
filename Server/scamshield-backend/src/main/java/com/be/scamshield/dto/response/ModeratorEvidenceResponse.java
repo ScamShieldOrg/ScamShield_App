@@ -27,4 +27,7 @@ public class ModeratorEvidenceResponse {
 
     @Schema(description = "Đường dẫn tải tệp", example = "https://example.com/evidences/screenshot_1.jpg")
     private String url;
+
+    @Schema(description = "Đường dẫn tải xuống tệp, buộc trình duyệt tải thay vì mở nội tuyến")
+    private String downloadUrl;
 }

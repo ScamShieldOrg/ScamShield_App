@@ -23,6 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.net.URLEncoder;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -110,6 +113,34 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
 
         List<DisputeEvidence> evidences = evidenceRepository.findByDisputeIdOrderByCreatedAtAscIdAsc(disputeId);
         return mapToModeratorDisputeResponse(dispute, evidences);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getEvidenceDownloadUrl(String idOrCode, Long evidenceId) {
+        Long disputeId = parseDisputeId(idOrCode);
+        DisputeEvidence evidence = evidenceRepository.findById(evidenceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài liệu bằng chứng"));
+        if (evidence.getDispute() == null || !disputeId.equals(evidence.getDispute().getId())) {
+            throw new ResourceNotFoundException("Tài liệu không thuộc hồ sơ khiếu nại này");
+        }
+
+        String disposition = buildAttachmentDisposition(evidence.getFileName());
+        if (StringUtils.hasText(evidence.getStorageObjectKey())) {
+            return storageService.createDisputeDownloadUrl(evidence.getStorageObjectKey(), disposition);
+        }
+        if (!StringUtils.hasText(evidence.getFileUrl())) {
+            throw new ResourceNotFoundException("Tài liệu chưa có đường dẫn tải xuống");
+        }
+        String legacyUrl = evidence.getFileUrl();
+        try {
+            if (!"https".equalsIgnoreCase(URI.create(legacyUrl).getScheme())) {
+                throw new BadRequestException("Chỉ hỗ trợ tải tài liệu qua HTTPS");
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Đường dẫn tài liệu không hợp lệ");
+        }
+        return legacyUrl;
     }
 
     @Override
@@ -380,11 +411,18 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
     private ModeratorEvidenceResponse mapToModeratorEvidenceResponse(DisputeEvidence ev) {
         if (ev == null) return null;
         String fileUrl = ev.getFileUrl();
+        String downloadUrl = null;
+        if (StringUtils.hasText(ev.getStorageObjectKey()) || StringUtils.hasText(ev.getFileUrl())) {
+            downloadUrl = "/api/moderator/disputes/" + ev.getDispute().getId()
+                    + "/evidence/" + ev.getId() + "/download";
+        }
         if (StringUtils.hasText(ev.getStorageObjectKey())) {
             try {
-                fileUrl = storageService.createDisputeDownloadUrl(ev.getStorageObjectKey());
+                fileUrl = storageService.createDisputeDownloadUrl(
+                        ev.getStorageObjectKey(), "inline");
             } catch (Exception ex) {
-                log.debug("Could not presign URL for dispute evidence {}: {}", ev.getId(), ex.getMessage());
+                log.warn("Could not create signed URLs for dispute evidence {}", ev.getId());
+                fileUrl = null;
             }
         }
 
@@ -394,7 +432,19 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
                 .name(ev.getFileName() != null ? ev.getFileName() : "tai-lieu-" + ev.getId())
                 .type(determineEvidenceType(ev))
                 .url(fileUrl)
+                .downloadUrl(downloadUrl)
                 .build();
+    }
+
+    private String buildAttachmentDisposition(String fileName) {
+        String originalName = StringUtils.hasText(fileName) ? fileName : "evidence";
+        String asciiFallback = originalName
+                .replaceAll("[^\\x20-\\x7E]", "_")
+                .replaceAll("[\\\\\";\\r\\n]", "_");
+        String encodedName = URLEncoder.encode(originalName, StandardCharsets.UTF_8)
+                .replace("+", "%20")
+                .replace("%7E", "~");
+        return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodedName;
     }
 
     private String determineEvidenceType(DisputeEvidence ev) {
