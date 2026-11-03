@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.constant.EvidenceVerificationStatus;
 import java.util.Locale;
 import java.time.Clock;
@@ -46,12 +48,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest(showSql = false, properties = {
         "spring.test.database.replace=none",
-        "spring.datasource.url=jdbc:h2:mem:admin-abuse-queue-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+
         "spring.jpa.properties.hibernate.hbm2ddl.halt_on_error=true"
 })
 @Import(AdminAbuseEscalationServiceImpl.class)
 @ActiveProfiles("test")
-class AdminAbuseEscalationPersistenceTest {
+class AdminAbuseEscalationPersistenceTest extends PostgresIntegrationTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 28, 9, 0);
 

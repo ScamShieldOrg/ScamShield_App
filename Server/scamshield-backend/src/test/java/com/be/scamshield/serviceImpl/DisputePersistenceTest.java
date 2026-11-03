@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.constant.DisputePriority;
 import com.be.scamshield.constant.DisputeStatus;
 import com.be.scamshield.dto.request.DisputeListRequest;
@@ -39,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-class DisputePersistenceTest {
+class DisputePersistenceTest extends PostgresIntegrationTest {
     private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final LocalDateTime NOW = LocalDateTime.parse("2026-10-13T10:00:00");
     @Autowired private IDisputeService service;
