@@ -36,5 +36,8 @@ jobs:
           cache: maven
           cache-dependency-path: Server/scamshield-backend/pom.xml
 
+      - name: Make Maven wrapper executable
+        run: chmod +x ./mvnw
+
       - name: Run backend tests
         run: ./mvnw --batch-mode --no-transfer-progress test
