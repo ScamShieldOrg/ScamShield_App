@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ReportStatus;
 import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.VietnamProvince;
@@ -42,7 +43,7 @@ public class OwnReportService implements IOwnReportService {
         indicators.lockForReport(id);
         Report report = reports.findByIdAndReporterUserId(id, principal.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo của bạn"));
-        if (!"PENDING".equals(report.getStatus()) || !moderation.findByReportIdOrderByCreatedAtDesc(id).isEmpty()) {
+        if (report.getStatus() != ReportStatus.PENDING || !moderation.findByReportIdOrderByCreatedAtDesc(id).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ được sửa hoặc thu hồi báo cáo chưa bắt đầu kiểm duyệt");
         }
         return report;
@@ -54,11 +55,13 @@ public class OwnReportService implements IOwnReportService {
         if (request.getDescription() == null || request.getDescription().isBlank()) throw new BadRequestException("Mô tả không được để trống");
         report.setDescription(request.getDescription().strip());
         String message = request.getReportedMessage();
-        report.setReportedMessage(message == null || message.isBlank() ? null : message);
+        if (message != null) {
+            report.setReportedMessage(message.isBlank() ? null : message);
+        }
         if (request.getRegionCode() != null) {
             String region = request.getRegionCode().strip();
             if (VietnamProvince.fromCode(region).isEmpty()) throw new BadRequestException("Vui lòng chọn tỉnh/thành hợp lệ trong danh sách");
-            report.setRegionCode(region);
+            report.setRegionCode(VietnamProvince.fromCode(region).orElseThrow());
         }
         if (request.getCategoryId() != null) {
             report.setCategory(categories.findById(request.getCategoryId())
@@ -71,7 +74,7 @@ public class OwnReportService implements IOwnReportService {
                 evidences.save(ReportEvidence.builder().report(report).fileUrl(item.getFileUrl())
                         .fileName(item.getFileName()).fileHash(item.getFileHash())
                         .evidenceType(resolveEvidenceType(item.getEvidenceType(), item.getFileName(), item.getFileUrl()))
-                        .verificationStatus(EvidenceVerificationStatus.PENDING.name()).createdAt(now).build());
+                        .verificationStatus(EvidenceVerificationStatus.PENDING).createdAt(now).build());
             }
         }
         report.setUpdatedAt(now);
@@ -83,7 +86,7 @@ public class OwnReportService implements IOwnReportService {
     @Transactional
     public void withdraw(Long id, UserPrincipal principal) {
         Report report = editable(id, principal);
-        report.setStatus("WITHDRAWN");
+        report.setStatus(ReportStatus.WITHDRAWN);
         LocalDateTime now = LocalDateTime.now(applicationClock);
         report.setUpdatedAt(now);
         reports.save(report);

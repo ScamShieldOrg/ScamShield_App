@@ -48,7 +48,7 @@ public class ReportDetailTrackingResponse {
     @Schema(description = "Mô tả chi tiết từ người báo cáo")
     private String description;
 
-    @Schema(description = "Trạng thái", example = "APPROVED_BLACKLIST")
+    @Schema(description = "Trạng thái", example = "APPROVED")
     private String status;
 
     @Schema(description = "Thời gian gửi")

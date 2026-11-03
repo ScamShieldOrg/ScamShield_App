@@ -9,9 +9,7 @@ import {
   MagnifyingGlass,
   Funnel,
   Paperclip,
-  CheckCircle,
   ArrowsClockwise,
-  GitMerge,
   XCircle,
   Eye,
   DotsThree,
@@ -94,13 +92,6 @@ export function RecentReportsTable({
 
   const renderStatus = (item: RecentReportItem) => {
     switch (item.status) {
-      case "APPROVED_BLACKLIST":
-        return (
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-[#00875A] dark:bg-emerald-950/40 dark:text-emerald-300">
-            <CheckCircle size={14} weight="fill" />
-            <span>Đã phê duyệt & Đưa vào Blacklist</span>
-          </div>
-        )
       case "APPROVED":
         return (
           <span className="text-emerald-700 dark:text-emerald-300">
@@ -119,13 +110,6 @@ export function RecentReportsTable({
         return (
           <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#B45309] dark:bg-amber-950/40 dark:text-amber-300">
             <span>Đang chờ duyệt</span>
-          </div>
-        )
-      case "MERGED_DUPLICATE":
-        return (
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-            <GitMerge size={14} weight="bold" />
-            <span>Đã gộp trùng lặp ({item.duplicateRef || "BLK"})</span>
           </div>
         )
       case "REJECTED":

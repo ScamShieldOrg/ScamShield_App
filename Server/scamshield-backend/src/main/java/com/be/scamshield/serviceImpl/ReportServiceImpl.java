@@ -1,8 +1,12 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ReportEvidenceType;
+import com.be.scamshield.constant.EvidenceVerificationStatus;
+import com.be.scamshield.constant.ReportStatus;
 import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.constant.VietnamProvince;
+import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.dto.request.CreateReportRequest;
 import com.be.scamshield.dto.request.EvidenceItemDto;
@@ -71,7 +75,9 @@ public class ReportServiceImpl implements IReportService {
         if (regionCode == null || VietnamProvince.fromCode(regionCode).isEmpty()) {
             throw new BadRequestException("Mã tỉnh/thành không hợp lệ; vui lòng chọn từ danh sách tỉnh/thành");
         }
-        if ("PHONE".equalsIgnoreCase(request.getThreatType().trim())
+        IndicatorType reportType = IndicatorType.fromStoredValue(request.getThreatType())
+                .orElseThrow(() -> new BadRequestException("Loại đối tượng báo cáo không được hỗ trợ"));
+        if (reportType == IndicatorType.PHONE
                 && StringUtils.hasText(reporterUser.getPhoneNumber())
                 && normalizePhoneForOwnershipCheck(reporterUser.getPhoneNumber())
                         .equals(normalizePhoneForOwnershipCheck(request.getTargetIdentifier()))) {
@@ -81,10 +87,10 @@ public class ReportServiceImpl implements IReportService {
         // 1. Resolve & normalize target indicator
         String normalizedValue = normalizeIdentifier(request.getTargetIdentifier());
         Indicator indicator = indicatorRepository
-                .findByTypeAndNormalizedValue(request.getThreatType(), normalizedValue)
+                .findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(reportType.name(), normalizedValue)
                 .orElseGet(() -> {
                     Indicator newIndicator = Indicator.builder()
-                            .type(request.getThreatType())
+                            .type(reportType.name())
                             .normalizedValue(normalizedValue)
                             .displayValue(request.getTargetIdentifier())
                             .firstSeenAt(LocalDateTime.now())
@@ -107,11 +113,10 @@ public class ReportServiceImpl implements IReportService {
                 .reporterUser(reporterUser)
                 .indicator(indicator)
                 .category(category)
-                .regionCode(regionCode)
+                .regionCode(VietnamProvince.fromCode(regionCode).orElseThrow())
                 .description(request.getDescription())
                 .reportedMessage(StringUtils.hasText(request.getReportedMessage()) ? request.getReportedMessage() : null)
-                .status("PENDING")
-
+                .status(ReportStatus.PENDING)
 
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -144,7 +149,7 @@ public class ReportServiceImpl implements IReportService {
             if (files != null && !files.isEmpty()) {
                 for (MultipartFile file : files) {
                     if (!file.isEmpty()) {
-                        String evidenceType = resolveEvidenceType(null, file.getOriginalFilename(), null);
+                        ReportEvidenceType evidenceType = resolveEvidenceType(null, file.getOriginalFilename(), null);
                         SupabaseStorageService.UploadResult uploadResult = supabaseStorageService.uploadFile(file, "evidences");
                         uploadedKeys.add(uploadResult.objectKey());
                         ReportEvidence evidence = ReportEvidence.builder()
@@ -153,7 +158,7 @@ public class ReportServiceImpl implements IReportService {
                                 .fileName(file.getOriginalFilename())
                                 .fileUrl(uploadResult.fileUrl())
                                 .fileHash(uploadResult.fileHash())
-                                .verificationStatus("PENDING")
+                                .verificationStatus(EvidenceVerificationStatus.PENDING)
                                 .createdAt(LocalDateTime.now())
                                 .build();
                         evidenceList.add(reportEvidenceRepository.save(evidence));
@@ -183,7 +188,7 @@ public class ReportServiceImpl implements IReportService {
                             .fileName(dto.getFileName())
                             .fileUrl(dto.getFileUrl())
                             .fileHash(dto.getFileHash())
-                            .verificationStatus("PENDING")
+                            .verificationStatus(EvidenceVerificationStatus.PENDING)
                             .createdAt(LocalDateTime.now())
                             .build();
                     evidenceList.add(reportEvidenceRepository.save(evidence));
@@ -199,7 +204,7 @@ public class ReportServiceImpl implements IReportService {
                             .report(savedReport)
                             .evidenceType(resolveEvidenceType(null, null, url))
                             .fileUrl(url)
-                            .verificationStatus("PENDING")
+                            .verificationStatus(EvidenceVerificationStatus.PENDING)
                             .createdAt(LocalDateTime.now())
                             .build();
                     evidenceList.add(reportEvidenceRepository.save(evidence));
@@ -295,10 +300,10 @@ public class ReportServiceImpl implements IReportService {
         List<ReportEvidenceResponse> evidenceResponses = evidences.stream().map(e ->
                 ReportEvidenceResponse.builder()
                         .id(e.getId())
-                        .evidenceType(e.getEvidenceType())
+                        .evidenceType(e.getEvidenceType() == null ? null : e.getEvidenceType().name())
                         .fileUrl(e.getFileUrl())
                         .fileHash(e.getFileHash())
-                        .verificationStatus(e.getVerificationStatus())
+                        .verificationStatus(e.getVerificationStatus() == null ? null : e.getVerificationStatus().name())
                         .createdAt(e.getCreatedAt())
                         .build()
         ).toList();
@@ -311,8 +316,8 @@ public class ReportServiceImpl implements IReportService {
                 .categoryName(report.getCategory() != null ? report.getCategory().getName() : "")
                 .description(report.getDescription())
                 .reportedMessage(report.getReportedMessage())
-                .regionCode(report.getRegionCode())
-                .status(report.getStatus())
+                .regionCode(report.getRegionCode() == null ? null : report.getRegionCode().getCode())
+                .status(report.getStatus() == null ? null : report.getStatus().name())
                 .rewardPoints(rewardPoints)
                 .evidenceCount(evidenceResponses.size())
                 .evidences(evidenceResponses)

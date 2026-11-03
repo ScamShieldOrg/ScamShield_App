@@ -19,7 +19,9 @@ import java.util.List;
 @AllArgsConstructor
 public class CreateReportRequest {
 
-    @NotBlank(message = "Loại đe dọa không được để trống (PHONE, WEBSITE, BANK_ACCOUNT)")
+    @NotBlank(message = "Loại đối tượng báo cáo không được để trống")
+    @Schema(allowableValues = {"PHONE", "BANK_ACCOUNT", "URL"},
+            description = "Loại Indicator: PHONE, BANK_ACCOUNT hoặc URL")
     private String threatType;
 
     @NotBlank(message = "Chỉ số mục tiêu (Số điện thoại, URL hoặc STK) không được để trống")

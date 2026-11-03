@@ -52,3 +52,13 @@ test("status counters read isSuccess and preserve withdrawal counts", async () =
   const api = { get: async () => ({ data: { isSuccess: true, data: { all: 5, withdrawn: 2 } } }) }
   assert.equal((await service(api).getReportStatusCounts()).withdrawn, 2)
 })
+
+test("website selection creates a URL indicator", async () => {
+  const api = { post: async (url, body) => {
+    assert.equal(url, "/reports")
+    const payload = JSON.parse(await body.get("request").text())
+    assert.equal(payload.threatType, "URL")
+    return { data: { isSuccess: true, data: { id: 41 } } }
+  } }
+  await service(api).submitScamReport({ threatType: "WEBSITE", targetIdentifier: "https://example.test", category: "OTHER", description: "Mô tả", regionCode: "01", isConfirmed: true, attachments: [] })
+})

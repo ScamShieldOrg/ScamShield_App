@@ -95,7 +95,7 @@ public class AdminAbuseEscalationDetailResponse {
         private String fileName;
         private String fileUrl;
         private String ocrText;
-        @Schema(description = "Trạng thái xác minh bằng chứng; null nếu giá trị dữ liệu cũ không được hỗ trợ")
+        @Schema(description = "Trạng thái xác minh bằng chứng: PENDING, VERIFIED hoặc REJECTED")
         private EvidenceVerificationStatus verificationStatus;
         private LocalDateTime createdAt;
     }

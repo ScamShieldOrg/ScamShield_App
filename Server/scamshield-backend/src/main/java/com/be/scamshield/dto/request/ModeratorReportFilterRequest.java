@@ -2,6 +2,7 @@ package com.be.scamshield.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Min;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,6 +18,8 @@ public class ModeratorReportFilterRequest {
 
     @Schema(description = "Tab trạng thái hàng đợi (ALL, PENDING, IN_REVIEW)", defaultValue = "ALL", example = "ALL")
     @Builder.Default
+    @Pattern(regexp = "(?i)\\s*(ALL|PENDING|IN_REVIEW|APPROVED|REJECTED|WITHDRAWN)\\s*",
+            message = "Trạng thái báo cáo không hợp lệ")
     private String tab = "ALL";
 
     @Schema(description = "Từ khóa tìm kiếm (Mã hồ sơ CS-..., SĐT, URL, STK, danh mục, người gửi)")

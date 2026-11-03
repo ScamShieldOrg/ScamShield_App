@@ -243,7 +243,7 @@ export async function submitScamReport(
     new Blob(
       [
         JSON.stringify({
-          threatType: payload.threatType,
+          threatType: payload.threatType === "WEBSITE" ? "URL" : payload.threatType,
           targetIdentifier: payload.targetIdentifier.trim(),
           category: payload.category,
           regionCode: payload.regionCode,

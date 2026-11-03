@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.ScamCheckAiClient;
 import com.be.scamshield.external.BusinessLicenseOcrClient;
 import com.be.scamshield.external.FirebasePhoneClient;
 import com.be.scamshield.external.XinvoiceBusinessClient;
@@ -78,6 +79,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
         })
 @ActiveProfiles("test")
 class PartnerRegistrationPersistenceTest {
+    // This suite exercises partner persistence, not external scam-check HTTP initialization.
+    @MockitoBean private ScamCheckAiClient scamCheckAiClient;
     @Autowired
     private IPartnerRegistrationService service;
     @Autowired
@@ -149,7 +152,6 @@ class PartnerRegistrationPersistenceTest {
         request.setOfficialDomains("example.com.vn");
         request.setOfficialHotlines("1900545413");
         request.setSmsBrandNames("EXAMPLE");
-        request.setLegalRepresentative(true);
         request.setAgreeTerms(true);
         files = List.of(new MockMultipartFile("file", "proof.pdf", "application/pdf",
                 "%PDF-1.7\nproof".getBytes(StandardCharsets.US_ASCII)));
@@ -211,12 +213,11 @@ class PartnerRegistrationPersistenceTest {
             PartnerProfile profile = profileRepository.findById(response.getRegistrationId()).orElseThrow();
             assertThat(profile.getTaxCode()).isEqualTo("0100112437");
             assertThat(profile.getBrandName()).isEqualTo(request.getLegalName());
-            assertThat(profile.getPartnerType()).isEqualTo("BUSINESS");
+            assertThat(profile.getSmsBrandName()).isEqualTo("EXAMPLE");
             assertThat(profile.getVerificationStatus()).isEqualTo(PartnerVerificationStatus.PENDING);
             assertThat(profile.getVerifiedAt()).isNull();
             assertThat(profile.getOfficialDomain()).isEqualTo("example.com.vn");
             assertThat(profile.getOfficialHotline()).isEqualTo("1900545413");
-            assertThat(profile.getSmsBrandName()).isEqualTo("EXAMPLE");
             assertThat(documentRepository.findAll()).allSatisfy(document ->
                     assertThat(document.getPartner().getId()).isEqualTo(profile.getId()));
         });
@@ -237,7 +238,7 @@ class PartnerRegistrationPersistenceTest {
                 .phoneNumber("0912345679").email("legacy@example.com").passwordHash("existing-hash")
                 .status(UserStatus.ACTIVE.name()).reputationPoints(0).createdAt(now).updatedAt(now).build());
         PartnerProfile profile = profileRepository.saveAndFlush(PartnerProfile.builder().user(user)
-                .legalName("Existing company").brandName("Existing brand").partnerType("BUSINESS")
+                .legalName("Existing company").brandName("Existing brand")
                 .verificationStatus(PartnerVerificationStatus.VERIFIED).verifiedAt(now).createdAt(now).build());
         PartnerProfile stored = profileRepository.findById(profile.getId()).orElseThrow();
         assertThat(stored.getVerificationStatus()).isEqualTo(PartnerVerificationStatus.VERIFIED);

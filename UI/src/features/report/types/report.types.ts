@@ -1,13 +1,7 @@
 export type ReportThreatType = "PHONE" | "WEBSITE" | "BANK_ACCOUNT"
 
 export type ReportStatus =
-  | "APPROVED_BLACKLIST"
-  | "PENDING"
-  | "MERGED_DUPLICATE"
-  | "REJECTED"
-  | "APPROVED"
-  | "IN_REVIEW"
-  | "WITHDRAWN"
+  "PENDING" | "REJECTED" | "APPROVED" | "IN_REVIEW" | "WITHDRAWN"
 
 export interface RecentReportItem {
   id: string

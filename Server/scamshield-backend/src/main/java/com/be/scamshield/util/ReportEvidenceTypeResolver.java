@@ -1,13 +1,14 @@
 package com.be.scamshield.util;
 
 import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.constant.ReportEvidenceType;
 import org.springframework.util.StringUtils;
 import java.net.URI;
 import java.util.Locale;
 
 public final class ReportEvidenceTypeResolver {
     private ReportEvidenceTypeResolver() { }
-    public static String resolveEvidenceType(String declaredType, String fileName, String fileUrl) {
+    public static ReportEvidenceType resolveEvidenceType(String declaredType, String fileName, String fileUrl) {
         String declared = StringUtils.hasText(declaredType) ? declaredType.strip().toUpperCase(Locale.ROOT) : null;
         if (declared != null) {
             declared = switch (declared) {
@@ -24,25 +25,25 @@ public final class ReportEvidenceTypeResolver {
                 throw new BadRequestException("URL minh chứng không hợp lệ");
             }
         }
-        String detected = detectEvidenceType(name);
+        ReportEvidenceType detected = detectEvidenceType(name);
         if (StringUtils.hasText(fileName) && detected == null) {
             throw new BadRequestException("Tệp minh chứng chỉ hỗ trợ JPG, PNG hoặc PDF");
         }
-        if (declared != null && detected != null && !declared.equals(detected)) {
+        if (declared != null && detected != null && !declared.equals(detected.name())) {
             throw new BadRequestException("Loại minh chứng không khớp định dạng tệp");
         }
         if (detected == null && declared == null) {
             throw new BadRequestException("Không xác định được định dạng minh chứng; cần tên tệp hoặc evidenceType JPG, PNG, PDF");
         }
-        return detected != null ? detected : declared;
+        return detected != null ? detected : ReportEvidenceType.valueOf(declared);
     }
 
-    private static String detectEvidenceType(String filename) {
+    private static ReportEvidenceType detectEvidenceType(String filename) {
         if (!StringUtils.hasText(filename)) return null;
         String lower = filename.strip().toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "JPG";
-        if (lower.endsWith(".png")) return "PNG";
-        if (lower.endsWith(".pdf")) return "PDF";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return ReportEvidenceType.JPG;
+        if (lower.endsWith(".png")) return ReportEvidenceType.PNG;
+        if (lower.endsWith(".pdf")) return ReportEvidenceType.PDF;
         return null;
     }
 

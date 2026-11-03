@@ -173,7 +173,7 @@ class UserReportTrackingControllerTest {
                 .slaStatus("completed")
                 .evidenceBadge("3 ảnh • OCR Pass")
                 .evidenceCount(3)
-                .status("APPROVED_BLACKLIST")
+                .status("APPROVED")
                 .build();
 
         PaginatedResponse<TrackingReportResponse> paginated = new PaginatedResponse<>();
@@ -196,7 +196,7 @@ class UserReportTrackingControllerTest {
                 .andExpect(jsonPath("$.data.data[0].id").value("#RPT-8492"))
                 .andExpect(jsonPath("$.data.data[0].targetValue").value("089.842.xxxx"))
                 .andExpect(jsonPath("$.data.data[0].slaTime").value("Xong trong 14 phút"))
-                .andExpect(jsonPath("$.data.data[0].status").value("APPROVED_BLACKLIST"));
+                .andExpect(jsonPath("$.data.data[0].status").value("APPROVED"));
     }
 
     @Test

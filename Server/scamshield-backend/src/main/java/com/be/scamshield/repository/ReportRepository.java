@@ -1,6 +1,7 @@
 package com.be.scamshield.repository;
 
 import com.be.scamshield.entity.Report;
+import com.be.scamshield.constant.ReportStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -28,7 +29,7 @@ public interface ReportRepository extends JpaRepository<Report, Long>, JpaSpecif
 
     @Query("""
             select count(r) as totalReports,
-                   coalesce(sum(case when upper(r.status) = 'REJECTED' then 1 else 0 end), 0) as rejectedReports,
+                   coalesce(sum(case when r.status = com.be.scamshield.constant.ReportStatus.REJECTED then 1 else 0 end), 0) as rejectedReports,
                    count(distinct r.indicator.id) as distinctIndicators
             from Report r
             where r.reporterUser.id = :userId and r.createdAt >= :windowStart and r.createdAt <= :windowEnd
@@ -45,13 +46,13 @@ public interface ReportRepository extends JpaRepository<Report, Long>, JpaSpecif
     Optional<Report> findById(Long id);
 
     @EntityGraph(attributePaths = {"indicator", "category", "reporterUser"})
-    List<Report> findByIndicatorIdAndStatusIgnoreCase(Long indicatorId, String status);
+    List<Report> findByIndicatorIdAndStatus(Long indicatorId, ReportStatus status);
 
     List<Report> findByReporterUserIdOrderByCreatedAtDesc(Long reporterUserId);
     long countByReporterUserId(Long reporterUserId);
     long countByReporterUserIdAndCreatedAtAfter(Long reporterUserId, LocalDateTime createdAt);
-    long countByReporterUserIdAndStatus(Long reporterUserId, String status);
+    long countByReporterUserIdAndStatus(Long reporterUserId, ReportStatus status);
     Optional<Report> findByIdAndReporterUserId(Long id, Long reporterUserId);
 
-    long countByStatusIgnoreCase(String status);
+    long countByStatus(ReportStatus status);
 }

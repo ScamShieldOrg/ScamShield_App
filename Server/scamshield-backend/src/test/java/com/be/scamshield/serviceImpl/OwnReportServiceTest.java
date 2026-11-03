@@ -1,5 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.VietnamProvince;
+
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.request.UpdateOwnReportRequest;
 import com.be.scamshield.entity.*;
 import com.be.scamshield.repository.*;
@@ -34,14 +37,14 @@ class OwnReportServiceTest {
 
     @BeforeEach
     void setup() {
-        report = Report.builder().id(1L).status("PENDING").reporterUser(User.builder().id(7L).build()).build();
+        report = Report.builder().id(1L).status(ReportStatus.PENDING).reporterUser(User.builder().id(7L).build()).build();
         when(reports.findByIdAndReporterUserId(1L, 7L)).thenReturn(Optional.of(report));
     }
 
     @Test
     void withdrawPreservesRecordAndWritesAudit() {
         service.withdraw(1L, principal);
-        assertThat(report.getStatus()).isEqualTo("WITHDRAWN");
+        assertThat(report.getStatus()).isEqualTo(ReportStatus.WITHDRAWN);
         verify(reports).save(report);
         verify(reports, never()).delete(any(Report.class));
         verify(audits).save(any(AuditLog.class));
@@ -50,7 +53,7 @@ class OwnReportServiceTest {
     @ParameterizedTest
     @ValueSource(strings = {"IN_REVIEW", "APPROVED", "REJECTED", "WITHDRAWN"})
     void cannotChangeReportAfterPending(String status) {
-        report.setStatus(status);
+        report.setStatus(ReportStatus.valueOf(status));
         assertThatThrownBy(() -> service.withdraw(1L, principal)).isInstanceOf(ResponseStatusException.class);
         assertThatThrownBy(() -> service.update(1L, request(), principal)).isInstanceOf(ResponseStatusException.class);
         verify(reports, never()).save(any());
@@ -76,7 +79,7 @@ class OwnReportServiceTest {
         service.update(1L, request(), principal);
         assertThat(report.getDescription()).isEqualTo("Mô tả mới");
         assertThat(report.getIndicator()).isSameAs(target);
-        assertThat(report.getStatus()).isEqualTo("PENDING");
+        assertThat(report.getStatus()).isEqualTo(ReportStatus.PENDING);
         verifyNoInteractions(evidence);
         verify(tracking).getReportDetail(7L, 1L);
     }
@@ -94,12 +97,12 @@ class OwnReportServiceTest {
     void partialUpdatePreservesCategoryAndRegionAndNormalizesBlankMessage() {
         var category = ScamCategory.builder().id(2L).build();
         report.setCategory(category);
-        report.setRegionCode("01");
+        report.setRegionCode(VietnamProvince.HA_NOI);
         var change = request();
         change.setReportedMessage("   ");
         service.update(1L, change, principal);
         assertThat(report.getCategory()).isSameAs(category);
-        assertThat(report.getRegionCode()).isEqualTo("01");
+        assertThat(report.getRegionCode()).isEqualTo(VietnamProvince.HA_NOI);
         assertThat(report.getReportedMessage()).isNull();
     }
 
@@ -111,6 +114,32 @@ class OwnReportServiceTest {
         assertThatThrownBy(() -> service.update(1L, change, principal))
                 .isInstanceOf(BadRequestException.class);
         verify(reports, never()).save(any());
+    }
+
+    @Test
+    void omittedMessagePreservesOriginalMessage() {
+        report.setReportedMessage("Tin nhắn gốc cần giữ nguyên");
+        service.update(1L, request(), principal);
+        assertThat(report.getReportedMessage()).isEqualTo("Tin nhắn gốc cần giữ nguyên");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "\t\n"})
+    void blankMessageClearsOriginalMessage(String message) {
+        report.setReportedMessage("Tin nhắn gốc");
+        var change = request();
+        change.setReportedMessage(message);
+        service.update(1L, change, principal);
+        assertThat(report.getReportedMessage()).isNull();
+    }
+
+    @Test
+    void nonBlankMessageReplacesOriginalWithoutChangingContent() {
+        report.setReportedMessage("Tin nhắn gốc");
+        var change = request();
+        change.setReportedMessage("  Nội dung mới\nGiữ định dạng  ");
+        service.update(1L, change, principal);
+        assertThat(report.getReportedMessage()).isEqualTo("  Nội dung mới\nGiữ định dạng  ");
     }
 
     private UpdateOwnReportRequest request() {

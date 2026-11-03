@@ -106,7 +106,6 @@ class PartnerRegistrationServiceImplTest {
         request.setOfficialDomains("Example.com.vn");
         request.setOfficialHotlines("1900 545413");
         request.setSmsBrandNames("Example");
-        request.setLegalRepresentative(true);
         request.setAgreeTerms(true);
         files = List.of(new MockMultipartFile("file", "proof.pdf", "application/pdf",
                 "%PDF-1.7\nproof".getBytes(StandardCharsets.US_ASCII)));
@@ -149,17 +148,8 @@ class PartnerRegistrationServiceImplTest {
     }
 
     @Test
-    void delegatedApplicantRequiresAuthorization() {
-        request.setLegalRepresentative(false);
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("ủy quyền");
-        assertNoWrites();
-    }
-
-    @Test
-    void delegatedApplicantCanSubmitAllThreeDocumentCategories() {
+    void canSubmitOptionalAuthorizationAlongsideRequiredDocuments() {
         prepareAccountPersistence();
-        request.setLegalRepresentative(false);
         service.register(request, files, files, files);
         verify(documentRepository).saveAll(documents.capture());
         assertThat(documents.getValue()).extracting(PartnerDocument::getDocumentType)
@@ -292,14 +282,6 @@ class PartnerRegistrationServiceImplTest {
         when(userRepository.findByPhoneNumber("0912345678")).thenReturn(Optional.of(new User()));
         assertThatThrownBy(() -> service.register(request, files, files, null))
                 .isInstanceOf(RegistrationConflictException.class).hasMessageContaining("Số điện thoại");
-        assertNoWrites();
-    }
-
-    @Test
-    void requiresLegalRepresentativeStatusBeforeCreatingAccount() {
-        request.setLegalRepresentative(null);
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("đại diện pháp luật");
         assertNoWrites();
     }
 

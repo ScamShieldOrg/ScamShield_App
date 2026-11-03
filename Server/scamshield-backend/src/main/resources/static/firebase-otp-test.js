@@ -24,9 +24,6 @@ function updateButtons() {
 }
 
 $('phone').addEventListener('input', () => { sentPhone = null; proof = null; $('otp').value = ''; updateButtons(); });
-$('legal-representative').addEventListener('change', () => {
-  $('authorization').required = !$('legal-representative').checked;
-});
 setInterval(updateButtons, 1000);
 
 async function createCaptcha() {
@@ -147,7 +144,7 @@ $('partner-form').addEventListener('submit', async event => {
     corporateEmail: $('email').value.trim(), contactPhone: proof.phone, verificationToken: proof.token,
     password: $('password').value, representativeNameAndTitle: $('representative').value.trim(),
     officialDomains: split('domains'), officialHotlines: split('hotlines'), smsBrandNames: split('brands'),
-    legalRepresentative: $('legal-representative').checked, agreeTerms: $('terms').checked,
+    agreeTerms: $('terms').checked,
   };
   const body = new FormData();
   body.append('request', new Blob([JSON.stringify(request)], { type: 'application/json' }));

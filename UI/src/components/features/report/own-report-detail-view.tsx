@@ -47,10 +47,8 @@ const statusNames: Record<string, string> = {
   PENDING: "Đang chờ duyệt",
   IN_REVIEW: "Đang kiểm duyệt",
   APPROVED: "Đã duyệt",
-  APPROVED_BLACKLIST: "Đã vào danh sách cảnh báo",
   REJECTED: "Bị từ chối",
   WITHDRAWN: "Đã thu hồi",
-  MERGED_DUPLICATE: "Đã gộp trùng lặp",
 }
 const buttonClass =
   "inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-150 hover:shadow-sm active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100"
@@ -74,8 +72,6 @@ const statusClasses: Record<string, string> = {
   IN_REVIEW:
     "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
   APPROVED:
-    "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
-  APPROVED_BLACKLIST:
     "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
   REJECTED: "border-destructive/20 bg-destructive/5 text-destructive",
 }
@@ -282,7 +278,7 @@ export function OwnReportDetailView({
         )
       const updated = await updateOwnReport(id, {
         description: description.trim(),
-        reportedMessage: message || null,
+        reportedMessage: message,
         categoryId: categoryId ? Number(categoryId) : null,
         regionCode: region || null,
         evidences: replacement,

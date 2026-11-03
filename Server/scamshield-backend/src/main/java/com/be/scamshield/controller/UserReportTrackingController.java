@@ -92,7 +92,7 @@ public class UserReportTrackingController {
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @Parameter(description = "Từ khóa tìm kiếm (Mã #RPT, Số điện thoại, STK, Tên miền...)")
             @RequestParam(required = false) String search,
-            @Parameter(description = "Trạng thái báo cáo (ALL, PENDING, APPROVED_BLACKLIST, MERGED_DUPLICATE, REJECTED)")
+            @Parameter(description = "Trạng thái báo cáo (ALL, PENDING, APPROVED, REJECTED)")
             @RequestParam(required = false, defaultValue = "ALL") String status,
             @Parameter(description = "ID danh mục thủ đoạn")
             @RequestParam(required = false) Long categoryId,

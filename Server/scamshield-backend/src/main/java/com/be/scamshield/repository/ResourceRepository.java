@@ -22,7 +22,7 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
                    (SELECT COUNT(r)
                       FROM Report r
                      WHERE r.indicator = i
-                       AND r.status IN ('APPROVED', 'MERGED')) AS warningCount,
+                       AND r.status = com.be.scamshield.constant.ReportStatus.APPROVED) AS warningCount,
                    ci.confirmedAt AS confirmedAt,
                    COALESCE(i.updatedAt, ci.confirmedAt) AS updatedAt
             FROM ConfirmedIndicator ci

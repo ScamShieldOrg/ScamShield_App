@@ -1,5 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ReportEvidenceType;
+import com.be.scamshield.constant.EvidenceVerificationStatus;
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.request.ModeratorDecisionRequest;
 import com.be.scamshield.dto.request.ModeratorReportFilterRequest;
@@ -120,7 +123,7 @@ class ModeratorReportServiceImplTest {
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(testUser)
-                .status("PENDING")
+                .status(ReportStatus.PENDING)
 
                 .createdAt(LocalDateTime.of(2024, 1, 15, 14, 32))
                 .updatedAt(LocalDateTime.of(2024, 1, 15, 14, 32))
@@ -131,8 +134,8 @@ class ModeratorReportServiceImplTest {
                 .report(testReport)
                 .fileName("screenshot_1.jpg")
                 .fileUrl("https://storage.scamshield.vn/evidences/screenshot_1.jpg")
-                .evidenceType("IMAGE")
-                .verificationStatus("PENDING")
+                .evidenceType(ReportEvidenceType.PNG)
+                .verificationStatus(EvidenceVerificationStatus.PENDING)
                 .createdAt(LocalDateTime.of(2024, 1, 15, 14, 32))
                 .build();
     }
@@ -194,8 +197,8 @@ class ModeratorReportServiceImplTest {
     @Test
     void getQueueCounts_Success_ReturnsAggregatedCounts() {
         when(reportRepository.count()).thenReturn(7L);
-        when(reportRepository.countByStatusIgnoreCase("PENDING")).thenReturn(3L);
-        when(reportRepository.countByStatusIgnoreCase("IN_REVIEW")).thenReturn(1L);
+        when(reportRepository.countByStatus(ReportStatus.PENDING)).thenReturn(3L);
+        when(reportRepository.countByStatus(ReportStatus.IN_REVIEW)).thenReturn(1L);
 
         ModeratorQueueCountsResponse counts = service.getQueueCounts();
 
@@ -221,7 +224,7 @@ class ModeratorReportServiceImplTest {
     void getReportById_CountsProvidedEvidenceWithoutScoring(int count) {
         List<ReportEvidence> provided = IntStream.range(0, count)
                 .mapToObj(index -> ReportEvidence.builder().id((long) index + 1)
-                        .report(testReport).evidenceType("IMAGE").verificationStatus("PENDING").build())
+                        .report(testReport).evidenceType(ReportEvidenceType.PNG).verificationStatus(EvidenceVerificationStatus.PENDING).build())
                 .toList();
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(provided);
@@ -270,8 +273,7 @@ class ModeratorReportServiceImplTest {
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(secondUser)
-                .status("PENDING")
-
+                .status(ReportStatus.PENDING)
 
                 .createdAt(LocalDateTime.of(2024, 1, 15, 15, 0))
                 .build();
@@ -279,11 +281,11 @@ class ModeratorReportServiceImplTest {
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
         when(scamCategorieRepository.findById(1L)).thenReturn(Optional.of(testCategory));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "PENDING"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.PENDING))
                 .thenReturn(List.of(testReport, secondReport));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "IN_REVIEW"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.IN_REVIEW))
                 .thenReturn(List.of());
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "IN_REVIEW"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.IN_REVIEW))
                 .thenReturn(List.of());
         when(confirmedIndicatorRepository.findByIndicatorId(100L)).thenReturn(Optional.empty());
         when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -298,10 +300,10 @@ class ModeratorReportServiceImplTest {
         ModeratorReportResponse response = service.makeDecision(1891L, moderatorPrincipal, request);
 
         assertThat(response.getStatus()).isEqualTo("Approved");
-        assertThat(testReport.getStatus()).isEqualTo("APPROVED");
+        assertThat(testReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
 
         // Verify bulk approval of secondReport of the same indicator
-        assertThat(secondReport.getStatus()).isEqualTo("APPROVED");
+        assertThat(secondReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
 
         verify(confirmedIndicatorRepository).save(any(ConfirmedIndicator.class));
         verify(moderationActionRepository, times(2)).save(any(ModerationAction.class));
@@ -325,17 +327,16 @@ class ModeratorReportServiceImplTest {
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(secondUser)
-                .status("PENDING")
-
+                .status(ReportStatus.PENDING)
 
                 .createdAt(LocalDateTime.of(2024, 1, 15, 15, 0))
                 .build();
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "PENDING"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.PENDING))
                 .thenReturn(List.of(testReport, secondReport));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "IN_REVIEW"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.IN_REVIEW))
                 .thenReturn(List.of());
         when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
@@ -348,8 +349,8 @@ class ModeratorReportServiceImplTest {
         ModeratorReportResponse response = service.makeDecision(1891L, moderatorPrincipal, request);
 
         assertThat(response.getStatus()).isEqualTo("Rejected");
-        assertThat(testReport.getStatus()).isEqualTo("REJECTED");
-        assertThat(secondReport.getStatus()).isEqualTo("REJECTED");
+        assertThat(testReport.getStatus()).isEqualTo(ReportStatus.REJECTED);
+        assertThat(secondReport.getStatus()).isEqualTo(ReportStatus.REJECTED);
 
         verify(moderationActionRepository, times(2)).save(any(ModerationAction.class));
         verify(notificationRepository, times(2)).save(any(Notification.class));
@@ -357,7 +358,7 @@ class ModeratorReportServiceImplTest {
 
     @Test
     void makeDecision_WhenReportAlreadyProcessed_ThrowsBadRequestException() {
-        testReport.setStatus("APPROVED");
+        testReport.setStatus(ReportStatus.APPROVED);
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
 
         ModeratorDecisionRequest request = ModeratorDecisionRequest.builder()
@@ -406,7 +407,7 @@ class ModeratorReportServiceImplTest {
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(testUser)
-                .status("IN_REVIEW")
+                .status(ReportStatus.IN_REVIEW)
 
                 .createdAt(LocalDateTime.of(2024, 1, 15, 16, 0))
                 .build();
@@ -416,16 +417,16 @@ class ModeratorReportServiceImplTest {
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(testUser)
-                .status("IN_REVIEW")
+                .status(ReportStatus.IN_REVIEW)
 
                 .createdAt(LocalDateTime.of(2024, 1, 15, 17, 0))
                 .build();
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "PENDING"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.PENDING))
                 .thenReturn(List.of(testReport));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "IN_REVIEW"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.IN_REVIEW))
                 .thenReturn(List.of(inReviewReport, otherInReviewReport));
         when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
@@ -437,10 +438,10 @@ class ModeratorReportServiceImplTest {
 
         service.makeDecision(1891L, moderatorPrincipal, request);
 
-        assertThat(testReport.getStatus()).isEqualTo("APPROVED");
-        assertThat(inReviewReport.getStatus()).isEqualTo("APPROVED");
+        assertThat(testReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
+        assertThat(inReviewReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
         // Every sibling in a decidable status is processed.
-        assertThat(otherInReviewReport.getStatus()).isEqualTo("APPROVED");
+        assertThat(otherInReviewReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
     }
 
     @Test

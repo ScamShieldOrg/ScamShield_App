@@ -1,6 +1,9 @@
 package com.be.scamshield.entity;
 
+import com.be.scamshield.constant.VietnamProvince;
+import com.be.scamshield.converter.VietnamProvinceConverter;
 import jakarta.persistence.*;
+import com.be.scamshield.constant.ReportStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -36,15 +39,17 @@ public class Report {
     @Column(name = "description")
     private String description;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private String status;
+    private ReportStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private ScamCategory category;
 
+    @Convert(converter = VietnamProvinceConverter.class)
     @Column(name = "region_code")
-    private String regionCode;
+    private VietnamProvince regionCode;
 
     @Column(name = "ip_hash")
     private String ipHash;

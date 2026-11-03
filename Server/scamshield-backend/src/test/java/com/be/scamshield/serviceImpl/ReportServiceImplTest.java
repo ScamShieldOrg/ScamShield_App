@@ -1,6 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.VietnamProvince;
+
 import com.be.scamshield.exception.ResourceNotFoundException;
+import com.be.scamshield.constant.ReportEvidenceType;
 import com.be.scamshield.exception.UnauthorizedException;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.be.scamshield.config.ReportPrivacyProperties;
@@ -46,6 +49,28 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ReportServiceImplTest {
     @Mock private ReportPrivacyProperties reportPrivacyProperties;
+    @ParameterizedTest
+    @ValueSource(strings = {"PHONE", "BANK_ACCOUNT", "URL"})
+    void acceptsAllStandardIndicatorTypes(String type) {
+        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(type, "external.example"))
+                .thenReturn(Optional.of(Indicator.builder().type(type).normalizedValue("external.example").build()));
+        when(categories.findByCode("OTHER")).thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
+        when(reports.save(any(Report.class))).thenAnswer(invocation -> {
+            Report saved = invocation.getArgument(0);
+            saved.setId(42L);
+            return saved;
+        });
+        assertEquals(type, service.createReport(request(type, "external.example"), null, principal()).getThreatType());
+    }
+
+    @Test
+    void rejectsUnknownIndicatorTypeBeforePersistingAnything() {
+        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        assertThrows(BadRequestException.class, () -> service.createReport(request("INVALID", "example.test"), null, principal()));
+        verifyNoInteractions(reports, indicators, evidences, storage);
+    }
+
     @Test
     void detailNeverReadsForeignReportOrItsEvidence() {
         when(reports.findByIdAndReporterUserId(42L, 1L)).thenReturn(Optional.empty());
@@ -114,7 +139,7 @@ class ReportServiceImplTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"PHONE", "BANK_ACCOUNT", "WEBSITE"})
+    @ValueSource(strings = {"PHONE", "BANK_ACCOUNT", "URL"})
     void allowsOtherPhonesAndDoesNotInferBankOrWebsiteOwnership(String type) {
         String target = switch (type) {
             case "PHONE" -> "0987654321";
@@ -123,7 +148,7 @@ class ReportServiceImplTest {
         };
         User reporter = reporter("0912345678");
         when(users.findById(1L)).thenReturn(Optional.of(reporter));
-        when(indicators.findByTypeAndNormalizedValue(type, target))
+        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(type, target))
                 .thenReturn(Optional.of(Indicator.builder().type(type).displayValue(target).build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
@@ -149,7 +174,7 @@ class ReportServiceImplTest {
     @ValueSource(strings = {" \n\t ", "  Tin nhắn gốc:\nChuyển tiền để xác minh tài khoản.  "})
     void storesOptionalReportedMessageSeparatelyFromDescription(String message) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findByTypeAndNormalizedValue("PHONE", "0987654321"))
+        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
                 .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
@@ -189,7 +214,7 @@ class ReportServiceImplTest {
     @ValueSource(strings = {"01", "79", " 01 "})
     void storesRequiredProvinceCodeAndReturnsIt(String regionCode) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findByTypeAndNormalizedValue("PHONE", "0987654321"))
+        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
                 .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
@@ -206,7 +231,7 @@ class ReportServiceImplTest {
         String expected = regionCode == null || regionCode.isBlank() ? null : regionCode.strip();
         ArgumentCaptor<Report> saved = ArgumentCaptor.forClass(Report.class);
         verify(reports).save(saved.capture());
-        assertEquals(expected, saved.getValue().getRegionCode());
+        assertEquals(VietnamProvince.fromCode(expected).orElseThrow(), saved.getValue().getRegionCode());
         assertEquals(expected, response.getRegionCode());
     }
 
@@ -236,7 +261,7 @@ class ReportServiceImplTest {
 
         ArgumentCaptor<ReportEvidence> saved = ArgumentCaptor.forClass(ReportEvidence.class);
         verify(evidences).save(saved.capture());
-        assertEquals(expected, saved.getValue().getEvidenceType());
+        assertEquals(ReportEvidenceType.valueOf(expected), saved.getValue().getEvidenceType());
         assertEquals(name, saved.getValue().getFileName());
         assertEquals(expected, response.getEvidences().get(0).getEvidenceType());
     }
@@ -288,7 +313,7 @@ class ReportServiceImplTest {
 
     private void stubEvidenceSubmission() {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findByTypeAndNormalizedValue("PHONE", "0987654321"))
+        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
                 .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));

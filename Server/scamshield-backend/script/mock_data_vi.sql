@@ -235,10 +235,10 @@ WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.email = 'partner+' || v.domain |
 
 -- Tên pháp lý dùng theo nguồn công khai khi có; nếu chưa rõ, dùng nhãn website làm dữ liệu mẫu.
 -- VERIFIED ở đây là trạng thái mock của whitelist, không xác nhận quan hệ đối tác thật.
-INSERT INTO partner_profiles (user_id, legal_name, brand_name, partner_type,
+INSERT INTO partner_profiles (user_id, legal_name, brand_name,
                               verification_status, verified_by, verified_at,
                               official_domain, created_at, updated_at)
-SELECT u.id, v.legal_name, v.brand_name, 'BUSINESS', 'VERIFIED', admin.id,
+SELECT u.id, v.legal_name, v.brand_name, 'VERIFIED', admin.id,
        CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
        v.domain, CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
        CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
@@ -270,21 +270,20 @@ SELECT p.id, i.id, 'VERIFIED', u.id,
        CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
        CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
 FROM (VALUES
-    ('Shopee', 'URL', 'shopee.vn'),
-    ('oviland.ru', 'URL', 'oviland.ru'),
-    ('nyulawglobal.org', 'URL', 'nyulawglobal.org'),
-    ('brooklynfabric.com', 'URL', 'brooklynfabric.com'),
-    ('nar.az', 'URL', 'nar.az'),
-    ('vmos.cn', 'URL', 'vmos.cn'),
-    ('crockford.com', 'URL', 'crockford.com'),
-    ('portaransas.org', 'URL', 'portaransas.org'),
-    ('assortedinternet.com', 'URL', 'assortedinternet.com'),
-    ('koreagift.com', 'URL', 'koreagift.com'),
-    ('oshioshi.co.il', 'URL', 'oshioshi.co.il')
-) AS v(partner_key, indicator_type, indicator_value)
+    ('URL', 'shopee.vn'),
+    ('URL', 'oviland.ru'),
+    ('URL', 'nyulawglobal.org'),
+    ('URL', 'brooklynfabric.com'),
+    ('URL', 'nar.az'),
+    ('URL', 'vmos.cn'),
+    ('URL', 'crockford.com'),
+    ('URL', 'portaransas.org'),
+    ('URL', 'assortedinternet.com'),
+    ('URL', 'koreagift.com'),
+    ('URL', 'oshioshi.co.il')
+) AS v(indicator_type, indicator_value)
 JOIN users u ON u.email = 'admin@scamshield.vn'
-JOIN partner_profiles p ON p.partner_type = 'BUSINESS'
-    AND (p.official_domain = v.partner_key OR (v.partner_key = 'Shopee' AND p.brand_name = 'Shopee'))
+JOIN partner_profiles p ON p.official_domain = v.indicator_value
 JOIN LATERAL (
     SELECT id FROM indicators
     WHERE type = v.indicator_type AND normalized_value = v.indicator_value

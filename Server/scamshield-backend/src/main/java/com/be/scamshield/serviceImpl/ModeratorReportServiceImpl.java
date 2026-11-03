@@ -1,6 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.util.ReportStatusFilter;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.request.ModeratorDecisionRequest;
 import com.be.scamshield.dto.request.ModeratorReportFilterRequest;
@@ -39,9 +40,9 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM HH:mm");
     private static final Pattern CASE_CODE_PATTERN = Pattern.compile("(?i)CS-\\d{4}-(\\d+)");
-    private static final Set<String> DECIDABLE_STATUSES = Set.of(
-            ReportStatus.PENDING.name(),
-            ReportStatus.IN_REVIEW.name()
+    private static final Set<ReportStatus> DECIDABLE_STATUSES = Set.of(
+            ReportStatus.PENDING,
+            ReportStatus.IN_REVIEW
     );
 
     private final IndicatorRepository indicatorRepository;
@@ -107,8 +108,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     @Override
     @Transactional(readOnly = true)
     public ModeratorQueueCountsResponse getQueueCounts() {
-        long pending = reportRepository.countByStatusIgnoreCase("PENDING");
-        long inReview = reportRepository.countByStatusIgnoreCase("IN_REVIEW");
+        long pending = reportRepository.countByStatus(ReportStatus.PENDING);
+        long inReview = reportRepository.countByStatus(ReportStatus.IN_REVIEW);
         long all = reportRepository.count();
 
         return ModeratorQueueCountsResponse.builder()
@@ -139,9 +140,9 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         Report report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ báo cáo với ID: " + reportId));
 
-        String previousStatus = report.getStatus();
-        if (previousStatus == null || !DECIDABLE_STATUSES.contains(previousStatus.toUpperCase())) {
-            if ("APPROVED".equalsIgnoreCase(previousStatus) || "REJECTED".equalsIgnoreCase(previousStatus)) {
+        ReportStatus previousStatus = report.getStatus();
+        if (previousStatus == null || !DECIDABLE_STATUSES.contains(previousStatus)) {
+            if (previousStatus == ReportStatus.APPROVED || previousStatus == ReportStatus.REJECTED) {
                 throw new BadRequestException("Hồ sơ báo cáo này đã có quyết định xử lý trước đó (" + previousStatus + ")");
             }
             throw new BadRequestException("Không thể xử lý hồ sơ ở trạng thái hiện tại (" + previousStatus + ")");
@@ -150,9 +151,9 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         User moderatorUser = resolveModeratorUser(currentUser);
         LocalDateTime now = LocalDateTime.now();
 
-        String newReportStatus = switch (request.getDecision()) {
-            case APPROVE -> "APPROVED";
-            case REJECT -> "REJECTED";
+        ReportStatus newReportStatus = switch (request.getDecision()) {
+            case APPROVE -> ReportStatus.APPROVED;
+            case REJECT -> ReportStatus.REJECTED;
         };
 
         // Determine optional matched ScamCategory from categoryId
@@ -167,8 +168,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         reportsToProcess.add(report);
 
         if (report.getIndicator() != null) {
-            for (String decidableStatus : DECIDABLE_STATUSES) {
-                List<Report> siblingReports = reportRepository.findByIndicatorIdAndStatusIgnoreCase(
+            for (ReportStatus decidableStatus : DECIDABLE_STATUSES) {
+                List<Report> siblingReports = reportRepository.findByIndicatorIdAndStatus(
                         report.getIndicator().getId(), decidableStatus);
                 for (Report siblingReport : siblingReports) {
                     if (!siblingReport.getId().equals(report.getId())) {
@@ -180,7 +181,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
 
         // Process all affected reports
         for (Report r : reportsToProcess) {
-            String prevStatus = r.getStatus();
+            ReportStatus prevStatus = r.getStatus();
             r.setStatus(newReportStatus);
             r.setUpdatedAt(now);
 
@@ -196,8 +197,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     .moderatorUser(moderatorUser)
                     .action(request.getDecision().name())
                     .reason(request.getReason())
-                    .previousStatus(prevStatus)
-                    .newStatus(newReportStatus)
+                    .previousStatus(prevStatus.name())
+                    .newStatus(newReportStatus.name())
                     .createdAt(now)
                     .build();
             moderationActionRepository.save(action);
@@ -208,8 +209,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     .action("MODERATION_" + request.getDecision().name())
                     .entityType("REPORT")
                     .entityId(r.getId())
-                    .previousValue(prevStatus)
-                    .newValue(newReportStatus)
+                    .previousValue(prevStatus.name())
+                    .newValue(newReportStatus.name())
                     .reason(request.getReason())
                     .createdAt(now)
                     .build();
@@ -307,15 +308,14 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     }
 
     private Specification<Report> createFilterSpecification(ModeratorReportFilterRequest filter) {
-        String tab = filter.getTab();
+        ReportStatus tab = ReportStatusFilter.parse(filter.getTab());
         String search = filter.getSearch();
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             // 1. Tab filtering
-            if (StringUtils.hasText(tab) && !"ALL".equalsIgnoreCase(tab.trim())) {
-                String cleanTab = tab.trim().toUpperCase();
-                predicates.add(cb.equal(cb.upper(root.get("status")), cleanTab));
+            if (tab != null) {
+                predicates.add(cb.equal(root.get("status"), tab));
             }
 
             // 2. Search query filtering
@@ -375,7 +375,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         String formattedCode = String.format("CS-%d-%04d", year, report.getId());
 
         String targetIdentifier = "N/A";
-        String targetType = "UNKNOWN";
+        String targetType = null;
         if (report.getIndicator() != null) {
             targetType = report.getIndicator().getType();
             if (StringUtils.hasText(report.getIndicator().getDisplayValue())) {
@@ -412,7 +412,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 ? List.of(report.getCategory().getName())
                 : Collections.emptyList();
 
-        String uiStatus = mapToUiStatus(report.getStatus());
+        String uiStatus = mapToUiStatus(report.getStatus() == null ? null : report.getStatus().name());
 
         return ModeratorReportResponse.builder()
                 .id(formattedCode)
@@ -437,7 +437,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
 
     private ModeratorEvidenceResponse mapToModeratorEvidenceResponse(ReportEvidence ev) {
         String name = extractFileName(ev);
-        String type = resolveEvidenceType(ev.getEvidenceType(), ev.getFileUrl());
+        String type = resolveEvidenceType(ev.getEvidenceType() == null ? null : ev.getEvidenceType().name(), ev.getFileUrl());
 
         return ModeratorEvidenceResponse.builder()
                 .id("ev-" + ev.getId())

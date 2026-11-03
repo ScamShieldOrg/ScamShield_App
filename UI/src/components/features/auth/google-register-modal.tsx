@@ -83,7 +83,7 @@ export function GoogleRegisterModal({
 
 function GoogleRegisterSession({
   idToken,
-  initialPhone,
+  initialPhone = "",
   onClose,
 }: Omit<GoogleRegisterModalProps, "isOpen">) {
   const router = useRouter()

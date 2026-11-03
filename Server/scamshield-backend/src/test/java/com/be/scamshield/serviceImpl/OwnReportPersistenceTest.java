@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.request.UpdateOwnReportRequest;
 import com.be.scamshield.entity.*;
 import com.be.scamshield.security.UserPrincipal;
@@ -39,7 +40,7 @@ class OwnReportPersistenceTest {
         Indicator indicator = Indicator.builder().type("PHONE").normalizedValue("0912345690")
                 .createdAt(now).updatedAt(now).build();
         em.persist(indicator);
-        Report report = Report.builder().reporterUser(user).indicator(indicator).status("PENDING")
+        Report report = Report.builder().reporterUser(user).indicator(indicator).status(ReportStatus.PENDING)
                 .createdAt(now).updatedAt(now).build();
         em.persist(report);
         em.flush();
@@ -51,7 +52,7 @@ class OwnReportPersistenceTest {
         service.withdraw(id, principal);
         em.flush();
         em.clear();
-        assertThat(em.find(Report.class, id).getStatus()).isEqualTo("WITHDRAWN");
+        assertThat(em.find(Report.class, id).getStatus()).isEqualTo(ReportStatus.WITHDRAWN);
         assertThat(em.createQuery("select count(a) from AuditLog a where a.entityType = 'REPORT' and a.entityId = :id", Long.class)
                 .setParameter("id", id).getSingleResult()).isEqualTo(2L);
     }

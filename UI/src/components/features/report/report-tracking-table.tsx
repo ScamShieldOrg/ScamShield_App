@@ -120,16 +120,10 @@ export function ReportTrackingTable({
       dotColor: "bg-[#F59E0B]",
     },
     {
-      status: "APPROVED_BLACKLIST",
+      status: "APPROVED",
       label: "Đã vào Blacklist",
       count: statusCounts?.approvedBlacklist ?? 0,
       dotColor: "bg-[#10B981]",
-    },
-    {
-      status: "MERGED_DUPLICATE",
-      label: "Đã gộp trùng lặp",
-      count: statusCounts?.mergedDuplicate ?? 0,
-      dotColor: "bg-[#64748B]",
     },
     {
       status: "WITHDRAWN",
