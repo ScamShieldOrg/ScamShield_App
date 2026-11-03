@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ShieldCheck, Bell, CaretDown, ArrowsClockwise } from "@phosphor-icons/react"
+import { ShieldCheck, Bell, CaretDown } from "@phosphor-icons/react"
 
 interface ModeratorHeaderProps {
   className?: string
@@ -13,6 +13,7 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
 
   const isReportsActive = pathname?.includes("/moderator/reports") || pathname === "/moderator"
   const isDisputesActive = pathname?.includes("/moderator/disputes")
+  const isPartnersActive = pathname?.includes("/moderator/indicators")
 
   return (
     <header className={`w-full border-b border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 ${className}`}>
@@ -60,6 +61,16 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
               }`}
             >
               Hàng chờ khiếu nại
+            </Link>
+            <Link
+              href="/moderator/indicators"
+              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                isPartnersActive
+                  ? "bg-slate-950 text-white shadow-sm dark:bg-white dark:text-slate-950"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              Thẩm định đối tác
             </Link>
           </nav>
         </div>
