@@ -6,6 +6,7 @@ import com.be.scamshield.repository.*;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IUserReportTrackingService;
 import com.be.scamshield.exception.ResourceNotFoundException;
+import com.be.scamshield.exception.BadRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -87,6 +88,29 @@ class OwnReportServiceTest {
         when(evidence.findByReportId(1L)).thenReturn(List.of(new ReportEvidence()));
         service.update(1L, request, principal);
         verify(evidence).deleteAll(anyList());
+    }
+
+    @Test
+    void partialUpdatePreservesCategoryAndRegionAndNormalizesBlankMessage() {
+        var category = ScamCategory.builder().id(2L).build();
+        report.setCategory(category);
+        report.setRegionCode("01");
+        var change = request();
+        change.setReportedMessage("   ");
+        service.update(1L, change, principal);
+        assertThat(report.getCategory()).isSameAs(category);
+        assertThat(report.getRegionCode()).isEqualTo("01");
+        assertThat(report.getReportedMessage()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "99", "Hà Nội"})
+    void rejectsInvalidRegionOnUpdate(String region) {
+        var change = request();
+        change.setRegionCode(region);
+        assertThatThrownBy(() -> service.update(1L, change, principal))
+                .isInstanceOf(BadRequestException.class);
+        verify(reports, never()).save(any());
     }
 
     private UpdateOwnReportRequest request() {

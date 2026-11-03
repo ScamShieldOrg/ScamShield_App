@@ -1,5 +1,10 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.exception.ResourceNotFoundException;
+import com.be.scamshield.exception.UnauthorizedException;
+import org.springframework.test.util.ReflectionTestUtils;
+import com.be.scamshield.config.ReportPrivacyProperties;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import com.be.scamshield.dto.request.CreateReportRequest;
 import com.be.scamshield.dto.request.EvidenceItemDto;
 import com.be.scamshield.entity.Indicator;
@@ -8,7 +13,6 @@ import com.be.scamshield.entity.ReportEvidence;
 import com.be.scamshield.entity.ScamCategory;
 import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.BadRequestException;
-import com.be.scamshield.exception.UnauthorizedException;
 import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.repository.IndicatorRepository;
 import com.be.scamshield.repository.ReportEvidenceRepository;
@@ -41,6 +45,33 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ReportServiceImplTest {
+    @Mock private ReportPrivacyProperties reportPrivacyProperties;
+    @Test
+    void detailNeverReadsForeignReportOrItsEvidence() {
+        when(reports.findByIdAndReporterUserId(42L, 1L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.getReportById(42L, principal()));
+        verify(reports, never()).findById(any());
+        verifyNoInteractions(evidences);
+    }
+
+    @Test
+    void detailRequiresAuthenticatedCallerEvenWhenInvokedDirectly() {
+        assertThrows(UnauthorizedException.class,
+                () -> service.getReportById(42L, null));
+        verifyNoInteractions(reports, evidences);
+    }
+
+    @Test
+    void clientSignalHashDependsOnSecretKey() {
+        when(reportPrivacyProperties.getIpHashSecret()).thenReturn("first-test-key");
+        String first = ReflectionTestUtils.invokeMethod(service, "hashClientSignal", "192.0.2.1");
+        when(reportPrivacyProperties.getIpHashSecret()).thenReturn("second-test-key");
+        String second = ReflectionTestUtils.invokeMethod(service, "hashClientSignal", "192.0.2.1");
+        assertEquals(64, first.length());
+        assertNotEquals(first, second);
+    }
+
     @Mock private ReportRepository reports;
     @Mock private ReportEvidenceRepository evidences;
     @Mock private IndicatorRepository indicators;
@@ -144,11 +175,11 @@ class ReportServiceImplTest {
     @Test
     void detailResponseIncludesOriginalMultilineMessageLongerThan255Characters() {
         String message = "  Nội dung gốc\n" + "Đề nghị chuyển tiền. ".repeat(30);
-        when(reports.findById(42L)).thenReturn(Optional.of(Report.builder().id(42L)
+        when(reports.findByIdAndReporterUserId(42L, 1L)).thenReturn(Optional.of(Report.builder().id(42L)
                 .description("Mô tả sự việc").reportedMessage(message).build()));
         when(evidences.findByReportId(42L)).thenReturn(List.of());
 
-        var response = service.getReportById(42L);
+        var response = service.getReportById(42L, principal());
 
         assertEquals(message, response.getReportedMessage());
         assertEquals("Mô tả sự việc", response.getDescription());

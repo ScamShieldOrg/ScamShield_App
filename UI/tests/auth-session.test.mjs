@@ -14,18 +14,18 @@ function storage() {
   }
 }
 function load(file, dependencies = {}, sessionStorage) {
-  const module = { exports: {} }
+  const loaded = { exports: {} }
   const code = ts.transpileModule(
     fs.readFileSync(new URL(file, import.meta.url), "utf8"),
     { compilerOptions: { module: ts.ModuleKind.CommonJS } }
   ).outputText
   vm.compileFunction(code, ["require", "module", "exports", "sessionStorage"])(
     (id) => dependencies[id] ?? require(id),
-    module,
-    module.exports,
+    loaded,
+    loaded.exports,
     sessionStorage
   )
-  return module.exports
+  return loaded.exports
 }
 function store(storage) {
   return load(
@@ -38,23 +38,22 @@ function token(exp) {
   return `header.${Buffer.from(JSON.stringify({ exp, role: "REGISTERED_USER" })).toString("base64url")}.signature`
 }
 
-test("reload restores session before authorization and logout stays logged out", async () => {
+test("tokens stay in memory and reload requires cookie refresh", async () => {
   const cache = storage()
   const first = store(cache)
   const accessToken = token(Date.now() / 1000 + 600)
   first.useAuthStore.getState().setToken(accessToken)
-  first.useAuthStore
-    .getState()
-    .setUser({
-      userId: "21",
-      email: "test@example.com",
-      role: "REGISTERED_USER",
-    })
+  first.useAuthStore.getState().setUser({
+    userId: "21",
+    email: "test@example.com",
+    role: "REGISTERED_USER",
+  })
   const reload = store(cache)
   assert.equal(reload.useAuthStore.getState().token, null)
   await reload.restoreAuthSession()
-  assert.equal(reload.useAuthStore.getState().token, accessToken)
-  assert.equal(reload.useAuthStore.getState().user.userId, "21")
+  assert.equal(reload.useAuthStore.getState().token, null)
+  assert.equal(cache.getItem("scamshield-auth-session"), null)
+  assert.equal(reload.useAuthStore.getState().user, null)
   reload.useAuthStore.getState().logout()
   const afterLogout = store(cache)
   await afterLogout.restoreAuthSession()
@@ -66,6 +65,7 @@ test("expired or invalid cached tokens are discarded so refresh is required", as
     const cache = storage()
     store(cache).useAuthStore.getState().setToken(accessToken)
     const reload = store(cache)
+    reload.useAuthStore.getState().setToken(accessToken)
     await reload.restoreAuthSession()
     assert.equal(reload.useAuthStore.getState().token, null)
   }

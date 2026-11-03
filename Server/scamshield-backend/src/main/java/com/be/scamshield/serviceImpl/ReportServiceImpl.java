@@ -16,6 +16,7 @@ import com.be.scamshield.entity.ReportEvidence;
 import com.be.scamshield.entity.ScamCategory;
 import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.exception.ResourceNotFoundException;
 import com.be.scamshield.exception.UnauthorizedException;
 import com.be.scamshield.repository.IndicatorRepository;
 import com.be.scamshield.repository.ReportEvidenceRepository;
@@ -36,8 +37,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.be.scamshield.config.ReportPrivacyProperties;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.GeneralSecurityException;
 import java.util.HexFormat;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -49,6 +52,8 @@ import java.util.Locale;
 @RequiredArgsConstructor
 @Slf4j
 public class ReportServiceImpl implements IReportService {
+    private final ReportPrivacyProperties reportPrivacyProperties;
+
 
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
@@ -213,9 +218,11 @@ public class ReportServiceImpl implements IReportService {
 
     @Override
     @Transactional(readOnly = true)
-    public ReportResponse getReportById(Long id) {
-        Report report = reportRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo cáo lừa đảo với ID: " + id));
+    public ReportResponse getReportById(Long id, UserPrincipal currentUser) {
+        if (currentUser == null || currentUser.getId() == null) throw new UnauthorizedException("Vui lòng đăng nhập để xem báo cáo");
+        if (id == null || id <= 0) throw new BadRequestException("ID báo cáo phải là số nguyên dương");
+        Report report = reportRepository.findByIdAndReporterUserId(id, currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo hoặc bạn không có quyền truy cập"));
         List<ReportEvidence> evidences = reportEvidenceRepository.findByReportId(id);
         return mapToResponse(report, evidences, 0);
     }
@@ -317,9 +324,10 @@ public class ReportServiceImpl implements IReportService {
             return null;
         }
         try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(value.trim().getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm is not available", e);
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(reportPrivacyProperties.getIpHashSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(("report-ip:" + value.trim()).getBytes(StandardCharsets.UTF_8)));
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Cannot hash client signal", e);
         }
     }}

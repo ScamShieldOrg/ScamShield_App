@@ -4,6 +4,10 @@ import com.be.scamshield.config.SecurityConfig;
 import com.be.scamshield.dto.request.CreateReportRequest;
 import com.be.scamshield.dto.response.ReportResponse;
 import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.exception.ResourceNotFoundException;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import com.be.scamshield.security.CustomAccessDeniedHandler;
 import com.be.scamshield.security.CustomUserDetailsService;
 import com.be.scamshield.security.JwtAuthenticationEntryPoint;
@@ -28,6 +32,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -53,6 +58,32 @@ class ReportControllerTest {
             {"threatType":"PHONE","targetIdentifier":"0912345678","category":"OTHER",
              "description":"Nội dung báo cáo","regionCode":"01","isConfirmed":true}
             """;
+
+    @Test
+    void anonymousCannotReadReportDetail() throws Exception {
+        mvc.perform(get("/api/reports/42")).andExpect(status().isUnauthorized());
+        verifyNoInteractions(reports);
+    }
+
+    @Test
+    void detailForwardsAuthenticatedCallerAndReturnsOnlyScopedResult() throws Exception {
+        UserPrincipal caller = UserPrincipal.builder().id(1L).username("reporter@example.test")
+                .authorities(List.of(new SimpleGrantedAuthority("ROLE_REGISTERED_USER"))).build();
+        when(reports.getReportById(42L, caller)).thenReturn(ReportResponse.builder().id(42L).build());
+        mvc.perform(get("/api/reports/42").with(user(caller)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(42));
+        verify(reports).getReportById(42L, caller);
+    }
+
+    @Test
+    void foreignReportReturns404WithoutEvidence() throws Exception {
+        UserPrincipal other = UserPrincipal.builder().id(2L).username("other@example.test")
+                .authorities(List.of(new SimpleGrantedAuthority("ROLE_REGISTERED_USER"))).build();
+        when(reports.getReportById(42L, other)).thenThrow(new ResourceNotFoundException("Không tìm thấy báo cáo"));
+        mvc.perform(get("/api/reports/42").with(user(other)))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.data.evidences").doesNotExist());
+        verify(reports).getReportById(42L, other);
+    }
 
     @Test
     void multipartSelfReportReturnsVietnameseBadRequest() throws Exception {

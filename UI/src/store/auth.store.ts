@@ -1,6 +1,5 @@
 import { User } from "@/types/user"
 import { create } from "zustand"
-import { createJSONStorage, persist } from "zustand/middleware"
 import { decodeJwt } from "@/lib/utils/jwtUtil"
 
 type AuthState = {
@@ -12,32 +11,22 @@ type AuthState = {
   logout: () => void
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      token: null,
-      user: null,
-      setToken: (token) => set({ token }),
-      setUser: (user) => set({ user }),
-      clearUser: () => set({ user: null, token: null }),
-      logout: () => set({ user: null, token: null }),
-    }),
-    {
-      name: "scamshield-auth-session",
-      storage: createJSONStorage(() => sessionStorage),
-      skipHydration: true,
-      partialize: (state) => ({ token: state.token, user: state.user }),
-    }
-  )
-)
+export const useAuthStore = create<AuthState>()((set) => ({
+  token: null,
+  user: null,
+  setToken: (token) => set({ token }),
+  setUser: (user) => set({ user }),
+  clearUser: () => set({ user: null, token: null }),
+  logout: () => set({ user: null, token: null }),
+}))
 
 export async function restoreAuthSession(): Promise<void> {
-  if (!useAuthStore.persist.hasHydrated()) {
-    try {
-      await useAuthStore.persist.rehydrate()
-    } catch {
-      // Storage may be unavailable; the caller can still restore via the refresh cookie.
-    }
+  // Remove sensitive state persisted by earlier versions; reload uses the HttpOnly cookie.
+  try {
+    if (typeof sessionStorage !== "undefined")
+      sessionStorage.removeItem("scamshield-auth-session")
+  } catch {
+    // Browser storage can be disabled; authentication does not depend on it.
   }
   const { token, clearUser } = useAuthStore.getState()
   if (token) {

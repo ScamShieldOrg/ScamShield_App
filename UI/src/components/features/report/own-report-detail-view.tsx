@@ -502,7 +502,11 @@ export function OwnReportDetailView({
                           onChange={(e) => setCategoryId(e.target.value)}
                           className={fieldClass}
                         >
-                          <option value="">Chưa phân loại</option>
+                          <option value="">
+                            {report.categoryId
+                              ? "Giữ danh mục hiện tại"
+                              : "Chưa phân loại"}
+                          </option>
                           {report.categoryId &&
                             !categories.some(
                               (c) => c.id === report.categoryId
@@ -525,7 +529,11 @@ export function OwnReportDetailView({
                           onChange={(e) => setRegion(e.target.value)}
                           className={fieldClass}
                         >
-                          <option value="">Chưa cung cấp</option>
+                          <option value="">
+                            {report.regionCode
+                              ? "Giữ tỉnh/thành hiện tại"
+                              : "Chưa cung cấp"}
+                          </option>
                           {region &&
                             !regions.some((r) => r.code === region) && (
                               <option value={region}>

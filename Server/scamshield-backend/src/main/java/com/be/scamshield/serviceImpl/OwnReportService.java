@@ -2,6 +2,7 @@ package com.be.scamshield.serviceImpl;
 
 import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.constant.EvidenceVerificationStatus;
+import com.be.scamshield.constant.VietnamProvince;
 import com.be.scamshield.dto.request.UpdateOwnReportRequest;
 import com.be.scamshield.dto.response.ReportDetailTrackingResponse;
 import com.be.scamshield.entity.Report;
@@ -52,10 +53,17 @@ public class OwnReportService implements IOwnReportService {
         Report report = editable(id, principal);
         if (request.getDescription() == null || request.getDescription().isBlank()) throw new BadRequestException("Mô tả không được để trống");
         report.setDescription(request.getDescription().strip());
-        report.setReportedMessage(request.getReportedMessage());
-        report.setRegionCode(request.getRegionCode() == null || request.getRegionCode().isEmpty() ? null : request.getRegionCode());
-        report.setCategory(request.getCategoryId() == null ? null : categories.findById(request.getCategoryId())
-                .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại")));
+        String message = request.getReportedMessage();
+        report.setReportedMessage(message == null || message.isBlank() ? null : message);
+        if (request.getRegionCode() != null) {
+            String region = request.getRegionCode().strip();
+            if (VietnamProvince.fromCode(region).isEmpty()) throw new BadRequestException("Vui lòng chọn tỉnh/thành hợp lệ trong danh sách");
+            report.setRegionCode(region);
+        }
+        if (request.getCategoryId() != null) {
+            report.setCategory(categories.findById(request.getCategoryId())
+                    .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại")));
+        }
         LocalDateTime now = LocalDateTime.now(applicationClock);
         if (request.getEvidences() != null) {
             evidences.deleteAll(evidences.findByReportId(id));

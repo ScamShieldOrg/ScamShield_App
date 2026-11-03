@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import axios from "axios"
 import { toast } from "react-toastify"
 import { usePathname } from "next/navigation"
@@ -16,6 +16,10 @@ export type { RefreshTokenResult }
 
 export function useRefreshToken() {
   const pathname = usePathname()
+  const pathnameRef = useRef(pathname)
+  useEffect(() => {
+    pathnameRef.current = pathname
+  }, [pathname])
   const token = useAuthStore((state) => state.token)
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
@@ -49,7 +53,8 @@ export function useRefreshToken() {
       // Only show session expired toast if the session actually expired,
       // and avoid showing it on auth pages (login/register) or when no cookie was ever present.
       const isAuthPage =
-        pathname?.startsWith("/login") || pathname?.startsWith("/register")
+        pathnameRef.current?.startsWith("/login") ||
+        pathnameRef.current?.startsWith("/register")
       if (!isCookieMissing && !isAuthPage) {
         toast.error("Phiên đã kết thúc, vui lòng đăng nhập lại", {
           toastId: "session-expired",
@@ -62,7 +67,7 @@ export function useRefreshToken() {
       setIsLoading(false)
       setIsInitialized(true)
     }
-  }, [logout, pathname])
+  }, [logout])
 
   useEffect(() => {
     // Only attempt initial refresh once per page lifecycle
