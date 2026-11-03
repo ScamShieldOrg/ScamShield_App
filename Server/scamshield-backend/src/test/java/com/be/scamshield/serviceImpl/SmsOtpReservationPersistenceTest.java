@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.external.FirebasePhoneClient;
 
 import com.be.scamshield.constant.OtpType;
@@ -40,10 +42,10 @@ import static org.mockito.Mockito.verify;
 @SpringBootTest(properties = {
         "app.otp.email-expiration-ms=420000",
         "app.otp.phone-expiration-ms=180000",
-        "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1"
+
 })
 @ActiveProfiles("test")
-class SmsOtpReservationPersistenceTest {
+class SmsOtpReservationPersistenceTest extends PostgresIntegrationTest {
     @Autowired
     private SmsOtpReservationService service;
     @Autowired

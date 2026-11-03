@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.entity.CheckRequest;
 import com.be.scamshield.entity.CheckVerdict;
 import com.be.scamshield.entity.CheckVerdictReason;
@@ -17,10 +19,10 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-class ScamCheckPersistenceTest {
+class ScamCheckPersistenceTest extends PostgresIntegrationTest {
     @Autowired
     private EntityManager entityManager;
     @Autowired

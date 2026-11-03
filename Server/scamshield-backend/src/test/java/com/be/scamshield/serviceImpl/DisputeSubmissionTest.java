@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.external.SupabaseStorageService;
 
 import com.be.scamshield.constant.DisputeStatus;
@@ -65,7 +67,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class DisputeSubmissionTest {
+class DisputeSubmissionTest extends PostgresIntegrationTest {
     private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final LocalDateTime NOW = LocalDateTime.parse("2026-10-14T10:00:00");
     private static final String SUBMIT = "/api/disputes";

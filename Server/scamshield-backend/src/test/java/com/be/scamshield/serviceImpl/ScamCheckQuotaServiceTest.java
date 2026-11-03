@@ -7,8 +7,6 @@ import com.be.scamshield.entity.User;
 import com.be.scamshield.repository.QuotaPolicyRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
@@ -61,17 +59,11 @@ class ScamCheckQuotaServiceTest {
     }
 
     @Test
-    void transactionRollbackReturnsReservedSlot() {
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            service.reserve(null, guest);
-            assertThat(counters.get(KEY)).isEqualTo(1);
-            TransactionSynchronizationManager.getSynchronizations().forEach(
-                    callback -> callback.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-            assertThat(counters.get(KEY)).isZero();
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
+    void explicitReleaseReturnsReservedSlot() {
+        String reservation = service.reserve(null, guest);
+        assertThat(counters.get(KEY)).isEqualTo(1);
+        service.releaseReservation(reservation);
+        assertThat(counters.get(KEY)).isZero();
     }
 
     @Test
