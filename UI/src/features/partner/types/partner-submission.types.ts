@@ -45,10 +45,10 @@ export interface PartnerSubmissionItem {
 }
 
 export interface PartnerSubmissionCounts {
-  all: number
-  pending: number
-  verified: number
-  rejected: number
+  totalCount: number
+  pendingCount: number
+  verifiedCount: number
+  rejectedCount: number
 }
 
 export interface PaginatedSubmissions<T> {

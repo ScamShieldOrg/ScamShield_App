@@ -430,4 +430,89 @@ class PartnerSubmissionServiceImplTest {
         verify(indicatorRepository, never()).save(any());
         verifyNoInteractions(confirmedIndicatorRepository);
     }
+
+    @Test
+    @DisplayName("Gửi cảnh báo có mô tả vượt quá 255 ký tự -> Ném BadRequestException")
+    void submitAlertOrIntel_descriptionTooLong_throwsBadRequest() {
+        when(partnerProfileRepository.findByUserId(10L)).thenReturn(Optional.of(partnerProfile));
+
+        String longDesc = "A".repeat(300);
+        SubmitPartnerAlertRequest request = SubmitPartnerAlertRequest.builder()
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo mô tả quá dài")
+                .description(longDesc)
+                .indicatorType("URL")
+                .indicatorValue("https://fake.com")
+                .build();
+
+        assertThatThrownBy(() -> service.submitAlertOrIntel(request, null, partnerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("vượt quá giới hạn 255 ký tự");
+
+        verify(partnerOfficialAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Đối tác lấy bằng chứng: scoped theo partnerId")
+    void getSubmissionEvidence_partnerScoped() {
+        when(partnerProfileRepository.findByUserId(10L)).thenReturn(Optional.of(partnerProfile));
+
+        PartnerOfficialAlert alert = PartnerOfficialAlert.builder()
+                .id(100L)
+                .partner(partnerProfile)
+                .evidenceId(888L)
+                .build();
+        when(partnerOfficialAlertRepository.findByIdAndPartnerId(100L, partnerProfile.getId()))
+                .thenReturn(Optional.of(alert));
+
+        PartnerDocument doc = PartnerDocument.builder().id(888L).fileName("proof.png").build();
+        when(partnerDocumentRepository.findById(888L)).thenReturn(Optional.of(doc));
+
+        PartnerDocument result = service.getSubmissionEvidence(100L, partnerPrincipal);
+        assertThat(result.getId()).isEqualTo(888L);
+    }
+
+    @Test
+    @DisplayName("Kiểm duyệt viên lấy bằng chứng: unscoped")
+    void getSubmissionEvidenceForModerator_unscoped() {
+        PartnerOfficialAlert alert = PartnerOfficialAlert.builder()
+                .id(101L)
+                .evidenceId(999L)
+                .build();
+        when(partnerOfficialAlertRepository.findById(101L)).thenReturn(Optional.of(alert));
+
+        PartnerDocument doc = PartnerDocument.builder().id(999L).fileName("mod-proof.pdf").build();
+        when(partnerDocumentRepository.findById(999L)).thenReturn(Optional.of(doc));
+
+        PartnerDocument result = service.getSubmissionEvidenceForModerator(101L);
+        assertThat(result.getId()).isEqualTo(999L);
+    }
+
+    @Test
+    @DisplayName("Thẩm định threat intel không có IOC -> Không tự suy diễn chỉ số từ text")
+    void reviewSubmission_threatIntelWithoutIoc_doesNotDeriveIndicator() {
+        when(userRepository.findById(20L)).thenReturn(Optional.of(moderatorUser));
+
+        PartnerOfficialAlert alert = PartnerOfficialAlert.builder()
+                .id(506L)
+                .partner(partnerProfile)
+                .submissionType("THREAT_INTEL")
+                .title("Tình báo chiến dịch APT")
+                .description("Mô tả chiến dịch nhắc tới https://benign-sample.org trong văn bản")
+                .status("PENDING")
+                .build();
+        when(partnerOfficialAlertRepository.findById(506L)).thenReturn(Optional.of(alert));
+
+        ReviewPartnerSubmissionRequest reviewRequest = ReviewPartnerSubmissionRequest.builder()
+                .decision(ReviewPartnerSubmissionRequest.DecisionType.VERIFY)
+                .reason("Phê duyệt thông tin tình báo")
+                .build();
+
+        PartnerSubmissionResponse response = service.reviewSubmission(506L, reviewRequest, moderatorPrincipal);
+        assertThat(response.getStatus()).isEqualTo("VERIFIED");
+        assertThat(response.getIndicatorId()).isNull();
+
+        verify(indicatorRepository, never()).save(any());
+        verifyNoInteractions(confirmedIndicatorRepository);
+    }
 }

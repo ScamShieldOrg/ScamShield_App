@@ -28,4 +28,6 @@ public interface IPartnerSubmissionService {
     PartnerSubmissionResponse reviewSubmission(Long id, ReviewPartnerSubmissionRequest request, UserPrincipal currentUser);
 
     PartnerDocument getSubmissionEvidence(Long id, UserPrincipal currentUser);
+
+    PartnerDocument getSubmissionEvidenceForModerator(Long id);
 }

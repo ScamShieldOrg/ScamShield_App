@@ -37,14 +37,13 @@ export async function getModeratorPartnerQueue(params: {
 
 export async function getModeratorPartnerCounts(): Promise<ModeratorPartnerQueueCounts> {
   const res = await authorizeApi.get("/moderator/partner-submissions/counts")
-  return (
-    res.data?.data || {
-      all: 0,
-      pending: 0,
-      verified: 0,
-      rejected: 0,
-    }
-  )
+  const data = res.data?.data
+  return {
+    all: data?.totalCount ?? data?.all ?? 0,
+    pending: data?.pendingCount ?? data?.pending ?? 0,
+    verified: data?.verifiedCount ?? data?.verified ?? 0,
+    rejected: data?.rejectedCount ?? data?.rejected ?? 0,
+  }
 }
 
 export async function getModeratorPartnerSubmissionDetail(

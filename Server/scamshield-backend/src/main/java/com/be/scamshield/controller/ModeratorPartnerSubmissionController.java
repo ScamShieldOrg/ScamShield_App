@@ -78,10 +78,9 @@ public class ModeratorPartnerSubmissionController {
     @GetMapping("/{id}/evidence")
     @Operation(summary = "Kiểm duyệt viên tải tệp bằng chứng của hồ sơ")
     public ResponseEntity<byte[]> downloadEvidence(
-            @Parameter(description = "ID hồ sơ") @PathVariable Long id,
-            @AuthenticationPrincipal UserPrincipal currentUser) {
+            @Parameter(description = "ID hồ sơ") @PathVariable Long id) {
 
-        PartnerDocument document = partnerSubmissionService.getSubmissionEvidence(id, currentUser);
+        PartnerDocument document = partnerSubmissionService.getSubmissionEvidenceForModerator(id);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + document.getFileName() + "\"")
                 .contentType(MediaType.parseMediaType(document.getContentType()))

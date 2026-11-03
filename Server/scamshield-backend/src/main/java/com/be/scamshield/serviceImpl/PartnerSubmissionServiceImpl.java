@@ -63,10 +63,6 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
 
     private static final Pattern TARGET_HEADER_PATTERN =
             Pattern.compile("^\\[Target:\\s*([A-Za-z_-]+):([^|\\]]+)(?:\\s*\\|\\s*Category:\\s*([A-Za-z0-9_-]+))?\\]\\s*\\n?([\\s\\S]*)");
-    private static final Pattern URL_PATTERN =
-            Pattern.compile("(?i)(https?://[^\\s]+|[a-zA-Z0-9.-]+\\.(?:com|vn|net|org|xyz|top|online|me|info|biz|cc|io|co|us|vip|app|live)(?:/[^\\s]*)?)");
-    private static final Pattern PHONE_PATTERN =
-            Pattern.compile("(?:\\+84|0)(?:3|5|7|8|9)\\d{8}");
 
     private final PartnerOfficialAlertRepository partnerOfficialAlertRepository;
     private final PartnerProfileRepository partnerProfileRepository;
@@ -464,6 +460,21 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
     @Override
     @Transactional(readOnly = true)
     public PartnerDocument getSubmissionEvidence(Long id, UserPrincipal currentUser) {
+        PartnerProfile partnerProfile = resolveActivePartnerProfile(currentUser);
+        PartnerOfficialAlert alert = partnerOfficialAlertRepository.findByIdAndPartnerId(id, partnerProfile.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ với ID: " + id));
+
+        if (alert.getEvidenceId() == null) {
+            throw new ResourceNotFoundException("Hồ sơ này không đính kèm tệp bằng chứng");
+        }
+
+        return partnerDocumentRepository.findById(alert.getEvidenceId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tệp bằng chứng trong hệ thống"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PartnerDocument getSubmissionEvidenceForModerator(Long id) {
         PartnerOfficialAlert alert = partnerOfficialAlertRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ với ID: " + id));
 
@@ -503,9 +514,8 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
             String catPart = StringUtils.hasText(categoryCode) ? " | Category: " + categoryCode.trim() : "";
             result = String.format("[Target: %s:%s%s]\n%s", indicatorType.trim(), indicatorValue.trim(), catPart, baseDesc);
         }
-        // Giới hạn an toàn <= 255 ký tự khớp với độ dài cột varchar(255) trong PostgreSQL
         if (result.length() > 255) {
-            result = result.substring(0, 255);
+            throw new BadRequestException("Mô tả chi tiết và thông tin chỉ số vượt quá giới hạn 255 ký tự");
         }
         return result;
     }
@@ -528,17 +538,6 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                     cat != null ? cat.trim() : null,
                     clean != null ? clean.trim() : ""
             );
-        }
-
-        // Fallback tự động nhận diện nếu dữ liệu cũ không có header [Target: ...]
-        Matcher urlMatcher = URL_PATTERN.matcher(description);
-        if (urlMatcher.find()) {
-            return new ParsedTarget("URL", urlMatcher.group(1).trim(), "PHISHING_PORTAL", description.trim());
-        }
-
-        Matcher phoneMatcher = PHONE_PATTERN.matcher(description);
-        if (phoneMatcher.find()) {
-            return new ParsedTarget("PHONE", phoneMatcher.group().trim(), "SMS_BTS", description.trim());
         }
 
         return new ParsedTarget(null, null, null, description.trim());

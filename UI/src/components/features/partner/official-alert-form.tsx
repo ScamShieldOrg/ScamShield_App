@@ -132,10 +132,11 @@ export function OfficialAlertForm() {
           : "Tổng đài mạo danh"
       }`
 
+      const safeDesc = scenarioDescription.trim().slice(0, 160)
       const payload = {
         submissionType: "SCAM_ALERT" as const,
-        title,
-        description: `${scenarioDescription}\n\n[IOCs: Brandname: ${brandnamePhone} | URLs: ${domains} | Mule: ${muleAccounts} | Scope: ${affectedScope}]`,
+        title: title.slice(0, 250),
+        description: safeDesc,
         indicatorType: primaryUrl ? "URL" : "PHONE",
         indicatorValue: primaryIndicator,
         categoryCode: attackVector === "bts-fake" ? "SMS_BTS" : "PHISHING_PORTAL",

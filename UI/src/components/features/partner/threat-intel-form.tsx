@@ -163,14 +163,12 @@ export function ThreatIntelForm() {
     setIsSubmitting(true)
 
     try {
-      const fullDescription = `[HÀNH VI & KỊCH BẢN (MITRE ATT&CK)]\n- Giai đoạn 1 (Initial Access): ${stage1}\n- Giai đoạn 2 (Execution): ${stage2}\n- Giai đoạn 3 (Impact): ${stage3}\n\n[NGUỒN & ĐẶC TÍNH]\n- Nguồn: ${dataSource}\n- Thời điểm: ${firstObservedDate}\n- Danh mục: ${selectedTaxonomies.join(", ")}\n- Độ tin cậy: ${confidence}`
+      const fullDescription = `[ATT&CK] 1: ${stage1} | 2: ${stage2} | 3: ${stage3} | Nguồn: ${dataSource} | ${firstObservedDate}`.slice(0, 240)
 
       const payload = {
         submissionType: "THREAT_INTEL" as const,
-        title: intelTitle,
+        title: intelTitle.trim().slice(0, 250),
         description: fullDescription,
-        indicatorType: "URL",
-        indicatorValue: "intel-ioc-cluster-" + Date.now(),
         categoryCode: selectedTaxonomies[0] || "THREAT_CLUSTER",
       }
 

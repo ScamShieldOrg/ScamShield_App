@@ -132,6 +132,23 @@ class ModeratorPartnerSubmissionControllerTest {
                 .andExpect(jsonPath("$.data.isConfirmed").value(true));
     }
 
+    @Test
+    @DisplayName("Kiểm duyệt viên tải bằng chứng thành công")
+    void downloadEvidence_moderatorSuccess() throws Exception {
+        com.be.scamshield.entity.PartnerDocument doc = com.be.scamshield.entity.PartnerDocument.builder()
+                .id(88L)
+                .fileName("proof.png")
+                .contentType("image/png")
+                .fileSize(3L)
+                .content(new byte[]{1, 2, 3})
+                .build();
+        when(partnerSubmissionService.getSubmissionEvidenceForModerator(201L)).thenReturn(doc);
+
+        mockMvc.perform(get("/api/moderator/partner-submissions/201/evidence")
+                        .with(user(principal("MODERATOR"))))
+                .andExpect(status().isOk());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"REGISTERED_USER", "BUSINESS_PARTNER"})
     @DisplayName("Các role không phải MODERATOR không được duyệt hồ sơ -> 403 Forbidden")
