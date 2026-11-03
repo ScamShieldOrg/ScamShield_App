@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -155,6 +156,131 @@ class ModeratorDisputeServiceImplTest {
         assertThat(item.getOriginalDecision()).isEqualTo("Approved");
         assertThat(item.getEvidences()).hasSize(1);
         assertThat(item.getEvidences().get(0).getType()).isEqualTo("pdf");
+        assertThat(item.getEvidences().get(0).getUrl()).isEqualTo("https://storage.example/doc1.pdf");
+        assertThat(item.getEvidences().get(0).getDownloadUrl())
+                .isEqualTo("/api/moderator/disputes/41/evidence/1/download");
+    }
+
+    @Test
+    @DisplayName("getDisputeById uses the authenticated backend endpoint for evidence downloads")
+    void getDisputeById_StoredEvidence_PreservesUtf8DownloadFilename() {
+        when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
+        DisputeEvidence evidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(sampleDispute)
+                .fileName("Tài liệu xác minh.pdf")
+                .fileUrl("s3://private/evidence.pdf")
+                .storageObjectKey("disputes/41/evidence.pdf")
+                .build();
+        when(evidenceRepository.findByDisputeIdOrderByCreatedAtAscIdAsc(41L)).thenReturn(List.of(evidence));
+        when(storageService.createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), eq("inline")))
+                .thenReturn("https://storage.example/signed");
+
+        ModeratorDisputeResponse response = service.getDisputeById("AP-2024-0041");
+
+        assertThat(response.getEvidences()).hasSize(1);
+        assertThat(response.getEvidences().get(0).getUrl()).isEqualTo("https://storage.example/signed");
+        assertThat(response.getEvidences().get(0).getDownloadUrl())
+                .isEqualTo("/api/moderator/disputes/41/evidence/7/download");
+        verify(storageService).createDisputeDownloadUrl("disputes/41/evidence.pdf", "inline");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl returns signed URL with attachment disposition when storage key is present")
+    void getEvidenceDownloadUrl_StorageKey_ReturnsSignedUrlWithAttachmentDisposition() {
+        DisputeEvidence evidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(sampleDispute)
+                .fileName("ChungTuHopLe.pdf")
+                .storageObjectKey("disputes/41/evidence.pdf")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(evidence));
+        when(storageService.createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), anyString()))
+                .thenReturn("https://storage.example/signed-download");
+
+        String downloadUrl = service.getEvidenceDownloadUrl("AP-2024-0041", 7L);
+
+        assertThat(downloadUrl).isEqualTo("https://storage.example/signed-download");
+        ArgumentCaptor<String> dispositionCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storageService).createDisputeDownloadUrl(eq("disputes/41/evidence.pdf"), dispositionCaptor.capture());
+        assertThat(dispositionCaptor.getValue())
+                .startsWith("attachment; filename=\"ChungTuHopLe.pdf\"; filename*=UTF-8''ChungTuHopLe.pdf");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl falls back to stored fileUrl when storageObjectKey is null or blank")
+    void getEvidenceDownloadUrl_FallbackToFileUrl_Success() {
+        DisputeEvidence evidence = DisputeEvidence.builder()
+                .id(8L)
+                .dispute(sampleDispute)
+                .fileName("legacy_proof.pdf")
+                .storageObjectKey(null)
+                .fileUrl("https://legacy-storage.example/proof.pdf")
+                .build();
+        when(evidenceRepository.findById(8L)).thenReturn(Optional.of(evidence));
+
+        String downloadUrl = service.getEvidenceDownloadUrl("41", 8L);
+
+        assertThat(downloadUrl).isEqualTo("https://legacy-storage.example/proof.pdf");
+        verify(storageService, never()).createDisputeDownloadUrl(any(), any());
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl throws ResourceNotFoundException when evidence is not found")
+    void getEvidenceDownloadUrl_EvidenceNotFound_ThrowsResourceNotFoundException() {
+        when(evidenceRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getEvidenceDownloadUrl("41", 999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Không tìm thấy tài liệu bằng chứng");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl throws ResourceNotFoundException when evidence belongs to a different dispute")
+    void getEvidenceDownloadUrl_EvidenceOwnedByDifferentDispute_ThrowsResourceNotFoundException() {
+        Dispute otherDispute = Dispute.builder().id(99L).build();
+        DisputeEvidence evidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(otherDispute)
+                .fileName("other_evidence.pdf")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(evidence));
+
+        assertThatThrownBy(() -> service.getEvidenceDownloadUrl("41", 7L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Tài liệu không thuộc hồ sơ khiếu nại này");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl throws ResourceNotFoundException when evidence dispute reference is null")
+    void getEvidenceDownloadUrl_EvidenceNullDispute_ThrowsResourceNotFoundException() {
+        DisputeEvidence orphanEvidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(null)
+                .fileName("orphan_evidence.pdf")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(orphanEvidence));
+
+        assertThatThrownBy(() -> service.getEvidenceDownloadUrl("41", 7L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Tài liệu không thuộc hồ sơ khiếu nại này");
+    }
+
+    @Test
+    @DisplayName("getEvidenceDownloadUrl throws ResourceNotFoundException when both storageKey and fileUrl are blank")
+    void getEvidenceDownloadUrl_BlankUrls_ThrowsResourceNotFoundException() {
+        DisputeEvidence emptyEvidence = DisputeEvidence.builder()
+                .id(7L)
+                .dispute(sampleDispute)
+                .fileName("no_url.pdf")
+                .storageObjectKey("")
+                .fileUrl("")
+                .build();
+        when(evidenceRepository.findById(7L)).thenReturn(Optional.of(emptyEvidence));
+
+        assertThatThrownBy(() -> service.getEvidenceDownloadUrl("41", 7L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Tài liệu chưa có đường dẫn tải xuống");
     }
 
     @Test
@@ -191,6 +317,36 @@ class ModeratorDisputeServiceImplTest {
         assertThatThrownBy(() -> service.getDisputeById("999"))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("999");
+    }
+
+    @Test
+    @DisplayName("getDisputeById throws BadRequestException when code format is malformed")
+    void getDisputeById_InvalidCodeFormat_ThrowsBadRequestException() {
+        assertThatThrownBy(() -> service.getDisputeById("INVALID-CODE-XYZ"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Định dạng mã khiếu nại không hợp lệ");
+
+        assertThatThrownBy(() -> service.getDisputeById(""))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Mã hoặc ID hồ sơ khiếu nại không hợp lệ");
+    }
+
+    @Test
+    @DisplayName("getDisputeQueue returns empty items and preserves pagination when no disputes match")
+    void getDisputeQueue_EmptyResult_ReturnsValidPagination() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(disputeRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(Collections.emptyList(), pageable, 0));
+        when(disputeRepository.countByStatusIn(any())).thenReturn(0L);
+
+        ModeratorDisputeFilterRequest filter = new ModeratorDisputeFilterRequest();
+        ModeratorDisputeQueueResponse response = service.getDisputeQueue(filter, pageable);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getPendingCount()).isZero();
+        assertThat(response.getTotalItems()).isZero();
+        assertThat(response.getTotalPages()).isZero();
     }
 
     @Test
@@ -352,5 +508,60 @@ class ModeratorDisputeServiceImplTest {
         assertThat(sampleDispute.getResolvedByUser()).isNull();
         verify(userRepository, never()).findByEmailOrPhoneNumber(any());
         verify(disputeRepository).save(sampleDispute);
+    }
+
+    @Test
+    @DisplayName("makeDecision accepts alias verdict APPROVED as RETRACT")
+    void makeDecision_AliasApproved_TreatedAsRetract() {
+        when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
+        when(userRepository.findByEmailOrPhoneNumber("moderator@scamshield.vn")).thenReturn(Optional.of(moderator));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DisputeVerdictRequest request = DisputeVerdictRequest.builder()
+                .verdict("APPROVED")
+                .reason("Bằng chứng đầy đủ tính pháp lý và thông tin đã được thẩm tra chuẩn xác.")
+                .build();
+
+        ModeratorDisputeResponse response = service.makeDecision("41", request, "moderator@scamshield.vn");
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo("Chấp nhận");
+        assertThat(sampleDispute.getStatus()).isEqualTo(DisputeStatus.APPROVED);
+        assertThat(confirmedIndicator.getStatus()).isEqualTo("RETRACTED");
+    }
+
+    @Test
+    @DisplayName("makeDecision accepts alias verdict REJECTED as UPHOLD")
+    void makeDecision_AliasRejected_TreatedAsUphold() {
+        when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
+        when(userRepository.findByEmailOrPhoneNumber("moderator@scamshield.vn")).thenReturn(Optional.of(moderator));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DisputeVerdictRequest request = DisputeVerdictRequest.builder()
+                .verdict("REJECTED")
+                .reason("Bằng chứng không chứng minh được quyền sử dụng hợp pháp của người yêu cầu.")
+                .build();
+
+        ModeratorDisputeResponse response = service.makeDecision("41", request, "moderator@scamshield.vn");
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo("Từ chối");
+        assertThat(sampleDispute.getStatus()).isEqualTo(DisputeStatus.REJECTED);
+        assertThat(confirmedIndicator.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("makeDecision throws ResourceNotFoundException when dispute is not found")
+    void makeDecision_DisputeNotFound_ThrowsResourceNotFoundException() {
+        when(disputeRepository.findById(999L)).thenReturn(Optional.empty());
+
+        DisputeVerdictRequest request = DisputeVerdictRequest.builder()
+                .verdict("RETRACT")
+                .reason("Bằng chứng hợp lệ đủ 20 ký tự giải trình thẩm định...")
+                .build();
+
+        assertThatThrownBy(() -> service.makeDecision("999", request, "moderator@scamshield.vn"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("999");
     }
 }

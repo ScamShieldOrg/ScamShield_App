@@ -12,6 +12,8 @@ public interface IModeratorDisputeService {
 
     ModeratorDisputeResponse getDisputeById(String idOrCode);
 
+    String getEvidenceDownloadUrl(String idOrCode, Long evidenceId);
+
     ModeratorDisputeResponse makeDecision(String idOrCode, DisputeVerdictRequest request, String currentModeratorUsername);
 
 }
