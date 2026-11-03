@@ -51,7 +51,7 @@ export function OfficialAlertForm() {
 
   // Scenario description
   const [scenarioDescription, setScenarioDescription] = useState<string>(
-    "Kẻ gian sử dụng thiết bị trạm phát sóng di động giả mạo (Fake BTS) di chuyển bằng ô tô/xe máy tại các khu vực tập trung đông dân cư (Hà Nội, TP.HCM), chèn tin nhắn SMS Brandname \"VIETCOMBANK\" thông báo: \"Tài khoản Digibank của quý khách đang đăng nhập ở thiết bị lạ, nhấn vào https://vcb-digibank-xacthuc.top để hủy giao dịch 25.000.000 VNĐ\". Khi khách hàng truy cập, giao diện giả mạo yêu cầu nhập Tên đăng nhập / Mật khẩu và mã OTP SMS nhằm chiếm đoạt tài khoản."
+    "SMS Brandname giả mạo Fake BTS điều hướng tới website phishing để đánh cắp thông tin tài khoản và mã OTP của khách hàng."
   )
 
   // Files
@@ -115,6 +115,11 @@ export function OfficialAlertForm() {
       return
     }
 
+    if (scenarioDescription.trim().length > 160) {
+      toast.error(`Mô tả kịch bản không được vượt quá 160 ký tự (hiện tại: ${scenarioDescription.trim().length} ký tự).`)
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -122,17 +127,16 @@ export function OfficialAlertForm() {
       const primaryUrl = domains.split(",")[0]?.trim()
       const primaryIndicator = primaryUrl || brandnamePhone.split(",")[0]?.trim() || muleAccounts
 
-      const title = `[CẢNH BÁO KHẨN] Chiến dịch mạo danh VCB qua ${
-        attackVector === "bts-fake"
+      const title = `[CẢNH BÁO KHẨN] Chiến dịch mạo danh VCB qua ${attackVector === "bts-fake"
           ? "SMS Brandname Fake BTS"
           : attackVector === "phishing-web"
-          ? "Website Phishing OTP"
-          : attackVector === "malware-apk"
-          ? "Mã độc APK Ngân Hàng Giả"
-          : "Tổng đài mạo danh"
-      }`
+            ? "Website Phishing OTP"
+            : attackVector === "malware-apk"
+              ? "Mã độc APK Ngân Hàng Giả"
+              : "Tổng đài mạo danh"
+        }`
 
-      const safeDesc = scenarioDescription.trim().slice(0, 160)
+      const safeDesc = scenarioDescription.trim()
       const payload = {
         submissionType: "SCAM_ALERT" as const,
         title: title.slice(0, 250),
@@ -470,8 +474,30 @@ export function OfficialAlertForm() {
                   rows={5}
                   value={scenarioDescription}
                   onChange={(e) => setScenarioDescription(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className={`w-full rounded-lg border p-3 text-xs leading-relaxed focus:bg-white focus:outline-none dark:bg-slate-800 dark:text-white ${
+                    scenarioDescription.length > 160
+                      ? "border-red-500 bg-red-50/30 focus:border-red-600 dark:border-red-500"
+                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-slate-900 dark:border-slate-700"
+                  }`}
                 />
+                <div className="mt-1 flex items-center justify-between text-xs">
+                  {scenarioDescription.length > 160 ? (
+                    <span className="text-red-500 font-medium">
+                      Mô tả kịch bản vượt quá giới hạn 160 ký tự
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">Giới hạn tối đa 160 ký tự</span>
+                  )}
+                  <span
+                    className={
+                      scenarioDescription.length > 160
+                        ? "text-red-500 font-bold"
+                        : "text-slate-400"
+                    }
+                  >
+                    {scenarioDescription.length}/160
+                  </span>
+                </div>
               </div>
             </div>
 

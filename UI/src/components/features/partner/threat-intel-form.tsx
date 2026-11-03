@@ -52,18 +52,18 @@ export function ThreatIntelForm() {
 
   // MITRE ATT&CK Stages
   const [stage1, setStage1] = useState<string>(
-    "Kẻ gian chạy quảng cáo Facebook/Tiktok về chương trình tuyển mẫu nhí Tết 2025 cho nhãn hàng thời trang. Khi phụ huynh quan tâm, đối tượng hướng dẫn vào nhóm Telegram có phụ huynh giả (CLONE)."
+    "Quảng cáo tuyển mẫu nhí, kéo vào Telegram"
   )
   const [stage2, setStage2] = useState<string>(
-    "Yêu cầu hoàn thành nhiệm vụ duyệt hợp đồng ảo bằng cách nạp tiền cọc 300.000 VNĐ - 1.000.000 VNĐ. Sau 5 phút, nạn nhân nhận lại tiền gốc cộng hoa hồng 10% để củng cố niềm tin tuyệt đối."
+    "Giao nhiệm vụ nạp cọc nhỏ, trả hoa hồng mồi"
   )
   const [stage3, setStage3] = useState<string>(
-    "Đưa vào nhóm VIP với nhiệm vụ nạp 50.000.000 VNĐ. Hệ thống báo lỗi \"sai cú pháp chuyển khoản\", yêu cầu nạp thêm 100.000.000 VNĐ để mở khóa tài khoản, sau đó xóa nhóm và cắt liên lạc."
+    "Yêu cầu nạp tiền lớn rồi cắt liên lạc"
   )
 
   // Data source
   const [dataSource, setDataSource] = useState<string>(
-    "Hotline CSKH & Khiếu Nại Gian Lận"
+    "Hotline CSKH"
   )
   const [firstObservedDate, setFirstObservedDate] = useState<string>("2025-12-01")
 
@@ -160,11 +160,16 @@ export function ThreatIntelForm() {
       return
     }
 
+    const fullDescription = `[ATT&CK] 1: ${stage1.trim()} | 2: ${stage2.trim()} | 3: ${stage3.trim()} | Nguồn: ${dataSource.trim()} | ${firstObservedDate}`
+
+    if (fullDescription.length > 240) {
+      toast.error(`Tổng độ dài mô tả tình báo (${fullDescription.length}/240 ký tự) vượt quá giới hạn 240 ký tự. Vui lòng rút gọn nội dung các giai đoạn hoặc nguồn dữ liệu.`)
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      const fullDescription = `[ATT&CK] 1: ${stage1} | 2: ${stage2} | 3: ${stage3} | Nguồn: ${dataSource} | ${firstObservedDate}`.slice(0, 240)
-
       const payload = {
         submissionType: "THREAT_INTEL" as const,
         title: intelTitle.trim().slice(0, 250),
@@ -192,6 +197,9 @@ export function ThreatIntelForm() {
     if (activeTab === "VERIFIED") return item.status === "VERIFIED"
     return true
   })
+
+  const fullDescPreview = `[ATT&CK] 1: ${stage1.trim()} | 2: ${stage2.trim()} | 3: ${stage3.trim()} | Nguồn: ${dataSource.trim()} | ${firstObservedDate}`
+  const isDescOverLimit = fullDescPreview.length > 240
 
   return (
     <div className="space-y-6">
@@ -405,6 +413,30 @@ export function ThreatIntelForm() {
                     className="w-full rounded-md border border-slate-200 bg-white p-2.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   />
                 </div>
+              </div>
+
+              {/* Description limit indicator */}
+              <div
+                className={`mt-3 flex items-center justify-between rounded-lg border p-2.5 text-xs ${
+                  isDescOverLimit
+                    ? "border-red-500 bg-red-50/70 text-red-600 dark:border-red-500 dark:bg-red-950/40 dark:text-red-400"
+                    : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400"
+                }`}
+              >
+                <span>
+                  {isDescOverLimit
+                    ? "Mô tả chuỗi tấn công vượt quá giới hạn 240 ký tự"
+                    : "Tổng độ dài chuỗi tấn công (Giới hạn tối đa 240 ký tự)"}
+                </span>
+                <span
+                  className={
+                    isDescOverLimit
+                      ? "font-bold text-red-600 dark:text-red-400"
+                      : "font-medium text-slate-600 dark:text-slate-300"
+                  }
+                >
+                  {fullDescPreview.length}/240
+                </span>
               </div>
 
               {/* 3. Data Source & Evidence */}

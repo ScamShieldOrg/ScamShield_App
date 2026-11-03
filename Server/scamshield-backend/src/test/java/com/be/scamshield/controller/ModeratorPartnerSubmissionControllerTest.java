@@ -4,6 +4,7 @@ import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.partner.PartnerSubmissionCountsResponse;
 import com.be.scamshield.dto.partner.PartnerSubmissionResponse;
 import com.be.scamshield.dto.partner.ReviewPartnerSubmissionRequest;
+import com.be.scamshield.entity.PartnerDocument;
 import com.be.scamshield.entity.Role;
 import com.be.scamshield.entity.User;
 import com.be.scamshield.external.ScamCheckAiClient;
@@ -135,7 +136,7 @@ class ModeratorPartnerSubmissionControllerTest {
     @Test
     @DisplayName("Kiểm duyệt viên tải bằng chứng thành công")
     void downloadEvidence_moderatorSuccess() throws Exception {
-        com.be.scamshield.entity.PartnerDocument doc = com.be.scamshield.entity.PartnerDocument.builder()
+        PartnerDocument doc = PartnerDocument.builder()
                 .id(88L)
                 .fileName("proof.png")
                 .contentType("image/png")
