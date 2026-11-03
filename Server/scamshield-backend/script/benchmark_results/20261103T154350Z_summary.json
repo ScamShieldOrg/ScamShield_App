@@ -1,0 +1,32 @@
+{
+  "run_id": "20261103T154350Z",
+  "started_at_utc": "2026-11-03T15:43:50.102546+00:00",
+  "completed_at_utc": "2026-11-03T15:44:31.840957+00:00",
+  "total": 100,
+  "valid_results": 100,
+  "within_3s": 99,
+  "within_3s_percent": 99.0,
+  "passed": true,
+  "mean_ms": 414.648,
+  "p50_ms": 210.505,
+  "p95_ms": 926.679,
+  "max_ms": 5773.986,
+  "stages": {
+    "VISOBERT": 93,
+    "LLM": 7
+  },
+  "verdicts": {
+    "LOW_RISK": 72,
+    "SCAM_RISK": 28
+  },
+  "unknown_reasons": {},
+  "dataset": "G:\\Subjects\\2026\\Fall26\\Scamshield-AI-Pipeline\\data\\raw\\vietnamese_sms_test.csv",
+  "dataset_sha256": "ab3a09aa6da2fa5adaa5c74d3662bc1a4b1b6b9f08189c0c8951bce402246760",
+  "dataset_nonblank_rows": 597,
+  "selected_labels": {
+    "0": 74,
+    "1": 26
+  },
+  "seed": 42,
+  "method": "100 stratified CSV rows, seed 42; sequential HTTP, 20 guest sessions x 5 checks; no excluded warmup; session creation excluded; errors retained in denominator."
+}

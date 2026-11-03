@@ -68,8 +68,14 @@ class ScamCheckAiClientTest {
     @Test
     void mapsBothTiersAndRejectsInvalidVerdicts() {
         var client = new ScamCheckAiClient(json, "http://localhost:8000", 1000, 1000, true);
+        for (String label : java.util.List.of("SCAM_RISK", "LOW_RISK", "UNKNOWN")) {
+            var result = client.parse(response(label, 2), "MESSAGE");
+            assertThat(result.verdict()).isEqualTo(label);
+            assertThat(result.aiDetails().verdict().riskLevel()).isEqualTo(label);
+        }
+        assertThat(client.parse(response("SUSPICIOUS", 2), "MESSAGE").unknownReason()).isEqualTo("AI_UNCERTAIN");
         assertThat(client.parse(response("SAFE", 1), "MESSAGE").verdict()).isEqualTo("LOW_RISK");
-        assertThat(client.parse(flatResponse(), "MESSAGE").verdict()).isEqualTo("SUSPICIOUS");
+        assertThat(client.parse(flatResponse(), "MESSAGE").verdict()).isEqualTo("UNKNOWN");
         assertThat(client.parse(flatResponse(), "MESSAGE").aiDetails().recommendations())
                 .containsExactly("Xác minh qua kênh chính thức");
         var actual = client.parse(actualSmsResponse(), "MESSAGE");
@@ -88,7 +94,7 @@ class ScamCheckAiClientTest {
         assertThat(json.writeValueAsString(unknownUrl.aiDetails())).doesNotContain("telemetry", "url_evidence", "translate.google.com");
         assertThat(client.parse(response("DANGEROUS", 1), "MESSAGE").stage()).isEqualTo("VISOBERT");
         assertThat(client.parse(response("DANGEROUS", 2), "MESSAGE").verdict()).isEqualTo("SCAM_RISK");
-        assertThat(client.parse(response("SUSPICIOUS", 2), "MESSAGE").verdict()).isEqualTo("SUSPICIOUS");
+        assertThat(client.parse(response("SUSPICIOUS", 2), "MESSAGE").verdict()).isEqualTo("UNKNOWN");
         assertThat(client.parse(response("UNKNOWN", 2), "MESSAGE").unknownReason()).isEqualTo("AI_UNCERTAIN");
         assertThat(client.parse(response("SAFE", 1), "URL").stage()).isEqualTo("URL_REPUTATION");
         assertThat(client.parse(response("SAFE", 0), "MESSAGE").unknownReason()).isEqualTo("AI_INVALID_RESPONSE");
@@ -109,7 +115,7 @@ class ScamCheckAiClientTest {
         var withTelemetry = response("SUSPICIOUS", 2).replace("\"actionable_recommendations\"",
                 "\"telemetry\":{\"raw_input\":\"private text\"},\"actionable_recommendations\"");
         var details = client.parse(withTelemetry, "MESSAGE").aiDetails();
-        assertThat(details.verdict().riskScore()).isEqualByComparingTo("68");
+        assertThat(details.verdict().riskScore()).isNull();
         assertThat(json.writeValueAsString(details)).doesNotContain("telemetry", "private text", "raw_input");
         var withCouncil = response("DANGEROUS", 2).replace("\"actionable_recommendations\"",
                 "\"radar_metrics\":{\"urgency\":80,\"authority_impersonation\":70,\"financial_lure\":60,\"suspicious_channel\":50,\"data_harvesting\":40},"

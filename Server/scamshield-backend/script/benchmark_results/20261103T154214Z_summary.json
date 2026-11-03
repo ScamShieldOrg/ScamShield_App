@@ -1,0 +1,24 @@
+{
+  "run_id": "20261103T154214Z",
+  "started_at_utc": "2026-11-03T15:42:14.773283+00:00",
+  "completed_at_utc": "2026-11-03T15:43:24.592464+00:00",
+  "total": 100,
+  "valid_results": 100,
+  "within_3s": 97,
+  "within_3s_percent": 97.0,
+  "passed": true,
+  "mean_ms": 694.6234999999999,
+  "p50_ms": 133.829,
+  "p95_ms": 540.756,
+  "max_ms": 22946.296,
+  "stages": {
+    "VISOBERT": 80,
+    "LLM": 20
+  },
+  "verdicts": {
+    "SCAM_RISK": 60,
+    "LOW_RISK": 40
+  },
+  "unknown_reasons": {},
+  "method": "Sequential HTTP requests, 20 guest sessions x 5 synthetic Vietnamese messages; no excluded warmup; session creation excluded; errors retained in denominator."
+}
