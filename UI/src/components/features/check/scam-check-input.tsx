@@ -55,7 +55,7 @@ export const CANONICAL_SCENARIOS = [
 
 export function ScamCheckInput({ onAnalyze, isLoading }: ScamCheckInputProps) {
   const [activeTab, setActiveTab] = useState<CheckType>("TEXT")
-  const [content, setContent] = useState(CANONICAL_SCENARIOS[0].text)
+  const [content, setContent] = useState("")
 
   const tabs: { type: CheckType; label: string; icon: typeof ChatText }[] = [
     {
