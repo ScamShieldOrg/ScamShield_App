@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.entity.CheckRequest;
 import com.be.scamshield.entity.CheckVerdict;
 import com.be.scamshield.entity.CheckVerdictReason;
@@ -20,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-class ScamCheckPersistenceTest {
+class ScamCheckPersistenceTest extends PostgresIntegrationTest {
     @Autowired
     private EntityManager entityManager;
     @Autowired

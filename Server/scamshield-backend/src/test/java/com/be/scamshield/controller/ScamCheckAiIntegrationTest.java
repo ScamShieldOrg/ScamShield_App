@@ -1,5 +1,7 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.dto.response.ScamCheckAiDetails;
 import com.be.scamshield.external.ScamCheckAiClient;
 import com.be.scamshield.service.IGuestSessionService;
@@ -32,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-class ScamCheckAiIntegrationTest {
+class ScamCheckAiIntegrationTest extends PostgresIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired IGuestSessionService sessions;
