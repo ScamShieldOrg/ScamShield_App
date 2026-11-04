@@ -1,5 +1,7 @@
 # Chạy ScamShield Backend
 
+Hướng dẫn kiểm thử: [UNIT_TEST_GUIDE.md](UNIT_TEST_GUIDE.md).
+
 **Database chạy bằng Docker, API chạy bằng IntelliJ IDEA.** Cần JDK 21 và Docker Desktop đang mở.
 
 ## 1. Tạo `.env`

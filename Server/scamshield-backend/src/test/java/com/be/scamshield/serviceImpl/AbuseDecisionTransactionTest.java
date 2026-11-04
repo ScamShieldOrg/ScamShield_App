@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.constant.AbuseEscalationDecision;
 import com.be.scamshield.dto.request.DecideAbuseEscalationRequest;
 import com.be.scamshield.entity.AbuseFlag;
@@ -43,12 +45,12 @@ import static org.mockito.Mockito.when;
 
 @DataJpaTest(showSql = false, properties = {
         "spring.test.database.replace=none",
-        "spring.datasource.url=jdbc:h2:mem:abuse-decision-tx;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000"
+
 })
 @Import(AdminAbuseEscalationServiceImpl.class)
 @ActiveProfiles("test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class AbuseDecisionTransactionTest {
+class AbuseDecisionTransactionTest extends PostgresIntegrationTest {
     @Autowired private IAdminAbuseEscalationService service;
     @Autowired private EntityManager em;
     @Autowired private PlatformTransactionManager manager;

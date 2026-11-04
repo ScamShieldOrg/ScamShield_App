@@ -4,6 +4,8 @@ import com.be.scamshield.constant.VietnamProvince;
 import com.be.scamshield.external.ScamCheckAiClient;
 
 import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.constant.ScamDashboardPeriod;
 import com.be.scamshield.dto.request.ScamDashboardFilterRequest;
 import com.be.scamshield.dto.response.ScamDashboardSummaryResponse.ConfirmedCategory;
@@ -35,11 +37,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-class ScamDashboardPersistenceTest {
+class ScamDashboardPersistenceTest extends PostgresIntegrationTest {
     private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final LocalDateTime NOW = LocalDateTime.parse("2026-10-09T01:00:00");
     @Autowired

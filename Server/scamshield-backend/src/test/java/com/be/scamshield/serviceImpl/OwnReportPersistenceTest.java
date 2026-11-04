@@ -5,6 +5,7 @@ import com.be.scamshield.dto.request.UpdateOwnReportRequest;
 import com.be.scamshield.entity.*;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IUserReportTrackingService;
+import com.be.scamshield.support.PostgresIntegrationTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +20,10 @@ import java.time.LocalDateTime;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest(showSql = false, properties = {"spring.test.database.replace=none",
-        "spring.datasource.url=jdbc:h2:mem:own-report-write;MODE=PostgreSQL;DB_CLOSE_DELAY=-1"})
+@DataJpaTest(showSql = false, properties = "spring.test.database.replace=none")
 @Import(OwnReportService.class)
 @ActiveProfiles("test")
-class OwnReportPersistenceTest {
+class OwnReportPersistenceTest extends PostgresIntegrationTest {
     @Autowired private OwnReportService service;
     @Autowired private EntityManager em;
     @MockitoBean private IUserReportTrackingService tracking;

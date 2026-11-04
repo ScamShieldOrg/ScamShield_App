@@ -1,6 +1,7 @@
 package com.be.scamshield.repository;
 
 import com.be.scamshield.entity.Indicator;
+import com.be.scamshield.support.PostgresIntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest(showSql = false)
 @ActiveProfiles("test")
-class IndicatorTypeCompatibilityTest {
+class IndicatorTypeCompatibilityTest extends PostgresIntegrationTest {
     @Autowired private IndicatorRepository indicators;
     @Autowired private EntityManager em;
 

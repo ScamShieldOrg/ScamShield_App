@@ -1,6 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.external.ScamCheckAiClient;
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.external.BusinessLicenseOcrClient;
 import com.be.scamshield.external.FirebasePhoneClient;
 import com.be.scamshield.external.XinvoiceBusinessClient;
@@ -75,10 +77,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
         properties = {
                 "app.contact-verification.expiration-ms=120000",
                 "app.partner-business-verification.ocr.enabled=true",
-                "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1"
+
         })
 @ActiveProfiles("test")
-class PartnerRegistrationPersistenceTest {
+class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
     // This suite exercises partner persistence, not external scam-check HTTP initialization.
     @MockitoBean private ScamCheckAiClient scamCheckAiClient;
     @Autowired

@@ -1,5 +1,7 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.dto.request.CreateGuestSessionRequest;
 import com.be.scamshield.entity.GuestSession;
 import com.be.scamshield.entity.QuotaPolicy;
@@ -38,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-class GuestQuotaControllerTest {
+class GuestQuotaControllerTest extends PostgresIntegrationTest {
 
     private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");

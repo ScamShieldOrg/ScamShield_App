@@ -1,5 +1,7 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.entity.CheckRequest;
 import com.be.scamshield.entity.ConfirmedIndicator;
@@ -37,11 +39,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-class ScamCheckControllerTest {
+class ScamCheckControllerTest extends PostgresIntegrationTest {
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
     private static final LocalDateTime NOW = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
     @Autowired private MockMvc mvc;
