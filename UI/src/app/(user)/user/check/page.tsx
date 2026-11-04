@@ -6,7 +6,8 @@ import { ScamVerdictBanner } from "@/components/features/check/scam-verdict-bann
 import { ScamEvidenceCard } from "@/components/features/check/scam-evidence-card"
 import { ScamActionBar } from "@/components/features/check/scam-action-bar"
 import {
-  MOCK_HIGH_RISK_RESULT,
+  MOCK_CASE_1_PHISHING_FASTPATH,
+  MOCK_CASE_3_COUNCIL_SUSPICIOUS,
   checkScamContent,
 } from "@/features/check/services/check.service"
 import {
@@ -16,7 +17,7 @@ import {
 
 export default function UserCheckPage() {
   const [result, setResult] = useState<CheckScanResponse | null>(
-    MOCK_HIGH_RISK_RESULT
+    MOCK_CASE_1_PHISHING_FASTPATH
   )
   const [isLoading, setIsLoading] = useState(false)
 
@@ -38,8 +39,11 @@ export default function UserCheckPage() {
       {/* Page Title */}
       <div>
         <h1 className="font-heading text-2xl font-bold tracking-tight text-[#131B2E] dark:text-foreground">
-          Kiểm Tra Lừa Đảo Chuyên Sâu
+          Kiểm Tra & Phân Tích Tin Nhắn Đáng Ngờ
         </h1>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Hệ thống phân tích thông minh kết hợp quét nhanh trên thiết bị và phân tích đa chiều từ các chuyên gia AI.
+        </p>
       </div>
 
       {/* Input Section */}
@@ -48,10 +52,16 @@ export default function UserCheckPage() {
       {/* Result Section (Shown when analysis exists) */}
       {result && (
         <div className="animate-in space-y-6 pt-2 duration-300 fade-in-50">
-          {/* High-Risk Verdict Banner */}
-          <ScamVerdictBanner verdict={result.verdict} />
+          {/* High-Risk / Safe / Suspicious / Unknown Verdict Banner with Provenance */}
+          <ScamVerdictBanner
+            verdict={result.verdict}
+            provenance={result.execution_provenance}
+            executionTimeMs={result.execution_time_ms}
+            cloudCostUsd={result.cloud_cost_usd}
+            modelName={result.engine_details?.model_name}
+          />
 
-          {/* Legal Evidence & AI Opinion & Action Recommendations */}
+          {/* Evidence Card: Deterministic Features (Tier 1) / Forensic Council (Tier 2) / Epistemic Caution */}
           <ScamEvidenceCard data={result} />
 
           {/* Bottom Action Buttons */}
