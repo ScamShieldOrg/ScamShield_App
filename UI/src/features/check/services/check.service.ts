@@ -18,15 +18,7 @@ export async function checkScamContent(
     throw new Error("Nội dung kiểm tra không được để trống.")
   }
 
-  const lower = content.toLowerCase()
-  const isSocialEngineeringOrMule =
-    lower.includes("hung ban cap 3") ||
-    lower.includes("nguyen van b") ||
-    lower.includes("muon nho") ||
-    lower.includes("benh vien") ||
-    lower.includes("bi giat") ||
-    lower.includes("so tk")
-  const forceTier2 = payload?.force_tier2 || isSocialEngineeringOrMule
+  const forceTier2 = Boolean(payload?.force_tier2)
 
   // Resolve API Base URL: Prefer NEXT_PUBLIC_AI_API_URL or local FastAPI bridge (port 8001), then default API URL
   const aiApiUrl =

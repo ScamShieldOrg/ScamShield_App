@@ -74,7 +74,7 @@ export default function UserCheckPage() {
             Sẵn sàng kiểm tra tin nhắn
           </h3>
           <p className="mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400">
-            Nhập nội dung tin nhắn SMS, tin nhắn Zalo hoặc chọn một trong các mẫu thử nghiệm phía trên rồi bấm &ldquo;Phân tích nội dung&rdquo; để bắt đầu.
+            Nhập nội dung tin nhắn SMS, tin nhắn Zalo, đường dẫn website hoặc số điện thoại đáng ngờ rồi bấm &ldquo;Phân tích&rdquo; để bắt đầu.
           </p>
         </div>
       )}
