@@ -11,7 +11,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 
 @Data
 @Builder
@@ -47,8 +46,4 @@ public class CreateReportRequest {
     private Boolean isConfirmed;
 
 
-    // Optional list of pre-uploaded S3 evidence URLs/items
-    private List<EvidenceItemDto> evidences;
-
-    private List<String> attachmentUrls;
 }

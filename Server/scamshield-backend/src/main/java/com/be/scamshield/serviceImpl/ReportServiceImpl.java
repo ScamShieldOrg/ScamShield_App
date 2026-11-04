@@ -9,9 +9,6 @@ import com.be.scamshield.constant.VietnamProvince;
 import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.dto.request.CreateReportRequest;
-import com.be.scamshield.dto.request.EvidenceItemDto;
-import com.be.scamshield.dto.request.PresignedUrlRequest;
-import com.be.scamshield.dto.response.PresignedUrlResponse;
 import com.be.scamshield.dto.response.ReportEvidenceResponse;
 import com.be.scamshield.dto.response.ReportResponse;
 import com.be.scamshield.entity.Indicator;
@@ -39,7 +36,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import com.be.scamshield.config.ReportPrivacyProperties;
 import javax.crypto.Mac;
@@ -50,7 +46,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -82,6 +77,16 @@ public class ReportServiceImpl implements IReportService {
                 && normalizePhoneForOwnershipCheck(reporterUser.getPhoneNumber())
                         .equals(normalizePhoneForOwnershipCheck(request.getTargetIdentifier()))) {
             throw new BadRequestException("Không thể tự báo cáo chính mình.");
+        }
+
+        if (files == null || files.isEmpty()) {
+            throw new BadRequestException("Vui lòng tải lên ít nhất một tệp bằng chứng");
+        }
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) {
+                throw new BadRequestException("Tệp bằng chứng không được rỗng");
+            }
+            resolveEvidenceType(null, file.getOriginalFilename(), null);
         }
 
         // 1. Resolve & normalize target indicator
@@ -178,47 +183,8 @@ public class ReportServiceImpl implements IReportService {
             throw e;
         }
 
-        // 6. Process Evidence Items (Pre-uploaded Supabase Storage URLs)
-        if (request.getEvidences() != null && !request.getEvidences().isEmpty()) {
-            for (EvidenceItemDto dto : request.getEvidences()) {
-                if (StringUtils.hasText(dto.getFileUrl())) {
-                    ReportEvidence evidence = ReportEvidence.builder()
-                            .report(savedReport)
-                            .evidenceType(resolveEvidenceType(dto.getEvidenceType(), dto.getFileName(), dto.getFileUrl()))
-                            .fileName(dto.getFileName())
-                            .fileUrl(dto.getFileUrl())
-                            .fileHash(dto.getFileHash())
-                            .verificationStatus(EvidenceVerificationStatus.PENDING)
-                            .createdAt(LocalDateTime.now())
-                            .build();
-                    evidenceList.add(reportEvidenceRepository.save(evidence));
-                }
-            }
-        }
-
-        // Process simple string attachment URLs
-        if (request.getAttachmentUrls() != null && !request.getAttachmentUrls().isEmpty()) {
-            for (String url : request.getAttachmentUrls()) {
-                if (StringUtils.hasText(url)) {
-                    ReportEvidence evidence = ReportEvidence.builder()
-                            .report(savedReport)
-                            .evidenceType(resolveEvidenceType(null, null, url))
-                            .fileUrl(url)
-                            .verificationStatus(EvidenceVerificationStatus.PENDING)
-                            .createdAt(LocalDateTime.now())
-                            .build();
-                    evidenceList.add(reportEvidenceRepository.save(evidence));
-                }
-            }
-        }
-
         // Reputation is awarded only after a moderator approves the report.
         return mapToResponse(savedReport, evidenceList, 0);
-    }
-
-    @Override
-    public PresignedUrlResponse generatePresignedUrl(PresignedUrlRequest request) {
-        return supabaseStorageService.generatePresignedUploadUrl(request.getFileName(), request.getContentType());
     }
 
     @Override
