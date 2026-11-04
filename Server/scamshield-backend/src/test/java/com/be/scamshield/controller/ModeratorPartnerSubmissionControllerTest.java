@@ -1,5 +1,6 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.config.SecurityConfig;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.partner.PartnerSubmissionCountsResponse;
 import com.be.scamshield.dto.partner.PartnerSubmissionResponse;
@@ -7,7 +8,10 @@ import com.be.scamshield.dto.partner.ReviewPartnerSubmissionRequest;
 import com.be.scamshield.entity.PartnerDocument;
 import com.be.scamshield.entity.Role;
 import com.be.scamshield.entity.User;
-import com.be.scamshield.external.ScamCheckAiClient;
+import com.be.scamshield.security.CustomAccessDeniedHandler;
+import com.be.scamshield.security.CustomUserDetailsService;
+import com.be.scamshield.security.JwtAuthenticationEntryPoint;
+import com.be.scamshield.security.JwtTokenProvider;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IPartnerSubmissionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,8 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -34,8 +38,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-mod-partner-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
-@AutoConfigureMockMvc
+@WebMvcTest(ModeratorPartnerSubmissionController.class)
+@Import({SecurityConfig.class, JwtAuthenticationEntryPoint.class, CustomAccessDeniedHandler.class})
 @ActiveProfiles("test")
 class ModeratorPartnerSubmissionControllerTest {
 
@@ -46,7 +50,10 @@ class ModeratorPartnerSubmissionControllerTest {
     private IPartnerSubmissionService partnerSubmissionService;
 
     @MockitoBean
-    private ScamCheckAiClient scamCheckAiClient;
+    private JwtTokenProvider tokenProvider;
+
+    @MockitoBean
+    private CustomUserDetailsService customUserDetailsService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

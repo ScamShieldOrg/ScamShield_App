@@ -268,12 +268,16 @@ class PartnerSubmissionServiceImplTest {
         when(partnerOfficialAlertRepository.findById(502L)).thenReturn(Optional.of(alert));
 
         // Chưa tồn tại trong Indicator -> Candidate created
+        when(indicatorRepository.findByTypeAndNormalizedValue("URL", "fake-shopee-pay.xyz"))
+                .thenReturn(Optional.empty());
         when(indicatorRepository.findByTypeAndNormalizedValue("WEBSITE", "fake-shopee-pay.xyz"))
+                .thenReturn(Optional.empty());
+        when(indicatorRepository.findByTypeAndNormalizedValue("DOMAIN", "fake-shopee-pay.xyz"))
                 .thenReturn(Optional.empty());
 
         Indicator candidate = Indicator.builder()
                 .id(901L)
-                .type("WEBSITE")
+                .type("URL")
                 .normalizedValue("fake-shopee-pay.xyz")
                 .displayValue("https://fake-shopee-pay.xyz/")
                 .build();
@@ -302,7 +306,7 @@ class PartnerSubmissionServiceImplTest {
         ArgumentCaptor<Indicator> indicatorCaptor = ArgumentCaptor.forClass(Indicator.class);
         verify(indicatorRepository).save(indicatorCaptor.capture());
         assertThat(indicatorCaptor.getValue().getNormalizedValue()).isEqualTo("fake-shopee-pay.xyz");
-        assertThat(indicatorCaptor.getValue().getType()).isEqualTo("WEBSITE");
+        assertThat(indicatorCaptor.getValue().getType()).isEqualTo("URL");
 
         // Kiểm tra confirmed indicator được kích hoạt
         ArgumentCaptor<ConfirmedIndicator> confirmedCaptor = ArgumentCaptor.forClass(ConfirmedIndicator.class);
