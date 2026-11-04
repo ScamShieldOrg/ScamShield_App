@@ -46,7 +46,7 @@ export function UserScamCheck() {
 
       {/* Error Alert (Shown when connection/API fails) */}
       {error && (
-        <div className="animate-in flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50/80 p-4 text-xs text-rose-800 duration-200 fade-in-50 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
+        <div role="alert" className="animate-in flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50/80 p-4 text-xs text-rose-800 duration-200 fade-in-50 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
           <WarningCircle
             size={20}
             weight="fill"
@@ -76,7 +76,7 @@ export function UserScamCheck() {
 
       {/* Result Section (Shown when analysis exists) */}
       {result && (
-        <div className="animate-in space-y-6 pt-2 duration-300 fade-in-50">
+        <div aria-live="polite" className="animate-in space-y-6 pt-2 duration-300 fade-in-50">
           {/* High-Risk / Safe / Suspicious / Unknown Verdict Banner with Provenance */}
           <ScamVerdictBanner
             verdict={result.verdict}

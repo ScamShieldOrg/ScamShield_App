@@ -50,17 +50,6 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
     },
   ]
 
-export function ScamCheckInput({
-  inputType,
-  content,
-  onTypeChange,
-  onContentChange,
-  onAnalyze,
-  isLoading,
-  error,
-}: ScamCheckInputProps) {
-  const [clipboardError, setClipboardError] = useState<string | null>(null)
-  const selected = options.find((option) => option.type === inputType)!
   const handlePaste = async () => {
     setClipboardError(null)
     try {

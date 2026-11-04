@@ -44,20 +44,20 @@ class ScamCheckAiIntegrationTest extends PostgresIntegrationTest {
     void aiSnapshotIsReturnedOnPostAndOwnedGetWithoutTelemetry() throws Exception {
         var token = sessions.createOrGetSession(null, null).getSessionToken();
         var details = new ScamCheckAiDetails("SC-123", "2026-10-31T10:00:00Z", 2,
-                new ScamCheckAiDetails.AiVerdict("SUSPICIOUS", new BigDecimal("68"), "PHISHING",
+                new ScamCheckAiDetails.AiVerdict("SCAM_RISK", new BigDecimal("68"), "PHISHING",
                         new BigDecimal("0.9"), "Đáng ngờ"),
                 Map.of("urgency", new BigDecimal("80")), List.of("Xác minh qua kênh chính thức"),
                 new ScamCheckAiDetails.CouncilAudit("3/3", "model-a", false, true,
-                        List.of(new ScamCheckAiDetails.AgentFinding("reviewer", "SUSPICIOUS", new BigDecimal("68")))));
+                        List.of(new ScamCheckAiDetails.AgentFinding("reviewer", "SCAM_RISK", new BigDecimal("68")))));
         when(aiClient.scan(any(), eq("MESSAGE"), eq("Nhắn tin cho tôi"))).thenReturn(
-                new ScamCheckAiClient.Result("SUSPICIOUS", "LLM", new BigDecimal("0.9"),
+                new ScamCheckAiClient.Result("SCAM_RISK", "LLM", new BigDecimal("0.9"),
                         "Đáng ngờ", "Xác minh qua kênh chính thức", null, "SC-123", details));
 
         var response = mvc.perform(post("/api/scam-checks").header("X-Guest-Session", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"inputType\":\"MESSAGE\",\"content\":\"Nhắn tin cho tôi\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.verdict").value("SUSPICIOUS"))
+                .andExpect(jsonPath("$.data.verdict").value("SCAM_RISK"))
                 .andExpect(jsonPath("$.data.aiDetails.verdict.riskScore").value(68))
                 .andExpect(jsonPath("$.data.aiDetails.councilAudit.leadModel").value("model-a"))
                 .andExpect(jsonPath("$.data.aiDetails.telemetry").doesNotExist())
