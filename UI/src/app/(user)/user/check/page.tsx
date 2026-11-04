@@ -89,6 +89,8 @@ export default function UserCheckPage() {
             executionTimeMs={result.execution_time_ms}
             cloudCostUsd={result.cloud_cost_usd}
             modelName={result.engine_details?.model_name}
+            features={result.deterministic_features}
+            targetBank={result.target_bank}
           />
 
           {/* Evidence Card: Deterministic Features (Tier 1) / Forensic Council (Tier 2) / Epistemic Caution */}

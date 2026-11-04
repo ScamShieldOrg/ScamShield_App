@@ -7,12 +7,11 @@ import {
   Lightning,
   Scales,
   PhoneCall,
-  CaretDown,
-  Cpu,
 } from "@phosphor-icons/react"
 import {
   Verdict,
   ExecutionProvenance,
+  DeterministicFeatures,
 } from "@/features/check/types/check.types"
 
 interface ScamVerdictBannerProps {
@@ -21,6 +20,18 @@ interface ScamVerdictBannerProps {
   executionTimeMs?: number
   cloudCostUsd?: number
   modelName?: string
+  features?: DeterministicFeatures
+  targetBank?: string | null
+}
+
+const BANK_HOTLINES: Record<string, { name: string; hotline: string }> = {
+  VIETCOMBANK: { name: "Vietcombank", hotline: "1900 54 54 13" },
+  BIDV: { name: "BIDV", hotline: "1900 9247" },
+  MB: { name: "MB Bank", hotline: "1900 54 54 26" },
+  TECHCOMBANK: { name: "Techcombank", hotline: "1800 58 88 22" },
+  AGRIBANK: { name: "Agribank", hotline: "1900 55 88 18" },
+  ACB: { name: "ACB", hotline: "1900 54 54 86" },
+  VPBANK: { name: "VPBank", hotline: "1900 54 54 15" },
 }
 
 export function ScamVerdictBanner({
@@ -29,28 +40,98 @@ export function ScamVerdictBanner({
   executionTimeMs = 38.2,
   cloudCostUsd = 0.0,
   modelName,
+  features,
+  targetBank,
 }: ScamVerdictBannerProps) {
   const isDangerous = verdict.risk_level === "DANGEROUS"
   const isSafe = verdict.risk_level === "SAFE"
   const isSuspicious = verdict.risk_level === "SUSPICIOUS"
   const isUnknown = verdict.risk_level === "UNKNOWN"
+  const isAtRisk = isDangerous || isSuspicious
 
-  // Refined threat archetype detection (prevents bank phishing copy from leaking into friend impersonation)
+  // Structured signals from API response
   const rawType = (verdict.scam_type || "").toLowerCase()
-  const isSocialEng =
-    rawType.includes("mạo danh") ||
-    rawType.includes("người quen") ||
-    rawType.includes("mượn") ||
-    rawType.includes("thao túng") ||
-    provenance === "TIER2_FORENSIC_COUNCIL"
+  const rawSummary = (verdict.summary || "").toLowerCase()
 
+  const hasSuspiciousUrl = Boolean(
+    features?.url_analysis?.detected_urls &&
+      features.url_analysis.detected_urls.length > 0 &&
+      !features.url_analysis.is_in_official_whitelist
+  )
+
+  // Map identified bank if present
+  const bankMatched = (() => {
+    if (targetBank) return targetBank.toUpperCase()
+    const sender = features?.brand_identity?.sender_header?.toLowerCase() || ""
+    if (
+      sender.includes("vcb") ||
+      sender.includes("vietcombank") ||
+      rawType.includes("vietcombank") ||
+      rawSummary.includes("vietcombank")
+    ) {
+      return "VIETCOMBANK"
+    }
+    if (sender.includes("bidv") || rawType.includes("bidv") || rawSummary.includes("bidv")) {
+      return "BIDV"
+    }
+    if (
+      sender.includes("mbbank") ||
+      sender.includes("mb") ||
+      rawType.includes("mb bank") ||
+      rawSummary.includes("mb bank")
+    ) {
+      return "MB"
+    }
+    if (
+      sender.includes("techcombank") ||
+      sender.includes("tcb") ||
+      rawType.includes("techcombank") ||
+      rawSummary.includes("techcombank")
+    ) {
+      return "TECHCOMBANK"
+    }
+    if (
+      sender.includes("agribank") ||
+      rawType.includes("agribank") ||
+      rawSummary.includes("agribank")
+    ) {
+      return "AGRIBANK"
+    }
+    if (sender.includes("acb") || rawType.includes("acb") || rawSummary.includes("acb")) {
+      return "ACB"
+    }
+    if (sender.includes("vpbank") || rawType.includes("vpbank") || rawSummary.includes("vpbank")) {
+      return "VPBANK"
+    }
+    return null
+  })()
+
+  const matchedBankInfo = bankMatched ? BANK_HOTLINES[bankMatched] : null
+
+  // Social engineering threat: strictly only for non-safe verdicts with interpersonal impersonation/manipulation
+  const isSocialEng =
+    isAtRisk &&
+    (rawType.includes("người quen") ||
+      rawType.includes("mượn tiền") ||
+      rawType.includes("thao túng") ||
+      rawType.includes("tâm lý") ||
+      (!hasSuspiciousUrl &&
+        (rawType.includes("mạo danh") ||
+          (provenance === "TIER2_FORENSIC_COUNCIL" &&
+            !rawType.includes("link") &&
+            !rawType.includes("liên kết")))))
+
+  // Phishing threat: strictly only for non-safe verdicts targeting credentials, links, or bank accounts
   const isPhishing =
+    isAtRisk &&
     !isSocialEng &&
-    (isDangerous ||
+    (hasSuspiciousUrl ||
       rawType.includes("link") ||
       rawType.includes("liên kết") ||
-      rawType.includes("ngân hàng") ||
-      rawType.includes("sinh trắc học"))
+      rawType.includes("phishing") ||
+      rawType.includes("giả mạo cổng") ||
+      Boolean(matchedBankInfo) ||
+      isDangerous)
 
   // Pure Vietnamese title without English leaks
   const hasEnglishLeak =
@@ -63,7 +144,9 @@ export function ScamVerdictBanner({
     verdict.scam_type && !hasEnglishLeak
       ? verdict.scam_type
       : isPhishing
-        ? "Mạo danh liên kết ngân hàng & Đe dọa khóa tài khoản"
+        ? matchedBankInfo
+          ? `Mạo danh liên kết ${matchedBankInfo.name} & Đe dọa khóa tài khoản`
+          : "Mạo danh liên kết & Đe dọa khóa tài khoản"
         : isSocialEng
           ? "Thao túng tâm lý & Mạo danh người quen mượn tiền khẩn cấp"
           : isSafe
@@ -103,6 +186,19 @@ export function ScamVerdictBanner({
         ? "text-amber-700 dark:text-amber-400"
         : "text-slate-600 dark:text-slate-400"
 
+  // Dynamic risk signals description based on verified features
+  const riskSignals: string[] = []
+  if (hasSuspiciousUrl) riskSignals.push("đường dẫn lạ ngoài hệ sinh thái chính thức")
+  if ((features?.urgency_indicators?.matched_keywords?.length ?? 0) > 0)
+    riskSignals.push("yếu tố thúc ép thời gian")
+  if (rawType.includes("mạo danh") || rawType.includes("người quen"))
+    riskSignals.push("mạo danh danh tính")
+
+  const riskSignalsDescription =
+    riskSignals.length > 0
+      ? `Ghi nhận ${riskSignals.length} dấu hiệu rủi ro: ${riskSignals.join(" và ")}.`
+      : "Ghi nhận dấu hiệu rủi ro cao từ phân tích nội dung bất thường."
+
   return (
     <div className="space-y-3">
       {/* 1. Human-Centered Status Bar (Civilian-Facing) */}
@@ -129,9 +225,13 @@ export function ScamVerdictBanner({
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-muted-foreground">
-          <span>Thời gian phản hồi: <strong>~{Math.round(executionTimeMs)}ms</strong></span>
+          <span>
+            Thời gian phản hồi: <strong>~{Math.round(executionTimeMs)}ms</strong>
+          </span>
           <span>•</span>
-          <span className="text-emerald-600 font-semibold dark:text-emerald-400">Không phát sinh phí</span>
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            Không phát sinh phí
+          </span>
         </div>
       </div>
 
@@ -141,7 +241,9 @@ export function ScamVerdictBanner({
           {/* Left Column: Protective Headline, Reassurance & Action (8 cols on lg, 7 on md) */}
           <div className="flex flex-col justify-between space-y-4 md:col-span-7 lg:col-span-8">
             <div className="flex items-start gap-4">
-              <div className={`flex size-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${iconBgClass}`}>
+              <div
+                className={`flex size-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${iconBgClass}`}
+              >
                 {isSafe && <ShieldCheck size={32} weight="fill" />}
                 {isDangerous && <ShieldWarning size={32} weight="fill" />}
                 {isSuspicious && <ShieldWarning size={32} weight="fill" />}
@@ -150,7 +252,9 @@ export function ScamVerdictBanner({
 
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase ${badgeBgClass}`}>
+                  <span
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase ${badgeBgClass}`}
+                  >
                     {isDangerous && "Dấu hiệu rủi ro cao — Khuyến nghị kiểm tra"}
                     {isSafe && "Tin nhắn chính danh — Độ tin cậy cao"}
                     {isSuspicious && "Cần lưu ý — Có dấu hiệu mạo danh"}
@@ -191,20 +295,33 @@ export function ScamVerdictBanner({
             {/* Context-Aware Action CTA */}
             {isPhishing && (
               <div className="pt-1">
-                <a
-                  href="tel:1900545413"
-                  className="inline-flex items-center gap-2 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white shadow-xs transition-transform hover:bg-rose-800 active:scale-95"
-                >
-                  <PhoneCall size={16} weight="fill" />
-                  <span>Bấm để gọi tổng đài Vietcombank hỗ trợ: 1900 54 54 13</span>
-                </a>
+                {matchedBankInfo ? (
+                  <a
+                    href={`tel:${matchedBankInfo.hotline.replace(/\s+/g, "")}`}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white shadow-xs transition-transform hover:bg-rose-800 active:scale-95"
+                  >
+                    <PhoneCall size={16} weight="fill" />
+                    <span>
+                      Bấm để gọi tổng đài {matchedBankInfo.name} hỗ trợ: {matchedBankInfo.hotline}
+                    </span>
+                  </a>
+                ) : (
+                  <div className="inline-flex items-center gap-2 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white shadow-xs">
+                    <WarningCircle size={16} weight="fill" />
+                    <span>
+                      Khuyến cáo: Tuyệt đối không bấm vào liên kết lạ hoặc cung cấp thông tin bảo mật
+                    </span>
+                  </div>
+                )}
               </div>
             )}
             {isSocialEng && (
               <div className="pt-1">
                 <div className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white shadow-xs dark:bg-amber-800">
                   <PhoneCall size={16} weight="fill" />
-                  <span>Nên gọi điện thoại trực tiếp cho người thân để xác thực trước khi giao dịch</span>
+                  <span>
+                    Nên gọi điện thoại trực tiếp cho người thân để xác thực trước khi giao dịch
+                  </span>
                 </div>
               </div>
             )}
@@ -235,10 +352,18 @@ export function ScamVerdictBanner({
                   <div className="h-2 w-full rounded-xs bg-slate-300 dark:bg-slate-700" />
                 ) : (
                   <>
-                    <div className={`h-2 flex-1 rounded-xs ${(verdict.risk_score ?? 0) >= 0 ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`} />
-                    <div className={`h-2 flex-1 rounded-xs ${(verdict.risk_score ?? 0) >= 25 ? "bg-lime-500" : "bg-slate-200 dark:bg-slate-700"}`} />
-                    <div className={`h-2 flex-1 rounded-xs ${(verdict.risk_score ?? 0) >= 50 ? "bg-amber-500" : "bg-slate-200 dark:bg-slate-700"}`} />
-                    <div className={`h-2 flex-1 rounded-xs ${(verdict.risk_score ?? 0) >= 75 ? "bg-rose-600" : "bg-slate-200 dark:bg-slate-700"}`} />
+                    <div
+                      className={`h-2 flex-1 rounded-xs ${(verdict.risk_score ?? 0) >= 0 ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                    />
+                    <div
+                      className={`h-2 flex-1 rounded-xs ${(verdict.risk_score ?? 0) >= 25 ? "bg-lime-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                    />
+                    <div
+                      className={`h-2 flex-1 rounded-xs ${(verdict.risk_score ?? 0) >= 50 ? "bg-amber-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                    />
+                    <div
+                      className={`h-2 flex-1 rounded-xs ${(verdict.risk_score ?? 0) >= 75 ? "bg-rose-600" : "bg-slate-200 dark:bg-slate-700"}`}
+                    />
                   </>
                 )}
               </div>
@@ -265,7 +390,7 @@ export function ScamVerdictBanner({
                 : isSocialEng
                   ? "Hệ thống AI ghi nhận sự khác biệt về tên chủ tài khoản và tình huống gấp gáp; điểm đánh giá đã được điều chỉnh giảm do không chứa mã độc."
                   : isPhishing
-                    ? "Ghi nhận 2 dấu hiệu rủi ro cao: Đường dẫn lạ không thuộc ngân hàng và yếu tố thúc ép thời gian."
+                    ? riskSignalsDescription
                     : (verdict.risk_score ?? 0) >= 25
                       ? "Giao dịch thông thường có một vài từ khóa nhạy cảm nhưng không có yếu tố trục lợi."
                       : "Mức độ rủi ro rất thấp. Kênh gửi tin đã được xác thực chính thức, không có liên kết đáng ngờ ra ngoài."}

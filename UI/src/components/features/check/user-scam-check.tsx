@@ -6,13 +6,9 @@ import { ScamCheckVerdict } from "./scam-check-verdict"
 
 export function UserScamCheck() {
   const {
-    inputType,
-    content,
     result,
     error,
     isLoading,
-    changeType,
-    changeContent,
     analyze,
   } = useUserScamCheck()
   return (
@@ -21,13 +17,8 @@ export function UserScamCheck() {
         Kiểm Tra Lừa Đảo Chuyên Sâu
       </h1>
       <ScamCheckInput
-        inputType={inputType}
-        content={content}
-        onTypeChange={changeType}
-        onContentChange={changeContent}
         onAnalyze={() => void analyze()}
         isLoading={isLoading}
-        error={error}
       />
       <div
         role="status"

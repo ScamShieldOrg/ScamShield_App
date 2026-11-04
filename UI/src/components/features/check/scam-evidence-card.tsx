@@ -292,12 +292,14 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
             <div className="flex items-center gap-2">
               {isDangerous && <WarningCircle size={20} weight="fill" className="text-rose-600" />}
+              {isSuspicious && <WarningCircle size={20} weight="fill" className="text-amber-600" />}
               {isSafe && <CheckCircle size={20} weight="fill" className="text-emerald-600" />}
               {isUnknown && <Info size={20} weight="fill" className="text-slate-600 dark:text-slate-400" />}
 
               <div>
                 <h3 className="font-heading text-sm font-bold text-slate-900 dark:text-foreground">
                   {isDangerous && "Bằng chứng rà soát tức thì tại thiết bị"}
+                  {isSuspicious && "Dấu hiệu cảnh báo rủi ro cần lưu ý tại thiết bị"}
                   {isSafe && "Cơ sở xác thực an toàn chính danh tại thiết bị"}
                   {isUnknown && "Đánh giá dữ liệu khách quan tại thiết bị"}
                 </h3>

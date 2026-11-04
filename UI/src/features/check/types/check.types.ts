@@ -96,6 +96,8 @@ export interface CheckScanResponse {
   council_deliberation?: CouncilDeliberation
   guidance_type: GuidanceType
   actionable_steps: string[]
+  target_bank?: string | null
+  target_account_number?: string | null
   // Backwards compatibility / optional fields
   tier_executed?: 1 | 2
   recommendations?: string[]

@@ -1,3 +1,5 @@
+import { authorizeApi } from "@/lib/api/instance"
+import type { ScamCheckResult } from "../types/scam-check.types"
 import {
   CheckScanRequest,
   CheckScanResponse,
@@ -105,4 +107,20 @@ export async function checkScamContent(
   throw new Error(
     "Không thể kết nối đến máy chủ phân tích AI. Vui lòng đảm bảo dịch vụ AI Bridge (port 8001) hoặc Backend (port 8080) đang hoạt động."
   )
+}
+
+
+/**
+ * Retrieve saved scam check record by checkId from backend
+ */
+export async function getScamCheckResult(checkId: number): Promise<ScamCheckResult> {
+  const { data } = await authorizeApi.get<{
+    isSuccess: boolean
+    message: string
+    data: ScamCheckResult
+  }>(`/scam-checks/${checkId}`)
+  if (!data.isSuccess || !data.data) {
+    throw new Error(data.message || "Không thể tải kết quả kiểm tra.")
+  }
+  return data.data
 }
