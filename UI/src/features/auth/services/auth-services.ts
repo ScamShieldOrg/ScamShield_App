@@ -3,6 +3,7 @@ import { decodeJwt } from "@/lib/utils/jwtUtil";
 import { useAuthStore } from "@/store/auth.store";
 import { User, UserRole } from "@/types/user";
 import axios from "axios";
+import { RegisterGoogleRequest } from "@/features/auth/types/auth.types";
 
 export interface RefreshTokenResult {
     accessToken: string;
@@ -56,11 +57,49 @@ export interface RegisterPartnerResponseData {
 }
 
 function extractErrorMessage(error: unknown, fallback: string): string {
-    if (axios.isAxiosError(error)) {
-        const data = error.response?.data
-        return data?.message || data?.error || fallback
+    const vietnameseMessage = (value: unknown): string | undefined => {
+        if (typeof value !== "string") return undefined
+        const message = value.trim()
+        // Keep useful Vietnamese API messages, without exposing raw HTTP errors.
+        return /[À-ÖØ-öø-ÿĂăĐđĨĩŨũƠơƯư\u1ea0-\u1ef9]/.test(message) && !/<[^>]+>/.test(message)
+            ? message
+            : undefined
     }
-    return error instanceof Error ? error.message : fallback
+
+    if (axios.isAxiosError(error)) {
+        if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+            return "Máy chủ phản hồi quá lâu. Vui lòng thử lại sau."
+        }
+        if (!error.response) {
+            return "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại."
+        }
+
+        const data = error.response?.data
+        const details = data?.data
+        if (error.response.status === 400 && details && typeof details === "object" && !Array.isArray(details)) {
+            for (const value of Object.values(details)) {
+                const message = vietnameseMessage(value)
+                if (message) return message
+            }
+        }
+
+        const message = vietnameseMessage(data?.message) || vietnameseMessage(data?.error)
+        if (message) return message
+
+        const statusMessages: Record<number, string> = {
+            400: "Thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
+            401: "Phiên xác thực đã hết hạn hoặc không hợp lệ. Vui lòng xác thực lại.",
+            403: "Yêu cầu không được phép thực hiện. Vui lòng thử lại hoặc liên hệ hỗ trợ.",
+            404: "Không tìm thấy dịch vụ được yêu cầu. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.",
+            409: "Thông tin đăng ký đã được sử dụng. Vui lòng kiểm tra email và số điện thoại.",
+            429: "Bạn đã gửi quá nhiều yêu cầu. Vui lòng chờ một lúc rồi thử lại.",
+        }
+        if (error.response.status >= 500) {
+            return "Dịch vụ đang gặp sự cố. Vui lòng thử lại sau."
+        }
+        return statusMessages[error.response.status] || fallback
+    }
+    return error instanceof Error ? vietnameseMessage(error.message) || fallback : fallback
 }
 
 export const authServices = {
@@ -151,6 +190,11 @@ export const authServices = {
             const response = await publicApi.post("/auth/send-phone-otp", body, {
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
             })
+            if (response.data?.isSuccess !== true) {
+                throw new Error(
+                    response.data?.message || "Không thể gửi mã OTP. Vui lòng thử lại."
+                )
+            }
             return { message: response.data?.message as string }
         } catch (error) {
             throw new Error(extractErrorMessage(error, "Không thể gửi mã OTP."))
@@ -165,7 +209,21 @@ export const authServices = {
                 phoneNumber,
                 phoneOtp,
             })
-            return response.data.data as VerifyContactsResult
+            const result = response.data?.data
+            if (response.data?.isSuccess !== true) {
+                throw new Error(
+                    response.data?.message || "Xác thực OTP thất bại. Vui lòng kiểm tra mã và thử lại."
+                )
+            }
+            if (
+                typeof result?.verificationToken !== "string" ||
+                !/^[A-Za-z0-9_-]{43}$/.test(result.verificationToken) ||
+                typeof result?.expiresAt !== "string" ||
+                !result.expiresAt
+            ) {
+                throw new Error("Không nhận được mã xác nhận điện thoại hợp lệ. Vui lòng gửi mã OTP mới.")
+            }
+            return result as VerifyContactsResult
         } catch (error) {
             throw new Error(extractErrorMessage(error, "Xác thực OTP thất bại."))
         }
@@ -204,6 +262,70 @@ export const authServices = {
             return response.data
         } catch (error) {
             throw new Error(extractErrorMessage(error, "Đăng ký đối tác thất bại."))
+        }
+    },
+    loginGoogle: async function (idToken: string) {
+        try {
+            const response = await publicApi.post("/auth/login/google", {
+                idToken: idToken.trim(),
+            })
+            const data = response.data
+            const accessToken = data?.data?.accessToken || data?.accessToken
+            if (!accessToken) {
+                throw new Error("Không nhận được access token từ máy chủ")
+            }
+            useAuthStore.getState().setToken(accessToken)
+            const decoded = decodeJwt(accessToken)
+            return {
+                role: (decoded?.role || ""),
+                message: data?.message || "Đăng nhập Google thành công",
+            }
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error)) {
+                const status = error.response?.status
+                const msg = error.response?.data?.message || error.response?.data?.error
+                if (status === 404) {
+                    throw new Error(msg || "Tài khoản Google này chưa được đăng ký trong hệ thống. Vui lòng đăng ký trước.")
+                }
+                if (status === 401 || status === 403) {
+                    throw new Error(msg || "Tài khoản bị tạm khóa hoặc không có quyền truy cập.")
+                }
+                if (msg) {
+                    throw new Error(msg)
+                }
+            }
+            throw new Error(error instanceof Error ? error.message : "Đăng nhập Google thất bại.")
+        }
+    },
+    registerGoogle: async function (payload: RegisterGoogleRequest) {
+        try {
+            if (!/^[A-Za-z0-9_-]{43}$/.test(payload.verificationToken)) {
+                throw new Error("Vui lòng xác thực số điện thoại trước khi đăng ký.")
+            }
+            const response = await publicApi.post("/auth/register/google", payload)
+            const data = response.data
+            if (data?.isSuccess !== true) {
+                throw new Error(data?.message || "Đăng ký tài khoản qua Google thất bại.")
+            }
+            const accessToken = data?.data?.accessToken
+            const decoded = typeof accessToken === "string"
+                ? decodeJwt(accessToken)
+                : null
+            if (!decoded?.id || !decoded.email || decoded.role !== "REGISTERED_USER") {
+                throw new Error("Không nhận được phiên đăng nhập hợp lệ sau khi đăng ký. Vui lòng thử đăng nhập bằng Google.")
+            }
+            useAuthStore.getState().setUser({
+                userId: String(decoded.id),
+                email: decoded.email,
+                role: decoded.role,
+            })
+            useAuthStore.getState().setToken(accessToken)
+            return {
+                message: data?.message || "Đăng ký tài khoản qua Google thành công",
+                accessToken,
+            }
+        } catch (error: unknown) {
+            throw new Error(extractErrorMessage(error, "Đăng ký tài khoản qua Google thất bại. Vui lòng thử lại."))
         }
     },
 }

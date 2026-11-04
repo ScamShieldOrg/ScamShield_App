@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { toast } from "react-toastify"
+import { GoogleAuthButton } from "@/components/features/auth/google-auth-button"
+import { GoogleRegisterModal } from "@/components/features/auth/google-register-modal"
 import { authServices } from "@/features/auth/services/auth-services"
 import { getRecaptchaToken } from "@/lib/firebase/recaptcha"
 import {
@@ -20,6 +22,8 @@ import {
   Gift,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
+import { formatPhoneInput, normalizePhoneInput } from "@/lib/utils/phone"
+import { formatOtpInput, normalizeOtpInput } from "@/lib/utils/otp"
 import {
   AuthInput,
   AuthCheckbox,
@@ -87,6 +91,15 @@ interface FormErrors {
 
 export function RegisterIndividualForm() {
   const [showPassword, setShowPassword] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [isGoogleRegisterModalOpen, setIsGoogleRegisterModalOpen] =
+    useState(false)
+  const [googleIdToken, setGoogleIdToken] = useState("")
+
+  function handleGoogleOAuthSuccess(credential: string) {
+    setGoogleIdToken(credential)
+    setIsGoogleRegisterModalOpen(true)
+  }
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const [form, setForm] = useState<FormState>({
@@ -97,7 +110,7 @@ export function RegisterIndividualForm() {
     password: "",
     confirmPassword: "",
     agreeTerms: false,
-    receiveAlerts: true,
+    receiveAlerts: false,
   })
 
   const [touched, setTouched] = useState<Record<string, boolean>>({})
@@ -266,7 +279,7 @@ export function RegisterIndividualForm() {
     if (otpSentTo !== phone) {
       setErrors((prev) => ({
         ...prev,
-        otp: "Vui lòng nhấn \"Gửi mã\" để nhận OTP cho số điện thoại này.",
+        otp: 'Vui lòng nhấn "Gửi mã" để nhận OTP cho số điện thoại này.',
       }))
       return
     }
@@ -416,9 +429,7 @@ export function RegisterIndividualForm() {
                 className="shrink-0 text-emerald-600 dark:text-emerald-400"
               />
               <div className="text-sm">
-                <p className="font-semibold">
-                  Đăng ký thành công!
-                </p>
+                <p className="font-semibold">Đăng ký thành công!</p>
                 <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">
                   Thông tin tài khoản của bạn đã được tiếp nhận. Đăng nhập để
                   kích hoạt quyền Sentinel.
@@ -429,19 +440,16 @@ export function RegisterIndividualForm() {
 
           {/* Quick Google SSO */}
           <div className="flex flex-col gap-5">
-            <button
-              type="button"
-              onClick={() => {
-                // UI Mock
+            <GoogleAuthButton
+              text="signup_with"
+              label="Đăng ký bằng Google"
+              onSuccess={handleGoogleOAuthSuccess}
+              onError={(err) => {
+                toast.error(err || "Kết nối Google OAuth 2.0 thất bại")
               }}
-              className={cn(
-                "flex h-12 w-full items-center justify-center gap-2.5 rounded-lg border border-[#EAEDFF] bg-white px-4 text-sm font-semibold text-[#131B2E] transition-all",
-                "hover:bg-[#FAF8FF] dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted/50"
-              )}
-            >
-              <GoogleIcon className="size-5 shrink-0" />
-              <span>Đăng ký bằng Google</span>
-            </button>
+              isLoading={isGoogleLoading}
+              disabled={isSubmitting}
+            />
 
             {/* Divider */}
             <div className="flex items-center gap-3">
@@ -467,58 +475,63 @@ export function RegisterIndividualForm() {
               error={errors.fullName}
             />
 
-            {/* Phone & Email Row */}
+            {/* Phone and OTP share a row on wider screens */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AuthInput
                 label="Số điện thoại"
                 required
                 type="tel"
                 icon={<Phone size={18} weight="regular" />}
-                placeholder="Số điện thoại"
-                value={form.phone}
-                onChange={(e) => handleChange("phone", e.target.value)}
+                placeholder="0912 345 678"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                maxLength={12}
+                value={formatPhoneInput(form.phone)}
+                onChange={(e) =>
+                  handleChange("phone", normalizePhoneInput(e.target.value))
+                }
                 onBlur={() => handleBlur("phone")}
                 error={errors.phone}
               />
 
               <AuthInput
-                label="Địa chỉ Email"
+                id="register-otp"
+                label="Mã xác thực OTP"
                 required
-                type="email"
-                icon={<EnvelopeSimple size={18} weight="regular" />}
-                placeholder="Email"
-                value={form.email}
-                onChange={(e) => handleChange("email", e.target.value)}
-                onBlur={() => handleBlur("email")}
-                error={errors.email}
+                inputMode="numeric"
+                maxLength={7}
+                icon={<ShieldCheck size={18} weight="regular" />}
+                placeholder="Nhập mã 6 chữ số"
+                value={formatOtpInput(form.otp)}
+                onChange={(e) =>
+                  handleChange("otp", normalizeOtpInput(e.target.value))
+                }
+                onBlur={() => handleBlur("otp")}
+                error={errors.otp}
+                actionLabel={
+                  isSendingOtp
+                    ? "Đang gửi..."
+                    : cooldown > 0
+                      ? `Gửi lại sau ${cooldown}s`
+                      : otpSentTo
+                        ? "Gửi lại mã"
+                        : "Gửi mã OTP"
+                }
+                inlineAction
+                actionDisabled={isSendingOtp || cooldown > 0}
+                onActionClick={handleSendOtp}
               />
             </div>
-
-            {/* Mã OTP SMS */}
             <AuthInput
-              id="register-otp"
-              label="Mã OTP xác thực điện thoại"
+              label="Địa chỉ Email"
               required
-              inputMode="numeric"
-              maxLength={6}
-              icon={<ShieldCheck size={18} weight="regular" />}
-              placeholder="Nhập mã 6 chữ số"
-              value={form.otp}
-              onChange={(e) =>
-                handleChange("otp", e.target.value.replace(/\D/g, ""))
-              }
-              onBlur={() => handleBlur("otp")}
-              error={errors.otp}
-              actionLabel={
-                isSendingOtp
-                  ? "Đang gửi..."
-                  : cooldown > 0
-                    ? `Gửi lại sau ${cooldown}s`
-                    : otpSentTo
-                      ? "Gửi lại mã"
-                      : "Gửi mã"
-              }
-              onActionClick={handleSendOtp}
+              type="email"
+              icon={<EnvelopeSimple size={18} weight="regular" />}
+              placeholder="Email"
+              value={form.email}
+              onChange={(e) => handleChange("email", e.target.value)}
+              onBlur={() => handleBlur("email")}
+              error={errors.email}
             />
             <div id={RECAPTCHA_CONTAINER_ID} />
 
@@ -643,6 +656,16 @@ export function RegisterIndividualForm() {
           </div>
         </div>
       </div>
+
+      {/* Google Registration Phone & OTP Verification Modal */}
+      {isGoogleRegisterModalOpen && googleIdToken && (
+        <GoogleRegisterModal
+          isOpen={isGoogleRegisterModalOpen}
+          onClose={() => setIsGoogleRegisterModalOpen(false)}
+          idToken={googleIdToken}
+          initialPhone={form.phone}
+        />
+      )}
     </div>
   )
 }

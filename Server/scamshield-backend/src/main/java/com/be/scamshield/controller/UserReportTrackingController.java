@@ -1,6 +1,10 @@
 package com.be.scamshield.controller;
 
 import com.be.scamshield.dto.BaseResponse;
+import com.be.scamshield.dto.request.UpdateOwnReportRequest;
+import com.be.scamshield.service.IOwnReportService;
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.response.*;
 import com.be.scamshield.exception.UnauthorizedException;
@@ -39,12 +43,30 @@ public class UserReportTrackingController {
             "status",
             "reportedMessage",
             "description",
-            "priorityScore",
-            "reportCountSignal",
             "regionCode"
     );
 
     private final IUserReportTrackingService reportTrackingService;
+    private final IOwnReportService ownReportService;
+
+    @PutMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Cập nhật báo cáo của tôi trước kiểm duyệt",
+            description = "Chỉ PENDING và chưa có lịch sử kiểm duyệt. Không đổi đối tượng bị báo cáo. evidences=null giữ nguyên; danh sách mới thay thế bằng chứng cũ. Trả 409 nếu đã bắt đầu duyệt.")
+    public ResponseEntity<BaseResponse<ReportDetailTrackingResponse>> updateOwnReport(
+            @PathVariable Long id, @Valid @RequestBody UpdateOwnReportRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(new BaseResponse<>(true, "Cập nhật báo cáo thành công", ownReportService.update(id, request, principal)));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Thu hồi báo cáo của tôi trước kiểm duyệt", description = "Chuyển PENDING sang WITHDRAWN, giữ dữ liệu và audit; không xóa báo cáo.")
+    public ResponseEntity<BaseResponse<Void>> withdrawOwnReport(@PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        ownReportService.withdraw(id, principal);
+        return ResponseEntity.ok(new BaseResponse<>(true, "Thu hồi báo cáo thành công", null));
+    }
 
     @GetMapping("/metrics")
     @Operation(summary = "Lấy thống kê tổng quan (4 metric cards)", description = "Trả về tổng báo cáo, số báo cáo 7 ngày qua, đã duyệt blacklist, bảo vệ truy vấn, tỷ lệ chính xác, rank title, điểm uy tín và tiến trình cấp độ")
@@ -70,7 +92,7 @@ public class UserReportTrackingController {
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @Parameter(description = "Từ khóa tìm kiếm (Mã #RPT, Số điện thoại, STK, Tên miền...)")
             @RequestParam(required = false) String search,
-            @Parameter(description = "Trạng thái báo cáo (ALL, PENDING, APPROVED_BLACKLIST, MERGED_DUPLICATE, REJECTED)")
+            @Parameter(description = "Trạng thái báo cáo (ALL, PENDING, APPROVED, REJECTED)")
             @RequestParam(required = false, defaultValue = "ALL") String status,
             @Parameter(description = "ID danh mục thủ đoạn")
             @RequestParam(required = false) Long categoryId,

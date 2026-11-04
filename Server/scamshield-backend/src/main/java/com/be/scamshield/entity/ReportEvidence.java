@@ -1,7 +1,11 @@
 package com.be.scamshield.entity;
 
 import jakarta.persistence.*;
+import com.be.scamshield.constant.ReportEvidenceType;
+import com.be.scamshield.constant.EvidenceVerificationStatus;
 import lombok.*;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "report_evidence")
@@ -20,8 +24,12 @@ public class ReportEvidence {
     @JoinColumn(name = "report_id", nullable = false)
     private Report report;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "evidence_type", nullable = false)
-    private String evidenceType;
+    private ReportEvidenceType evidenceType;
+
+    @Column(name = "file_name")
+    private String fileName;
 
     @Column(name = "file_url")
     private String fileUrl;
@@ -29,19 +37,16 @@ public class ReportEvidence {
     @Column(name = "file_hash")
     private String fileHash;
 
-    @Column(name = "extracted_text")
-    private String extractedText;
 
     @Column(name = "ocr_text")
     private String ocrText;
 
-    @Column(name = "source_url")
-    private String sourceUrl;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false)
-    private String verificationStatus;
+    private EvidenceVerificationStatus verificationStatus;
 
     @Column(name = "created_at", nullable = false)
-    private java.time.LocalDateTime createdAt;
+    private LocalDateTime createdAt;
 
 }

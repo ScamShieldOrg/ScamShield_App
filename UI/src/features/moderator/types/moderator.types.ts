@@ -6,23 +6,27 @@ export type QueueFilterTab = "ALL" | "PENDING" | "IN_REVIEW" | "LOCKED"
 
 export interface QueueEvidence {
   id: string
+  rawId?: number
   name: string
-  type: "image" | "video" | "pdf"
+  type: "image" | "video" | "pdf" | string
   url?: string
 }
 
 export interface ModeratorReportItem {
   id: string
+  rawId?: number
   targetIdentifier: string
+  targetType?: string
   category: string
+  categoryId?: number
   reportCount: number
   reportedBy: string
   reportedAt: string
   priority: QueueItemPriority
   status: QueueItemStatus
-  aiScore: number
-  aiRiskLevel: "SCAM-RISK" | "SUSPICIOUS" | "SAFE"
-  aiConfidence: string
+  aiScore?: number | null
+  aiRiskLevel?: "SCAM-RISK" | "SUSPICIOUS" | "SAFE" | string | null
+  aiConfidence?: string | null
   evidenceCompleteness: number
   reporterProposal?: string | null
   evidences: QueueEvidence[]
@@ -30,11 +34,45 @@ export interface ModeratorReportItem {
   isLocked?: boolean
 }
 
+export interface ModeratorReportFilterParams {
+  page?: number
+  size?: number
+  tab?: QueueFilterTab | string
+  search?: string
+  priority?: QueueItemPriority | string
+  sort?: string
+}
+
+export interface ModeratorQueueCounts {
+  all: number
+  pending: number
+  inReview: number
+  locked: number
+}
+
 export interface ModerationDecisionPayload {
-  reportId: string
-  decision: "APPROVE" | "REJECT" | "MERGE"
+  reportId: string | number
+  rawId?: number
+  decision: "APPROVE" | "REJECT"
   reason: string
-  selectedTaxonomies: string[]
+  categoryId?: number
+  selectedTaxonomies?: string[]
+}
+
+export interface BaseApiResponse<T> {
+  isSuccess: boolean
+  message: string
+  data: T
+}
+
+export interface PaginatedResult<T> {
+  data: T[]
+  currentPage: number
+  totalItems: number
+  totalPages: number
+  pageSize: number
+  hasNext: boolean
+  hasPrevious: boolean
 }
 
 export const MODERATOR_TAXONOMY_TAGS = [

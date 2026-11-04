@@ -62,7 +62,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "X-Guest-Session"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
@@ -89,6 +89,9 @@ public class SecurityConfig {
                             .access((authentication, context) -> new AuthorizationDecision(testUiEnabled))
                         .requestMatchers(HttpMethod.POST, "/api/partners/registrations").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/guest/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/scam-checks").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/scam-checks/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/summary", "/api/dashboard/filters").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/resources/blacklist", "/api/resources/whitelist").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/education-hub", "/api/education-hub/filters",
@@ -99,6 +102,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/api/v1/scam-check/ping"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMINISTRATOR")
+                        .requestMatchers("/api/moderator/**").hasRole("MODERATOR")
                         .anyRequest().authenticated()
                 );
 

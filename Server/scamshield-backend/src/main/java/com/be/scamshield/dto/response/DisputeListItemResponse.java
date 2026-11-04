@@ -1,5 +1,6 @@
 package com.be.scamshield.dto.response;
 
+import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.DisputePriority;
 import com.be.scamshield.constant.DisputeStatus;
 import com.be.scamshield.constant.DisputeLegalRelationship;
@@ -61,7 +62,7 @@ public record DisputeListItemResponse(
             Long fileSize,
             String contentType,
             String description,
-            String verificationStatus,
+            EvidenceVerificationStatus verificationStatus,
             LocalDateTime createdAt
     ) {
     }

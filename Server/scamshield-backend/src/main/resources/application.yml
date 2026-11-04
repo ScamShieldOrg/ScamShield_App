@@ -10,7 +10,7 @@ spring:
 
   # Database Configuration (PostgreSQL / Supabase)
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/scamshield-db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/scamshield-db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
@@ -41,7 +41,16 @@ spring:
           starttls:
             enable: true
 
+  # Redis Configuration
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:localhost}}
+      port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
+      password: ${SPRING_DATA_REDIS_PASSWORD:${REDIS_PASSWORD:}}
+      timeout: 2000ms
+
 # Server Port
+
 server:
   port: 8080
 
@@ -51,8 +60,37 @@ firebase:
     api-key: ${FIREBASE_WEB_API_KEY:}
     max-requests-per24-hours: ${SMS_OTP_MAX_REQUESTS_PER_24_HOURS:10}
 
+# Google OAuth Configuration
+google:
+  client:
+    id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+
 # Application Configurations
 app:
+  scam-check:
+    ai:
+      enabled: ${SCAM_CHECK_AI_ENABLED:true}
+      base-url: ${SCAM_CHECK_AI_BASE_URL:http://localhost:8000}
+      connect-timeout-ms: ${SCAM_CHECK_AI_CONNECT_TIMEOUT_MS:2000}
+      request-timeout-ms: ${SCAM_CHECK_AI_REQUEST_TIMEOUT_MS:60000}
+    registered-daily-limit: ${SCAM_CHECK_REGISTERED_DAILY_LIMIT:10}
+    retention-days: ${SCAM_CHECK_RETENTION_DAYS:30}
+    retention-cleanup-enabled: ${SCAM_CHECK_RETENTION_CLEANUP_ENABLED:true}
+    retention-cleanup-cron: ${SCAM_CHECK_RETENTION_CLEANUP_CRON:0 0 1 * * *}
+  partner-business-verification:
+    connect-timeout-seconds: ${PARTNER_VERIFICATION_CONNECT_TIMEOUT_SECONDS:5}
+    read-timeout-seconds: ${PARTNER_VERIFICATION_READ_TIMEOUT_SECONDS:30}
+    total-budget-seconds: ${PARTNER_VERIFICATION_TOTAL_BUDGET_SECONDS:60}
+    minimum-ocr-confidence: ${PARTNER_OCR_MINIMUM_CONFIDENCE:0.9}
+    xinvoice:
+      base-url: ${XINVOICE_BASE_URL:https://api.xinvoice.vn}
+      client-id: ${XINVOICE_CLIENT_ID:}
+      api-key: ${XINVOICE_API_KEY:}
+    ocr:
+      enabled: ${BUSINESS_LICENSE_OCR_ENABLED:false}
+      url: ${BUSINESS_LICENSE_OCR_URL:}
+      api-key: ${BUSINESS_LICENSE_OCR_API_KEY:}
+      api-secret: ${BUSINESS_LICENSE_OCR_API_SECRET:}
   supabase:
     storage:
       region: ${SUPABASE_STORAGE_REGION:${AWS_REGION:ap-south-1}}

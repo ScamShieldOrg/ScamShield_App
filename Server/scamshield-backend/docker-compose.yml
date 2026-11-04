@@ -1,17 +1,27 @@
 services:
-  scamshield-api:
-    build: .
+  # scamshield-api:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - SPRING_DATASOURCE_URL=jdbc:postgresql://scamshield-db:5432/scamshield-db
+  #     - SPRING_DATASOURCE_USERNAME=postgres
+  #     - SPRING_DATASOURCE_PASSWORD=postgres
+  #     - JWT_SECRET=${JWT_SECRET}
+  #     - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS}
+  #     - JWT_REFRESH_EXPIRATION_MS=${JWT_REFRESH_EXPIRATION_MS}
+  #     - SPRING_DATA_REDIS_HOST=scamshield-redis
+  #     - SPRING_DATA_REDIS_PORT=6379
+  #   depends_on:
+  #     - scamshield-db
+  #     - scamshield-redis
+  #   networks:
+  #     - scamshield-net
+
+  scamshield-redis:
+    image: redis:7-alpine
     ports:
-      - "8080:8080"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://scamshield-db:5432/scamshield-db
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS}
-      - JWT_REFRESH_EXPIRATION_MS=${JWT_REFRESH_EXPIRATION_MS}
-    depends_on:
-      - scamshield-db
+      - "6379:6379"
     networks:
       - scamshield-net
 
@@ -22,7 +32,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:

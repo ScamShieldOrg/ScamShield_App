@@ -7,6 +7,7 @@ import com.be.scamshield.dto.AuthResponse;
 import com.be.scamshield.dto.ChangePasswordRequest;
 import com.be.scamshield.dto.LoginRequest;
 import com.be.scamshield.dto.UserDto;
+import com.be.scamshield.dto.request.LoginGoogleRequest;
 import com.be.scamshield.dto.request.RegisterGoogleRequest;
 import com.be.scamshield.dto.request.RegisterPersonalRequest;
 import com.be.scamshield.entity.RefreshToken;
@@ -16,6 +17,7 @@ import com.be.scamshield.exception.*;
 import com.be.scamshield.repository.RefreshTokenRepository;
 import com.be.scamshield.repository.RoleRepository;
 import com.be.scamshield.repository.UserRepository;
+import com.be.scamshield.security.GoogleTokenVerifier;
 import com.be.scamshield.security.JwtTokenProvider;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IAuthService;
@@ -40,6 +42,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -48,6 +51,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -65,6 +69,7 @@ public class AuthServiceImpl implements IAuthService {
     private final IUserAlertSubscriptionService subscriptionService;
     private final IOtpService otpService;
     private final ContactVerificationService contactVerificationService;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     @Override
     @Transactional
@@ -118,77 +123,171 @@ public class AuthServiceImpl implements IAuthService {
         }
     }
 
-    @Value("${google.client.id:your-google-client-id}")
-    private String googleClientId;
+    @Override
+    @Transactional
+    public AuthResponse registerGoogle(RegisterGoogleRequest request, HttpServletResponse response) {
+        if (!request.isAgreeTerms()) {
+            throw new BadRequestException("Bạn phải đồng ý với điều khoản sử dụng");
+        }
+
+        String phone = VietnamPhoneNumbers.nationalMobile(request.getPhoneNumber());
+
+        // Kiểm tra xem số điện thoại đã tồn tại chưa
+        if (userRepository.findByPhoneNumber(phone).isPresent()) {
+            throw new RegistrationConflictException("Số điện thoại đã được dùng cho một tài khoản");
+        }
+
+        GoogleIdToken.Payload payload = googleTokenVerifier.verify(request.getIdToken());
+        if (payload == null) {
+            throw new BadRequestException("Google ID Token không hợp lệ hoặc đã hết hạn");
+        }
+
+        // Trích xuất thông tin từ token Google
+        String email = payload.getEmail();
+        if (!StringUtils.hasText(email)) {
+            throw new BadRequestException("Không thể lấy email từ Google ID Token");
+        }
+        if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+            throw new BadRequestException("Email từ tài khoản Google chưa được xác thực");
+        }
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+
+        // Kiểm tra email đã tồn tại trong hệ thống chưa
+        if (userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
+            throw new RegistrationConflictException("Email đã được dùng cho một tài khoản. Vui lòng đăng nhập.");
+        }
+
+        String name = (String) payload.get("name");
+        if (!StringUtils.hasText(name)) {
+            name = normalizedEmail.split("@")[0];
+        }
+
+        // Xác thực số điện thoại qua verificationToken hoặc phoneOtp
+        if (StringUtils.hasText(request.getVerificationToken())) {
+            contactVerificationService.consume(request.getVerificationToken(), phone);
+        } else if (StringUtils.hasText(request.getPhoneOtp())) {
+            otpService.verifyOtp(phone, request.getPhoneOtp(), OtpType.PHONE);
+        } else {
+            throw new BadRequestException("Cần xác thực số điện thoại trước khi đăng ký (thiếu verificationToken hoặc phoneOtp)");
+        }
+
+        // Gán quyền REGISTERED_USER
+        Role userRole = roleRepository.findByName(RoleEnum.REGISTERED_USER.name())
+                .orElseThrow(() -> new IllegalStateException("Chưa cấu hình role REGISTERED_USER"));
+
+        // Tạo mật khẩu ngẫu nhiên (vì user đăng ký qua Google)
+        String randomPassword = UUID.randomUUID().toString();
+        LocalDateTime now = applicationClock != null ? LocalDateTime.now(applicationClock) : LocalDateTime.now();
+
+        User user = User.builder()
+                .fullName(name)
+                .phoneNumber(phone)
+                .isPhoneVerified(true)
+                .email(normalizedEmail)
+                .passwordHash(passwordEncoder.encode(randomPassword))
+                .role(userRole)
+                .status(UserStatus.ACTIVE.name())
+                .reputationPoints(0)
+                .createdAt(now)
+                .updatedAt(now)
+                .lastLoginAt(now)
+                .build();
+
+        User savedUser;
+        try {
+            savedUser = userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException ex) {
+            if (ex.getMostSpecificCause() instanceof SQLException sql && "23505".equals(sql.getSQLState())) {
+                throw new RegistrationConflictException("Email hoặc số điện thoại đã được dùng cho một tài khoản");
+            }
+            throw ex;
+        }
+
+        if (request.isReceiveAlerts()) {
+            subscriptionService.subscribeAllCategories(savedUser);
+        }
+
+        UserPrincipal userPrincipal = UserPrincipal.create(savedUser);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        String roleName = savedUser.getRole() != null ? savedUser.getRole().getName() : RoleEnum.REGISTERED_USER.name();
+        String accessToken = tokenProvider.generateAccessTokenForUser(
+                savedUser.getId(),
+                savedUser.getUsername(),
+                savedUser.getEmail(),
+                roleName
+        );
+        String refreshToken = tokenProvider.generateRefreshToken();
+
+        refreshTokenRepository.deleteByUser(savedUser);
+        saveRefreshToken(savedUser, refreshToken);
+
+        if (response != null) {
+            setRefreshTokenCookie(response, refreshToken);
+        }
+
+        log.info("User registered and logged in successfully via Google: {}", savedUser.getEmail());
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .build();
+    }
 
     @Override
     @Transactional
-    public void registerGoogle(RegisterGoogleRequest request) {
-        if (!request.isAgreeTerms()) {
-            throw new IllegalArgumentException("You must agree to the terms.");
+    public AuthResponse loginGoogle(LoginGoogleRequest request, HttpServletResponse response) {
+        GoogleIdToken.Payload payload = googleTokenVerifier.verify(request.getIdToken());
+        if (payload == null) {
+            throw new BadRequestException("Google ID Token không hợp lệ hoặc đã hết hạn");
         }
 
-        // Kiểm tra xem số điện thoại đã tồn tại chưa
-        if (userRepository.findByPhoneNumber(request.getPhoneNumber()).isPresent()) {
-            throw new IllegalArgumentException("Phone number already exists.");
+        String email = payload.getEmail();
+        if (!StringUtils.hasText(email)) {
+            throw new BadRequestException("Không thể lấy email từ Google ID Token");
+        }
+        if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+            throw new BadRequestException("Email từ tài khoản Google chưa được xác thực");
         }
 
-        try {
-            // Khởi tạo GoogleIdTokenVerifier
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
-                    // Tạm thời comment dòng dưới lại nếu muốn test mà chưa có Client ID thật, 
-                    // nhưng khi lên Production bắt buộc phải set Audience để bảo mật.
-                    // .setAudience(Collections.singletonList(googleClientId))
-                    .build();
+        String normalizedEmail = email.trim().toLowerCase();
 
-            GoogleIdToken idToken = verifier.verify(request.getIdToken());
-            if (idToken != null) {
-                GoogleIdToken.Payload payload = idToken.getPayload();
+        User user = userRepository.findByEmail(normalizedEmail)
+                .or(() -> userRepository.findByEmail(email.trim()))
+                .orElseThrow(() -> new ResourceNotFoundException("Tài khoản với email '" + email + "' chưa được đăng ký trong hệ thống. Vui lòng đăng ký trước."));
 
-                // Trích xuất thông tin từ token Google
-                String email = payload.getEmail();
-                String name = (String) payload.get("name");
-
-                // Kiểm tra email đã tồn tại trong hệ thống chưa
-                if (userRepository.findByEmail(email).isPresent()) {
-                    throw new IllegalArgumentException("Email already exists in the system. Please login instead.");
-                }
-
-                // Gán quyền REGISTERED_USER
-                Role userRole = roleRepository.findByName(RoleEnum.REGISTERED_USER.name())
-                        .orElseThrow(() -> new RuntimeException("Role not found"));
-
-                otpService.verifyOtp(request.getPhoneNumber(), request.getPhoneOtp(), OtpType.PHONE);
-
-                // Tạo mật khẩu ngẫu nhiên (vì user login qua Google)
-                String randomPassword = UUID.randomUUID().toString();
-
-                User user = User.builder()
-                        .fullName(name)
-                        .phoneNumber(request.getPhoneNumber())
-                        .email(email)
-                        .passwordHash(passwordEncoder.encode(randomPassword))
-                        .role(userRole)
-                        .status("ACTIVE")
-                        .reputationPoints(0)
-                        .createdAt(LocalDateTime.now(applicationClock))
-                        .updatedAt(LocalDateTime.now(applicationClock))
-                        .build();
-
-                User savedUser = userRepository.save(user);
-
-                if (request.isReceiveAlerts()) {
-                    subscriptionService.subscribeAllCategories(savedUser);
-                }
-
-            } else {
-                throw new IllegalArgumentException("Invalid Google ID token.");
-            }
-        } catch (IllegalArgumentException | BadRequestException | OtpRateLimitException | SmsProviderException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException("Lỗi xác thực Google Token: " + e.getMessage());
+        if (UserStatus.BANNED.name().equalsIgnoreCase(user.getStatus()) ||
+            UserStatus.INACTIVE.name().equalsIgnoreCase(user.getStatus()) ||
+            UserStatus.SUSPENDED.name().equalsIgnoreCase(user.getStatus())) {
+            throw new UnauthorizedException("Your account is " + user.getStatus().toLowerCase() + ". Please contact support.");
         }
+
+        user.setLastLoginAt(applicationClock != null ? LocalDateTime.now(applicationClock) : LocalDateTime.now());
+        userRepository.save(user);
+
+        UserPrincipal userPrincipal = UserPrincipal.create(user);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        String roleName = user.getRole() != null ? user.getRole().getName() : RoleEnum.REGISTERED_USER.name();
+        String accessToken = tokenProvider.generateAccessTokenForUser(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                roleName
+        );
+        String refreshToken = tokenProvider.generateRefreshToken();
+
+        refreshTokenRepository.deleteByUser(user);
+        saveRefreshToken(user, refreshToken);
+
+        setRefreshTokenCookie(response, refreshToken);
+
+        log.info("User logged in successfully via Google: {}", user.getEmail());
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .build();
     }
 
     @Override

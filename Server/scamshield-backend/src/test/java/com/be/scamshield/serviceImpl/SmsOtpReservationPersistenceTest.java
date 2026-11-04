@@ -1,11 +1,15 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
+import com.be.scamshield.external.FirebasePhoneClient;
+
 import com.be.scamshield.constant.OtpType;
 import com.be.scamshield.config.FirebasePhoneProperties;
-import com.be.scamshield.entity.OtpVerification;
+import com.be.scamshield.dto.OtpEntry;
 import com.be.scamshield.exception.OtpRateLimitException;
 import com.be.scamshield.exception.SmsProviderException;
-import com.be.scamshield.repository.OtpVerificationRepository;
+import com.be.scamshield.service.IOtpStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +25,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -33,15 +38,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
 
 @SpringBootTest(properties = {
         "app.otp.email-expiration-ms=420000",
         "app.otp.phone-expiration-ms=180000",
-        "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1"
+
 })
 @ActiveProfiles("test")
-class SmsOtpReservationPersistenceTest {
+class SmsOtpReservationPersistenceTest extends PostgresIntegrationTest {
     @Autowired
     private SmsOtpReservationService service;
     @Autowired
@@ -51,7 +55,7 @@ class SmsOtpReservationPersistenceTest {
     @MockitoBean
     private JavaMailSender mailSender;
     @Autowired
-    private OtpVerificationRepository otpRepository;
+    private IOtpStore otpStore;
     @Autowired
     private FirebasePhoneProperties properties;
     @MockitoBean
@@ -60,7 +64,7 @@ class SmsOtpReservationPersistenceTest {
 
     @BeforeEach
     void setUp() {
-        otpRepository.deleteAll();
+        otpStore.clear();
         properties.setMaxRequestsPer24Hours(10);
         now = Instant.parse("2026-10-06T03:00:00Z");
         when(applicationClock.getZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
@@ -69,7 +73,7 @@ class SmsOtpReservationPersistenceTest {
 
     @Test
     void smsExpiryUsesConfiguredDuration() {
-        OtpVerification phone = service.reserve("0912345678");
+        OtpEntry phone = service.reserve("0912345678");
         assertThat(phone.getExpiresAt()).isEqualTo(phone.getCreatedAt().plusSeconds(180));
     }
 
@@ -78,7 +82,7 @@ class SmsOtpReservationPersistenceTest {
         MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
         when(mailSender.createMimeMessage()).thenReturn(message);
         otpService.sendEmailOtp("expiry-test@example.com");
-        OtpVerification email = otpRepository.findAll().getFirst();
+        OtpEntry email = otpStore.findLatest("expiry-test@example.com", OtpType.EMAIL).orElseThrow();
         assertThat(email.getExpiresAt()).isEqualTo(email.getCreatedAt().plusSeconds(420));
         verify(mailSender).send(any(MimeMessage.class));
         var output = new ByteArrayOutputStream();
@@ -92,12 +96,10 @@ class SmsOtpReservationPersistenceTest {
             service.reserve("09" + String.format("%08d", i));
         }
         assertThatThrownBy(() -> service.reserve("0988888888")).isInstanceOf(OtpRateLimitException.class);
-        assertThat(otpRepository.count()).isEqualTo(10);
-        assertThat(otpRepository.countByTypeAndCreatedAtAfter(OtpType.PHONE, LocalDateTime.now(applicationClock).minusHours(24))).isEqualTo(10);
+        assertThat(otpStore.countPhoneOtpRequestsSince(LocalDateTime.now(applicationClock).minusHours(24))).isEqualTo(10);
         when(applicationClock.instant()).thenReturn(now.plusSeconds(24 * 3600));
         service.reserve("0988888888");
-        assertThat(otpRepository.countByTypeAndCreatedAtAfter(OtpType.PHONE, LocalDateTime.now(applicationClock).minusHours(24))).isEqualTo(1);
-        assertThat(otpRepository.count()).isEqualTo(11);
+        assertThat(otpStore.countPhoneOtpRequestsSince(LocalDateTime.now(applicationClock).minusHours(24))).isEqualTo(1);
     }
 
     @Test
@@ -106,20 +108,20 @@ class SmsOtpReservationPersistenceTest {
         assertThatThrownBy(() -> service.reserve("0912345678")).isInstanceOf(OtpRateLimitException.class);
         when(applicationClock.instant()).thenReturn(now.plusSeconds(60));
         service.reserve("0912345678");
-        assertThat(otpRepository.count()).isEqualTo(2);
+        assertThat(otpStore.countPhoneOtpRequestsSince(LocalDateTime.now(applicationClock).minusHours(24))).isEqualTo(2);
     }
 
     @Test
     void emailChallengesDoNotCountButConsumedPhoneChallengesStillCount() {
         properties.setMaxRequestsPer24Hours(1);
         LocalDateTime time = LocalDateTime.now(applicationClock);
-        otpRepository.saveAndFlush(OtpVerification.builder().target("partner@gmail.com").type(OtpType.EMAIL)
-                .otpCode("654321").createdAt(time).expiresAt(time.plusMinutes(5)).build());
-        OtpVerification phone = service.reserve("0912345678");
+        otpStore.save(OtpEntry.builder().target("partner@gmail.com").type(OtpType.EMAIL)
+                .otpCode("654321").createdAt(time).expiresAt(time.plusMinutes(5)).build(), Duration.ofMinutes(5));
+        OtpEntry phone = service.reserve("0912345678");
         phone.setVerified(true);
-        otpRepository.saveAndFlush(phone);
+        otpStore.save(phone, Duration.ofMinutes(5));
         assertThatThrownBy(() -> service.reserve("0912345679")).isInstanceOf(OtpRateLimitException.class);
-        assertThat(otpRepository.count()).isEqualTo(2);
+        assertThat(otpStore.countPhoneOtpRequestsSince(LocalDateTime.now(applicationClock).minusHours(24))).isEqualTo(1);
     }
 
     @Test
@@ -129,11 +131,11 @@ class SmsOtpReservationPersistenceTest {
                 .thenThrow(new SmsProviderException("provider unavailable"));
         assertThatThrownBy(() -> otpService.sendPhoneOtp("0912345678", "captcha"))
                 .isInstanceOf(SmsProviderException.class);
-        assertThat(otpRepository.count()).isEqualTo(1);
-        assertThat(otpRepository.findAll().getFirst().getProviderSessionInfo()).isNull();
+        assertThat(otpStore.countPhoneOtpRequestsSince(LocalDateTime.now(applicationClock).minusHours(24))).isEqualTo(1);
+        assertThat(otpStore.findLatest("0912345678", OtpType.PHONE).orElseThrow().getProviderSessionInfo()).isNull();
         assertThatThrownBy(() -> otpService.sendPhoneOtp("0912345679", "captcha"))
                 .isInstanceOf(OtpRateLimitException.class);
-        verify(firebaseClient, times(1)).send("+84912345678", "captcha");
+        verify(firebaseClient).send("+84912345678", "captcha");
     }
 
     @Test
@@ -160,6 +162,6 @@ class SmsOtpReservationPersistenceTest {
             }
             assertThat(accepted).isEqualTo(2);
         }
-        assertThat(otpRepository.count()).isEqualTo(2);
+        assertThat(otpStore.countPhoneOtpRequestsSince(LocalDateTime.now(applicationClock).minusHours(24))).isEqualTo(2);
     }
 }

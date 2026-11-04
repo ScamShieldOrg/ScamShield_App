@@ -2,16 +2,18 @@
 
 import { XCircle, Warning, ShieldCheck, Question } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
-import { HistoryRiskStatus } from "@/features/history/types/history.types"
+import { HistoryRiskStatus, ScamCheckRiskCounts } from "@/features/history/types/history.types"
 
 interface HistoryRiskPillsProps {
   currentStatus: "ALL" | HistoryRiskStatus
   onSelectStatus: (status: "ALL" | HistoryRiskStatus) => void
+  counts?: ScamCheckRiskCounts | null
 }
 
 export function HistoryRiskPills({
   currentStatus,
   onSelectStatus,
+  counts,
 }: HistoryRiskPillsProps) {
   const pills: {
     status: "ALL" | HistoryRiskStatus
@@ -24,7 +26,7 @@ export function HistoryRiskPills({
     {
       status: "ALL",
       label: "Tất cả",
-      count: 38,
+      count: counts?.all ?? 0,
       colorClass: "text-[#131B2E] border-[#C6C6CE]/50 dark:text-foreground",
       activeClass:
         "bg-[#0B132B] text-white border-[#0B132B] dark:bg-primary dark:text-primary-foreground",
@@ -32,7 +34,7 @@ export function HistoryRiskPills({
     {
       status: "DANGEROUS",
       label: "Lừa đảo nguy cơ cao",
-      count: 14,
+      count: counts?.dangerous ?? 0,
       icon: XCircle,
       colorClass:
         "text-[#BA1A1A] border-rose-200 dark:text-rose-400 dark:border-rose-900/40",
@@ -42,7 +44,7 @@ export function HistoryRiskPills({
     {
       status: "SUSPICIOUS",
       label: "Nghi vấn rủi ro",
-      count: 9,
+      count: counts?.suspicious ?? 0,
       icon: Warning,
       colorClass:
         "text-[#B45309] border-amber-200 dark:text-amber-400 dark:border-amber-900/40",
@@ -52,7 +54,7 @@ export function HistoryRiskPills({
     {
       status: "SAFE",
       label: "An toàn chính hãng",
-      count: 11,
+      count: counts?.safe ?? 0,
       icon: ShieldCheck,
       colorClass:
         "text-[#00875A] border-emerald-200 dark:text-emerald-400 dark:border-emerald-900/40",
@@ -62,7 +64,7 @@ export function HistoryRiskPills({
     {
       status: "UNKNOWN",
       label: "Chưa xác định - Unknown",
-      count: 4,
+      count: counts?.unknown ?? 0,
       icon: Question,
       colorClass:
         "text-[#475569] border-slate-200 dark:text-slate-400 dark:border-slate-800",

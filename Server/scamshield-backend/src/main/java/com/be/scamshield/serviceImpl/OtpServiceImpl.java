@@ -1,11 +1,13 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.FirebasePhoneClient;
+
 import com.be.scamshield.constant.OtpType;
-import com.be.scamshield.entity.OtpVerification;
-import com.be.scamshield.repository.OtpVerificationRepository;
-import com.be.scamshield.service.IOtpService;
+import com.be.scamshield.dto.OtpEntry;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.SmsProviderException;
+import com.be.scamshield.service.IOtpService;
+import com.be.scamshield.service.IOtpStore;
 import com.be.scamshield.util.VietnamPhoneNumbers;
 import lombok.RequiredArgsConstructor;
 import jakarta.annotation.PostConstruct;
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.mail.MessagingException;
@@ -38,7 +42,7 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class OtpServiceImpl implements IOtpService {
 
-    private final OtpVerificationRepository otpVerificationRepository;
+    private final IOtpStore otpStore;
     private final JavaMailSender mailSender;
     private final FirebasePhoneClient firebasePhoneClient;
     private final SmsOtpReservationService smsReservationService;
@@ -47,10 +51,16 @@ public class OtpServiceImpl implements IOtpService {
     @Value("${app.otp.email-expiration-ms}")
     private long emailOtpExpirationMs;
 
+    @Value("${app.otp.phone-expiration-ms}")
+    private long phoneOtpExpirationMs;
+
     @PostConstruct
     void validateExpiration() {
         if (emailOtpExpirationMs <= 0) {
             throw new IllegalArgumentException("Thời gian hết hạn OTP email phải lớn hơn 0 ms");
+        }
+        if (phoneOtpExpirationMs <= 0) {
+            throw new IllegalArgumentException("Thời gian hết hạn OTP điện thoại phải lớn hơn 0 ms");
         }
     }
 
@@ -76,10 +86,10 @@ public class OtpServiceImpl implements IOtpService {
     }
 
     private void checkRateLimit(String target, OtpType type) {
-        Optional<OtpVerification> lastOtpOpt = otpVerificationRepository.findTopByTargetAndTypeOrderByIdDesc(target, type);
+        Optional<OtpEntry> lastOtpOpt = otpStore.findLatest(target, type);
         if (lastOtpOpt.isPresent()) {
-            OtpVerification lastOtp = lastOtpOpt.get();
-            if (lastOtp.getCreatedAt().plusMinutes(1).isAfter(LocalDateTime.now(applicationClock))) {
+            OtpEntry lastOtp = lastOtpOpt.get();
+            if (lastOtp.getCreatedAt() != null && lastOtp.getCreatedAt().plusMinutes(1).isAfter(LocalDateTime.now(applicationClock))) {
                 throw new IllegalArgumentException("Vui lòng đợi 1 phút trước khi yêu cầu mã mới.");
             }
         }
@@ -91,17 +101,18 @@ public class OtpServiceImpl implements IOtpService {
         email = normalizeEmail(email);
         checkRateLimit(email, OtpType.EMAIL);
         String otp = generateOtp();
+        LocalDateTime now = LocalDateTime.now(applicationClock);
 
-        OtpVerification otpVerification = OtpVerification.builder()
+        OtpEntry otpEntry = OtpEntry.builder()
                 .target(email)
                 .otpCode(otp)
                 .type(OtpType.EMAIL)
-                .createdAt(LocalDateTime.now(applicationClock))
-                .expiresAt(LocalDateTime.now(applicationClock).plus(Duration.ofMillis(emailOtpExpirationMs)))
+                .createdAt(now)
+                .expiresAt(now.plus(Duration.ofMillis(emailOtpExpirationMs)))
                 .isVerified(false)
                 .failedAttempts(0)
                 .build();
-        otpVerificationRepository.save(otpVerification);
+        otpStore.save(otpEntry, Duration.ofMillis(emailOtpExpirationMs));
 
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -125,19 +136,20 @@ public class OtpServiceImpl implements IOtpService {
     public void sendPhoneOtp(String phoneNumber, String recaptchaToken) {
         String nationalPhone = VietnamPhoneNumbers.nationalMobile(phoneNumber);
         if (recaptchaToken == null || recaptchaToken.isBlank() || recaptchaToken.length() > 8192) {
-            throw new BadRequestException("Cần reCAPTCHA token hợp lệ trước khi gửi OTP SMS");
+            throw new BadRequestException("Vui lòng xác thực reCAPTCHA mới cho mỗi lần gửi OTP SMS");
         }
         firebasePhoneClient.requireConfigured();
-        OtpVerification reservation;
+        OtpEntry reservation;
         try {
             reservation = smsReservationService.reserve(nationalPhone);
         } catch (DataIntegrityViolationException | ConcurrencyFailureException ex) {
             // A rejected reservation must never reach Firebase, including serialization conflicts.
             throw new SmsProviderException("Không thể đặt lượt gửi SMS lúc này; vui lòng thử lại sau");
         }
+        // Firebase validates freshness and single use of the reCAPTCHA token on every send.
         String session = firebasePhoneClient.send(VietnamPhoneNumbers.e164(nationalPhone), recaptchaToken);
         reservation.setProviderSessionInfo(session);
-        otpVerificationRepository.save(reservation);
+        otpStore.save(reservation, Duration.ofMillis(phoneOtpExpirationMs));
     }
 
     @Override
@@ -157,15 +169,22 @@ public class OtpServiceImpl implements IOtpService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY, noRollbackFor = IllegalArgumentException.class)
     public boolean verifyContactOtps(String email, String emailCode, String phone, String phoneCode) {
-        OtpVerification emailOtp = validateContactOtp(email, emailCode, OtpType.EMAIL, "email");
-        OtpVerification phoneOtp = validateContactOtp(phone, phoneCode, OtpType.PHONE, "điện thoại");
+        OtpEntry emailOtp = validateContactOtp(email, emailCode, OtpType.EMAIL, "email");
+        OtpEntry phoneOtp;
+        try {
+            phoneOtp = validateContactOtp(phone, phoneCode, OtpType.PHONE, "điện thoại");
+        } catch (RuntimeException ex) {
+            // The correct email code remains unconsumed; release only this attempt's reservation.
+            otpStore.decrementFailedAttemptsIfMatching(emailOtp);
+            throw ex;
+        }
         // Both checks must succeed before either challenge is consumed.
         markVerified(emailOtp);
         markVerified(phoneOtp);
         return true;
     }
 
-    private OtpVerification validateContactOtp(String target, String code, OtpType type, String channel) {
+    private OtpEntry validateContactOtp(String target, String code, OtpType type, String channel) {
         try {
             return validateOtp(target, code, type);
         } catch (IllegalArgumentException ex) {
@@ -173,15 +192,36 @@ public class OtpServiceImpl implements IOtpService {
         }
     }
 
-    private void markVerified(OtpVerification otp) {
+    private void markVerified(OtpEntry otp) {
+        boolean success = otpStore.markVerified(otp.getTarget(), otp.getType());
+        if (!success) {
+            throw new IllegalArgumentException("Vui lòng gửi yêu cầu lấy mã OTP mới");
+        }
         otp.setVerified(true);
+        String sessionInfo = otp.getProviderSessionInfo();
         if (otp.getType() == OtpType.PHONE) {
             otp.setProviderSessionInfo(null);
         }
-        otpVerificationRepository.save(otp);
+
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) {
+                        otp.setVerified(false);
+                        otp.setProviderSessionInfo(sessionInfo);
+                        Duration remaining = Duration.between(LocalDateTime.now(applicationClock), otp.getExpiresAt());
+                        if (remaining.isNegative() || remaining.isZero()) {
+                            remaining = Duration.ofSeconds(60);
+                        }
+                        otpStore.save(otp, remaining);
+                    }
+                }
+            });
+        }
     }
 
-    private OtpVerification validateOtp(String target, String otpCode, OtpType type) {
+    private OtpEntry validateOtp(String target, String otpCode, OtpType type) {
         if (type == OtpType.PHONE) {
             target = VietnamPhoneNumbers.nationalMobile(target);
         } else if (type == OtpType.EMAIL) {
@@ -189,49 +229,53 @@ public class OtpServiceImpl implements IOtpService {
         } else {
             throw new IllegalArgumentException("Loại OTP không hợp lệ");
         }
-        Optional<OtpVerification> otpVerificationOpt = otpVerificationRepository
-                .findTopByTargetAndTypeOrderByIdDesc(target, type);
+        Optional<OtpEntry> otpOpt = otpStore.findLatest(target, type);
 
-        if (otpVerificationOpt.isPresent()) {
-            OtpVerification otpVerification = otpVerificationOpt.get();
+        if (otpOpt.isPresent()) {
+            OtpEntry otpEntry = otpOpt.get();
             
-            if (otpVerification.isVerified()) {
+            if (otpEntry.isVerified()) {
                 throw new IllegalArgumentException("Vui lòng gửi yêu cầu lấy mã OTP mới");
             }
 
             LocalDateTime now = LocalDateTime.now(applicationClock);
-            if (!otpVerification.getExpiresAt().isAfter(now)) {
+            if (!otpEntry.getExpiresAt().isAfter(now)) {
                 throw new IllegalArgumentException("Vui lòng gửi yêu cầu lấy mã OTP mới");
             }
 
-            if (otpVerification.getFailedAttempts() >= 5) {
-                throw new IllegalArgumentException("Vui lòng gửi yêu cầu lấy mã OTP mới");
+            if (type == OtpType.PHONE && (otpCode == null || !otpCode.matches("^[0-9]{6}$"))) {
+                throw new IllegalArgumentException("OTP SMS phải gồm 6 chữ số");
+            }
+
+            int attempt = otpStore.incrementAndGetFailedAttempts(target, type);
+            if (attempt > 5) {
+                throw new IllegalArgumentException("Mã OTP đã bị vô hiệu hóa do nhập sai quá 5 lần. Vui lòng yêu cầu mã mới.");
             }
 
             if (type == OtpType.PHONE) {
-                if (!"FIREBASE".equals(otpVerification.getProvider()) || otpVerification.getProviderSessionInfo() == null) {
+                if (!"FIREBASE".equals(otpEntry.getProvider()) || otpEntry.getProviderSessionInfo() == null) {
                     throw new IllegalArgumentException("Phiên SMS chưa sẵn sàng; vui lòng yêu cầu OTP mới");
                 }
                 try {
-                    if (otpCode == null || !otpCode.matches("^[0-9]{6}$")) {
-                        throw new IllegalArgumentException("OTP SMS phải gồm 6 chữ số");
-                    }
-                    firebasePhoneClient.verify(otpVerification.getProviderSessionInfo(), otpCode,
+                    firebasePhoneClient.verify(otpEntry.getProviderSessionInfo(), otpCode,
                             VietnamPhoneNumbers.e164(target));
                 } catch (IllegalArgumentException ex) {
-                    otpVerification.setFailedAttempts(otpVerification.getFailedAttempts() + 1);
-                    otpVerificationRepository.save(otpVerification);
+                    int attemptsLeft = 5 - attempt;
                     throw new IllegalArgumentException("OTP SMS không đúng hoặc đã hết hạn. Còn "
-                            + (5 - otpVerification.getFailedAttempts()) + " lần thử; hết lượt cần yêu cầu OTP mới.");
+                            + attemptsLeft + " lần thử; hết lượt cần yêu cầu OTP mới.");
+                } catch (RuntimeException ex) {
+                    // Provider network or server outage does not count as incorrect code
+                    otpStore.decrementFailedAttempts(target, type);
+                    throw ex;
                 }
-                return otpVerification;
+                otpEntry.setFailedAttempts(attempt);
+                return otpEntry;
             }
-            if (otpVerification.getOtpCode().equals(otpCode)) {
-                return otpVerification;
+            if (otpEntry.getOtpCode().equals(otpCode)) {
+                otpEntry.setFailedAttempts(attempt);
+                return otpEntry;
             } else {
-                otpVerification.setFailedAttempts(otpVerification.getFailedAttempts() + 1);
-                otpVerificationRepository.save(otpVerification);
-                int attemptsLeft = 5 - otpVerification.getFailedAttempts();
+                int attemptsLeft = 5 - attempt;
                 if (attemptsLeft > 0) {
                     throw new IllegalArgumentException("Mã OTP không chính xác. Bạn còn " + attemptsLeft + " lần thử.");
                 } else {

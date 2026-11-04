@@ -1,6 +1,6 @@
 "use client"
 
-import { MagnifyingGlass, X, Trash, CaretDown } from "@phosphor-icons/react"
+import { MagnifyingGlass, X, Trash, CaretDown, CircleNotch } from "@phosphor-icons/react"
 
 interface HistoryFilterBarProps {
   searchQuery: string
@@ -11,6 +11,7 @@ interface HistoryFilterBarProps {
   onScamTypeChange: (value: string) => void
   selectedCount: number
   onDeleteSelected: () => void
+  isDeleting?: boolean
 }
 
 export function HistoryFilterBar({
@@ -22,6 +23,7 @@ export function HistoryFilterBar({
   onScamTypeChange,
   selectedCount,
   onDeleteSelected,
+  isDeleting = false,
 }: HistoryFilterBarProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -34,12 +36,18 @@ export function HistoryFilterBar({
         <button
           type="button"
           onClick={onDeleteSelected}
-          disabled={selectedCount === 0}
+          disabled={selectedCount === 0 || isDeleting}
           className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#FFDAD6]/70 px-4 py-2 text-xs font-bold text-[#93000A] shadow-2xs transition-all hover:bg-[#FFDAD6] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-950/80"
         >
-          <Trash size={15} weight="bold" />
+          {isDeleting ? (
+            <CircleNotch size={15} className="animate-spin" />
+          ) : (
+            <Trash size={15} weight="bold" />
+          )}
           <span>
-            Xóa lịch sử đã chọn {selectedCount > 0 ? `(${selectedCount})` : ""}
+            {isDeleting
+              ? "Đang xóa..."
+              : `Xóa lịch sử đã chọn ${selectedCount > 0 ? `(${selectedCount})` : ""}`}
           </span>
         </button>
       </div>
@@ -64,7 +72,7 @@ export function HistoryFilterBar({
             <button
               type="button"
               onClick={() => onSearchChange("")}
-              className="absolute top-1/2 right-3 -translate-y-1/2 text-[#45464D] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:text-foreground"
+              className="absolute top-1/2 right-3 -translate-y-1/2 text-[#45464D] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:text-foreground cursor-pointer"
             >
               <X size={14} weight="bold" />
             </button>
@@ -76,7 +84,7 @@ export function HistoryFilterBar({
           <select
             value={timeRange}
             onChange={(e) => onTimeRangeChange(e.target.value)}
-            className="w-full appearance-none rounded-xl border border-[#C6C6CE]/50 bg-white py-2.5 pr-8 pl-3.5 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-card dark:text-foreground"
+            className="w-full appearance-none rounded-xl border border-[#C6C6CE]/50 bg-white py-2.5 pr-8 pl-3.5 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-card dark:text-foreground cursor-pointer"
           >
             <option value="30_days">Khoảng thời gian: 30 ngày qua</option>
             <option value="7_days">Khoảng thời gian: 7 ngày qua</option>
@@ -95,7 +103,7 @@ export function HistoryFilterBar({
           <select
             value={scamType}
             onChange={(e) => onScamTypeChange(e.target.value)}
-            className="w-full appearance-none rounded-xl border border-[#C6C6CE]/50 bg-white py-2.5 pr-8 pl-3.5 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-card dark:text-foreground"
+            className="w-full appearance-none rounded-xl border border-[#C6C6CE]/50 bg-white py-2.5 pr-8 pl-3.5 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-card dark:text-foreground cursor-pointer"
           >
             <option value="all">Hình thức: Toàn bộ thủ đoạn</option>
             <option value="telecom">Giả mạo viễn thông</option>

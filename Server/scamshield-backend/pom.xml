@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<argLine></argLine>
+		<test.excluded-pattern>**/*AcceptanceTest.java</test.excluded-pattern>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -49,6 +51,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
 		</dependency>
 
 		<dependency>
@@ -109,8 +115,8 @@
 			<optional>true</optional>
 		</dependency>
 		<dependency>
-			<groupId>com.h2database</groupId>
-			<artifactId>h2</artifactId>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers-postgresql</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -137,6 +143,20 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<argLine>@{argLine} -javaagent:"${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar"</argLine>
+					<systemPropertyVariables>
+						<springdotenv.enabled>false</springdotenv.enabled>
+						<spring.profiles.active>test</spring.profiles.active>
+						<!-- Fail closed if a database test forgets the container base class. -->
+						<spring.datasource.url>jdbc:postgresql://127.0.0.1:1/testcontainers-required</spring.datasource.url>
+					</systemPropertyVariables>
+					<excludes><exclude>${test.excluded-pattern}</exclude></excludes>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
@@ -182,5 +202,16 @@
 			</plugin>
 		</plugins>
 	</build>
+	<profiles>
+		<profile>
+			<id>live-acceptance</id>
+			<properties><test.excluded-pattern>**/NoExcludedTests.java</test.excluded-pattern></properties>
+			<build><plugins><plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration><includes><include>**/*AcceptanceTest.java</include></includes></configuration>
+			</plugin></plugins></build>
+		</profile>
+	</profiles>
 
 </project>

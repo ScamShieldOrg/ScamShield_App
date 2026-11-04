@@ -1,6 +1,7 @@
 package com.be.scamshield.security;
 
 import com.be.scamshield.entity.User;
+import org.springframework.security.authentication.DisabledException;
 import com.be.scamshield.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -21,7 +22,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmailOrPhoneNumber(usernameOrEmailOrPhone)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email or phone number: " + usernameOrEmailOrPhone));
 
-        return UserPrincipal.create(user);
+        return activePrincipal(user);
     }
 
     @Transactional(readOnly = true)
@@ -29,6 +30,13 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + id));
 
+        return activePrincipal(user);
+    }
+    private UserPrincipal activePrincipal(User user) {
+        if ("SUSPENDED".equalsIgnoreCase(user.getStatus()) || "BANNED".equalsIgnoreCase(user.getStatus())) {
+            throw new DisabledException("Tài khoản đã bị tạm khóa hoặc bị cấm");
+        }
         return UserPrincipal.create(user);
     }
+
 }

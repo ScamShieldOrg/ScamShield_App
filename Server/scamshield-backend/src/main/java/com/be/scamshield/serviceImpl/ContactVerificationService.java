@@ -1,12 +1,12 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.dto.ContactVerificationEntry;
 import com.be.scamshield.dto.request.VerifyContactsRequest;
 import com.be.scamshield.dto.response.ContactVerificationResponse;
-import com.be.scamshield.entity.ContactVerification;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.RegistrationConflictException;
-import com.be.scamshield.repository.ContactVerificationRepository;
 import com.be.scamshield.repository.UserRepository;
+import com.be.scamshield.service.IContactVerificationStore;
 import com.be.scamshield.service.IOtpService;
 import com.be.scamshield.util.VietnamPhoneNumbers;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +15,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.net.IDN;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +36,7 @@ public class ContactVerificationService {
     private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
     private final UserRepository userRepository;
     private final IOtpService otpService;
-    private final ContactVerificationRepository verificationRepository;
+    private final IContactVerificationStore contactVerificationStore;
     private final Clock applicationClock;
 
     @Value("${app.contact-verification.expiration-ms}")
@@ -58,8 +60,9 @@ public class ContactVerificationService {
         TOKEN_RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         LocalDateTime expiresAt = LocalDateTime.now(applicationClock).plus(Duration.ofMillis(verificationExpirationMs));
-        verificationRepository.saveAndFlush(ContactVerification.builder()
-                .tokenHash(hashToken(token)).phoneNumber(phone).expiresAt(expiresAt).build());
+        contactVerificationStore.save(ContactVerificationEntry.builder()
+                .tokenHash(hashToken(token)).phoneNumber(phone).expiresAt(expiresAt).build(),
+                Duration.ofMillis(verificationExpirationMs));
         return new ContactVerificationResponse(token, expiresAt);
     }
 
@@ -68,20 +71,47 @@ public class ContactVerificationService {
         if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) {
             throw new BadRequestException("Cần xác thực điện thoại trước khi đăng ký");
         }
-        ContactVerification verification = verificationRepository.findLockedByTokenHash(hashToken(token))
-                .orElseThrow(() -> new BadRequestException("Mã xác nhận điện thoại không hợp lệ"));
+        String tokenHash = hashToken(token);
         LocalDateTime now = LocalDateTime.now(applicationClock);
-        if (verification.getUsedAt() != null || !verification.getExpiresAt().isAfter(now)) {
+        String nationalPhone = VietnamPhoneNumbers.nationalMobile(phone);
+        int result = contactVerificationStore.consume(tokenHash, nationalPhone, now);
+        if (result == -1) {
+            throw new BadRequestException("Mã xác nhận điện thoại không hợp lệ");
+        } else if (result == -2) {
             throw new BadRequestException("Mã xác nhận đã dùng hoặc hết hạn; vui lòng xác thực lại");
-        }
-        if (!verification.getPhoneNumber().equals(VietnamPhoneNumbers.nationalMobile(phone))) {
+        } else if (result == -3) {
             throw new BadRequestException("Số điện thoại đã thay đổi; vui lòng xác thực lại");
         }
-        verification.setUsedAt(now);
-        verificationRepository.saveAndFlush(verification);
+
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) {
+                        contactVerificationStore.rollbackConsumption(tokenHash);
+                    }
+                }
+            });
+        }
     }
 
-    private String hashToken(String token) {
+    public void validateForRegistration(String token, String phone) {
+        if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) {
+            throw new BadRequestException("Cần xác thực điện thoại trước khi đăng ký");
+        }
+        var entry = contactVerificationStore.findByTokenHash(hashToken(token))
+                .orElseThrow(() -> new BadRequestException("Mã xác nhận điện thoại không hợp lệ"));
+        if (entry.getUsedAt() != null || entry.getExpiresAt() == null
+                || !entry.getExpiresAt().isAfter(LocalDateTime.now(applicationClock))) {
+            throw new BadRequestException("Mã xác nhận đã dùng hoặc hết hạn; vui lòng xác thực lại");
+        }
+        if (!VietnamPhoneNumbers.nationalMobile(phone).equals(entry.getPhoneNumber())) {
+            throw new BadRequestException("Số điện thoại đã thay đổi; vui lòng xác thực lại");
+        }
+        // This preflight avoids external API calls for invalid tokens. Atomic consumption still occurs in the write transaction.
+    }
+
+    public String hashToken(String token) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException ex) {

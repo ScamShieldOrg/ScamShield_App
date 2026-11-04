@@ -39,6 +39,10 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long>, JpaSpec
     boolean existsBySubmittedByUserIdAndConfirmedIndicatorIdAndStatusIn(
             Long userId, Long confirmedId, Collection<DisputeStatus> statuses);
 
+    long countByStatusIn(Collection<DisputeStatus> statuses);
+
+    long countByStatus(DisputeStatus status);
+
     @Query("""
             SELECT AVG(timestampdiff(SECOND, d.createdAt, d.resolvedAt)) FROM Dispute d
             WHERE d.submittedByUser.id = :userId AND d.status IN :resolvedStatuses

@@ -36,3 +36,4 @@ build/
 .env
 application-dev.yml
 .agents
+docs

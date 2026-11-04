@@ -1,3 +1,5 @@
+import { AdminWhitelistDashboard } from "@/components/features/admin/whitelist/admin-whitelist-dashboard"
+
 export default function AdminWhitelistPage() {
-  return <div>This is admin whitelist page</div>
+  return <AdminWhitelistDashboard />
 }

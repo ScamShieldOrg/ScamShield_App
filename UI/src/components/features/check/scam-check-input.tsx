@@ -2,12 +2,10 @@
 
 import { useState } from "react"
 import {
+  Bank,
   ChatText,
   Link as LinkIcon,
   Phone,
-  Scan,
-  ImageSquare,
-  UploadSimple,
   ClipboardText,
   Trash,
   Lightning,
@@ -15,11 +13,17 @@ import {
   Sparkle,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
-import { CheckType } from "@/features/check/types/check.types"
+import { Button } from "@/components/ui/button"
+import type { ScamCheckInputType } from "@/features/check/types/scam-check.types"
 
 interface ScamCheckInputProps {
-  onAnalyze: (content: string, type: CheckType) => void
-  isLoading?: boolean
+  inputType: ScamCheckInputType
+  content: string
+  onTypeChange: (type: ScamCheckInputType) => void
+  onContentChange: (value: string) => void
+  onAnalyze: () => void
+  isLoading: boolean
+  error: string | null
 }
 
 export const CANONICAL_SCENARIOS = [
@@ -76,17 +80,36 @@ export function ScamCheckInput({ onAnalyze, isLoading }: ScamCheckInputProps) {
     },
   ]
 
+export function ScamCheckInput({
+  inputType,
+  content,
+  onTypeChange,
+  onContentChange,
+  onAnalyze,
+  isLoading,
+  error,
+}: ScamCheckInputProps) {
+  const [clipboardError, setClipboardError] = useState<string | null>(null)
+  const selected = options.find((option) => option.type === inputType)!
   const handlePaste = async () => {
+    setClipboardError(null)
     try {
-      const text = await navigator.clipboard.readText()
-      if (text) setContent(text)
+      onContentChange(await navigator.clipboard.readText())
     } catch {
-      // Ignore clipboard read error
+      setClipboardError(
+        "Không thể đọc bộ nhớ tạm. Vui lòng dán trực tiếp vào ô nhập."
+      )
     }
   }
-
-  const handleClear = () => {
-    setContent("")
+  const fieldProps = {
+    id: "user-check-content",
+    value: content,
+    placeholder: selected.placeholder,
+    maxLength: 10000,
+    "aria-invalid": !!error,
+    "aria-describedby": `user-check-hint${error ? " user-check-error" : ""}`,
+    className:
+      "w-full rounded-xl border border-input bg-background p-4 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring aria-invalid:border-destructive",
   }
 
   // Count chars and detect links / phone numbers in text
@@ -95,30 +118,37 @@ export function ScamCheckInput({ onAnalyze, isLoading }: ScamCheckInputProps) {
   const phoneCount = (content.match(/(0\d{9,10}|\+84\d{9,10})/g) || []).length
 
   return (
-    <div className="space-y-4">
-      {/* 4 Type Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#C6C6CE]/30 pb-3 dark:border-border">
-        {tabs.map((tab) => {
-          const Icon = tab.icon
-          const isActive = activeTab === tab.type
-          return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        onAnalyze()
+      }}
+      aria-busy={isLoading}
+      className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm"
+    >
+      <fieldset disabled={isLoading} className="min-w-0 space-y-4">
+        <legend className="mb-3 text-sm font-semibold">
+          Chọn loại nội dung
+        </legend>
+        <div className="flex flex-wrap gap-2 border-b border-border pb-4">
+          {options.map(({ type, label, Icon }) => (
             <button
-              key={tab.type}
+              key={type}
               type="button"
-              onClick={() => setActiveTab(tab.type)}
+              aria-pressed={inputType === type}
+              onClick={() => {
+                onTypeChange(type)
+                setClipboardError(null)
+              }}
               className={cn(
-                "inline-flex cursor-pointer items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all",
-                isActive
-                  ? "border border-[#C6C6CE]/50 bg-white text-[#131B2E] shadow-xs dark:border-border dark:bg-card dark:text-foreground"
-                  : "text-[#45464D] hover:bg-[#F2F3FF] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:bg-muted"
+                "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+                inputType === type
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
               )}
             >
-              <Icon
-                size={16}
-                weight={isActive ? "fill" : "regular"}
-                className={isActive ? "text-[#008CC7] dark:text-primary" : ""}
-              />
-              <span>{tab.label}</span>
+              <Icon aria-hidden="true" size={16} />
+              {label}
             </button>
           )
         })}
@@ -205,42 +235,53 @@ export function ScamCheckInput({ onAnalyze, isLoading }: ScamCheckInputProps) {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={handlePaste}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#C6C6CE]/60 bg-white px-3 py-1.5 text-xs font-semibold text-[#45464D] hover:bg-[#F2F3FF] hover:text-[#131B2E] dark:border-border dark:bg-card dark:text-muted-foreground dark:hover:bg-muted"
+              variant="outline"
+              size="sm"
+              onClick={() => void handlePaste()}
             >
-              <ClipboardText size={15} weight="bold" />
-              <span>Dán nhanh từ Clipboard</span>
-            </button>
-            <button
+              <ClipboardText aria-hidden="true" />
+              Dán nhanh
+            </Button>
+            <Button
               type="button"
-              onClick={handleClear}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#C6C6CE]/60 bg-white px-3 py-1.5 text-xs font-semibold text-[#45464D] hover:bg-rose-50 hover:text-rose-600 dark:border-border dark:bg-card dark:text-muted-foreground dark:hover:bg-rose-950/20"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onContentChange("")
+                setClipboardError(null)
+              }}
             >
               <Trash size={15} weight="bold" />
               <span>Xóa nội dung</span>
             </button>
           </div>
-
-          <button
-            type="button"
-            disabled={!content.trim() || isLoading}
-            onClick={() => onAnalyze(content, activeTab)}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#0B132B] px-6 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#131B2E] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
-          >
+          <Button type="submit" disabled={isLoading || !content.trim()}>
             {isLoading ? (
-              <>
-                <CircleNotch size={16} className="animate-spin" />
-                <span>Đang giám định...</span>
-              </>
+              <CircleNotch
+                aria-hidden="true"
+                className="motion-safe:animate-spin"
+              />
             ) : (
-              <>
-                <Lightning size={16} weight="fill" />
-                <span>Phân tích</span>
-              </>
+              <Lightning aria-hidden="true" weight="fill" />
             )}
-          </button>
+            {isLoading ? "Đang phân tích…" : "Phân tích"}
+          </Button>
         </div>
-      </div>
-    </div>
+      </fieldset>
+      {clipboardError && (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {clipboardError}
+        </p>
+      )}
+      {error && (
+        <p
+          id="user-check-error"
+          role="alert"
+          className="mt-3 text-sm text-destructive"
+        >
+          {error}
+        </p>
+      )}
+    </form>
   )
 }

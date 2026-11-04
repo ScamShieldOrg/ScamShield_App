@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+import com.be.scamshield.external.SupabaseStorageService;
+
+import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.DisputeIndicatorType;
 import com.be.scamshield.constant.DisputePriority;
 import com.be.scamshield.constant.DisputeStatus;
@@ -140,7 +144,7 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
             for (var file : evidenceRepository.findFilesForDisputes(drafts.stream().map(Dispute::getId).toList())) {
                 attachments.computeIfAbsent(file.getDisputeId(), key -> new ArrayList<>()).add(new Attachment(file.getId(),
                         file.getEvidenceType(), file.getFileName(), downloadUrl(file.getFileUrl(), file.getStorageObjectKey()),
-                        file.getFileSize(), file.getContentType(), file.getDescription(), file.getVerificationStatus(), file.getCreatedAt()));
+                        file.getFileSize(), file.getContentType(), file.getDescription(), EvidenceVerificationStatus.fromStoredValue(file.getVerificationStatus()), file.getCreatedAt()));
             }
         }
         return PaginatedResponse.buildPaginatedResponse(drafts.map(draft -> formResponse(draft,
@@ -203,7 +207,9 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
     }
 
     private ConfirmedIndicator requireActiveIndicator(DisputeIndicatorType type, String value) {
-        Collection<String> types = type == DisputeIndicatorType.URL ? List.of("URL", "WEBSITE") : List.of(type.name());
+        IndicatorType indicatorType = IndicatorType.fromStoredValue(type.name())
+                .orElseThrow(() -> new BadRequestException("Loại đối tượng phải là PHONE, BANK_ACCOUNT hoặc URL"));
+        Collection<String> types = List.of(indicatorType.name());
         List<ConfirmedIndicator> matches = confirmedRepository.findForDispute(types, indicatorCandidates(type, value));
         if (matches.isEmpty()) {
             throw new ResourceNotFoundException("Không tìm thấy xác thực blacklist cho chỉ số này");
@@ -356,7 +362,7 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
                     .evidenceType("application/pdf".equals(file.contentType()) ? "DOCUMENT" : "IMAGE")
                     .fileName(file.name()).fileUrl(uploaded.fileUrl()).fileHash(uploaded.fileHash())
                     .storageObjectKey(uploaded.objectKey()).fileSize(file.size()).contentType(file.contentType())
-                    .verificationStatus("PENDING").createdAt(now).build();
+                    .verificationStatus(EvidenceVerificationStatus.PENDING.name()).createdAt(now).build();
             evidence.add(evidenceRepository.save(attachment));
         }
         evidenceRepository.flush();
@@ -365,7 +371,7 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
     private DisputeFormResponse toResponse(Dispute dispute, List<DisputeEvidence> evidence) {
         List<Attachment> attachments = evidence.stream().map(e -> new Attachment(e.getId(), e.getEvidenceType(), e.getFileName(),
                 downloadUrl(e.getFileUrl(), e.getStorageObjectKey()), e.getFileSize(), e.getContentType(), e.getDescription(),
-                e.getVerificationStatus(), e.getCreatedAt())).toList();
+                EvidenceVerificationStatus.fromStoredValue(e.getVerificationStatus()), e.getCreatedAt())).toList();
         return formResponse(dispute, attachments);
     }
 
@@ -374,7 +380,13 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
         String value = dispute.getDraftIndicatorValue();
         if (dispute.getConfirmedIndicator() != null) {
             var indicator = dispute.getConfirmedIndicator().getIndicator();
-            type = "WEBSITE".equals(indicator.getType()) ? DisputeIndicatorType.URL : DisputeIndicatorType.valueOf(indicator.getType());
+            IndicatorType indicatorType = IndicatorType.fromStoredValue(indicator.getType())
+                    .orElseThrow(() -> new BadRequestException("Loại đối tượng khiếu nại không được hỗ trợ"));
+            type = switch (indicatorType) {
+                case URL -> DisputeIndicatorType.URL;
+                case PHONE, BANK_ACCOUNT -> DisputeIndicatorType.valueOf(indicatorType.name());
+                default -> throw new BadRequestException("Loại đối tượng khiếu nại không được hỗ trợ");
+            };
             value = indicator.getNormalizedValue();
         }
         return new DisputeFormResponse(dispute.getId(), "DSP-" + dispute.getId(), dispute.getStatus(), type, value,
