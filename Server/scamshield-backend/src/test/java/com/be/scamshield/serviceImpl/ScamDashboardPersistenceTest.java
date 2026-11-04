@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.VietnamProvince;
+import com.be.scamshield.external.ScamCheckAiClient;
+
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.support.PostgresIntegrationTest;
 
 import com.be.scamshield.constant.ScamDashboardPeriod;
@@ -50,6 +54,8 @@ class ScamDashboardPersistenceTest extends PostgresIntegrationTest {
     private MockMvc mvc;
     @MockitoBean
     private Clock clock;
+    @MockitoBean
+    private ScamCheckAiClient scamCheckAiClient;
     private User reporter;
     private ScamCategory jobs;
     private ScamCategory prize;
@@ -193,8 +199,8 @@ class ScamDashboardPersistenceTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void flagsMissingAndUnknownRegionCodesWithoutClaimingProvinceCoverage() {
-        jdbc.update("UPDATE reports SET region_code = '99'");
+    void flagsMissingRegionCodesWithoutClaimingProvinceCoverage() {
+        jdbc.update("UPDATE reports SET region_code = NULL");
         var summary = service.getSummary(new ScamDashboardFilterRequest());
         assertThat(summary.reports().total()).isEqualTo(8);
         assertThat(summary.coverage().reportedProvinces()).isZero();
@@ -254,8 +260,8 @@ class ScamDashboardPersistenceTest extends PostgresIntegrationTest {
     }
 
     private void report(Indicator indicator, ScamCategory category, String regionCode, String createdAt) {
-        entityManager.persist(Report.builder().reporterUser(reporter).indicator(indicator).status("PENDING")
-                .category(category).regionCode(regionCode).reportCountSignal(1).coordinatedReportSuspected(false)
-                .moderationLocked(false).createdAt(LocalDateTime.parse(createdAt)).updatedAt(NOW).build());
+        entityManager.persist(Report.builder().reporterUser(reporter).indicator(indicator).status(ReportStatus.PENDING)
+                .category(category).regionCode(regionCode == null ? null : VietnamProvince.fromCode(regionCode).orElseThrow())
+                .createdAt(LocalDateTime.parse(createdAt)).updatedAt(NOW).build());
     }
 }

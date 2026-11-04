@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.external.SupabaseStorageService;
 
 import com.be.scamshield.constant.EvidenceVerificationStatus;
@@ -206,7 +207,9 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
     }
 
     private ConfirmedIndicator requireActiveIndicator(DisputeIndicatorType type, String value) {
-        Collection<String> types = type == DisputeIndicatorType.URL ? List.of("URL", "WEBSITE") : List.of(type.name());
+        IndicatorType indicatorType = IndicatorType.fromStoredValue(type.name())
+                .orElseThrow(() -> new BadRequestException("Loại đối tượng phải là PHONE, BANK_ACCOUNT hoặc URL"));
+        Collection<String> types = List.of(indicatorType.name());
         List<ConfirmedIndicator> matches = confirmedRepository.findForDispute(types, indicatorCandidates(type, value));
         if (matches.isEmpty()) {
             throw new ResourceNotFoundException("Không tìm thấy xác thực blacklist cho chỉ số này");
@@ -377,7 +380,13 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
         String value = dispute.getDraftIndicatorValue();
         if (dispute.getConfirmedIndicator() != null) {
             var indicator = dispute.getConfirmedIndicator().getIndicator();
-            type = "WEBSITE".equals(indicator.getType()) ? DisputeIndicatorType.URL : DisputeIndicatorType.valueOf(indicator.getType());
+            IndicatorType indicatorType = IndicatorType.fromStoredValue(indicator.getType())
+                    .orElseThrow(() -> new BadRequestException("Loại đối tượng khiếu nại không được hỗ trợ"));
+            type = switch (indicatorType) {
+                case URL -> DisputeIndicatorType.URL;
+                case PHONE, BANK_ACCOUNT -> DisputeIndicatorType.valueOf(indicatorType.name());
+                default -> throw new BadRequestException("Loại đối tượng khiếu nại không được hỗ trợ");
+            };
             value = indicator.getNormalizedValue();
         }
         return new DisputeFormResponse(dispute.getId(), "DSP-" + dispute.getId(), dispute.getStatus(), type, value,

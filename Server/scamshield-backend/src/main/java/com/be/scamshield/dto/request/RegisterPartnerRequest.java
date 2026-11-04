@@ -6,7 +6,6 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -59,10 +58,6 @@ public class RegisterPartnerRequest {
     @NotEmpty(message = "Cần ít nhất một SMS Brandname")
     @Size(max = 100, message = "SMS Brandname tối đa 100 ký tự")
     private String smsBrandNames;
-
-    @NotNull(message = "Cần xác định người đăng ký có phải đại diện pháp luật không")
-    @Schema(description = "Nếu false, phải gửi authorizationFiles")
-    private Boolean legalRepresentative;
 
     @AssertTrue(message = "Bạn phải cam kết thông tin chính xác và thuộc quyền sở hữu hợp pháp")
     private boolean agreeTerms;

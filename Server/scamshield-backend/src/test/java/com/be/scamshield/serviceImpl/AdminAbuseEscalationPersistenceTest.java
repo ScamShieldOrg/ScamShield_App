@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ReportEvidenceType;
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.support.PostgresIntegrationTest;
 
 import com.be.scamshield.constant.EvidenceVerificationStatus;
@@ -189,7 +191,7 @@ class AdminAbuseEscalationPersistenceTest extends PostgresIntegrationTest {
         Report pending = report(target, "pending.example");
         pending.setIndicator(rejected.getIndicator());
         pending.setCreatedAt(NOW.minusHours(2));
-        pending.setStatus("PENDING");
+        pending.setStatus(ReportStatus.PENDING);
         Report outsideWindow = report(target, "old.example");
         outsideWindow.setCreatedAt(NOW.minusHours(25));
         Report afterEscalation = report(target, "future.example");
@@ -254,10 +256,10 @@ class AdminAbuseEscalationPersistenceTest extends PostgresIntegrationTest {
         Report end = report(target, "end.example");
         end.setCreatedAt(NOW);
         end.setIndicator(start.getIndicator());
-        end.setStatus("PENDING");
+        end.setStatus(ReportStatus.PENDING);
         Report middle = report(target, "middle.example");
         middle.setCreatedAt(NOW.minusHours(4));
-        middle.setStatus("APPROVED");
+        middle.setStatus(ReportStatus.APPROVED);
         report(target, "too-old.example").setCreatedAt(NOW.minusHours(24).minusSeconds(1));
         report(target, "too-new.example").setCreatedAt(NOW.plusSeconds(1));
         report(other, "other.example");
@@ -363,28 +365,23 @@ class AdminAbuseEscalationPersistenceTest extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"PENDING", "VERIFIED", "REJECTED", "OCR_PASS", " verified ", "LEGACY_UNKNOWN"})
-    void detailMapsStringEvidenceStatusWithoutChangingStoredValue(String storedStatus) {
+    @ValueSource(strings = {"PENDING", "VERIFIED", "REJECTED"})
+    void detailReadsPersistedEnumEvidenceStatus(String storedStatus) {
         Report linked = report(target, "enum-evidence.example");
         AbuseFlag selected = flag(target, "PENDING", NOW);
         selected.setReport(linked);
         ReportEvidence attached = evidence(linked, "status.png");
-        attached.setVerificationStatus(storedStatus);
+        attached.setVerificationStatus(EvidenceVerificationStatus.valueOf(storedStatus));
         flushAndClear();
 
         var response = service.getEscalationById(selected.getId()).getReports().getFirst().getEvidences().getFirst();
-        if ("LEGACY_UNKNOWN".equals(storedStatus) || "OCR_PASS".equals(storedStatus)) {
-            assertThat(response.getVerificationStatus()).isNull();
-        } else {
-            assertThat(response.getVerificationStatus()).isEqualTo(
-                    EvidenceVerificationStatus.valueOf(storedStatus.trim().toUpperCase(Locale.ROOT)));
-        }
-        assertThat(entityManager.find(ReportEvidence.class, attached.getId()).getVerificationStatus()).isEqualTo(storedStatus);
+        assertThat(response.getVerificationStatus()).isEqualTo(EvidenceVerificationStatus.valueOf(storedStatus));
+        assertThat(entityManager.find(ReportEvidence.class, attached.getId()).getVerificationStatus()).isEqualTo(EvidenceVerificationStatus.valueOf(storedStatus));
     }
 
     private ReportEvidence evidence(Report report, String fileName) {
-        ReportEvidence evidence = ReportEvidence.builder().report(report).evidenceType("IMAGE").fileName(fileName)
-                .fileUrl("https://files.example.test/" + fileName).verificationStatus(EvidenceVerificationStatus.PENDING.name()).createdAt(NOW).build();
+        ReportEvidence evidence = ReportEvidence.builder().report(report).evidenceType(ReportEvidenceType.PNG).fileName(fileName)
+                .fileUrl("https://files.example.test/" + fileName).verificationStatus(EvidenceVerificationStatus.PENDING).createdAt(NOW).build();
         entityManager.persist(evidence);
         return evidence;
     }
@@ -632,8 +629,8 @@ class AdminAbuseEscalationPersistenceTest extends PostgresIntegrationTest {
     private Report report(User user, String value) {
         Indicator indicator = Indicator.builder().type("URL").normalizedValue(value).createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(indicator);
-        Report report = Report.builder().reporterUser(user).indicator(indicator).status("REJECTED")
-                .reportCountSignal(1).coordinatedReportSuspected(false).moderationLocked(false)
+        Report report = Report.builder().reporterUser(user).indicator(indicator).status(ReportStatus.REJECTED)
+
                 .createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(report);
         return report;

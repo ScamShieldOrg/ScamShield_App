@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useEffectEvent, useRef, useState } from "react"
 import { toast } from "react-toastify"
 import { loadGoogleIdentityScript, getGoogleClientId } from "@/lib/google/google-auth"
 import { cn } from "@/lib/utils"
@@ -58,6 +58,14 @@ export function GoogleAuthButton({
   const [isGisReady, setIsGisReady] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const clientId = getGoogleClientId()
+  const handleCredential = useEffectEvent((response: { credential: string }) => {
+    if (disabled || isLoading) return
+    if (response.credential) onSuccess(response.credential)
+    else onError?.("Không nhận được chứng thực từ Google.")
+  })
+  const handleInitError = useEffectEvent(() => {
+    onError?.("Không thể kết nối Google. Vui lòng tải lại trang.")
+  })
 
   useEffect(() => {
     let mounted = true
@@ -74,11 +82,7 @@ export function GoogleAuthButton({
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (response: { credential: string }) => {
-            if (response.credential) {
-              onSuccess(response.credential)
-            } else {
-              onError?.("Không nhận được chứng thực từ Google OAuth 2.0")
-            }
+            if (mounted) handleCredential(response)
           },
           auto_select: false,
           cancel_on_tap_outside: true,
@@ -99,9 +103,8 @@ export function GoogleAuthButton({
           })
           setIsGisReady(true)
         }
-      } catch (err) {
-        console.error("Lỗi khởi tạo Google OAuth 2.0 GIS:", err)
-        onError?.(err instanceof Error ? err.message : "Khởi tạo Google OAuth 2.0 thất bại")
+      } catch {
+        if (mounted) handleInitError()
       }
     }
 
@@ -109,8 +112,9 @@ export function GoogleAuthButton({
 
     return () => {
       mounted = false
+      window.google?.accounts.id.cancel()
     }
-  }, [clientId, text, onSuccess, onError])
+  }, [clientId, text])
 
   function handleFallbackClick() {
     if (!clientId) {
@@ -120,13 +124,7 @@ export function GoogleAuthButton({
       return
     }
 
-    if (window.google?.accounts?.id) {
-      try {
-        window.google.accounts.id.prompt()
-      } catch {
-        toast.info("Đang kết nối Google OAuth 2.0...")
-      }
-    }
+    if (!isGisReady) toast.info("Đang tải đăng nhập Google. Vui lòng thử lại.")
   }
 
   const defaultLabel = text === "signup_with" ? "Đăng ký bằng Google" : "Đăng nhập với Google"

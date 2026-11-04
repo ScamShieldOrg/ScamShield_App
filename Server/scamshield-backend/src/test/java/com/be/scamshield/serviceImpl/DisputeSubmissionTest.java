@@ -3,6 +3,7 @@ package com.be.scamshield.serviceImpl;
 import com.be.scamshield.support.PostgresIntegrationTest;
 
 import com.be.scamshield.external.SupabaseStorageService;
+import com.be.scamshield.external.ScamCheckAiClient;
 
 import com.be.scamshield.constant.DisputeStatus;
 import com.be.scamshield.entity.ConfirmedIndicator;
@@ -80,6 +81,7 @@ class DisputeSubmissionTest extends PostgresIntegrationTest {
     @Autowired private ObjectMapper objectMapper;
     @MockitoBean private Clock clock;
     @MockitoBean private SupabaseStorageService storage;
+    @MockitoBean private ScamCheckAiClient scamCheckAiClient;
 
     private TransactionTemplate transactions;
     private User owner;
@@ -178,7 +180,7 @@ class DisputeSubmissionTest extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"BANK_ACCOUNT,123456789,123 456 789", "URL,shop.example.test,https://SHOP.example.test/", "BRANDNAME,SCAMSHIELD,scamshield"})
+    @CsvSource({"BANK_ACCOUNT,123456789,123 456 789", "URL,shop.example.test,https://SHOP.example.test/"})
     void otherIndicatorTypesResolveToTheExistingNormalizedTarget(String type, String normalizedValue, String input) throws Exception {
         transactions.executeWithoutResult(ignored -> confirmed(type, normalizedValue, "ACTIVE"));
         String request = validRequest(input).replace("\"PHONE\"", "\"" + type + "\"");
@@ -186,6 +188,17 @@ class DisputeSubmissionTest extends PostgresIntegrationTest {
                         .with(user(UserPrincipal.create(owner))))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.indicatorType").value(type))
                 .andExpect(jsonPath("$.data.indicatorValue").value(normalizedValue));
+    }
+
+    @Test
+    void brandnameIsRejectedEvenWhenAnActiveLegacyIndicatorExists() throws Exception {
+        transactions.executeWithoutResult(ignored -> confirmed("BRANDNAME", "SCAMSHIELD", "ACTIVE"));
+        String request = validRequest("scamshield").replace("\"PHONE\"", "\"BRANDNAME\"");
+        mvc.perform(multipart(SUBMIT).file(json(request)).file(pdf("proof.pdf"))
+                        .with(user(UserPrincipal.create(owner))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.message").value("Loại đối tượng phải là PHONE, BANK_ACCOUNT hoặc URL"));
     }
 
     @Test

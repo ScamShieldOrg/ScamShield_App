@@ -1,8 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
-import com.be.scamshield.constant.EvidenceVerificationStatus;
-import com.be.scamshield.constant.ReportPriority;
 import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.util.ReportStatusFilter;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.request.ModeratorDecisionRequest;
 import com.be.scamshield.dto.request.ModeratorReportFilterRequest;
@@ -15,13 +14,9 @@ import com.be.scamshield.exception.ResourceNotFoundException;
 import com.be.scamshield.repository.*;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IModeratorReportService;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
-import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -45,11 +40,12 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM HH:mm");
     private static final Pattern CASE_CODE_PATTERN = Pattern.compile("(?i)CS-\\d{4}-(\\d+)");
-    private static final Set<String> DECIDABLE_STATUSES = Set.of(
-            ReportStatus.PENDING.name(),
-            ReportStatus.IN_REVIEW.name()
+    private static final Set<ReportStatus> DECIDABLE_STATUSES = Set.of(
+            ReportStatus.PENDING,
+            ReportStatus.IN_REVIEW
     );
 
+    private final IndicatorRepository indicatorRepository;
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final UserRepository userRepository;
@@ -112,16 +108,14 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     @Override
     @Transactional(readOnly = true)
     public ModeratorQueueCountsResponse getQueueCounts() {
-        long locked = reportRepository.countByModerationLockedTrueOrStatusIgnoreCase("LOCKED");
-        long pending = reportRepository.countByStatusIgnoreCaseAndModerationLockedFalse("PENDING");
-        long inReview = reportRepository.countByStatusIgnoreCaseAndModerationLockedFalse("IN_REVIEW");
+        long pending = reportRepository.countByStatus(ReportStatus.PENDING);
+        long inReview = reportRepository.countByStatus(ReportStatus.IN_REVIEW);
         long all = reportRepository.count();
 
         return ModeratorQueueCountsResponse.builder()
                 .all(all)
                 .pending(pending)
                 .inReview(inReview)
-                .locked(locked)
                 .build();
     }
 
@@ -142,16 +136,13 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             UserPrincipal currentUser,
             ModeratorDecisionRequest request) {
 
+        indicatorRepository.lockForReport(reportId);
         Report report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ báo cáo với ID: " + reportId));
 
-        String previousStatus = report.getStatus();
-        if (Boolean.TRUE.equals(report.getModerationLocked()) || "LOCKED".equalsIgnoreCase(previousStatus)) {
-            throw new BadRequestException("Hồ sơ báo cáo đang bị khóa kiểm duyệt, không thể xử lý");
-        }
-
-        if (previousStatus == null || !DECIDABLE_STATUSES.contains(previousStatus.toUpperCase())) {
-            if ("APPROVED".equalsIgnoreCase(previousStatus) || "REJECTED".equalsIgnoreCase(previousStatus)) {
+        ReportStatus previousStatus = report.getStatus();
+        if (previousStatus == null || !DECIDABLE_STATUSES.contains(previousStatus)) {
+            if (previousStatus == ReportStatus.APPROVED || previousStatus == ReportStatus.REJECTED) {
                 throw new BadRequestException("Hồ sơ báo cáo này đã có quyết định xử lý trước đó (" + previousStatus + ")");
             }
             throw new BadRequestException("Không thể xử lý hồ sơ ở trạng thái hiện tại (" + previousStatus + ")");
@@ -160,9 +151,9 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         User moderatorUser = resolveModeratorUser(currentUser);
         LocalDateTime now = LocalDateTime.now();
 
-        String newReportStatus = switch (request.getDecision()) {
-            case APPROVE -> "APPROVED";
-            case REJECT -> "REJECTED";
+        ReportStatus newReportStatus = switch (request.getDecision()) {
+            case APPROVE -> ReportStatus.APPROVED;
+            case REJECT -> ReportStatus.REJECTED;
         };
 
         // Determine optional matched ScamCategory from categoryId
@@ -177,13 +168,11 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         reportsToProcess.add(report);
 
         if (report.getIndicator() != null) {
-            for (String decidableStatus : DECIDABLE_STATUSES) {
-                List<Report> siblingReports = reportRepository.findByIndicatorIdAndStatusIgnoreCase(
+            for (ReportStatus decidableStatus : DECIDABLE_STATUSES) {
+                List<Report> siblingReports = reportRepository.findByIndicatorIdAndStatus(
                         report.getIndicator().getId(), decidableStatus);
                 for (Report siblingReport : siblingReports) {
-                    if (!siblingReport.getId().equals(report.getId())
-                            && !Boolean.TRUE.equals(siblingReport.getModerationLocked())
-                            && !"LOCKED".equalsIgnoreCase(siblingReport.getStatus())) {
+                    if (!siblingReport.getId().equals(report.getId())) {
                         reportsToProcess.add(siblingReport);
                     }
                 }
@@ -192,11 +181,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
 
         // Process all affected reports
         for (Report r : reportsToProcess) {
-            String prevStatus = r.getStatus();
+            ReportStatus prevStatus = r.getStatus();
             r.setStatus(newReportStatus);
-            r.setModerationLocked(false);
-            r.setLockedByUser(null);
-            r.setLockedAt(null);
             r.setUpdatedAt(now);
 
             if (matchedCategory != null) {
@@ -211,8 +197,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     .moderatorUser(moderatorUser)
                     .action(request.getDecision().name())
                     .reason(request.getReason())
-                    .previousStatus(prevStatus)
-                    .newStatus(newReportStatus)
+                    .previousStatus(prevStatus.name())
+                    .newStatus(newReportStatus.name())
                     .createdAt(now)
                     .build();
             moderationActionRepository.save(action);
@@ -223,8 +209,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     .action("MODERATION_" + request.getDecision().name())
                     .entityType("REPORT")
                     .entityId(r.getId())
-                    .previousValue(prevStatus)
-                    .newValue(newReportStatus)
+                    .previousValue(prevStatus.name())
+                    .newValue(newReportStatus.name())
                     .reason(request.getReason())
                     .createdAt(now)
                     .build();
@@ -236,8 +222,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 String targetVal = r.getIndicator() != null ? r.getIndicator().getDisplayValue() : ("#RPT-" + r.getId());
 
                 if (request.getDecision() == ModeratorDecisionRequest.DecisionType.APPROVE) {
-                    // Reward reputation points (+30 points)
-                    int bonusPoints = 30;
+                    // Reward reputation points only after approval (+50 points per report).
+                    int bonusPoints = 50;
                     int currentPoints = reporter.getReputationPoints() != null ? reporter.getReputationPoints() : 0;
                     reporter.setReputationPoints(currentPoints + bonusPoints);
                     userRepository.save(reporter);
@@ -322,48 +308,17 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     }
 
     private Specification<Report> createFilterSpecification(ModeratorReportFilterRequest filter) {
-        String tab = filter.getTab();
+        ReportStatus tab = ReportStatusFilter.parse(filter.getTab());
         String search = filter.getSearch();
-        ReportPriority priority = filter.getPriority();
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             // 1. Tab filtering
-            if (StringUtils.hasText(tab) && !"ALL".equalsIgnoreCase(tab.trim())) {
-                String cleanTab = tab.trim().toUpperCase();
-                switch (cleanTab) {
-                    case "PENDING" -> {
-                        predicates.add(cb.equal(cb.upper(root.get("status")), "PENDING"));
-                        predicates.add(cb.or(
-                                cb.isNull(root.get("moderationLocked")),
-                                cb.isFalse(root.get("moderationLocked"))
-                        ));
-                    }
-                    case "IN_REVIEW" -> {
-                        predicates.add(cb.equal(cb.upper(root.get("status")), "IN_REVIEW"));
-                        predicates.add(cb.or(
-                                cb.isNull(root.get("moderationLocked")),
-                                cb.isFalse(root.get("moderationLocked"))
-                        ));
-                    }
-                    case "LOCKED" -> {
-                        predicates.add(cb.or(
-                                cb.isTrue(root.get("moderationLocked")),
-                                cb.equal(cb.upper(root.get("status")), "LOCKED")
-                        ));
-                    }
-                    default -> {
-                        predicates.add(cb.equal(cb.upper(root.get("status")), cleanTab));
-                    }
-                }
+            if (tab != null) {
+                predicates.add(cb.equal(root.get("status"), tab));
             }
 
-            // 2. Priority filtering
-            if (priority != null) {
-                predicates.add(buildPriorityPredicate(root, cb, priority));
-            }
-
-            // 3. Search query filtering
+            // 2. Search query filtering
             if (StringUtils.hasText(search)) {
                 String searchTrim = search.trim();
                 String searchLike = "%" + searchTrim.toLowerCase() + "%";
@@ -396,34 +351,6 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         };
     }
 
-    private Predicate buildPriorityPredicate(Root<Report> root, CriteriaBuilder cb, ReportPriority priority) {
-        Predicate directMatch = cb.equal(root.get("priority"), priority);
-        Predicate nullPriority = cb.isNull(root.get("priority"));
-        Expression<BigDecimal> score = root.get("priorityScore");
-
-        Predicate fallbackMatch = switch (priority) {
-            case URGENT -> cb.and(
-                    nullPriority,
-                    cb.greaterThanOrEqualTo(score, Report.PRIORITY_THRESHOLD_URGENT)
-            );
-            case HIGH -> cb.and(
-                    nullPriority,
-                    cb.isNotNull(score),
-                    cb.greaterThanOrEqualTo(score, Report.PRIORITY_THRESHOLD_HIGH),
-                    cb.lessThan(score, Report.PRIORITY_THRESHOLD_URGENT)
-            );
-            case NORMAL -> cb.and(
-                    nullPriority,
-                    cb.or(
-                            cb.isNull(score),
-                            cb.lessThan(score, Report.PRIORITY_THRESHOLD_HIGH)
-                    )
-            );
-        };
-
-        return cb.or(directMatch, fallbackMatch);
-    }
-
     private Long parseSearchId(String search) {
         if (search.matches("\\d+")) {
             try {
@@ -448,7 +375,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         String formattedCode = String.format("CS-%d-%04d", year, report.getId());
 
         String targetIdentifier = "N/A";
-        String targetType = "UNKNOWN";
+        String targetType = null;
         if (report.getIndicator() != null) {
             targetType = report.getIndicator().getType();
             if (StringUtils.hasText(report.getIndicator().getDisplayValue())) {
@@ -477,10 +404,6 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 ? report.getCreatedAt().format(DATE_TIME_FORMATTER)
                 : "";
 
-        int completeness = report.getEvidenceCompleteness() != null
-                ? report.getEvidenceCompleteness()
-                : calculateEvidenceCompleteness(evidences);
-
         List<ModeratorEvidenceResponse> evidenceResponses = evidences.stream()
                 .map(this::mapToModeratorEvidenceResponse)
                 .toList();
@@ -489,7 +412,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 ? List.of(report.getCategory().getName())
                 : Collections.emptyList();
 
-        String uiStatus = mapToUiStatus(report.getStatus(), report.getModerationLocked());
+        String uiStatus = mapToUiStatus(report.getStatus() == null ? null : report.getStatus().name());
 
         return ModeratorReportResponse.builder()
                 .id(formattedCode)
@@ -498,26 +421,23 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .targetType(targetType)
                 .category(categoryName)
                 .categoryId(categoryId)
-                .reportCount(report.getReportCountSignal() != null ? report.getReportCountSignal() : 1)
+                .reportCount(1)
                 .reportedBy(reportedBy)
                 .reportedAt(reportedAt)
-                .priority(report.resolvePriority())
                 .status(uiStatus)
                 // Theo yêu cầu của người dùng: Hiện tại các trường phán quyết AI để trống trong DTO
                 .aiScore(null)
                 .aiRiskLevel(null)
                 .aiConfidence(null)
-                .evidenceCompleteness(completeness)
-                .reporterProposal(StringUtils.hasText(report.getReporterProposal()) ? report.getReporterProposal() : report.getDescription())
+                .evidenceCount(evidenceResponses.size())
                 .evidences(evidenceResponses)
                 .taxonomies(taxonomies)
-                .isLocked(Boolean.TRUE.equals(report.getModerationLocked()))
                 .build();
     }
 
     private ModeratorEvidenceResponse mapToModeratorEvidenceResponse(ReportEvidence ev) {
         String name = extractFileName(ev);
-        String type = resolveEvidenceType(ev.getEvidenceType(), ev.getFileUrl());
+        String type = resolveEvidenceType(ev.getEvidenceType() == null ? null : ev.getEvidenceType().name(), ev.getFileUrl());
 
         return ModeratorEvidenceResponse.builder()
                 .id("ev-" + ev.getId())
@@ -555,24 +475,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         return "image";
     }
 
-    private int calculateEvidenceCompleteness(List<ReportEvidence> evidences) {
-        if (evidences == null || evidences.isEmpty()) {
-            return 10;
-        }
-        int score = 30;
-        score += Math.min(evidences.size(), 3) * 15;
-        boolean hasVerifiedOrOcr = evidences.stream().anyMatch(e ->
-                StringUtils.hasText(e.getOcrText()) || EvidenceVerificationStatus.VERIFIED.name().equalsIgnoreCase(e.getVerificationStatus()));
-        if (hasVerifiedOrOcr) {
-            score += 15;
-        }
-        return Math.min(score, 100);
-    }
-
-    private String mapToUiStatus(String dbStatus, Boolean isLocked) {
-        if (Boolean.TRUE.equals(isLocked) || "LOCKED".equalsIgnoreCase(dbStatus)) {
-            return "Locked";
-        }
+    private String mapToUiStatus(String dbStatus) {
         if (dbStatus == null) {
             return "Pending";
         }

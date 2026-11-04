@@ -24,12 +24,14 @@ import {
 } from "@/features/report/types/report.types"
 
 export default function UserReportsPage() {
-  const [metrics, setMetrics] =
-    useState<ReportSummaryMetrics>(DEFAULT_SUMMARY_METRICS)
+  const [metrics, setMetrics] = useState<ReportSummaryMetrics>(
+    DEFAULT_SUMMARY_METRICS
+  )
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true)
 
-  const [statusCounts, setStatusCounts] =
-    useState<ReportStatusCounts>(DEFAULT_STATUS_COUNTS)
+  const [statusCounts, setStatusCounts] = useState<ReportStatusCounts>(
+    DEFAULT_STATUS_COUNTS
+  )
   const [categories, setCategories] = useState<ScamCategoryItem[]>([])
 
   const [reports, setReports] = useState<TrackingReportItem[]>([])
@@ -37,7 +39,9 @@ export default function UserReportsPage() {
   const [isExporting, setIsExporting] = useState(false)
 
   const [search, setSearch] = useState("")
-  const [selectedStatus, setSelectedStatus] = useState<"ALL" | ReportStatus>("ALL")
+  const [selectedStatus, setSelectedStatus] = useState<"ALL" | ReportStatus>(
+    "ALL"
+  )
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedDays, setSelectedDays] = useState("30")
 
@@ -74,8 +78,7 @@ export default function UserReportsPage() {
       try {
         const catId =
           selectedCategory !== "all" ? Number(selectedCategory) : undefined
-        const days =
-          selectedDays !== "all" ? Number(selectedDays) : undefined
+        const days = selectedDays !== "all" ? Number(selectedDays) : undefined
 
         const res = await getTrackingReports({
           search: search.trim() || undefined,
@@ -133,8 +136,7 @@ export default function UserReportsPage() {
     try {
       const catId =
         selectedCategory !== "all" ? Number(selectedCategory) : undefined
-      const days =
-        selectedDays !== "all" ? Number(selectedDays) : undefined
+      const days = selectedDays !== "all" ? Number(selectedDays) : undefined
 
       const blob = await exportTrackingReportsCsv({
         search: search.trim() || undefined,
@@ -165,9 +167,6 @@ export default function UserReportsPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <div className="inline-flex items-center rounded-full bg-[#E2E7FF]/70 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-[#008CC7] uppercase dark:bg-primary/20 dark:text-primary">
-            Minh Bạch Dữ Liệu
-          </div>
           <h1 className="font-heading text-2xl font-bold tracking-tight text-[#131B2E] dark:text-foreground">
             Báo Cáo & Theo Dõi Tiến Trình
           </h1>
@@ -185,7 +184,9 @@ export default function UserReportsPage() {
               weight="bold"
               className={isExporting ? "animate-bounce" : ""}
             />
-            <span>{isExporting ? "Đang xuất CSV..." : "Xuất đối soát (CSV)"}</span>
+            <span>
+              {isExporting ? "Đang xuất CSV..." : "Xuất đối soát (CSV)"}
+            </span>
           </button>
 
           <Link
@@ -225,4 +226,3 @@ export default function UserReportsPage() {
     </div>
   )
 }
-

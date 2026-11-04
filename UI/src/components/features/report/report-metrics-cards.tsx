@@ -53,7 +53,7 @@ export function ReportMetricsCards({
           {metrics.totalReports}
         </div>
 
-        <div className="inline-flex items-center gap-1 rounded-full bg-[#E2E7FF]/60 px-2.5 py-0.5 text-[11px] font-semibold text-[#131B2E] dark:bg-muted dark:text-foreground">
+        <div className="inline-flex min-h-6 items-center gap-1 rounded-full bg-[#E2E7FF]/60 px-2.5 py-0.5 text-[11px] font-semibold text-[#131B2E] dark:bg-muted dark:text-foreground">
           <span className="font-bold text-[#008CC7] dark:text-primary">
             +{metrics.recentReports7Days}
           </span>{" "}
@@ -76,7 +76,7 @@ export function ReportMetricsCards({
           {metrics.blacklistedCount}
         </div>
 
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#45464D] dark:text-muted-foreground">
+        <div className="flex min-h-6 items-center gap-1.5 text-[11px] font-medium text-[#45464D] dark:text-muted-foreground">
           <Shield
             size={13}
             weight="fill"
@@ -104,7 +104,7 @@ export function ReportMetricsCards({
           {metrics.accuracyRate}%
         </div>
 
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex min-h-6 items-center gap-2 text-[11px]">
           <span className="text-[#45464D] dark:text-muted-foreground">
             Độ tin cậy xếp hạng:
           </span>
@@ -126,26 +126,7 @@ export function ReportMetricsCards({
         </div>
 
         <div className="font-heading text-3xl font-extrabold text-[#131B2E] dark:text-foreground">
-          +{metrics.reputationPoints}
-        </div>
-
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-[#45464D] dark:text-muted-foreground">
-              Tiến trình Sentinel
-            </span>
-            <span className="font-bold text-[#131B2E] dark:text-foreground">
-              {metrics.currentTierProgress}/{metrics.maxTierPoints}
-            </span>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#DAE2FD] dark:bg-muted">
-            <div
-              className="h-full rounded-full bg-[#0B132B] transition-all dark:bg-primary"
-              style={{
-                width: `${(metrics.currentTierProgress / metrics.maxTierPoints) * 100}%`,
-              }}
-            />
-          </div>
+          {metrics.reputationPoints.toLocaleString("vi-VN")}
         </div>
       </div>
     </div>

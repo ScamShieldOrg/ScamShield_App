@@ -1145,7 +1145,7 @@ export function RegisterPartnerForm() {
                   </div>
                 )}
 
-                {/* Invisible reCAPTCHA mounting container */}
+                {/* Fresh reCAPTCHA challenge for each OTP request */}
                 <div id={RECAPTCHA_CONTAINER_ID} />
 
                 {/* Notice Banner */}

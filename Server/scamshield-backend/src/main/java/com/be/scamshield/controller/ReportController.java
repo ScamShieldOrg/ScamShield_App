@@ -40,7 +40,7 @@ public class ReportController {
         
         ReportResponse response = reportService.createReport(request, files, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new BaseResponse<>(true, "Gửi báo cáo lừa đảo thành công! (+50 điểm uy tín)", response));
+                .body(new BaseResponse<>(true, "Gửi báo cáo lừa đảo thành công!", response));
     }
 
     @PreAuthorize("isAuthenticated()")
@@ -53,7 +53,7 @@ public class ReportController {
         
         ReportResponse response = reportService.createReport(request, null, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new BaseResponse<>(true, "Gửi báo cáo lừa đảo thành công! (+50 điểm uy tín)", response));
+                .body(new BaseResponse<>(true, "Gửi báo cáo lừa đảo thành công!", response));
     }
 
     @PreAuthorize("isAuthenticated()")
@@ -67,10 +67,11 @@ public class ReportController {
         return ResponseEntity.ok(new BaseResponse<>(true, "Tạo Supabase Storage Presigned Upload URL thành công", response));
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{id}")
-    @Operation(summary = "Chi tiết báo cáo lừa đảo", description = "Xem thông tin chi tiết báo cáo và các ảnh bằng chứng theo ID.")
-    public ResponseEntity<BaseResponse<ReportResponse>> getReportById(@PathVariable Long id) {
-        ReportResponse response = reportService.getReportById(id);
+    @Operation(summary = "Chi tiết báo cáo lừa đảo", description = "Chỉ người gửi được xem nội dung và bằng chứng của báo cáo; báo cáo không thuộc người đăng nhập trả 404.")
+    public ResponseEntity<BaseResponse<ReportResponse>> getReportById(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal currentUser) {
+        ReportResponse response = reportService.getReportById(id, currentUser);
         return ResponseEntity.ok(new BaseResponse<>(true, "Lấy thông tin báo cáo thành công", response));
     }
 

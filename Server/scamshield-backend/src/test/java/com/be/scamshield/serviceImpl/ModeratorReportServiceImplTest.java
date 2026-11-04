@@ -1,6 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
-import com.be.scamshield.constant.ReportPriority;
+import com.be.scamshield.constant.ReportEvidenceType;
+import com.be.scamshield.constant.EvidenceVerificationStatus;
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.request.ModeratorDecisionRequest;
 import com.be.scamshield.dto.request.ModeratorReportFilterRequest;
@@ -13,6 +15,8 @@ import com.be.scamshield.repository.*;
 import com.be.scamshield.security.UserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -22,11 +26,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +42,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ModeratorReportServiceImplTest {
+    @Mock private IndicatorRepository indicatorRepository;
 
     @Mock
     private ReportRepository reportRepository;
@@ -118,13 +123,8 @@ class ModeratorReportServiceImplTest {
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(testUser)
-                .status("PENDING")
-                .priority(ReportPriority.URGENT)
-                .priorityScore(new BigDecimal("95.0"))
-                .reportCountSignal(47)
-                .evidenceCompleteness(85)
-                .reporterProposal(null)
-                .moderationLocked(false)
+                .status(ReportStatus.PENDING)
+
                 .createdAt(LocalDateTime.of(2024, 1, 15, 14, 32))
                 .updatedAt(LocalDateTime.of(2024, 1, 15, 14, 32))
                 .build();
@@ -134,8 +134,8 @@ class ModeratorReportServiceImplTest {
                 .report(testReport)
                 .fileName("screenshot_1.jpg")
                 .fileUrl("https://storage.scamshield.vn/evidences/screenshot_1.jpg")
-                .evidenceType("IMAGE")
-                .verificationStatus("PENDING")
+                .evidenceType(ReportEvidenceType.PNG)
+                .verificationStatus(EvidenceVerificationStatus.PENDING)
                 .createdAt(LocalDateTime.of(2024, 1, 15, 14, 32))
                 .build();
     }
@@ -160,12 +160,10 @@ class ModeratorReportServiceImplTest {
         assertThat(item.getTargetType()).isEqualTo("PHONE");
         assertThat(item.getCategory()).isEqualTo("Lừa đảo ngân hàng / OTP Phishing");
         assertThat(item.getCategoryId()).isEqualTo(5L);
-        assertThat(item.getReportCount()).isEqualTo(47);
+        assertThat(item.getReportCount()).isEqualTo(1);
         assertThat(item.getReportedBy()).isEqualTo("nguyenthanh_vn");
         assertThat(item.getReportedAt()).isEqualTo("15/01 14:32");
-        assertThat(item.getPriority()).isEqualTo(ReportPriority.URGENT);
         assertThat(item.getStatus()).isEqualTo("Pending");
-        assertThat(item.getIsLocked()).isFalse();
 
         // Theo yêu cầu của người dùng: Hiện tại các fields này để trống trong dto
         assertThat(item.getAiScore()).isNull();
@@ -177,6 +175,7 @@ class ModeratorReportServiceImplTest {
 
         // Evidence mapping
         assertThat(item.getEvidences()).hasSize(1);
+        assertThat(item.getEvidenceCount()).isEqualTo(1);
         assertThat(item.getEvidences().get(0).getId()).isEqualTo("ev-1");
         assertThat(item.getEvidences().get(0).getName()).isEqualTo("screenshot_1.jpg");
         assertThat(item.getEvidences().get(0).getType()).isEqualTo("image");
@@ -198,16 +197,14 @@ class ModeratorReportServiceImplTest {
     @Test
     void getQueueCounts_Success_ReturnsAggregatedCounts() {
         when(reportRepository.count()).thenReturn(7L);
-        when(reportRepository.countByStatusIgnoreCaseAndModerationLockedFalse("PENDING")).thenReturn(3L);
-        when(reportRepository.countByStatusIgnoreCaseAndModerationLockedFalse("IN_REVIEW")).thenReturn(1L);
-        when(reportRepository.countByModerationLockedTrueOrStatusIgnoreCase("LOCKED")).thenReturn(2L);
+        when(reportRepository.countByStatus(ReportStatus.PENDING)).thenReturn(3L);
+        when(reportRepository.countByStatus(ReportStatus.IN_REVIEW)).thenReturn(1L);
 
         ModeratorQueueCountsResponse counts = service.getQueueCounts();
 
         assertThat(counts.getAll()).isEqualTo(7L);
         assertThat(counts.getPending()).isEqualTo(3L);
         assertThat(counts.getInReview()).isEqualTo(1L);
-        assertThat(counts.getLocked()).isEqualTo(2L);
     }
 
     @Test
@@ -222,6 +219,22 @@ class ModeratorReportServiceImplTest {
         assertThat(result.getEvidences()).hasSize(1);
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 3})
+    void getReportById_CountsProvidedEvidenceWithoutScoring(int count) {
+        List<ReportEvidence> provided = IntStream.range(0, count)
+                .mapToObj(index -> ReportEvidence.builder().id((long) index + 1)
+                        .report(testReport).evidenceType(ReportEvidenceType.PNG).verificationStatus(EvidenceVerificationStatus.PENDING).build())
+                .toList();
+        when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
+        when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(provided);
+
+        ModeratorReportResponse result = service.getReportById(1891L);
+
+        assertThat(result.getEvidenceCount()).isEqualTo(count);
+        assertThat(result.getEvidences()).hasSize(count);
+    }
+
     @Test
     void getReportById_NotFound_ThrowsResourceNotFoundException() {
         when(reportRepository.findById(9999L)).thenReturn(Optional.empty());
@@ -229,46 +242,6 @@ class ModeratorReportServiceImplTest {
         assertThatThrownBy(() -> service.getReportById(9999L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("9999");
-    }
-
-    @Test
-    void resolvePriority_WhenPriorityIsNull_FallsBackToPriorityScore() {
-        testReport.setPriority(null);
-        testReport.setPriorityScore(Report.PRIORITY_THRESHOLD_URGENT);
-        assertThat(testReport.resolvePriority()).isEqualTo(ReportPriority.URGENT);
-
-        testReport.setPriorityScore(new BigDecimal("85.0"));
-        assertThat(testReport.resolvePriority()).isEqualTo(ReportPriority.URGENT);
-
-        testReport.setPriorityScore(Report.PRIORITY_THRESHOLD_HIGH);
-        assertThat(testReport.resolvePriority()).isEqualTo(ReportPriority.HIGH);
-
-        testReport.setPriorityScore(new BigDecimal("60.0"));
-        assertThat(testReport.resolvePriority()).isEqualTo(ReportPriority.HIGH);
-
-        testReport.setPriorityScore(Report.PRIORITY_THRESHOLD_HIGH.subtract(new BigDecimal("0.1")));
-        assertThat(testReport.resolvePriority()).isEqualTo(ReportPriority.NORMAL);
-
-        testReport.setPriorityScore(null);
-        assertThat(testReport.resolvePriority()).isEqualTo(ReportPriority.NORMAL);
-    }
-
-    @Test
-    void getReportQueue_WithPriorityFilter_BuildsValidSpecification() {
-        Pageable pageable = PageRequest.of(0, 20);
-        when(reportRepository.findAll(any(Specification.class), eq(pageable)))
-                .thenReturn(new PageImpl<>(List.of(testReport), pageable, 1));
-        when(reportEvidenceRepository.findByReportIdIn(List.of(1891L)))
-                .thenReturn(List.of(testEvidence));
-
-        for (ReportPriority p : ReportPriority.values()) {
-            ModeratorReportFilterRequest filter = ModeratorReportFilterRequest.builder()
-                    .tab("ALL")
-                    .priority(p)
-                    .build();
-            PaginatedResponse<ModeratorReportResponse> response = service.getReportQueue(filter, pageable);
-            assertThat(response.getData()).hasSize(1);
-        }
     }
 
     @Test
@@ -300,21 +273,19 @@ class ModeratorReportServiceImplTest {
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(secondUser)
-                .status("PENDING")
-                .priority(ReportPriority.HIGH)
-                .reportCountSignal(1)
-                .moderationLocked(false)
+                .status(ReportStatus.PENDING)
+
                 .createdAt(LocalDateTime.of(2024, 1, 15, 15, 0))
                 .build();
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
         when(scamCategorieRepository.findById(1L)).thenReturn(Optional.of(testCategory));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "PENDING"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.PENDING))
                 .thenReturn(List.of(testReport, secondReport));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "IN_REVIEW"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.IN_REVIEW))
                 .thenReturn(List.of());
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "IN_REVIEW"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.IN_REVIEW))
                 .thenReturn(List.of());
         when(confirmedIndicatorRepository.findByIndicatorId(100L)).thenReturn(Optional.empty());
         when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -329,20 +300,18 @@ class ModeratorReportServiceImplTest {
         ModeratorReportResponse response = service.makeDecision(1891L, moderatorPrincipal, request);
 
         assertThat(response.getStatus()).isEqualTo("Approved");
-        assertThat(testReport.getStatus()).isEqualTo("APPROVED");
-        assertThat(testReport.getModerationLocked()).isFalse();
+        assertThat(testReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
 
         // Verify bulk approval of secondReport of the same indicator
-        assertThat(secondReport.getStatus()).isEqualTo("APPROVED");
-        assertThat(secondReport.getModerationLocked()).isFalse();
+        assertThat(secondReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
 
         verify(confirmedIndicatorRepository).save(any(ConfirmedIndicator.class));
         verify(moderationActionRepository, times(2)).save(any(ModerationAction.class));
         verify(auditLogRepository, times(2)).save(any(AuditLog.class));
         verify(notificationRepository, times(2)).save(any(Notification.class));
         verify(reputationTransactionRepository, times(2)).save(any(ReputationTransaction.class));
-        assertThat(testUser.getReputationPoints()).isEqualTo(80); // 50 + 30
-        assertThat(secondUser.getReputationPoints()).isEqualTo(40); // 10 + 30
+        assertThat(testUser.getReputationPoints()).isEqualTo(100); // 50 + 50
+        assertThat(secondUser.getReputationPoints()).isEqualTo(60); // 10 + 50
     }
 
     @Test
@@ -358,18 +327,16 @@ class ModeratorReportServiceImplTest {
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(secondUser)
-                .status("PENDING")
-                .priority(ReportPriority.HIGH)
-                .reportCountSignal(1)
-                .moderationLocked(false)
+                .status(ReportStatus.PENDING)
+
                 .createdAt(LocalDateTime.of(2024, 1, 15, 15, 0))
                 .build();
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "PENDING"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.PENDING))
                 .thenReturn(List.of(testReport, secondReport));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "IN_REVIEW"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.IN_REVIEW))
                 .thenReturn(List.of());
         when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
@@ -382,8 +349,8 @@ class ModeratorReportServiceImplTest {
         ModeratorReportResponse response = service.makeDecision(1891L, moderatorPrincipal, request);
 
         assertThat(response.getStatus()).isEqualTo("Rejected");
-        assertThat(testReport.getStatus()).isEqualTo("REJECTED");
-        assertThat(secondReport.getStatus()).isEqualTo("REJECTED");
+        assertThat(testReport.getStatus()).isEqualTo(ReportStatus.REJECTED);
+        assertThat(secondReport.getStatus()).isEqualTo(ReportStatus.REJECTED);
 
         verify(moderationActionRepository, times(2)).save(any(ModerationAction.class));
         verify(notificationRepository, times(2)).save(any(Notification.class));
@@ -391,7 +358,7 @@ class ModeratorReportServiceImplTest {
 
     @Test
     void makeDecision_WhenReportAlreadyProcessed_ThrowsBadRequestException() {
-        testReport.setStatus("APPROVED");
+        testReport.setStatus(ReportStatus.APPROVED);
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
 
         ModeratorDecisionRequest request = ModeratorDecisionRequest.builder()
@@ -419,21 +386,6 @@ class ModeratorReportServiceImplTest {
     }
 
     @Test
-    void makeDecision_WhenReportLocked_ThrowsBadRequestException() {
-        testReport.setModerationLocked(true);
-        when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
-
-        ModeratorDecisionRequest request = ModeratorDecisionRequest.builder()
-                .decision(ModeratorDecisionRequest.DecisionType.APPROVE)
-                .reason("Thử lại quyết định kiểm duyệt cho hồ sơ đang bị khóa")
-                .build();
-
-        assertThatThrownBy(() -> service.makeDecision(1891L, moderatorPrincipal, request))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("đang bị khóa kiểm duyệt");
-    }
-
-    @Test
     void makeDecision_WhenReportStatusNullOrInvalid_ThrowsBadRequestException() {
         testReport.setStatus(null);
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
@@ -449,33 +401,33 @@ class ModeratorReportServiceImplTest {
     }
 
     @Test
-    void makeDecision_WhenSiblingReportInReviewAndNotLocked_BulkProcessesIt() {
+    void makeDecision_WhenSiblingReportsInReview_BulkProcessesAll() {
         Report inReviewReport = Report.builder()
                 .id(1893L)
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(testUser)
-                .status("IN_REVIEW")
-                .moderationLocked(false)
+                .status(ReportStatus.IN_REVIEW)
+
                 .createdAt(LocalDateTime.of(2024, 1, 15, 16, 0))
                 .build();
 
-        Report lockedReport = Report.builder()
+        Report otherInReviewReport = Report.builder()
                 .id(1894L)
                 .indicator(testIndicator)
                 .category(testCategory)
                 .reporterUser(testUser)
-                .status("IN_REVIEW")
-                .moderationLocked(true)
+                .status(ReportStatus.IN_REVIEW)
+
                 .createdAt(LocalDateTime.of(2024, 1, 15, 17, 0))
                 .build();
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "PENDING"))
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.PENDING))
                 .thenReturn(List.of(testReport));
-        when(reportRepository.findByIndicatorIdAndStatusIgnoreCase(100L, "IN_REVIEW"))
-                .thenReturn(List.of(inReviewReport, lockedReport));
+        when(reportRepository.findByIndicatorIdAndStatus(100L, ReportStatus.IN_REVIEW))
+                .thenReturn(List.of(inReviewReport, otherInReviewReport));
         when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
 
@@ -486,10 +438,10 @@ class ModeratorReportServiceImplTest {
 
         service.makeDecision(1891L, moderatorPrincipal, request);
 
-        assertThat(testReport.getStatus()).isEqualTo("APPROVED");
-        assertThat(inReviewReport.getStatus()).isEqualTo("APPROVED");
-        // Locked sibling report must be untouched
-        assertThat(lockedReport.getStatus()).isEqualTo("IN_REVIEW");
+        assertThat(testReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
+        assertThat(inReviewReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
+        // Every sibling in a decidable status is processed.
+        assertThat(otherInReviewReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
     }
 
     @Test

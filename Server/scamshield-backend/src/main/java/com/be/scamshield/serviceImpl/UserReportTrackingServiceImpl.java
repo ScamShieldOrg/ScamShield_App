@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.util.ReportStatusFilter;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.response.*;
 import com.be.scamshield.entity.*;
@@ -47,14 +49,15 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
 
         long totalReports = reportRepository.countByReporterUserId(userId);
         long recentReports7Days = reportRepository.countByReporterUserIdAndCreatedAtAfter(userId, sevenDaysAgo);
-        long blacklistedCount = reportRepository.countByReporterUserIdAndStatus(userId, "APPROVED_BLACKLIST");
-        long pendingCount = reportRepository.countByReporterUserIdAndStatus(userId, "PENDING");
+        long blacklistedCount = reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.APPROVED);
+        long pendingCount = reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.PENDING);
 
         // Estimated protected queries: 230 queries per blacklisted indicator reported
         long queriesProtected = blacklistedCount * 230L;
 
         // Accuracy rate = (blacklisted / totalProcessed) * 100
-        long processedCount = totalReports - pendingCount;
+        long withdrawnCount = reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.WITHDRAWN);
+        long processedCount = totalReports - pendingCount - withdrawnCount;
         double accuracyRate = 0.0;
         if (processedCount > 0) {
             accuracyRate = Math.round(((double) blacklistedCount / processedCount) * 1000.0) / 10.0;
@@ -101,12 +104,13 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
     @Transactional(readOnly = true)
     public ReportStatusCountsResponse getStatusCounts(Long userId) {
         long all = reportRepository.countByReporterUserId(userId);
-        long pending = reportRepository.countByReporterUserIdAndStatus(userId, "PENDING");
-        long approvedBlacklist = reportRepository.countByReporterUserIdAndStatus(userId, "APPROVED_BLACKLIST");
-        long mergedDuplicate = reportRepository.countByReporterUserIdAndStatus(userId, "MERGED_DUPLICATE");
-        long rejected = reportRepository.countByReporterUserIdAndStatus(userId, "REJECTED");
+        long pending = reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.PENDING);
+        long approvedBlacklist = reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.APPROVED);
+        long mergedDuplicate = 0;
+        long rejected = reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.REJECTED);
 
         return ReportStatusCountsResponse.builder()
+                .withdrawn(reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.WITHDRAWN))
                 .all(all)
                 .pending(pending)
                 .approvedBlacklist(approvedBlacklist)
@@ -237,11 +241,12 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
         List<ReportDetailTrackingResponse.EvidenceDetailDto> evidenceDtos = evidences.stream()
                 .map(ev -> ReportDetailTrackingResponse.EvidenceDetailDto.builder()
                         .id(ev.getId())
-                        .evidenceType(ev.getEvidenceType())
+                        .evidenceType(ev.getEvidenceType() == null ? null : ev.getEvidenceType().name())
                         .fileUrl(ev.getFileUrl())
+                        .fileName(ev.getFileName())
                         .fileHash(ev.getFileHash())
                         .ocrText(ev.getOcrText())
-                        .verificationStatus(ev.getVerificationStatus())
+                        .verificationStatus(ev.getVerificationStatus() == null ? null : ev.getVerificationStatus().name())
                         .createdAt(ev.getCreatedAt())
                         .build())
                 .toList();
@@ -267,9 +272,11 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
                 .targetValue(targetValue)
                 .targetSub(targetSub)
                 .category(report.getCategory() != null ? report.getCategory().getName() : "Chưa phân loại")
+                .categoryId(report.getCategory() == null ? null : report.getCategory().getId())
+                .regionCode(report.getRegionCode() == null ? null : report.getRegionCode().getCode())
                 .reportedMessage(report.getReportedMessage())
                 .description(report.getDescription())
-                .status(report.getStatus())
+                .status(report.getStatus() == null ? null : report.getStatus().name())
                 .createdAt(report.getCreatedAt())
                 .updatedAt(report.getUpdatedAt())
                 .slaTime(slaInfo.slaTime())
@@ -300,7 +307,7 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
             String status,
             Long categoryId,
             Integer days) {
-
+        ReportStatus statusFilter = ReportStatusFilter.parse(status);
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -308,8 +315,8 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
             predicates.add(cb.equal(root.get("reporterUser").get("id"), userId));
 
             // 2. Filter by status
-            if (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL")) {
-                predicates.add(cb.equal(cb.upper(root.get("status")), status.toUpperCase(Locale.ROOT)));
+            if (statusFilter != null) {
+                predicates.add(cb.equal(root.get("status"), statusFilter));
             }
 
             // 3. Filter by category
@@ -392,7 +399,7 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
                 .slaStatus(slaInfo.slaStatus())
                 .evidenceBadge(evidenceBadge)
                 .evidenceCount(evidences.size())
-                .status(report.getStatus())
+                .status(report.getStatus() == null ? null : report.getStatus().name())
                 .build();
     }
 
@@ -461,11 +468,10 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
     }
 
     private SlaInfo calculateSla(Report report, List<ModerationAction> moderationActions, LocalDateTime now) {
-        String status = report.getStatus() != null ? report.getStatus().toUpperCase(Locale.ROOT) : "PENDING";
+        String status = report.getStatus() != null ? report.getStatus().name() : "PENDING";
 
-        if ("MERGED_DUPLICATE".equals(status)) {
-            return new SlaInfo("Tự động gộp chéo", "merged");
-        }
+        if ("WITHDRAWN".equals(status)) return new SlaInfo("Đã thu hồi", "withdrawn");
+
 
         LocalDateTime createdAt = report.getCreatedAt() != null ? report.getCreatedAt() : now;
 
@@ -482,7 +488,7 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
             return new SlaInfo(timeText, "processing");
         }
 
-        // Completed (APPROVED_BLACKLIST, REJECTED)
+        // Completed (APPROVED, REJECTED)
         LocalDateTime finishedAt = report.getUpdatedAt() != null ? report.getUpdatedAt() : now;
         if (!moderationActions.isEmpty() && moderationActions.get(0).getCreatedAt() != null) {
             finishedAt = moderationActions.get(0).getCreatedAt();
@@ -505,25 +511,9 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
             return "Chưa có bằng chứng";
         }
 
-        boolean hasApk = evidences.stream().anyMatch(e -> "APK".equalsIgnoreCase(e.getEvidenceType()) || (e.getFileUrl() != null && e.getFileUrl().endsWith(".apk")));
-        if (hasApk) {
-            return "Tệp APK • 12MB";
-        }
-
-        boolean hasOcr = evidences.stream().anyMatch(e -> (e.getOcrText() != null && !e.getOcrText().isBlank()) || "OCR_PASS".equalsIgnoreCase(e.getVerificationStatus()));
-        boolean hasVideo = evidences.stream().anyMatch(e -> "VIDEO".equalsIgnoreCase(e.getEvidenceType()));
-        boolean hasUrl = evidences.stream().anyMatch(e -> "URL".equalsIgnoreCase(e.getEvidenceType()) || "LOG".equalsIgnoreCase(e.getEvidenceType()));
-
+        boolean hasOcr = evidences.stream().anyMatch(e -> e.getOcrText() != null && !e.getOcrText().isBlank());
         int count = evidences.size();
-        if (hasUrl) {
-            return count + " URL Log • HTML Raw";
-        }
-        if (hasVideo) {
-            return count + " ảnh GD • Video";
-        }
-        if (hasOcr) {
-            return count + " ảnh • OCR Pass";
-        }
+        if (hasOcr) return count + " ảnh • OCR Pass";
         return count + " tệp đính kèm";
     }
 

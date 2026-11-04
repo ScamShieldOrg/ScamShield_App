@@ -233,7 +233,7 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
 
     private void whitelist(Indicator indicator) {
         PartnerProfile partner = PartnerProfile.builder().user(owner).legalName("Test partner")
-                .brandName("Test partner").partnerType("BUSINESS").verificationStatus(PartnerVerificationStatus.VERIFIED)
+                .brandName("Test partner").verificationStatus(PartnerVerificationStatus.VERIFIED)
                 .createdAt(NOW).build();
         em.persist(partner);
         em.persist(WhitelistEntry.builder().partner(partner).indicator(indicator).verificationStatus("VERIFIED")
