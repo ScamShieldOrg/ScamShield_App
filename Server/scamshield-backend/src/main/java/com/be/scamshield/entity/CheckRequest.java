@@ -3,6 +3,8 @@ package com.be.scamshield.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "check_requests")
 @Data
@@ -27,13 +29,13 @@ public class CheckRequest {
     @Column(name = "input_type", nullable = false)
     private String inputType;
 
-    @Column(name = "raw_input")
+    @Column(name = "raw_input", columnDefinition = "text")
     private String rawInput;
 
-    @Column(name = "normalized_input")
+    @Column(name = "normalized_input", columnDefinition = "text")
     private String normalizedInput;
 
-    @Column(name = "masked_input")
+    @Column(name = "masked_input", columnDefinition = "text")
     private String maskedInput;
 
     @Column(name = "input_hash")
@@ -41,6 +43,9 @@ public class CheckRequest {
 
     @Column(name = "status", nullable = false)
     private String status;
+
+    @Column(name = "ai_job_id", unique = true)
+    private UUID aiJobId;
 
     @Column(name = "created_at", nullable = false)
     private java.time.LocalDateTime createdAt;

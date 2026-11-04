@@ -1,4 +1,8 @@
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   datasource:
     url: jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
@@ -15,6 +19,10 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
 
 app:
+  scam-check:
+    ai:
+      enabled: false
+    retention-cleanup-enabled: false
   jwt:
     secret: test-secret-test-secret-test-secret-test-secret-0123456789
     expiration-ms: 3600000
