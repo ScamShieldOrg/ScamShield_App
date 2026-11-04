@@ -11,6 +11,7 @@ export type RuntimeType =
   | "ONNX_INT8_EDGE"
   | "CLOUD_LLM_COUNCIL"
   | "OFFLINE_FALLBACK"
+  | "SERVER_PIPELINE"
 
 export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW"
 

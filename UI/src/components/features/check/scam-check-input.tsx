@@ -82,7 +82,7 @@ export function ScamCheckInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!content.trim() || isLoading) return
+    if (!content.trim() || isLoading || activeTab === "OCR") return
     onAnalyze(content.trim(), activeTab)
   }
 
@@ -182,7 +182,7 @@ export function ScamCheckInput({
                     Kéo thả ảnh chụp màn hình tin nhắn hoặc biên lai chuyển khoản
                   </p>
                   <p className="text-xs text-slate-600 dark:text-slate-400">
-                    Hệ thống tự động bóc tách chữ qua OCR quang học (PNG, JPG, HEIC tối đa 15MB)
+                    Hệ thống tự động bóc tách chữ qua OCR quang học (PNG, JPG, HEIC tối đa 15MB). Lưu ý: Tính năng OCR đang được hoàn thiện, vui lòng chuyển sang tab Văn bản, URL hoặc Số điện thoại để phân tích ngay.
                   </p>
                 </div>
               </div>
@@ -228,7 +228,7 @@ export function ScamCheckInput({
             </div>
             <Button
               type="submit"
-              disabled={isLoading || !content.trim()}
+              disabled={isLoading || !content.trim() || activeTab === "OCR"}
               className="cursor-pointer bg-[#008CC7] text-white hover:bg-[#007AB0] dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
             >
               {isLoading ? (

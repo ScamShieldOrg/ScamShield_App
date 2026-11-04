@@ -75,14 +75,6 @@ export function ScamVerdictBanner({
       return "BIDV"
     }
     if (
-      sender.includes("mbbank") ||
-      sender.includes("mb") ||
-      rawType.includes("mb bank") ||
-      rawSummary.includes("mb bank")
-    ) {
-      return "MB"
-    }
-    if (
       sender.includes("techcombank") ||
       sender.includes("tcb") ||
       rawType.includes("techcombank") ||
@@ -91,13 +83,21 @@ export function ScamVerdictBanner({
       return "TECHCOMBANK"
     }
     if (
+      sender.includes("mbbank") ||
+      /\bmb\b/i.test(sender) ||
+      rawType.includes("mb bank") ||
+      rawSummary.includes("mb bank")
+    ) {
+      return "MB"
+    }
+    if (
       sender.includes("agribank") ||
       rawType.includes("agribank") ||
       rawSummary.includes("agribank")
     ) {
       return "AGRIBANK"
     }
-    if (sender.includes("acb") || rawType.includes("acb") || rawSummary.includes("acb")) {
+    if (/\bacb\b/i.test(sender) || rawType.includes("acb") || rawSummary.includes("acb")) {
       return "ACB"
     }
     if (sender.includes("vpbank") || rawType.includes("vpbank") || rawSummary.includes("vpbank")) {
@@ -207,7 +207,7 @@ export function ScamVerdictBanner({
           {provenance === "TIER1_FAST_PATH" && (
             <>
               <Lightning size={16} weight="fill" className="text-amber-500" />
-              <span>Xác thực an toàn tức thì — Bảo mật riêng tư tại thiết bị</span>
+              <span>Xác thực an toàn tức thì — Bảo mật riêng tư</span>
             </>
           )}
           {provenance === "TIER2_FORENSIC_COUNCIL" && (

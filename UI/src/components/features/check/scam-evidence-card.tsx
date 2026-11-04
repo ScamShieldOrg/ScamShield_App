@@ -298,27 +298,27 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
 
               <div>
                 <h3 className="font-heading text-sm font-bold text-slate-900 dark:text-foreground">
-                  {isDangerous && "Bằng chứng rà soát tức thì tại thiết bị"}
-                  {isSuspicious && "Dấu hiệu cảnh báo rủi ro cần lưu ý tại thiết bị"}
-                  {isSafe && "Cơ sở xác thực an toàn chính danh tại thiết bị"}
-                  {isUnknown && "Đánh giá dữ liệu khách quan tại thiết bị"}
+                  {isDangerous && "Bằng chứng rà soát tức thì"}
+                  {isSuspicious && "Dấu hiệu cảnh báo rủi ro cần lưu ý"}
+                  {isSafe && "Cơ sở xác thực an toàn chính danh"}
+                  {isUnknown && "Đánh giá dữ liệu khách quan"}
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Quét siêu tốc ~{Math.round(data.execution_time_ms)}ms — Bảo mật quyền riêng tư trên thiết bị
+                  Thời gian phản hồi ~{Math.round(data.execution_time_ms)}ms — Bảo mật quyền riêng tư
                 </p>
               </div>
             </div>
 
             <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
               <Lightning size={14} weight="fill" className="text-amber-500" />
-              <span>Xử lý tại chỗ</span>
+              <span>Phân tích nhanh</span>
             </span>
           </div>
 
           {/* Tier 1 Evidence Checklist */}
           <div className="divide-y divide-border/50 text-sm">
             {/* 1. URL Analysis */}
-            {features?.url_analysis && features.url_analysis.detected_urls.length > 0 ? (
+            {features?.url_analysis && (features.url_analysis.detected_urls ?? []).length > 0 ? (
               features.url_analysis.is_in_official_whitelist ? (
                 <div className="flex items-start gap-3 py-3.5">
                   <div className={`mt-2 size-2 shrink-0 rounded-full ${dotClass}`} />
@@ -341,10 +341,10 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
                   <div className="flex-1 space-y-2">
                     <div>
                       <p className="font-bold text-slate-900 dark:text-white">
-                        Đường dẫn giả mạo cổng ngân hàng
+                        Đường dẫn chưa được chứng thực
                       </p>
                       <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
-                        Hệ thống phát hiện liên kết trong tin nhắn có đuôi lạ, máy chủ đặt ở nước ngoài và hoàn toàn KHÔNG thuộc cổng điện tử hợp pháp của ngân hàng.
+                        Hệ thống phát hiện liên kết trong tin nhắn không nằm trong danh bạ các cổng điện tử chính thức được xác nhận.
                       </p>
                     </div>
                     {/* Flat, uncluttered comparative highlight without nested card containers */}
@@ -357,21 +357,10 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
                           {features.url_analysis.detected_urls.join(", ")}
                         </code>
                         <span className="text-slate-500 dark:text-slate-400">
-                          (Đuôi lạ, không thuộc hệ sinh thái ngân hàng)
+                          (Không thuộc danh sách tên miền chính thức)
                         </span>
                       </div>
-                      <div className="flex flex-wrap items-baseline gap-2">
-                        <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                          Cổng chuẩn Vietcombank:
-                        </span>
-                        <code className="font-mono font-bold text-emerald-900 dark:text-emerald-200">
-                          vietcombank.com.vn
-                        </code>
-                        <span className="text-slate-500 dark:text-slate-400">
-                          (Tên miền quốc gia được NHNN cấp phép chính thức)
-                        </span>
                       </div>
-                    </div>
                   </div>
                 </div>
               )
@@ -565,7 +554,7 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
                   >
                     <span className="font-mono text-slate-800 dark:text-slate-200">"{item.token}"</span>
                     <span className="rounded bg-rose-50 px-1 font-mono text-[11px] font-bold text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
-                      +{item.weight.toFixed(2)}
+                      +{(item.weight ?? 0).toFixed(2)}
                     </span>
                   </div>
                 ))}

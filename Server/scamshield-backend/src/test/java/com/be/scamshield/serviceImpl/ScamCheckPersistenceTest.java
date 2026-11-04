@@ -17,7 +17,7 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest
 @ActiveProfiles("test")
 @Transactional
 class ScamCheckPersistenceTest {

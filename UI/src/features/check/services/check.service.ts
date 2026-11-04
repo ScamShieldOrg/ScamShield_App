@@ -1,3 +1,4 @@
+import axios from "axios"
 import { authorizeApi } from "@/lib/api/instance"
 import type { ScamCheckResult } from "../types/scam-check.types"
 import {
@@ -12,7 +13,8 @@ import {
  * Guarantees nested verdict object with risk_level and prevents undefined fields.
  */
 function mapBackendDtoToScanResponse(
-  backendData: ScamCheckResult
+  backendData: ScamCheckResult,
+  executionTimeMs: number
 ): CheckScanResponse {
   if (!backendData || typeof backendData !== "object" || !backendData.verdict) {
     throw new Error("Dữ liệu phản hồi từ máy chủ kiểm tra không hợp lệ.")
@@ -100,6 +102,14 @@ function mapBackendDtoToScanResponse(
     )
   }
 
+  // Determine confidence (represent unavailable as undefined)
+  const confidence =
+    ai?.verdict?.confidence != null
+      ? Number(ai.verdict.confidence)
+      : backendData.confidence != null
+        ? Number(backendData.confidence)
+        : undefined
+
   return {
     status: "success",
     scan_id: ai?.scanId || `SCAN-${backendData.checkId || Date.now()}`,
@@ -107,25 +117,20 @@ function mapBackendDtoToScanResponse(
       ai?.createdAt ||
       (backendData.createdAt ? String(backendData.createdAt) : new Date().toISOString()),
     execution_provenance: provenance,
-    execution_time_ms: 45.0,
+    execution_time_ms: Math.max(1, Math.round(executionTimeMs * 10) / 10),
     cloud_cost_usd: ai?.tierExecuted === 2 ? 0.002 : 0.0,
     engine_details: {
       model_name:
         ai?.councilAudit?.leadModel || "Hệ thống đánh giá ScamShield Core",
       runtime_type:
-        ai?.tierExecuted === 2 ? "CLOUD_LLM_COUNCIL" : "ONNX_INT8_EDGE",
+        ai?.tierExecuted === 2 ? "CLOUD_LLM_COUNCIL" : "SERVER_PIPELINE",
     },
     verdict: {
       risk_level: riskLevel,
       risk_score: riskScore,
       scam_type: scamType,
       summary: summary,
-      confidence:
-        ai?.verdict?.confidence != null
-          ? Number(ai.verdict.confidence)
-          : backendData.confidence != null
-            ? Number(backendData.confidence)
-            : 0.9,
+      ...(confidence != null ? { confidence } : {}),
       confidence_level:
         riskLevel === "DANGEROUS" || riskLevel === "SAFE"
           ? "HIGH"
@@ -145,7 +150,8 @@ function mapBackendDtoToScanResponse(
 
 /**
  * Main Check Scam Service:
- * Calls the live AI Pipeline / Backend service directly.
+ * Routes all citizen scans directly through Spring Boot Backend Core (/api/scam-checks).
+ * Enforces quota reservation, session management, database persistence, and audit logging.
  * Zero mock data, zero synthetic simulations.
  */
 export async function checkScamContent(
@@ -156,76 +162,30 @@ export async function checkScamContent(
     throw new Error("Nội dung kiểm tra không được để trống.")
   }
 
-  const forceTier2 = Boolean(payload?.force_tier2)
-
-  // Resolve API Base URL: Prefer NEXT_PUBLIC_AI_API_URL or local FastAPI bridge (port 8001)
-  const aiApiUrl =
-    process.env.NEXT_PUBLIC_AI_API_URL ||
-    (typeof window !== "undefined" && window.location.hostname === "localhost"
-      ? "http://localhost:8001"
-      : "")
-
-  // Priority 1: Call ScamShield AI Bridge / Microservice (/api/v1/scan)
-  if (aiApiUrl) {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 20000)
-
-      const response = await fetch(`${aiApiUrl.replace(/\/+$/, "")}/api/v1/scan`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content,
-          sender: payload?.sender,
-          check_type: payload?.check_type || "TEXT",
-          target_bank: payload?.target_bank,
-          target_account_number: payload?.target_account_number,
-          force_tier2: forceTier2,
-        }),
-        signal: controller.signal,
-      })
-
-      clearTimeout(timeoutId)
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data?.verdict && data?.execution_provenance) {
-          return data as CheckScanResponse
-        }
-      }
-    } catch (err: any) {
-      if (err.name === "AbortError") {
-        throw new Error("Yêu cầu phân tích AI bị quá thời gian chờ (Timeout). Vui lòng thử lại.")
-      }
-      // If AI bridge direct call fails, fall back to Spring Boot Backend
+  let guestToken: string | null = null
+  try {
+    if (typeof window !== "undefined") {
+      guestToken = localStorage.getItem("scamshield.guest-session")
     }
+  } catch {
+    // Ignore localStorage access failures in restricted environments
   }
 
-  // Priority 2: Call Spring Boot Backend (/scam-checks)
+  const inputType =
+    payload?.check_type === "URL"
+      ? "URL"
+      : payload?.check_type === "PHONE"
+        ? "PHONE"
+        : "MESSAGE"
+
+  const headers: Record<string, string> = {}
+  if (guestToken) {
+    headers["X-Guest-Session"] = guestToken
+  }
+
+  const startTime = typeof performance !== "undefined" ? performance.now() : Date.now()
+
   try {
-    let guestToken: string | null = null
-    try {
-      if (typeof window !== "undefined") {
-        guestToken = localStorage.getItem("scamshield.guest-session")
-      }
-    } catch {
-      // Ignore localStorage access failures in restricted environments
-    }
-
-    const inputType =
-      payload?.check_type === "URL"
-        ? "URL"
-        : payload?.check_type === "PHONE"
-          ? "PHONE"
-          : "MESSAGE"
-
-    const headers: Record<string, string> = {}
-    if (guestToken) {
-      headers["X-Guest-Session"] = guestToken
-    }
-
     const { data: res } = await authorizeApi.post<{
       isSuccess: boolean
       message: string
@@ -234,7 +194,7 @@ export async function checkScamContent(
       "/scam-checks",
       {
         inputType,
-        content,
+        content: content.trim(),
       },
       {
         headers,
@@ -242,23 +202,34 @@ export async function checkScamContent(
       }
     )
 
-    if (res?.isSuccess && res.data) {
-      return mapBackendDtoToScanResponse(res.data)
-    }
-  } catch (err: any) {
-    if (err?.code === "ECONNABORTED" || err?.name === "AbortError") {
-      throw new Error("Yêu cầu phân tích bị quá thời gian chờ (Timeout). Vui lòng thử lại.")
-    }
-    // Backend fallback also failed; proceed to civilian-facing error
-  }
+    const elapsedMs =
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) - startTime
 
-  // Both services failed: log developer details to console and show calm citizen-facing message
-  console.error(
-    "ScamCheck service connection failed: Both AI Bridge (port 8001) and Backend (port 8080) are unreachable."
-  )
-  throw new Error(
-    "Hệ thống tạm thời không thể kết nối đến máy chủ phân tích. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau ít phút."
-  )
+    if (res?.isSuccess && res.data) {
+      return mapBackendDtoToScanResponse(res.data, elapsedMs)
+    }
+
+    throw new Error(res?.message || "Không thể hoàn tất phân tích.")
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      if (err.code === "ECONNABORTED") {
+        throw new Error(
+          "Yêu cầu phân tích bị quá thời gian chờ (Timeout). Vui lòng thử lại."
+        )
+      }
+      const serverMessage = (err.response?.data as { message?: string } | undefined)?.message
+      if (serverMessage) {
+        throw new Error(serverMessage)
+      }
+    } else if (err instanceof Error) {
+      throw err
+    }
+
+    console.error("ScamCheck service connection failed:", err)
+    throw new Error(
+      "Hệ thống tạm thời không thể kết nối đến máy chủ phân tích. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau ít phút."
+    )
+  }
 }
 
 /**

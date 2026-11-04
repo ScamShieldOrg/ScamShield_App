@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
@@ -231,7 +231,7 @@ class ScamCheckControllerTest {
 
     private void whitelist(Indicator indicator) {
         PartnerProfile partner = PartnerProfile.builder().user(owner).legalName("Test partner")
-                .brandName("Test partner").partnerType("BUSINESS").verificationStatus(PartnerVerificationStatus.VERIFIED)
+                .brandName("Test partner").verificationStatus(PartnerVerificationStatus.VERIFIED)
                 .createdAt(NOW).build();
         em.persist(partner);
         em.persist(WhitelistEntry.builder().partner(partner).indicator(indicator).verificationStatus("VERIFIED")
