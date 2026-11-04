@@ -43,7 +43,7 @@ function ThemeHotkey() {
         return
       }
 
-      if (event.defaultPrevented || event.repeat) {
+      if (event.defaultPrevented || event.repeat || event.isComposing) {
         return
       }
 
@@ -51,7 +51,7 @@ function ThemeHotkey() {
         return
       }
 
-      if (event.key.toLowerCase() !== "d") {
+      if (typeof event.key !== "string" || event.key.toLowerCase() !== "d") {
         return
       }
 

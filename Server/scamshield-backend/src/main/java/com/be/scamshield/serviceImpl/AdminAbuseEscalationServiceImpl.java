@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.constant.AbuseFlagStatus;
 import com.be.scamshield.constant.AbuseEscalationDecision;
 import com.be.scamshield.dto.request.DecideAbuseEscalationRequest;
@@ -10,7 +11,6 @@ import com.be.scamshield.exception.UnauthorizedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import java.time.Clock;
-import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.admin.AdminAbuseEscalationDetailResponse;
 import com.be.scamshield.dto.admin.AdminAbuseEscalationDetailResponse.AccountDetails;
@@ -219,7 +219,7 @@ public class AdminAbuseEscalationServiceImpl implements IAdminAbuseEscalationSer
                         : report.getIndicator().getDisplayValue())
                 .categoryId(report.getCategory() == null ? null : report.getCategory().getId())
                 .categoryName(report.getCategory() == null ? null : report.getCategory().getName())
-                .status(report.getStatus()).description(report.getDescription()).reportedMessage(report.getReportedMessage())
+                .status(report.getStatus() == null ? null : report.getStatus().name()).description(report.getDescription()).reportedMessage(report.getReportedMessage())
                 .createdAt(report.getCreatedAt()).updatedAt(report.getUpdatedAt())
                 .latestModeration(action == null ? null : LatestModeration.builder()
                         .id(action.getId()).action(action.getAction()).reason(action.getReason())
@@ -227,10 +227,10 @@ public class AdminAbuseEscalationServiceImpl implements IAdminAbuseEscalationSer
                         .moderatorName(action.getModeratorUser() == null ? null : action.getModeratorUser().getFullName())
                         .createdAt(action.getCreatedAt()).build())
                 .evidences(evidences.stream().map(evidence -> Evidence.builder()
-                        .id(evidence.getId()).evidenceType(evidence.getEvidenceType()).fileName(evidence.getFileName())
-                        .fileUrl(evidence.getFileUrl()).sourceUrl(evidence.getSourceUrl())
-                        .extractedText(evidence.getExtractedText()).ocrText(evidence.getOcrText())
-                        .verificationStatus(EvidenceVerificationStatus.fromStoredValue(evidence.getVerificationStatus())).createdAt(evidence.getCreatedAt()).build()).toList())
+                        .id(evidence.getId()).evidenceType(evidence.getEvidenceType() == null ? null : evidence.getEvidenceType().name()).fileName(evidence.getFileName())
+                        .fileUrl(evidence.getFileUrl())
+                        .ocrText(evidence.getOcrText())
+                        .verificationStatus(evidence.getVerificationStatus()).createdAt(evidence.getCreatedAt()).build()).toList())
                 .build();
     }
 

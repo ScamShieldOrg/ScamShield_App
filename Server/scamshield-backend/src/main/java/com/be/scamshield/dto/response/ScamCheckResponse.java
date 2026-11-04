@@ -1,5 +1,7 @@
 package com.be.scamshield.dto.response;
 
+import com.be.scamshield.constant.ScamVerdict;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,6 +25,9 @@ public record ScamCheckResponse(
         LocalDateTime retentionExpiresAt,
         ScamCheckAiDetails aiDetails
 ) {
+    public ScamCheckResponse {
+        verdict = ScamVerdict.normalize(verdict);
+    }
     public record MatchedIndicator(Long id, String type, String value) { }
     public record Reason(String code, String sourceStage, String detail) { }
 }

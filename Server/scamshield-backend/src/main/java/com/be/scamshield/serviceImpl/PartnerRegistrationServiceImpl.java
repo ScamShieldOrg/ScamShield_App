@@ -64,9 +64,6 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
         if (!request.isAgreeTerms()) {
             throw new BadRequestException("Bạn phải cam kết thông tin chính xác và thuộc quyền sở hữu hợp pháp");
         }
-        if (request.getLegalRepresentative() == null) {
-            throw new BadRequestException("Cần xác định người đăng ký có phải đại diện pháp luật không");
-        }
 
         String taxCode = request.getTaxCode().replace("-", "");
         if (profileRepository.existsByTaxCode(taxCode)) {
@@ -80,9 +77,6 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
 
         requireFiles(businessLicenseFiles, "Cần giấy phép đăng ký kinh doanh / giấy phép hoạt động");
         requireFiles(ownershipProofFiles, "Cần tài liệu chứng minh quyền sở hữu domain / hotline / SMS Brandname");
-        if (!request.getLegalRepresentative()) {
-            requireFiles(authorizationFiles, "Người đăng ký không phải đại diện pháp luật phải cung cấp giấy ủy quyền");
-        }
         List<MultipartFile> allFiles = new ArrayList<>();
         allFiles.addAll(businessLicenseFiles);
         allFiles.addAll(ownershipProofFiles);
@@ -107,13 +101,10 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
         PartnerProfile profile = PartnerProfile.builder()
                 .legalName(request.getLegalName().trim())
                 .brandName(request.getLegalName().trim())
-                .partnerType("BUSINESS")
                 .taxCode(taxCode)
                 .corporateEmail(email)
                 .representativeNameAndTitle(request.getRepresentativeNameAndTitle().trim())
                 .contactPhone(VietnamPhoneNumbers.nationalMobile(request.getContactPhone()))
-                .legalRepresentative(request.getLegalRepresentative())
-                .termsAcceptedAt(now)
                 .verificationStatus(PartnerVerificationStatus.PENDING)
                 .createdAt(now)
                 .updatedAt(now)

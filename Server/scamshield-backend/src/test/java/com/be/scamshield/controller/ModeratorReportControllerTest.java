@@ -1,7 +1,6 @@
 package com.be.scamshield.controller;
 
 import com.be.scamshield.config.SecurityConfig;
-import com.be.scamshield.constant.ReportPriority;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.request.ModeratorDecisionRequest;
 import com.be.scamshield.dto.request.ModeratorReportFilterRequest;
@@ -94,15 +93,13 @@ class ModeratorReportControllerTest {
                 .reportCount(47)
                 .reportedBy("nguyenthanh_vn")
                 .reportedAt("15/01 14:32")
-                .priority(ReportPriority.URGENT)
                 .status("Pending")
                 .aiScore(null)
                 .aiRiskLevel(null)
                 .aiConfidence(null)
-                .evidenceCompleteness(85)
-                .reporterProposal(null)
+                .evidenceCount(1)
                 .taxonomies(List.of("Lừa đảo ngân hàng / OTP Phishing"))
-                .isLocked(false)
+
                 .evidences(List.of(
                         ModeratorEvidenceResponse.builder()
                                 .id("ev-1")
@@ -133,29 +130,22 @@ class ModeratorReportControllerTest {
                 .andExpect(jsonPath("$.isSuccess").value(true))
                 .andExpect(jsonPath("$.data.data[0].id").value("CS-2024-1891"))
                 .andExpect(jsonPath("$.data.data[0].targetIdentifier").value("0909 123 456"))
-                .andExpect(jsonPath("$.data.data[0].priority").value("URGENT"))
+                .andExpect(jsonPath("$.data.data[0].evidenceCount").value(1))
+                .andExpect(jsonPath("$.data.data[0].isLocked").doesNotExist())
+                .andExpect(jsonPath("$.data.data[0].priority").doesNotExist())
+                .andExpect(jsonPath("$.data.data[0].priorityScore").doesNotExist())
+                .andExpect(jsonPath("$.data.data[0].evidenceCompleteness").doesNotExist())
                 .andExpect(jsonPath("$.data.data[0].status").value("Pending"))
                 .andExpect(jsonPath("$.data.data[0].aiScore").isEmpty())
                 .andExpect(jsonPath("$.data.data[0].taxonomies[0]").value("Lừa đảo ngân hàng / OTP Phishing"));
     }
 
     @Test
-    void getReportQueue_WhenSortByPriorityScore_ReturnsSuccess() throws Exception {
-        PaginatedResponse<ModeratorReportResponse> page = new PaginatedResponse<>();
-        page.setData(List.of(mockReportResponse));
-        page.setCurrentPage(0);
-        page.setTotalItems(1);
-        page.setPageSize(20);
-        page.setTotalPages(1);
-
-        when(moderatorReportService.getReportQueue(any(ModeratorReportFilterRequest.class), any(Pageable.class)))
-                .thenReturn(page);
-
+    void getReportQueue_WhenSortByRemovedPriorityScore_ReturnsBadRequest() throws Exception {
         mvc.perform(get(BASE_URL)
                         .param("sort", "priorityScore,desc")
                         .with(authentication(moderatorAuth)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isSuccess").value(true));
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -201,7 +191,6 @@ class ModeratorReportControllerTest {
                 .all(7L)
                 .pending(3L)
                 .inReview(1L)
-                .locked(2L)
                 .build();
 
         when(moderatorReportService.getQueueCounts()).thenReturn(counts);
@@ -213,7 +202,7 @@ class ModeratorReportControllerTest {
                 .andExpect(jsonPath("$.data.all").value(7))
                 .andExpect(jsonPath("$.data.pending").value(3))
                 .andExpect(jsonPath("$.data.inReview").value(1))
-                .andExpect(jsonPath("$.data.locked").value(2));
+                .andExpect(jsonPath("$.data.locked").doesNotExist());
     }
 
     @Test

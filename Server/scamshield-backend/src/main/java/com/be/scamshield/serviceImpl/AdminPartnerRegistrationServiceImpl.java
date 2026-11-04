@@ -174,7 +174,7 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
         }
         return new AdminPartnerRegistrationDetailResponse(profile.getId(), profile.getUser().getId(),
                 profile.getLegalName(), profile.getTaxCode(), profile.getCorporateEmail(),
-                profile.getRepresentativeNameAndTitle(), profile.getContactPhone(), profile.getLegalRepresentative(),
+                profile.getRepresentativeNameAndTitle(), profile.getContactPhone(),
                 profile.getOfficialDomain(), profile.getOfficialHotline(), profile.getSmsBrandName(),
                 profile.getVerificationStatus(), profile.getCreatedAt(), profile.getVerifiedAt(),
                 profile.getVerifiedByUser() == null ? null : profile.getVerifiedByUser().getFullName(), reason,

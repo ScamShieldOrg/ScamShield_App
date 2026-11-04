@@ -150,10 +150,10 @@ public class ScamCheckAiClient {
             if (firstText(data, "timestamp", "created_at").isBlank()) return "MISSING_TIMESTAMP";
             if (!List.of(1, 2).contains(data.path("tier_executed").asInt(0))) return "INVALID_TIER";
             JsonNode verdict = data.path("verdict");
-            if (!List.of("SAFE", "SUSPICIOUS", "DANGEROUS", "UNKNOWN")
-                    .contains(verdict.path("risk_level").asText(""))) return "INVALID_RISK_LEVEL";
+            if (!List.of("SCAM_RISK", "LOW_RISK", "UNKNOWN")
+                    .contains(normalizeRisk(verdict.path("risk_level").asText("")))) return "INVALID_RISK_LEVEL";
             JsonNode riskScore = verdict.path("risk_score");
-            boolean unknown = "UNKNOWN".equals(verdict.path("risk_level").asText());
+            boolean unknown = "UNKNOWN".equals(normalizeRisk(verdict.path("risk_level").asText()));
             if (riskScore.isMissingNode() || (!riskScore.isNumber() && !(unknown && riskScore.isNull())))
                 return "INVALID_RISK_SCORE";
             if (!verdict.path("confidence").isNumber()) return "INVALID_CONFIDENCE";
@@ -188,7 +188,7 @@ public class ScamCheckAiClient {
             JsonNode root = json.readTree(body);
             JsonNode data = scanData(root);
             JsonNode verdict = data.path("verdict");
-            String risk = verdict.path("risk_level").asText("");
+            String risk = normalizeRisk(verdict.path("risk_level").asText(""));
             String scanId = data.path("scan_id").asText("");
             String createdAt = firstText(data, "timestamp", "created_at");
             int tier = data.path("tier_executed").asInt(0);
@@ -200,7 +200,7 @@ public class ScamCheckAiClient {
             if (!"success".equals(root.path("status").asText()) || !root.path("error").isNull()
                     && !root.path("error").isMissingNode()
                     || scanId.isBlank() || scanId.length() > 200 || createdAt.isBlank() || (tier != 1 && tier != 2)
-                    || !List.of("SAFE", "SUSPICIOUS", "DANGEROUS", "UNKNOWN").contains(risk)
+                    || !List.of("SCAM_RISK", "LOW_RISK", "UNKNOWN").contains(risk)
                     || !confidence.isNumber() || confidence.asDouble() < 0 || confidence.asDouble() > 1
                     || riskScore.isMissingNode()
                     || (!riskScore.isNumber() && !("UNKNOWN".equals(risk) && riskScore.isNull()))
@@ -237,7 +237,7 @@ public class ScamCheckAiClient {
                     for (JsonNode agent : agentNodes) {
                         if (!agent.isObject() || !agent.path("score").isNumber()) return Result.failure("AI_INVALID_RESPONSE");
                         agents.add(new ScamCheckAiDetails.AgentFinding(
-                                agent.path("role").asText(""), agent.path("verdict").asText(""),
+                                agent.path("role").asText(""), normalizeAgentRisk(agent.path("verdict").asText("")),
                                 agent.path("score").decimalValue()));
                     }
                 }
@@ -248,19 +248,28 @@ public class ScamCheckAiClient {
                         councilNode.path("defender_intervened").asBoolean(false), List.copyOf(agents));
             }
             var details = new ScamCheckAiDetails(scanId, createdAt, tier,
-                    new ScamCheckAiDetails.AiVerdict(risk, riskScore.isNull() ? null : riskScore.decimalValue(),
+                    new ScamCheckAiDetails.AiVerdict(risk, "UNKNOWN".equals(risk) ? null : riskScore.decimalValue(),
                             scamType, confidence.decimalValue(), summary),
                     radar.isEmpty() ? null : radar, advice, council);
-            return new Result(switch (risk) {
-                case "SAFE" -> "LOW_RISK";
-                case "DANGEROUS" -> "SCAM_RISK";
-                case "SUSPICIOUS" -> "SUSPICIOUS";
-                default -> "UNKNOWN";
-            }, "URL".equals(inputType) ? "URL_REPUTATION" : tier == 1 ? "VISOBERT" : "LLM",
+            return new Result(risk, "URL".equals(inputType) ? "URL_REPUTATION" : tier == 1 ? "VISOBERT" : "LLM",
                     confidence.decimalValue(), summary, guidance.toString(),
                     "UNKNOWN".equals(risk) ? "AI_UNCERTAIN" : null, scanId, details);
         } catch (Exception ex) {
             return Result.failure("AI_INVALID_RESPONSE");
         }
+    }
+
+    private String normalizeRisk(String risk) {
+        return switch (risk) {
+            case "SAFE", "LOW-RISK" -> "LOW_RISK";
+            case "DANGEROUS", "SCAM-RISK" -> "SCAM_RISK";
+            case "SUSPICIOUS", "REVIEW", "SUSPICIOUS_REVIEW" -> "UNKNOWN";
+            default -> risk;
+        };
+    }
+
+    private String normalizeAgentRisk(String risk) {
+        String normalized = normalizeRisk(risk);
+        return List.of("SCAM_RISK", "LOW_RISK", "UNKNOWN").contains(normalized) ? normalized : "UNKNOWN";
     }
 }

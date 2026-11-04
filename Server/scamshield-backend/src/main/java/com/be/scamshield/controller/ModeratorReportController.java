@@ -39,16 +39,14 @@ public class ModeratorReportController {
             "id",
             "createdAt",
             "updatedAt",
-            "priorityScore",
-            "status",
-            "reportCountSignal"
+            "status"
     );
 
     private final IModeratorReportService moderatorReportService;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách hàng đợi xét duyệt báo cáo lừa đảo",
-            description = "Hỗ trợ phân trang, tìm kiếm theo ID (CS-YYYY-XXXX), đối tượng, danh mục, người gửi; lọc theo tab (ALL, PENDING, IN_REVIEW, LOCKED) và độ ưu tiên")
+            description = "Hỗ trợ phân trang, tìm kiếm theo ID (CS-YYYY-XXXX), đối tượng, danh mục, người gửi; lọc theo tab (ALL, PENDING, IN_REVIEW)")
     public ResponseEntity<BaseResponse<PaginatedResponse<ModeratorReportResponse>>> getReportQueue(
             @Valid @ModelAttribute @ParameterObject ModeratorReportFilterRequest filter) {
 
@@ -60,7 +58,7 @@ public class ModeratorReportController {
 
     @GetMapping("/counts")
     @Operation(summary = "Lấy số lượng hồ sơ theo từng tab trong hàng đợi",
-            description = "Trả về tổng số ca, số ca đang chờ duyệt (Pending), đang xem xét (In Review), và đã khóa (Locked)")
+            description = "Trả về tổng số ca, số ca đang chờ duyệt (Pending) và đang xem xét (In Review)")
     public ResponseEntity<BaseResponse<ModeratorQueueCountsResponse>> getQueueCounts() {
         ModeratorQueueCountsResponse counts = moderatorReportService.getQueueCounts();
         return ResponseEntity.ok(new BaseResponse<>(true, "Lấy số lượng hàng đợi xét duyệt thành công", counts));

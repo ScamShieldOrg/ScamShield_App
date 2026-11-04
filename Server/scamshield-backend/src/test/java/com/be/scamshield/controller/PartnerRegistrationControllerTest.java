@@ -50,7 +50,7 @@ class PartnerRegistrationControllerTest {
              "corporateEmail":"contact@example.com.vn", "representativeNameAndTitle":"Huy - Giám đốc",
              "contactPhone":"0912345678", "verificationToken":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "officialDomains":"example.com.vn",
              "officialHotlines":"1900545413", "smsBrandNames":"EXAMPLE",
-             "legalRepresentative":true, "agreeTerms":true}
+             "agreeTerms":true}
             """;
     @MockitoBean
     private IPartnerRegistrationService service;

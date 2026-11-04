@@ -19,6 +19,8 @@ public class ReportResponse {
     private String threatType;
     private String categoryName;
     private String description;
+    private String reportedMessage;
+    private String regionCode;
     private String status;
     private Integer rewardPoints;
     private Integer evidenceCount;

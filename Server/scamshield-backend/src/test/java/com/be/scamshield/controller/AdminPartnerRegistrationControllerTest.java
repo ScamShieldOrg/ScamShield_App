@@ -1,5 +1,7 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.dto.admin.AdminPartnerRegistrationCountsResponse;
 import com.be.scamshield.external.ScamCheckAiClient;
 import com.be.scamshield.entity.Role;
@@ -20,10 +22,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-admin-review;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class AdminPartnerRegistrationControllerTest {
+class AdminPartnerRegistrationControllerTest extends PostgresIntegrationTest {
     @Autowired private MockMvc mvc;
     @MockitoBean private AdminPartnerRegistrationService service;
     @MockitoBean private ScamCheckAiClient scamCheckAiClient;
