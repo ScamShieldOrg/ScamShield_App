@@ -2,7 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ShieldCheck, Bell, CaretDown, ArrowsClockwise } from "@phosphor-icons/react"
+import {
+  ShieldCheck,
+  Bell,
+  CaretDown,
+  SignOut,
+} from "@phosphor-icons/react"
+import { useLogout } from "@/hooks/use-logout"
 
 interface ModeratorHeaderProps {
   className?: string
@@ -10,6 +16,7 @@ interface ModeratorHeaderProps {
 
 export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
   const pathname = usePathname()
+  const handleLogout = useLogout()
 
   const isReportsActive = pathname?.includes("/moderator/reports") || pathname === "/moderator"
   const isDisputesActive = pathname?.includes("/moderator/disputes")
@@ -96,6 +103,15 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
               </div>
             </div>
             <CaretDown size={14} className="text-slate-400" />
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="ml-1 inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              aria-label="Đăng xuất khỏi tài khoản kiểm duyệt"
+            >
+              <SignOut size={15} weight="bold" />
+              <span className="hidden sm:inline">Đăng xuất</span>
+            </button>
           </div>
         </div>
       </div>

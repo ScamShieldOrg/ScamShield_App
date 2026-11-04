@@ -43,7 +43,6 @@ export const USER_NAV_ITEMS: UserNavItem[] = [
     title: "Thông Báo",
     href: "/user/notifications",
     iconName: "Bell",
-    badge: 3,
     badgeVariant: "danger",
   },
   {

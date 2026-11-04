@@ -1,5 +1,6 @@
 "use client"
 
+import { ArrowLeft, Paperclip } from "@phosphor-icons/react"
 import { ModeratorDisputeItem } from "@/features/moderator/types/moderator-dispute.types"
 
 interface DisputeQueueItemCardProps {
@@ -37,6 +38,8 @@ export function DisputeQueueItemCard({
     }
   }
 
+  const count = item.evidenceCount ?? item.evidences?.length ?? 0
+
   return (
     <div
       onClick={() => onSelect(item)}
@@ -46,11 +49,17 @@ export function DisputeQueueItemCard({
           : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
       }`}
     >
-      {/* Top Header Row: ID + Status */}
+      {/* Top Header Row: ID + Original Report ID + Status */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-          {item.id}
-        </span>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <span>{item.id}</span>
+          {item.originalReportId && (
+            <>
+              <ArrowLeft size={11} className="text-slate-400" />
+              <span className="text-[11px] text-slate-400">{item.originalReportId}</span>
+            </>
+          )}
+        </div>
         <span
           className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${getStatusBadge(
             item.status
@@ -70,16 +79,25 @@ export function DisputeQueueItemCard({
         {item.category}
       </div>
 
-      {/* Footer Row: Original Decision & Date */}
+      {/* Footer Row: Original Decision & Date & Evidence Count */}
       <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] font-medium dark:border-slate-800">
-        <span
-          className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getOriginalDecisionBadge(
-            item.originalDecision
-          )}`}
-        >
-          Gốc: {item.originalDecision}
-        </span>
-        <span className="text-slate-500 dark:text-slate-400">{item.disputedAt}</span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${getOriginalDecisionBadge(
+              item.originalDecision
+            )}`}
+          >
+            Gốc: {item.originalDecision}
+          </span>
+          <span className="text-slate-500 dark:text-slate-400">{item.disputedAt}</span>
+        </div>
+
+        {count > 0 && (
+          <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+            <Paperclip size={12} weight="bold" />
+            <span>{count} tài liệu</span>
+          </span>
+        )}
       </div>
     </div>
   )

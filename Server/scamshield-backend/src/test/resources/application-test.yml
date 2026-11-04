@@ -4,19 +4,25 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   datasource:
-    url: jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
+    # The container supplies URL and credentials through DynamicPropertySource.
+    # Never fall through to the development database if container setup is missing.
+    url: jdbc:postgresql://127.0.0.1:1/testcontainers-required
+    driver-class-name: org.postgresql.Driver
     hikari:
+      # Many cached Spring contexts share one disposable database server.
+      maximum-pool-size: 4
+      minimum-idle: 0
       connection-init-sql: SET TIME ZONE 'Asia/Ho_Chi_Minh'
-    username: sa
-    password: ""
   jpa:
     hibernate:
       ddl-auto: create-drop
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  test:
+    database:
+      replace: none
 
 app:
   scam-check:

@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.external.FirebasePhoneClient;
+
 import com.be.scamshield.config.FirebasePhoneProperties;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.OtpRateLimitException;
@@ -82,6 +84,19 @@ class FirebasePhoneClientTest {
                 .isInstanceOf(BadRequestException.class).hasMessageContaining("reCAPTCHA");
         assertThatThrownBy(() -> client.send("+84912345678", "captcha"))
                 .isInstanceOf(OtpRateLimitException.class).hasMessageNotContaining("test-api-key");
+    }
+
+    @Test
+    void invalidAppCredentialRemainsRetryableWithoutLeakingProviderDetails() {
+        server.expect(requestTo("https://identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode?key=test-api-key"))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"error\":{\"message\":\"INVALID_APP_CREDENTIAL : sensitive-provider-detail\"}}"));
+        assertThatThrownBy(() -> client.send("+84912345678", "captcha"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("INVALID_APP_CREDENTIAL", "Authorized domains")
+                .hasMessageNotContaining("sensitive-provider-detail")
+                .hasMessageNotContaining("test-api-key");
+        server.verify();
     }
 
     @Test

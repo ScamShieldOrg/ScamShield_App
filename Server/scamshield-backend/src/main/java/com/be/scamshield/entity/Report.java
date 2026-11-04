@@ -1,7 +1,12 @@
 package com.be.scamshield.entity;
 
+import com.be.scamshield.constant.VietnamProvince;
+import com.be.scamshield.converter.VietnamProvinceConverter;
 import jakarta.persistence.*;
+import com.be.scamshield.constant.ReportStatus;
 import lombok.*;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "reports")
@@ -28,48 +33,31 @@ public class Report {
     @JoinColumn(name = "source_check_request_id")
     private CheckRequest sourceCheckRequest;
 
-    @Column(name = "reported_message")
+    @Column(name = "reported_message", columnDefinition = "text")
     private String reportedMessage;
 
     @Column(name = "description")
     private String description;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private String status;
+    private ReportStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private ScamCategory category;
 
+    @Convert(converter = VietnamProvinceConverter.class)
     @Column(name = "region_code")
-    private String regionCode;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "merged_into_report_id")
-    private Report mergedIntoReport;
-
-    @Column(name = "priority_score")
-    private java.math.BigDecimal priorityScore;
-
-    @Column(name = "report_count_signal", nullable = false)
-    private Integer reportCountSignal;
+    private VietnamProvince regionCode;
 
     @Column(name = "ip_hash")
     private String ipHash;
 
-    @Column(name = "device_fingerprint_hash")
-    private String deviceFingerprintHash;
-
-    @Column(name = "coordinated_report_suspected", nullable = false)
-    private Boolean coordinatedReportSuspected;
-
-    @Column(name = "moderation_locked", nullable = false)
-    private Boolean moderationLocked;
-
     @Column(name = "created_at", nullable = false)
-    private java.time.LocalDateTime createdAt;
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private java.time.LocalDateTime updatedAt;
+    private LocalDateTime updatedAt;
 
 }

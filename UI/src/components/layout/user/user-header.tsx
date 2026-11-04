@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { House, Warning, Bell, List } from "@phosphor-icons/react"
 import { getActiveUserNavItem } from "@/config/navigation/user-nav"
+import { useNotificationStore } from "@/features/notification/store/notification.store"
 
 const DEFAULT_PAGE_TITLE = "Giám Sát & Phòng Vệ Số"
 
@@ -14,6 +15,7 @@ interface UserHeaderProps {
 export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
   const pathname = usePathname()
   const pageTitle = getActiveUserNavItem(pathname)?.title ?? DEFAULT_PAGE_TITLE
+  const unreadCount = useNotificationStore((state) => state.unreadCount)
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[#C6C6CE]/40 bg-[#FAF8FF]/90 px-4 backdrop-blur-md sm:px-6 dark:border-border dark:bg-background/90">
@@ -63,7 +65,9 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
           aria-label="Thông báo"
         >
           <Bell size={18} weight="bold" />
-          <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-[#BA1A1A] ring-2 ring-[#FAF8FF] dark:ring-background" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-[#BA1A1A] ring-2 ring-[#FAF8FF] dark:ring-background" />
+          )}
         </Link>
 
         {/* User Avatar Circle */}

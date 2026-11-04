@@ -121,7 +121,7 @@ class ResourceServiceImplTest {
 
     private PartnerProfile partner(Long id, String name) {
         return PartnerProfile.builder()
-                .id(id).legalName(name).brandName(name).partnerType("BUSINESS")
+                .id(id).legalName(name).brandName(name)
                 .contactPhone("0912345678")
                 .corporateEmail("contact@viettel.vn")
                 .officialHotline("18008098")

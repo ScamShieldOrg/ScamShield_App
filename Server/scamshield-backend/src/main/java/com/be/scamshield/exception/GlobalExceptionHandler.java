@@ -1,6 +1,7 @@
 package com.be.scamshield.exception;
 
 import com.be.scamshield.dto.BaseResponse;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -19,6 +20,13 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(PartnerBusinessVerificationException.class)
+    public ResponseEntity<BaseResponse<PartnerBusinessVerificationResponse>> handlePartnerBusinessVerification(
+            PartnerBusinessVerificationException ex) {
+        return ResponseEntity.status(ex.getHttpStatus())
+                .body(new BaseResponse<>(false, ex.getMessage(), ex.getVerification()));
+    }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<BaseResponse<Void>> handleInvalidParameterType(MethodArgumentTypeMismatchException ex) {
@@ -43,7 +51,7 @@ public class GlobalExceptionHandler {
                 .body(new BaseResponse<>(false, ex.getMessage(), null));
     }
 
-    @ExceptionHandler({RegistrationConflictException.class, DisputeConflictException.class})
+    @ExceptionHandler({RegistrationConflictException.class, DisputeConflictException.class, PartnerReviewConflictException.class,AbuseEscalationConflictException.class})
     public ResponseEntity<BaseResponse<Void>> handleConflict(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new BaseResponse<>(false, ex.getMessage(), null));
     }

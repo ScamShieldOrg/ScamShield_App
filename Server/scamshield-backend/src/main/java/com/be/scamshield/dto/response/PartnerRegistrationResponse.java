@@ -14,4 +14,10 @@ public class PartnerRegistrationResponse {
     private Long userId;
     private PartnerVerificationStatus verificationStatus;
     private LocalDateTime submittedAt;
+    private PartnerBusinessVerificationResponse businessVerification;
+
+    public PartnerRegistrationResponse(Long registrationId, Long userId,
+                                       PartnerVerificationStatus verificationStatus, LocalDateTime submittedAt) {
+        this(registrationId, userId, verificationStatus, submittedAt, null);
+    }
 }

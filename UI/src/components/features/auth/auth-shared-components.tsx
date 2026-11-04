@@ -14,6 +14,8 @@ interface AuthInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string
   actionLabel?: string
   onActionClick?: () => void
+  inlineAction?: boolean
+  actionDisabled?: boolean
   suffix?: React.ReactNode
 }
 
@@ -24,6 +26,8 @@ export function AuthInput({
   error,
   actionLabel,
   onActionClick,
+  inlineAction = false,
+  actionDisabled = false,
   suffix,
   id,
   className,
@@ -42,10 +46,11 @@ export function AuthInput({
           <span>{label}</span>
           {required && <span className="text-[#BA1A1A]">*</span>}
         </label>
-        {actionLabel && (
+        {actionLabel && !inlineAction && (
           <button
             type="button"
             onClick={onActionClick}
+            disabled={actionDisabled}
             className="text-[11px] font-semibold tracking-wider text-[#545D7C] uppercase hover:text-[#131B2E] dark:text-muted-foreground dark:hover:text-foreground"
           >
             {actionLabel}
@@ -53,32 +58,44 @@ export function AuthInput({
         )}
       </div>
 
-      <div className="relative">
-        <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#76767E]">
-          {icon}
-        </div>
-        <input
-          id={inputId}
-          aria-invalid={!!error}
-          aria-required={required}
-          aria-describedby={error ? `${inputId}-error` : undefined}
-          className={cn(
-            "h-12 w-full rounded-lg bg-white pr-4 pl-11 text-sm",
-            suffix && "pr-11",
-            "text-[#131B2E] placeholder:text-[#76767E]/70",
-            "border border-[#C6C6CE] shadow-xs transition-all outline-none",
-            "dark:border-border dark:bg-muted/30 dark:text-foreground dark:placeholder:text-muted-foreground",
-            error
-              ? "border-[#BA1A1A] ring-2 ring-[#BA1A1A]/20 dark:border-destructive dark:ring-destructive/30"
-              : "focus:border-[#0B132B] focus:ring-2 focus:ring-[#0B132B]/20 dark:focus:border-primary dark:focus:ring-ring/40",
-            className
-          )}
-          {...props}
-        />
-        {suffix && (
-          <div className="absolute top-1/2 right-3.5 -translate-y-1/2 text-[#76767E]">
-            {suffix}
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#76767E]">
+            {icon}
           </div>
+          <input
+            id={inputId}
+            aria-invalid={!!error}
+            aria-required={required}
+            aria-describedby={error ? `${inputId}-error` : undefined}
+            className={cn(
+              "h-12 w-full rounded-lg bg-white pr-4 pl-11 text-sm",
+              suffix && "pr-11",
+              "text-[#131B2E] placeholder:text-[#76767E]/70",
+              "border border-[#C6C6CE] shadow-xs transition-all outline-none",
+              "dark:border-border dark:bg-muted/30 dark:text-foreground dark:placeholder:text-muted-foreground",
+              error
+                ? "border-[#BA1A1A] ring-2 ring-[#BA1A1A]/20 dark:border-destructive dark:ring-destructive/30"
+                : "focus:border-[#0B132B] focus:ring-2 focus:ring-[#0B132B]/20 dark:focus:border-primary dark:focus:ring-ring/40",
+              className
+            )}
+            {...props}
+          />
+          {suffix && (
+            <div className="absolute top-1/2 right-3.5 -translate-y-1/2 text-[#76767E]">
+              {suffix}
+            </div>
+          )}
+        </div>
+        {actionLabel && inlineAction && (
+          <button
+            type="button"
+            onClick={onActionClick}
+            disabled={actionDisabled}
+            className="h-12 shrink-0 rounded-lg border border-input bg-muted/30 px-3 text-xs font-semibold text-foreground shadow-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {actionLabel}
+          </button>
         )}
       </div>
 

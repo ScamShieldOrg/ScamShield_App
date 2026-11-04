@@ -1,17 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { CheckCircle, XCircle, GitMerge, ShieldWarning } from "@phosphor-icons/react"
+import { CheckCircle, XCircle, ShieldWarning } from "@phosphor-icons/react"
 import { ModerationDecisionPayload } from "@/features/moderator/types/moderator.types"
 
 interface ReportDecisionFormProps {
-  reportId: string
+  reportId: string | number
   selectedTaxonomies: string[]
   onSubmit: (payload: ModerationDecisionPayload) => Promise<void>
   isSubmitting?: boolean
 }
 
-type DecisionType = "APPROVE" | "REJECT" | "MERGE"
+type DecisionType = "APPROVE" | "REJECT"
 
 export function ReportDecisionForm({
   reportId,
@@ -46,45 +46,32 @@ export function ReportDecisionForm({
       </div>
 
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-        {/* 3 Decision Action Buttons */}
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        {/* 2 Decision Action Buttons matching UI mockups and backend enum */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={() => setDecision("APPROVE")}
-            className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-xs font-bold transition-all ${
               decision === "APPROVE"
                 ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-2xs ring-2 ring-emerald-500/20 dark:border-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
-                : "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50/50 dark:border-emerald-900/60 dark:bg-slate-900 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                : "border-slate-200 bg-white text-emerald-700 hover:bg-emerald-50/50 dark:border-slate-800 dark:bg-slate-900 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
             }`}
           >
-            <CheckCircle size={16} weight="bold" />
+            <CheckCircle size={17} weight="bold" />
             <span>Phê duyệt</span>
           </button>
 
           <button
             type="button"
             onClick={() => setDecision("REJECT")}
-            className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-xs font-bold transition-all ${
               decision === "REJECT"
                 ? "border-rose-500 bg-rose-50 text-rose-700 shadow-2xs ring-2 ring-rose-500/20 dark:border-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
-                : "border-rose-200 bg-white text-rose-700 hover:bg-rose-50/50 dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                : "border-slate-200 bg-white text-rose-700 hover:bg-rose-50/50 dark:border-slate-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/30"
             }`}
           >
-            <XCircle size={16} weight="bold" />
+            <XCircle size={17} weight="bold" />
             <span>Từ chối</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setDecision("MERGE")}
-            className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-xs font-bold transition-all ${
-              decision === "MERGE"
-                ? "border-slate-800 bg-slate-100 text-slate-900 shadow-2xs ring-2 ring-slate-800/20 dark:border-white dark:bg-slate-800 dark:text-white"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-            }`}
-          >
-            <GitMerge size={16} weight="bold" />
-            <span>Gộp vụ</span>
           </button>
         </div>
 

@@ -31,8 +31,6 @@ public class PartnerProfile {
     @Column(name = "brand_name", nullable = false)
     private String brandName;
 
-    @Column(name = "partner_type", nullable = false)
-    private String partnerType;
 
     // Nullable for profiles created before the registration form. New submissions require these fields.
     @Column(name = "tax_code", unique = true, length = 13)
@@ -47,15 +45,12 @@ public class PartnerProfile {
     @Column(name = "contact_phone", length = 30)
     private String contactPhone;
 
-    @Column(name = "legal_representative")
-    private Boolean legalRepresentative;
-
-    @Column(name = "terms_accepted_at")
-    private LocalDateTime termsAcceptedAt;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false)
     private PartnerVerificationStatus verificationStatus;
+
+    @Column(name = "business_verification_result", columnDefinition = "text")
+    private String businessVerificationResult;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")

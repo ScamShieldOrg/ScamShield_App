@@ -1,6 +1,7 @@
 package com.be.scamshield.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,7 +18,8 @@ public class EvidenceItemDto {
 
     private String fileHash;
 
-    private String evidenceType; // IMAGE, SCREENSHOT, PDF, DOCUMENT
+    @Schema(description = "JPG, PNG hoặc PDF; nếu bỏ trống, suy ra từ tên tệp hoặc đường dẫn URL. JPEG được lưu thành JPG")
+    private String evidenceType;
 
     private String fileName;
 }

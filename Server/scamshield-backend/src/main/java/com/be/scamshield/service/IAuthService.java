@@ -4,6 +4,7 @@ import com.be.scamshield.dto.AuthResponse;
 import com.be.scamshield.dto.ChangePasswordRequest;
 import com.be.scamshield.dto.LoginRequest;
 import com.be.scamshield.dto.UserDto;
+import com.be.scamshield.dto.request.LoginGoogleRequest;
 import com.be.scamshield.dto.request.RegisterGoogleRequest;
 import com.be.scamshield.dto.request.RegisterPersonalRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -16,9 +17,23 @@ public interface IAuthService {
     void registerPersonal(RegisterPersonalRequest request);
 
     /**
-     * Registers or authenticates a Google OAuth user.
+     * Registers a new user account via Google ID Token with phone verification.
+     * Generates JWT access token and sets refresh token in HttpOnly cookie.
      */
-    void registerGoogle(RegisterGoogleRequest request);
+    AuthResponse registerGoogle(RegisterGoogleRequest request, HttpServletResponse response);
+
+    /**
+     * Registers a new user account via Google ID Token without setting cookies.
+     */
+    default void registerGoogle(RegisterGoogleRequest request) {
+        registerGoogle(request, null);
+    }
+
+    /**
+     * Authenticates user using Google ID Token.
+     * Sets refresh token in HttpOnly cookie.
+     */
+    AuthResponse loginGoogle(LoginGoogleRequest request, HttpServletResponse response);
 
     /**
      * Authenticates user with username, email, or phone number and password.

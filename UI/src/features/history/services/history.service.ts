@@ -1,4 +1,12 @@
-import { HistoryItem } from "../types/history.types"
+import { authorizeApi } from "@/lib/api/instance"
+import {
+  HistoryItem,
+  ScamCheckRiskCounts,
+  ScamCheckHistoryParams,
+  ScamCheckHistoryResponse,
+  HistoryApiResponse,
+} from "../types/history.types"
+import axios from "axios"
 
 export const MOCK_HISTORY_ITEMS: HistoryItem[] = [
   {
@@ -94,3 +102,123 @@ export const MOCK_HISTORY_ITEMS: HistoryItem[] = [
     riskScore: 99,
   },
 ]
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data
+    return data?.message || data?.error || fallback
+  }
+  return error instanceof Error ? error.message : fallback
+}
+
+/**
+ * Lấy danh sách lịch sử kiểm tra lừa đảo của người dùng kèm phân trang và thống kê rủi ro
+ */
+export async function getScamCheckHistory(
+  params?: ScamCheckHistoryParams
+): Promise<ScamCheckHistoryResponse> {
+  try {
+    const queryParams: Record<string, unknown> = {
+      page: params?.page ?? 0,
+      size: params?.size ?? 10,
+      timeRange: params?.timeRange || "all",
+      scamType: params?.scamType || "all",
+      riskStatus: params?.riskStatus || "ALL",
+    }
+
+    if (params?.search && params.search.trim()) {
+      queryParams.search = params.search.trim()
+    }
+
+    const res = await authorizeApi.get<HistoryApiResponse<ScamCheckHistoryResponse>>(
+      "/history",
+      { params: queryParams }
+    )
+
+    if (res.data?.isSuccess && res.data?.data) {
+      return res.data.data
+    }
+
+    return {
+      items: {
+        data: [],
+        currentPage: 0,
+        totalItems: 0,
+        totalPages: 0,
+        pageSize: 10,
+        hasNext: false,
+        hasPrevious: false,
+      },
+      riskCounts: {
+        all: 0,
+        dangerous: 0,
+        suspicious: 0,
+        safe: 0,
+        unknown: 0,
+      },
+      periodLabel: "",
+    }
+  } catch (error) {
+    console.error("Lỗi khi tải lịch sử kiểm tra:", error)
+    throw new Error(
+      extractErrorMessage(error, "Không thể tải lịch sử kiểm tra")
+    )
+  }
+}
+
+/**
+ * Lấy số lượng thống kê theo phân loại rủi ro
+ */
+export async function getRiskCounts(): Promise<ScamCheckRiskCounts> {
+  try {
+    const res = await authorizeApi.get<HistoryApiResponse<ScamCheckRiskCounts>>(
+      "/history/risk-counts"
+    )
+
+    if (res.data?.isSuccess && res.data?.data) {
+      return res.data.data
+    }
+
+    return {
+      all: 0,
+      dangerous: 0,
+      suspicious: 0,
+      safe: 0,
+      unknown: 0,
+    }
+  } catch (error) {
+    console.error("Lỗi khi tải thống kê rủi ro:", error)
+    throw new Error(
+      extractErrorMessage(error, "Không thể tải thống kê rủi ro")
+    )
+  }
+}
+
+/**
+ * Xóa/ẩn mềm danh sách các bản ghi lịch sử kiểm tra theo IDs
+ */
+export async function deleteHistoryItems(
+  ids: (string | number)[]
+): Promise<void> {
+  try {
+    const numericIds = ids.map((id) => Number(id)).filter((id) => !isNaN(id))
+    if (numericIds.length === 0) return
+
+    const res = await authorizeApi.delete<HistoryApiResponse<void>>(
+      "/history",
+      {
+        data: numericIds,
+        params: { ids: numericIds.join(",") },
+      }
+    )
+
+    if (!res.data?.isSuccess && res.status >= 400) {
+      throw new Error(res.data?.message || "Xóa lịch sử kiểm tra thất bại")
+    }
+  } catch (error) {
+    console.error("Lỗi khi xóa lịch sử kiểm tra:", error)
+    throw new Error(
+      extractErrorMessage(error, "Không thể xóa các bản ghi lịch sử đã chọn")
+    )
+  }
+}

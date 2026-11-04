@@ -6,14 +6,17 @@ import com.be.scamshield.constant.RoleEnum;
 import com.be.scamshield.constant.UserStatus;
 import com.be.scamshield.dto.request.RegisterPartnerRequest;
 import com.be.scamshield.dto.request.VerifyContactsRequest;
-import com.be.scamshield.entity.ContactVerification;
-import com.be.scamshield.repository.ContactVerificationRepository;
+import com.be.scamshield.dto.ContactVerificationEntry;
+import com.be.scamshield.service.IContactVerificationStore;
 import java.time.Clock;
 import java.time.ZoneId;
 import java.time.LocalDateTime;
 import org.mockito.Spy;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.be.scamshield.dto.response.PartnerRegistrationResponse;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.MatchResult;
+import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.Outcome;
 import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.entity.PartnerDocument;
 import com.be.scamshield.entity.Role;
@@ -38,6 +41,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
@@ -70,7 +76,9 @@ class PartnerRegistrationServiceImplTest {
     @Mock
     private IOtpService otpService;
     @Mock
-    private ContactVerificationRepository verificationRepository;
+    private IContactVerificationStore verificationStore;
+    @Mock
+    private PartnerBusinessVerificationService businessVerificationService;
     @Spy
     private Clock applicationClock = Clock.system(ZoneId.of("Asia/Ho_Chi_Minh"));
     private PartnerRegistrationServiceImpl service;
@@ -82,10 +90,11 @@ class PartnerRegistrationServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        contactVerificationService = new ContactVerificationService(userRepository, otpService, verificationRepository, applicationClock);
+        contactVerificationService = new ContactVerificationService(userRepository, otpService, verificationStore, applicationClock);
         ReflectionTestUtils.setField(contactVerificationService, "verificationExpirationMs", 600000L);
         service = new PartnerRegistrationServiceImpl(applicationClock, profileRepository, documentRepository, userRepository,
-                roleRepository, passwordEncoder, contactVerificationService);
+                roleRepository, passwordEncoder, contactVerificationService, businessVerificationService,
+                new TransactionTemplate(mock(PlatformTransactionManager.class)), new ObjectMapper());
         request = new RegisterPartnerRequest();
         request.setLegalName(" Công ty Example ");
         request.setTaxCode("0100112437");
@@ -97,7 +106,6 @@ class PartnerRegistrationServiceImplTest {
         request.setOfficialDomains("Example.com.vn");
         request.setOfficialHotlines("1900 545413");
         request.setSmsBrandNames("Example");
-        request.setLegalRepresentative(true);
         request.setAgreeTerms(true);
         files = List.of(new MockMultipartFile("file", "proof.pdf", "application/pdf",
                 "%PDF-1.7\nproof".getBytes(StandardCharsets.US_ASCII)));
@@ -140,17 +148,8 @@ class PartnerRegistrationServiceImplTest {
     }
 
     @Test
-    void delegatedApplicantRequiresAuthorization() {
-        request.setLegalRepresentative(false);
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("ủy quyền");
-        assertNoWrites();
-    }
-
-    @Test
-    void delegatedApplicantCanSubmitAllThreeDocumentCategories() {
+    void canSubmitOptionalAuthorizationAlongsideRequiredDocuments() {
         prepareAccountPersistence();
-        request.setLegalRepresentative(false);
         service.register(request, files, files, files);
         verify(documentRepository).saveAll(documents.capture());
         assertThat(documents.getValue()).extracting(PartnerDocument::getDocumentType)
@@ -224,6 +223,16 @@ class PartnerRegistrationServiceImplTest {
     }
 
     @Test
+    void rejectsImageBusinessLicenseBeforeExternalCallsButDoesNotConsumePhoneToken() {
+        byte[] png = {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+        List<MultipartFile> image = List.of(new MockMultipartFile("file", "license.png", "image/png", png));
+        assertThatThrownBy(() -> service.register(request, image, files, null))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("PDF");
+        assertNoWrites();
+        verifyNoInteractions(businessVerificationService, verificationStore);
+    }
+
+    @Test
     void rejectsEmptyAndOversizedFiles() {
         MultipartFile oversized = mock(MultipartFile.class);
         when(oversized.getSize()).thenReturn(25L * 1024 * 1024 + 1);
@@ -277,14 +286,6 @@ class PartnerRegistrationServiceImplTest {
     }
 
     @Test
-    void requiresLegalRepresentativeStatusBeforeCreatingAccount() {
-        request.setLegalRepresentative(null);
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("đại diện pháp luật");
-        assertNoWrites();
-    }
-
-    @Test
     void invalidSmsOtpPreventsAccountAndApplicationCreation() {
         
         doThrow(new IllegalArgumentException("OTP điện thoại không hợp lệ: mã không đúng"))
@@ -306,29 +307,32 @@ class PartnerRegistrationServiceImplTest {
     void verifiesContactsAndIssuesBoundTokenWithoutCreatingAccount() {
         var response = contactVerificationService.verifyContacts(contacts());
         assertThat(response.getVerificationToken()).matches("[A-Za-z0-9_-]{43}");
-        ArgumentCaptor<ContactVerification> grant = ArgumentCaptor.forClass(ContactVerification.class);
-        verify(verificationRepository).saveAndFlush(grant.capture());
+        ArgumentCaptor<ContactVerificationEntry> grant = ArgumentCaptor.forClass(ContactVerificationEntry.class);
+        verify(verificationStore).save(grant.capture(), any());
         assertThat(grant.getValue().getTokenHash()).hasSize(64).isNotEqualTo(response.getVerificationToken());
-        assertThat(grant.getValue().getEmail()).isEmpty();
+
         assertThat(grant.getValue().getPhoneNumber()).isEqualTo("0912345678");
         verify(otpService).verifyPhoneOtp("0912345678", "123456");
         assertNoWrites();
     }
     @Test
     void missingVerificationTokenPreventsAccountAndDossierCreation() {
-        when(roleRepository.findByName(RoleEnum.BUSINESS_PARTNER.name()))
-                .thenReturn(Optional.of(Role.builder().name(RoleEnum.BUSINESS_PARTNER.name()).build()));
         request.setVerificationToken(null);
         assertThatThrownBy(() -> service.register(request, files, files, null))
                 .isInstanceOf(BadRequestException.class).hasMessageContaining("xác thực điện thoại");
         assertNoWrites();
-        verifyNoInteractions(passwordEncoder, otpService);
+        verifyNoInteractions(passwordEncoder, otpService, businessVerificationService);
     }
 
     private void prepareAccountPersistence() {
-        ContactVerification grant = ContactVerification.builder().phoneNumber("0912345678")
-                .expiresAt(LocalDateTime.now(applicationClock).plusMinutes(10)).build();
-        when(verificationRepository.findLockedByTokenHash(any())).thenReturn(Optional.of(grant));
+        when(verificationStore.consume(any(), any(), any())).thenReturn(0);
+        LocalDateTime expiresAt = LocalDateTime.now(applicationClock).plusMinutes(10);
+        LocalDateTime checkedAt = LocalDateTime.now(applicationClock);
+        when(verificationStore.findByTokenHash(any())).thenReturn(Optional.of(ContactVerificationEntry.builder()
+                .phoneNumber("0912345678").expiresAt(expiresAt).build()));
+        when(businessVerificationService.verify(any(), any(), any())).thenReturn(new PartnerBusinessVerificationResponse(
+                Outcome.MATCHED, checkedAt, "Công ty Example", "0100112437",
+                null, MatchResult.INCONCLUSIVE, MatchResult.INCONCLUSIVE, List.of(), true));
         when(roleRepository.findByName(RoleEnum.BUSINESS_PARTNER.name()))
                 .thenReturn(Optional.of(Role.builder().name(RoleEnum.BUSINESS_PARTNER.name()).build()));
         when(passwordEncoder.encode(any(String.class))).thenReturn("encoded-password");

@@ -7,6 +7,8 @@ interface HistoryPaginationProps {
   currentPage: number
   totalPages: number
   totalItems: number
+  pageSize?: number
+  periodLabel?: string
   onPageChange: (page: number) => void
 }
 
@@ -14,9 +16,15 @@ export function HistoryPagination({
   currentPage,
   totalPages,
   totalItems,
+  pageSize = 10,
+  periodLabel,
   onPageChange,
 }: HistoryPaginationProps) {
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+  const safeTotalPages = Math.max(1, totalPages)
+  const start = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const end = Math.min(currentPage * pageSize, totalItems)
+
+  const pages = Array.from({ length: safeTotalPages }, (_, i) => i + 1)
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
@@ -24,13 +32,13 @@ export function HistoryPagination({
       <p className="text-xs text-[#45464D] dark:text-muted-foreground">
         Hiển thị{" "}
         <span className="font-bold text-[#131B2E] dark:text-foreground">
-          1 - 7
+          {start} - {end}
         </span>{" "}
         /{" "}
         <span className="font-bold text-[#131B2E] dark:text-foreground">
           {totalItems}
         </span>{" "}
-        truy vấn trong Tháng 5/2025
+        truy vấn {periodLabel ? periodLabel : ""}
       </p>
 
       {/* Page Numbers */}
@@ -38,7 +46,7 @@ export function HistoryPagination({
         <button
           type="button"
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-          disabled={currentPage === 1}
+          disabled={currentPage <= 1}
           className="flex size-8 cursor-pointer items-center justify-center rounded-lg border border-[#C6C6CE]/50 bg-white text-[#45464D] shadow-2xs hover:bg-[#FAF8FF] disabled:cursor-not-allowed disabled:opacity-40 dark:border-border dark:bg-card dark:text-muted-foreground"
           aria-label="Trang trước"
         >
@@ -66,8 +74,8 @@ export function HistoryPagination({
 
         <button
           type="button"
-          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(Math.min(safeTotalPages, currentPage + 1))}
+          disabled={currentPage >= safeTotalPages}
           className="flex size-8 cursor-pointer items-center justify-center rounded-lg border border-[#C6C6CE]/50 bg-white text-[#45464D] shadow-2xs hover:bg-[#FAF8FF] disabled:cursor-not-allowed disabled:opacity-40 dark:border-border dark:bg-card dark:text-muted-foreground"
           aria-label="Trang sau"
         >

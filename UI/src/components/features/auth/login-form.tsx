@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { authServices } from "@/features/auth/services/auth-services"
 import { toast } from "react-toastify"
+import { GoogleAuthButton } from "@/components/features/auth/google-auth-button"
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -95,6 +96,46 @@ export function LoginForm() {
   const router = useRouter()
 
   const [showPassword, setShowPassword] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+
+  function redirectByRole(role: string) {
+    switch (role) {
+      case "ADMINISTRATOR":
+        router.push("/admin")
+        break
+      case "REGISTERED_USER":
+        router.push("/user")
+        break
+      case "MODERATOR":
+        router.push("/moderator")
+        break
+      case "GUEST":
+        router.push("/guest")
+        break
+      case "BUSINESS_PARTNER":
+        router.push("/business-partner")
+        break
+      default:
+        router.push("/")
+        break
+    }
+  }
+
+  async function handleGoogleOAuthSuccess(credential: string) {
+    setIsGoogleLoading(true)
+    setServerError(null)
+    try {
+      const response = await authServices.loginGoogle(credential)
+      toast.success(response.message || "Đăng nhập Google thành công")
+      redirectByRole(response.role)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Đăng nhập Google thất bại"
+      setServerError(msg)
+      toast.error(msg)
+    } finally {
+      setIsGoogleLoading(false)
+    }
+  }
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -520,22 +561,18 @@ export function LoginForm() {
                   </span>
                 </div>
 
-                {/* Google Sign-In */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={cn(
-                    "h-12 w-full gap-3 rounded-xl",
-                    "border-[#C6C6CE] bg-white shadow-sm",
-                    "hover:bg-[#F2F3FF] active:scale-[0.99]",
-                    "dark:border-border dark:bg-card dark:hover:bg-muted"
-                  )}
-                >
-                  <GoogleIcon />
-                  <span className="text-sm font-bold text-[#131B2E] dark:text-foreground">
-                    Đăng nhập với Google
-                  </span>
-                </Button>
+                {/* Google Sign-In via OAuth 2.0 */}
+                <GoogleAuthButton
+                  text="signin_with"
+                  onSuccess={handleGoogleOAuthSuccess}
+                  onError={(err) => {
+                    const msg = err || "Đăng nhập Google OAuth 2.0 thất bại"
+                    setServerError(msg)
+                    toast.error(msg)
+                  }}
+                  isLoading={isGoogleLoading}
+                  disabled={isLoading}
+                />
 
                 {/* Registration Link */}
                 <p className="pt-4 text-center text-sm text-[#45464D] dark:text-muted-foreground">
@@ -555,6 +592,7 @@ export function LoginForm() {
           </div>
         </div>
       </div>
+
     </section>
   )
 }

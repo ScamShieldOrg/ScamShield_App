@@ -1,6 +1,7 @@
 package com.be.scamshield.controller;
 
 import com.be.scamshield.dto.*;
+import com.be.scamshield.dto.request.LoginGoogleRequest;
 import com.be.scamshield.dto.request.RegisterGoogleRequest;
 import com.be.scamshield.dto.request.RegisterPersonalRequest;
 import com.be.scamshield.dto.request.VerifyContactsRequest;
@@ -53,6 +54,16 @@ public class AuthController {
     public ResponseEntity<BaseResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         AuthResponse authResponse = authService.login(request, response);
         return ResponseEntity.ok(new BaseResponse<>(true, "Login successful", authResponse));
+    }
+
+    @PostMapping("/login/google")
+    @Operation(summary = "Đăng nhập bằng tài khoản Google",
+            description = "Xác thực người dùng qua Google ID Token. Trả về access token JWT và lưu refresh token trong HttpOnly cookie.")
+    public ResponseEntity<BaseResponse<AuthResponse>> loginGoogle(
+            @Valid @RequestBody LoginGoogleRequest request,
+            HttpServletResponse response) {
+        AuthResponse authResponse = authService.loginGoogle(request, response);
+        return ResponseEntity.ok(new BaseResponse<>(true, "Đăng nhập Google thành công", authResponse));
     }
 
     @PostMapping("/refresh-token")
@@ -129,10 +140,13 @@ public class AuthController {
     }
 
     @PostMapping("/register/google")
-    @Operation(summary = "Đăng ký cá nhân qua Google")
-    public ResponseEntity<BaseResponse<Void>> registerGoogle(@Valid @RequestBody RegisterGoogleRequest request) {
-        authService.registerGoogle(request);
-        return ResponseEntity.ok(new BaseResponse<>(true, "Google Registration successful", null));
+    @Operation(summary = "Đăng ký cá nhân qua Google",
+            description = "Xác thực qua Google ID Token kết hợp xác thực số điện thoại (hỗ trợ verificationToken từ /verify-contacts hoặc phoneOtp trực tiếp). Đăng ký thành công trả về accessToken và lưu refreshToken vào cookie.")
+    public ResponseEntity<BaseResponse<AuthResponse>> registerGoogle(
+            @Valid @RequestBody RegisterGoogleRequest request,
+            HttpServletResponse response) {
+        AuthResponse authResponse = authService.registerGoogle(request, response);
+        return ResponseEntity.ok(new BaseResponse<>(true, "Google Registration successful", authResponse));
     }
 
     private String extractCookie(HttpServletRequest request, String name) {

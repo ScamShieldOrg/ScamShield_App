@@ -8,10 +8,34 @@ import {
 import { ReportSummaryMetrics } from "@/features/report/types/report.types"
 
 interface ReportMetricsCardsProps {
-  metrics: ReportSummaryMetrics
+  metrics?: ReportSummaryMetrics
+  isLoading?: boolean
 }
 
-export function ReportMetricsCards({ metrics }: ReportMetricsCardsProps) {
+export function ReportMetricsCards({
+  metrics,
+  isLoading = false,
+}: ReportMetricsCardsProps) {
+  if (isLoading || !metrics) {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="animate-pulse space-y-3 rounded-2xl border border-[#C6C6CE]/40 bg-white p-5 shadow-xs dark:border-border dark:bg-card"
+          >
+            <div className="flex items-center justify-between">
+              <div className="h-3 w-28 rounded-md bg-slate-200 dark:bg-slate-700" />
+              <div className="size-9 rounded-xl bg-slate-100 dark:bg-slate-800" />
+            </div>
+            <div className="h-8 w-20 rounded-md bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-36 rounded-md bg-slate-100 dark:bg-slate-800" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {/* Card 1: Tổng báo cáo */}
@@ -29,7 +53,7 @@ export function ReportMetricsCards({ metrics }: ReportMetricsCardsProps) {
           {metrics.totalReports}
         </div>
 
-        <div className="inline-flex items-center gap-1 rounded-full bg-[#E2E7FF]/60 px-2.5 py-0.5 text-[11px] font-semibold text-[#131B2E] dark:bg-muted dark:text-foreground">
+        <div className="inline-flex min-h-6 items-center gap-1 rounded-full bg-[#E2E7FF]/60 px-2.5 py-0.5 text-[11px] font-semibold text-[#131B2E] dark:bg-muted dark:text-foreground">
           <span className="font-bold text-[#008CC7] dark:text-primary">
             +{metrics.recentReports7Days}
           </span>{" "}
@@ -52,7 +76,7 @@ export function ReportMetricsCards({ metrics }: ReportMetricsCardsProps) {
           {metrics.blacklistedCount}
         </div>
 
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#45464D] dark:text-muted-foreground">
+        <div className="flex min-h-6 items-center gap-1.5 text-[11px] font-medium text-[#45464D] dark:text-muted-foreground">
           <Shield
             size={13}
             weight="fill"
@@ -80,7 +104,7 @@ export function ReportMetricsCards({ metrics }: ReportMetricsCardsProps) {
           {metrics.accuracyRate}%
         </div>
 
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex min-h-6 items-center gap-2 text-[11px]">
           <span className="text-[#45464D] dark:text-muted-foreground">
             Độ tin cậy xếp hạng:
           </span>
@@ -102,26 +126,7 @@ export function ReportMetricsCards({ metrics }: ReportMetricsCardsProps) {
         </div>
 
         <div className="font-heading text-3xl font-extrabold text-[#131B2E] dark:text-foreground">
-          +{metrics.reputationPoints}
-        </div>
-
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-[#45464D] dark:text-muted-foreground">
-              Tiến trình Sentinel
-            </span>
-            <span className="font-bold text-[#131B2E] dark:text-foreground">
-              {metrics.currentTierProgress}/{metrics.maxTierPoints}
-            </span>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#DAE2FD] dark:bg-muted">
-            <div
-              className="h-full rounded-full bg-[#0B132B] transition-all dark:bg-primary"
-              style={{
-                width: `${(metrics.currentTierProgress / metrics.maxTierPoints) * 100}%`,
-              }}
-            />
-          </div>
+          {metrics.reputationPoints.toLocaleString("vi-VN")}
         </div>
       </div>
     </div>
