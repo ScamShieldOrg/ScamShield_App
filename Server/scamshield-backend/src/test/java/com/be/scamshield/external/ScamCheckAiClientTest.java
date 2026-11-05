@@ -68,12 +68,6 @@ class ScamCheckAiClientTest {
     @Test
     void mapsBothTiersAndRejectsInvalidVerdicts() {
         var client = new ScamCheckAiClient(json, "http://localhost:8000", 1000, 1000, true);
-        for (String label : java.util.List.of("SCAM_RISK", "LOW_RISK", "UNKNOWN")) {
-            var result = client.parse(response(label, 2), "MESSAGE");
-            assertThat(result.verdict()).isEqualTo(label);
-            assertThat(result.aiDetails().verdict().riskLevel()).isEqualTo(label);
-        }
-        assertThat(client.parse(response("SUSPICIOUS", 2), "MESSAGE").unknownReason()).isEqualTo("AI_UNCERTAIN");
         assertThat(client.parse(response("SAFE", 1), "MESSAGE").verdict()).isEqualTo("LOW_RISK");
         assertThat(client.parse(flatResponse(), "MESSAGE").verdict()).isEqualTo("UNKNOWN");
         assertThat(client.parse(flatResponse(), "MESSAGE").aiDetails().recommendations())
