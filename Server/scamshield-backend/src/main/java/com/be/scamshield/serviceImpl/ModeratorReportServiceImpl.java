@@ -508,6 +508,9 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .reportCount(1)
                 .reportedBy(reportedBy)
                 .reportedAt(reportedAt)
+                .processedAt((report.getStatus() == ReportStatus.APPROVED || report.getStatus() == ReportStatus.REJECTED)
+                        && report.getUpdatedAt() != null
+                        ? report.getUpdatedAt().format(DATE_TIME_FORMATTER) : null)
                 .status(uiStatus)
                 // Theo yêu cầu của người dùng: Hiện tại các trường phán quyết AI để trống trong DTO
                 .aiScore(null)

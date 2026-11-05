@@ -50,9 +50,16 @@ export function ReportQueueFilters({
             key={value}
             aria-pressed={currentTab === value}
             onClick={() => onTabChange(value)}
-            className={`rounded-lg px-2 py-1 text-xs ${currentTab === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${currentTab === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-foreground"}`}
           >
             {label}
+            {(value === "PENDING" || value === "IN_REVIEW") && (
+              <span
+                className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${currentTab === value ? "bg-primary-foreground/15 text-primary-foreground" : "bg-background text-foreground"}`}
+              >
+                {value === "PENDING" ? counts.pending : counts.inReview}
+              </span>
+            )}
           </button>
         ))}
       </div>

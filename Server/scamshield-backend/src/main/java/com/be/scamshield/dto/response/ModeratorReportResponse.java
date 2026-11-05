@@ -45,6 +45,7 @@ public class ModeratorReportResponse {
 
     @Schema(description = "Thời gian gửi báo cáo định dạng", example = "15/01/2024 14:32")
     private String reportedAt;
+    private String processedAt;
 
     @Schema(description = "Trạng thái hiển thị (Pending, Approved, Rejected)", example = "Pending")
     private String status;

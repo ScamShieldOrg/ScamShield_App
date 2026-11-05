@@ -52,6 +52,7 @@ export interface ModeratorReportItem {
   reportCount: number
   reportedBy: string
   reportedAt: string
+  processedAt?: string | null
   priority: QueueItemPriority
   status: QueueItemStatus
   aiScore?: number | null

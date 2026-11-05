@@ -15,13 +15,13 @@ export const DEFAULT_TAB_COUNTS: NotificationTabCounts = {
 }
 
 /**
- * Lấy danh sách thông báo phân trang và số lượng tab từ GET /api/notifications
+ * Lấy danh sách thông báo phân trang và số lượng tab từ GET /notifications
  */
 export async function getNotifications(
   params?: NotificationQueryParams
 ): Promise<PaginatedNotifications> {
   try {
-    const res = await authorizeApi.get("/api/notifications", {
+    const res = await authorizeApi.get("/notifications", {
       params: {
         type: params?.type && params.type !== "ALL" ? params.type : undefined,
         unreadOnly: params?.unreadOnly || undefined,
@@ -30,12 +30,12 @@ export async function getNotifications(
       },
     })
 
-    if (res.data?.success && res.data?.data) {
+    if ((res.data?.isSuccess ?? res.data?.success) && res.data?.data) {
       const d = res.data.data
       const pageData = d.notifications || {}
-      const rawList = Array.isArray(pageData.data) ? pageData.data : []
+      const rawList: Partial<NotificationItem>[] = Array.isArray(pageData.data) ? pageData.data : []
 
-      const items: NotificationItem[] = rawList.map((item: any) => ({
+      const items: NotificationItem[] = rawList.filter((item): item is Partial<NotificationItem> & { id: number } => Number.isSafeInteger(item.id) && Number(item.id) > 0).map((item) => ({
         id: item.id,
         title: item.title || "",
         desc: item.desc || item.message || "",
@@ -75,28 +75,19 @@ export async function getNotifications(
       }
     }
   } catch (error) {
-    console.warn("Không thể tải danh sách thông báo:", error)
+    throw new Error(error instanceof Error ? error.message : "Không thể tải danh sách thông báo")
   }
 
-  return {
-    items: [],
-    currentPage: 0,
-    totalItems: 0,
-    totalPages: 1,
-    pageSize: 10,
-    hasNext: false,
-    hasPrevious: false,
-    tabCounts: DEFAULT_TAB_COUNTS,
-  }
+  throw new Error("Không thể tải danh sách thông báo")
 }
 
 /**
- * Lấy số lượng thông báo theo từng tab từ GET /api/notifications/tab-counts
+ * Lấy số lượng thông báo theo từng tab từ GET /notifications/tab-counts
  */
 export async function getNotificationTabCounts(): Promise<NotificationTabCounts> {
   try {
-    const res = await authorizeApi.get("/api/notifications/tab-counts")
-    if (res.data?.success && res.data?.data) {
+    const res = await authorizeApi.get("/notifications/tab-counts")
+    if ((res.data?.isSuccess ?? res.data?.success) && res.data?.data) {
       const d = res.data.data
       return {
         all: Number(d.all || 0),
@@ -113,12 +104,12 @@ export async function getNotificationTabCounts(): Promise<NotificationTabCounts>
 }
 
 /**
- * Lấy số lượng thông báo chưa đọc từ GET /api/notifications/unread-count
+ * Lấy số lượng thông báo chưa đọc từ GET /notifications/unread-count
  */
 export async function getUnreadNotificationCount(): Promise<number> {
   try {
-    const res = await authorizeApi.get("/api/notifications/unread-count")
-    if (res.data?.success) {
+    const res = await authorizeApi.get("/notifications/unread-count")
+    if (res.data?.isSuccess ?? res.data?.success) {
       return Number(res.data?.data || 0)
     }
   } catch (error) {
@@ -128,17 +119,17 @@ export async function getUnreadNotificationCount(): Promise<number> {
 }
 
 /**
- * Đánh dấu toàn bộ thông báo đã đọc từ PATCH /api/notifications/read-all
+ * Đánh dấu toàn bộ thông báo đã đọc từ PATCH /notifications/read-all
  */
 export async function markAllNotificationsAsRead(): Promise<boolean> {
-  const res = await authorizeApi.patch("/api/notifications/read-all")
-  return Boolean(res.data?.success || res.status === 200)
+  const res = await authorizeApi.patch("/notifications/read-all")
+  return Boolean(res.data?.isSuccess ?? res.data?.success)
 }
 
 /**
- * Đánh dấu một thông báo đã đọc từ PATCH /api/notifications/{id}/read
+ * Đánh dấu một thông báo đã đọc từ PATCH /notifications/{id}/read
  */
 export async function markNotificationAsRead(id: number): Promise<boolean> {
-  const res = await authorizeApi.patch(`/api/notifications/${id}/read`)
-  return Boolean(res.data?.success || res.status === 200)
+  const res = await authorizeApi.patch(`/notifications/${id}/read`)
+  return Boolean(res.data?.isSuccess ?? res.data?.success)
 }

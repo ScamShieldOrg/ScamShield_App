@@ -1,13 +1,8 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import {
-  SealCheck,
-  Scales,
-  Medal,
-  TreeStructure,
-  CheckCircle,
-  DeviceMobile,
   Check,
   SlidersHorizontal,
   CaretRight,
@@ -18,7 +13,6 @@ import { toast } from "react-toastify"
 import { cn } from "@/lib/utils"
 import {
   getNotifications,
-  getNotificationTabCounts,
   markAllNotificationsAsRead,
   markNotificationAsRead,
   DEFAULT_TAB_COUNTS,
@@ -30,22 +24,15 @@ import {
 } from "@/features/notification/types/notification.types"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 
-const ICON_MAP: Record<string, React.ComponentType<any>> = {
-  SealCheck,
-  Scales,
-  Medal,
-  TreeStructure,
-  CheckCircle,
-  DeviceMobile,
-  Bell,
-}
-
 export default function UserNotificationsPage() {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<NotificationType>("ALL")
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [tabCounts, setTabCounts] =
     useState<NotificationTabCounts>(DEFAULT_TAB_COUNTS)
 
+  const latestRequest = useRef(0)
+  const [loadError, setLoadError] = useState("")
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isMarkingAll, setIsMarkingAll] = useState(false)
@@ -64,7 +51,9 @@ export default function UserNotificationsPage() {
   // Fetch notifications based on activeTab, unreadOnly, and currentPage
   const fetchNotifications = useCallback(
     async (pageToLoad: number) => {
+      const requestId = ++latestRequest.current
       setIsLoading(true)
+      setLoadError("")
       try {
         const res = await getNotifications({
           type: activeTab,
@@ -72,16 +61,21 @@ export default function UserNotificationsPage() {
           page: pageToLoad - 1,
           size: 10,
         })
+        if (requestId !== latestRequest.current) return
         setNotifications(res.items)
         setTabCounts(res.tabCounts)
         setStoreUnreadCount(res.tabCounts.unread)
         setTotalPages(Math.max(1, res.totalPages))
         setTotalItems(res.totalItems)
       } catch (err) {
+        if (requestId !== latestRequest.current) return
+        setTotalPages(1)
+        setTotalItems(0)
+        setLoadError("Không thể tải thông báo. Vui lòng thử làm mới lại.")
         console.error("Lỗi khi tải thông báo:", err)
         setNotifications([])
       } finally {
-        setIsLoading(false)
+        if (requestId === latestRequest.current) setIsLoading(false)
       }
     },
     [activeTab, unreadOnly, setStoreUnreadCount]
@@ -147,15 +141,6 @@ export default function UserNotificationsPage() {
     { type: "SYSTEM", label: "Hệ thống", count: tabCounts.system },
   ]
 
-  const getNotificationIcon = (notif: NotificationItem) => {
-    if (notif.icon && ICON_MAP[notif.icon]) {
-      return ICON_MAP[notif.icon]
-    }
-    if (notif.type === "REPORT") return SealCheck
-    if (notif.type === "DISPUTE") return Scales
-    return Medal
-  }
-
   return (
     <div className="w-full max-w-6xl">
       {/* Title & Breadcrumb */}
@@ -184,9 +169,7 @@ export default function UserNotificationsPage() {
             className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Check weight="bold" size={16} />
-            <span>
-              {isMarkingAll ? "Đang xử lý..." : "Đã đọc tất cả"}
-            </span>
+            <span>{isMarkingAll ? "Đang xử lý..." : "Đã đọc tất cả"}</span>
           </button>
 
           <button
@@ -257,7 +240,6 @@ export default function UserNotificationsPage() {
               className="flex animate-pulse items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900"
             >
               <div className="flex items-center gap-4">
-                <div className="size-12 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800" />
                 <div className="space-y-2">
                   <div className="h-4 w-48 rounded-md bg-slate-200 dark:bg-slate-700" />
                   <div className="h-3 w-80 rounded-md bg-slate-100 dark:bg-slate-800" />
@@ -266,6 +248,10 @@ export default function UserNotificationsPage() {
               <div className="h-3 w-16 rounded-md bg-slate-100 dark:bg-slate-800" />
             </div>
           ))
+        ) : loadError ? (
+          <p role="alert" className="p-8 text-destructive">
+            {loadError}
+          </p>
         ) : notifications.length === 0 ? (
           // Empty State
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white py-14 text-center shadow-xs dark:border-slate-800 dark:bg-slate-900">
@@ -284,23 +270,24 @@ export default function UserNotificationsPage() {
         ) : (
           // Real Notifications List
           notifications.map((notif) => {
-            const IconComponent = getNotificationIcon(notif)
             return (
-              <div
+              <button
+                type="button"
                 key={notif.id}
-                onClick={() => handleNotificationClick(notif)}
-                className="group flex cursor-pointer flex-col justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-xs transition-colors hover:bg-slate-50 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/80"
+                onClick={() => {
+                  void handleNotificationClick(notif)
+                  if (
+                    (notif.referenceType === "REPORT" ||
+                      notif.type === "REPORT") &&
+                    Number.isSafeInteger(notif.referenceId) &&
+                    Number(notif.referenceId) > 0
+                  ) {
+                    router.push(`/user/reports/${notif.referenceId}`)
+                  }
+                }}
+                className="group flex w-full cursor-pointer flex-col justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-xs transition-colors hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/80"
               >
                 <div className="flex items-start gap-4">
-                  <div
-                    className={cn(
-                      "mt-0.5 flex size-12 shrink-0 items-center justify-center rounded-full",
-                      notif.iconBg || "bg-slate-100 dark:bg-slate-800",
-                      notif.iconColor || "text-slate-600 dark:text-slate-300"
-                    )}
-                  >
-                    <IconComponent weight="fill" size={24} />
-                  </div>
                   <div>
                     <div className="mb-1 flex items-center gap-2">
                       <h3
@@ -314,21 +301,19 @@ export default function UserNotificationsPage() {
                         {notif.title}
                       </h3>
                       {notif.unread && (
-                        <div
-                          className={cn(
-                            "size-2 shrink-0 rounded-full",
-                            notif.dotColor || "bg-emerald-500"
-                          )}
+                        <span
+                          aria-label="Chưa đọc"
+                          className="size-2 shrink-0 rounded-full bg-blue-600 dark:bg-blue-400"
                         />
                       )}
                     </div>
-                    <p className="text-[13px] font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+                    <p className="text-[13px] leading-relaxed font-medium text-slate-500 dark:text-slate-400">
                       {notif.desc}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex w-full items-center justify-between gap-4 pl-16 sm:w-auto sm:justify-end sm:pl-0">
+                <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
                   <span
                     className={cn(
                       "text-xs font-bold whitespace-nowrap",
@@ -345,7 +330,7 @@ export default function UserNotificationsPage() {
                     size={16}
                   />
                 </div>
-              </div>
+              </button>
             )
           })
         )}
@@ -388,9 +373,7 @@ export default function UserNotificationsPage() {
             })}
             <button
               type="button"
-              onClick={() =>
-                setCurrentPage((p) => Math.min(totalPages, p + 1))
-              }
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage >= totalPages || isLoading}
               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
             >

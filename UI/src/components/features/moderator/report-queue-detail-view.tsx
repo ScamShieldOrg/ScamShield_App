@@ -79,6 +79,16 @@ export function ReportQueueDetailView({
               {item.reportedAt}
             </dd>
           </div>
+          {item.processedAt && (
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                Thời gian đã xử lý
+              </dt>
+              <dd className="mt-1 font-medium text-foreground tabular-nums">
+                {item.processedAt}
+              </dd>
+            </div>
+          )}
         </dl>
       </header>
       <section className="space-y-4 rounded-xl border border-border bg-card p-5">
