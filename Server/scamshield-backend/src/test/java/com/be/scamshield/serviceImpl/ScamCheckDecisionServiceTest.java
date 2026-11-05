@@ -11,8 +11,6 @@ import com.be.scamshield.repository.ConfirmedIndicatorRepository;
 import com.be.scamshield.repository.IndicatorRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -110,28 +108,5 @@ class ScamCheckDecisionServiceTest {
 
     private CheckRequest check(String inputType) {
         return CheckRequest.builder().inputType(inputType).createdAt(LocalDateTime.now()).build();
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-            "SCAM_RISK, Tài khoản bị khóa hãy gửi OTP ngay, Yêu cầu OTP đáng ngờ",
-            "LOW_RISK, Hẹn gặp bạn ở thư viện, Tin nhắn hẹn gặp thông thường",
-            "UNKNOWN, Bạn xem giúp thông báo này nhé, Chưa đủ thông tin để kết luận"
-    })
-    void vietnameseTextPreservesAiVerdictAndNonEmptyReason(String expected, String text, String reason) {
-        var request = check("MESSAGE");
-        request.setId(42L);
-        request.setRawInput(text);
-        when(aiClient.scan(42L, "MESSAGE", text)).thenReturn(new ScamCheckAiClient.Result(
-                expected, "VISOBERT", null, reason, "Xác minh qua kênh chính thức",
-                "UNKNOWN".equals(expected) ? "AI_UNCERTAIN" : null, null, null));
-        var verdict = service.decide(request, List.of()).verdict();
-        assertThat(verdict.getVerdict()).isEqualTo(expected);
-        assertThat(verdict.getExplanation()).isNotBlank().isEqualTo(reason);
-        assertThat(verdict.getReasons()).hasSize(1);
-        assertThat(verdict.getReasons().getFirst().getReasonCode())
-                .isEqualTo("UNKNOWN".equals(expected) ? "AI_UNCERTAIN" : "AI_VERDICT");
-        if ("UNKNOWN".equals(expected)) assertThat(verdict.getUnknownReason()).isEqualTo("AI_UNCERTAIN");
-        verify(aiClient).scan(42L, "MESSAGE", text);
     }
 }

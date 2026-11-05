@@ -218,6 +218,16 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
         return json.readTree(result.andReturn().getResponse().getContentAsString()).path("data");
     }
 
+    @Test
+    void urlOrDomainCandidateMatchesWebsiteIndicatorWithoutThrowing() throws Exception {
+        var indicator = indicator("WEBSITE", "phishing-bank-fake.xyz");
+        confirm(indicator, NOW.minusMinutes(5));
+        JsonNode result = data(submit("URL", "https://phishing-bank-fake.xyz/login", null, owner)
+                .andExpect(status().isOk()));
+        assertThat(result.path("verdict").asText()).isEqualTo("SCAM_RISK");
+        assertThat(result.path("decidedByStage").asText()).isEqualTo("BLACKLIST");
+    }
+
     private User account() {
         int id = SEQUENCE.incrementAndGet();
         User account = User.builder().fullName("Check test user").email("check-" + id + "@example.test")

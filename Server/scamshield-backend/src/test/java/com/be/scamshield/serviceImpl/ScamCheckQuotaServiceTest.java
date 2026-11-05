@@ -7,6 +7,8 @@ import com.be.scamshield.entity.User;
 import com.be.scamshield.repository.QuotaPolicyRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
@@ -59,10 +61,10 @@ class ScamCheckQuotaServiceTest {
     }
 
     @Test
-    void explicitReleaseReturnsReservedSlot() {
-        String reservation = service.reserve(null, guest);
+    void explicitReservationReleaseReturnsReservedSlot() {
+        String reservedKey = service.reserve(null, guest);
         assertThat(counters.get(KEY)).isEqualTo(1);
-        service.releaseReservation(reservation);
+        service.releaseReservation(reservedKey);
         assertThat(counters.get(KEY)).isZero();
     }
 

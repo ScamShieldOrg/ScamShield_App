@@ -8,3 +8,5 @@ docs
 /Server/scamshield-backend/docs/
 /Server/scamshield-backend/diagrams/
 /outputs
+.impeccable/
+.ua/

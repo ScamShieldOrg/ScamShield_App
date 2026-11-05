@@ -22,10 +22,29 @@ const authorizeApi = axios.create({
     withCredentials: true,
 })
 
+publicApi.interceptors.request.use((config) => {
+    // Tránh trùng lặp /api/api khi baseURL đã có /api
+    if (config.url && config.baseURL?.endsWith("/api") && config.url.startsWith("/api/")) {
+        config.url = config.url.replace(/^\/api\//, "/")
+    }
+    return config
+})
+
 authorizeApi.interceptors.request.use((config) => {
     const token = useAuthStore.getState().token
     if (token) {
         config.headers["Authorization"] = `Bearer ${token}`
+    }
+    // Khi gửi FormData (file upload), xóa Content-Type để Axios và browser tự sinh boundary
+    if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+        delete config.headers["Content-Type"]
+        if (typeof config.headers?.delete === "function") {
+            config.headers.delete("Content-Type")
+        }
+    }
+    // Tránh trùng lặp /api/api khi baseURL đã có /api
+    if (config.url && config.baseURL?.endsWith("/api") && config.url.startsWith("/api/")) {
+        config.url = config.url.replace(/^\/api\//, "/")
     }
     return config
 })
