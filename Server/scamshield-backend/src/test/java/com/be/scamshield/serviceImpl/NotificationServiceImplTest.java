@@ -31,6 +31,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceImplTest {
+    @Mock private NotificationStreamService streams;
 
     @Mock
     private NotificationRepository notificationRepository;

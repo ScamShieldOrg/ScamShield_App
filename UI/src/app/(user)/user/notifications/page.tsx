@@ -31,6 +31,7 @@ export default function UserNotificationsPage() {
   const [tabCounts, setTabCounts] =
     useState<NotificationTabCounts>(DEFAULT_TAB_COUNTS)
 
+  const notificationRevision = useNotificationStore(state => state.revision)
   const latestRequest = useRef(0)
   const [loadError, setLoadError] = useState("")
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
@@ -83,7 +84,7 @@ export default function UserNotificationsPage() {
 
   useEffect(() => {
     fetchNotifications(currentPage)
-  }, [fetchNotifications, currentPage])
+  }, [fetchNotifications, currentPage, notificationRevision])
 
   // Mark all as read
   const handleMarkAllAsRead = async () => {

@@ -25,6 +25,7 @@ export interface QueueEvidence {
     reportId: number
     reportStatus: string
     createdAt: string | null
+    reportUpdatedAt?: string | null
     sameReporter: boolean
     matchTypes: string[]
     imageSimilarity: number | null
@@ -35,6 +36,7 @@ export interface QueueEvidence {
     reportId: number
     reportStatus: string
     createdAt: string | null
+    reportUpdatedAt?: string | null
     sameReporter: boolean
   }[]
   url?: string

@@ -51,6 +51,7 @@ public interface ReportEvidenceRepository extends JpaRepository<ReportEvidence, 
         String getReportStatus();
         Long getReporterUserId();
         LocalDateTime getCreatedAt();
+        LocalDateTime getReportUpdatedAt();
         Long getTotalCount();
     }
 
@@ -58,10 +59,10 @@ public interface ReportEvidenceRepository extends JpaRepository<ReportEvidence, 
     @Query(value = """
             SELECT d.id AS "evidenceId", d.file_hash AS "fileHash", d.report_id AS "reportId",
                    d.report_status AS "reportStatus", d.reporter_user_id AS "reporterUserId",
-                   d.created_at AS "createdAt", d.total_count AS "totalCount"
+                   d.created_at AS "createdAt", d.report_updated_at AS "reportUpdatedAt", d.total_count AS "totalCount"
             FROM (
                 SELECT e.id, e.file_hash, e.report_id, e.created_at,
-                       r.status AS report_status, r.reporter_user_id,
+                       r.status AS report_status, r.reporter_user_id, r.updated_at AS report_updated_at,
                        count(*) OVER (PARTITION BY e.file_hash) AS total_count,
                        row_number() OVER (PARTITION BY e.file_hash ORDER BY e.id) AS position
                 FROM report_evidence e JOIN reports r ON r.id = e.report_id

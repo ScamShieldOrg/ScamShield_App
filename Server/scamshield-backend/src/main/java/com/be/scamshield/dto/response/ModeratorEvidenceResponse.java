@@ -48,9 +48,9 @@ public class ModeratorEvidenceResponse {
     @Schema(description = "Tối đa 20 minh chứng gần giống; PHASH là ảnh tương tự, OCR_TEXT là nội dung chữ tương tự; điểm từ 0 đến 1")
     private List<SimilarEvidence> similarEvidences;
 
-    public record SimilarEvidence(Long evidenceId, Long reportId, String reportStatus, LocalDateTime createdAt,
+    public record SimilarEvidence(Long evidenceId, Long reportId, String reportStatus, LocalDateTime createdAt, LocalDateTime reportUpdatedAt,
                                   boolean sameReporter, List<String> matchTypes, Double imageSimilarity, Double textSimilarity) { }
     public record DuplicateEvidence(Long evidenceId, Long reportId, String reportStatus,
-                                    LocalDateTime createdAt, boolean sameReporter) { }
+                                    LocalDateTime createdAt, LocalDateTime reportUpdatedAt, boolean sameReporter) { }
 
 }

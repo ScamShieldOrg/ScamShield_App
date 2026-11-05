@@ -34,6 +34,7 @@ public class NotificationServiceImpl implements INotificationService {
 
     private final NotificationRepository notificationRepository;
     private final Clock applicationClock;
+    private final NotificationStreamService streams;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -107,12 +108,14 @@ public class NotificationServiceImpl implements INotificationService {
     @Transactional
     public void markAllAsRead(Long userId) {
         notificationRepository.markAllAsRead(userId, LocalDateTime.now(applicationClock));
+        streams.changedAfterCommit(userId);
     }
 
     @Override
     @Transactional
     public void markAsRead(Long userId, Long notificationId) {
         notificationRepository.markAsRead(notificationId, userId, LocalDateTime.now(applicationClock));
+        streams.changedAfterCommit(userId);
     }
 
     private NotificationItemResponse mapToItemResponse(Notification n, LocalDateTime now) {

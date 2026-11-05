@@ -535,7 +535,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         List<ModeratorEvidenceResponse.DuplicateEvidence> duplicates = rows.stream()
                 .filter(row -> !Objects.equals(row.getEvidenceId(), evidence.getId())).limit(20)
                 .map(row -> new ModeratorEvidenceResponse.DuplicateEvidence(row.getEvidenceId(), row.getReportId(),
-                        row.getReportStatus(), row.getCreatedAt(), sameReporter(evidence, row.getReporterUserId())))
+                        row.getReportStatus(), row.getCreatedAt(), row.getReportUpdatedAt(), sameReporter(evidence, row.getReporterUserId())))
                 .toList();
         return mapToModeratorEvidenceResponse(evidence, count, duplicates, matches);
     }
@@ -569,7 +569,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     if (row.getImageDistance() != null) types.add("PHASH");
                     if (row.getTextSimilarity() != null) types.add("OCR_TEXT");
                     return new ModeratorEvidenceResponse.SimilarEvidence(row.getEvidenceId(), row.getReportId(), row.getReportStatus(),
-                            row.getCreatedAt(), sameReporter(ev, row.getReporterId()), types,
+                            row.getCreatedAt(), row.getReportUpdatedAt(), sameReporter(ev, row.getReporterId()), types,
                             row.getImageDistance() == null ? null : 1.0 - row.getImageDistance() / 64.0, row.getTextSimilarity());
                 }).toList())
                 .url(ev.getFileUrl())
@@ -582,7 +582,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .filter(other -> !Objects.equals(other.getId(), evidence.getId()))
                 .map(other -> new ModeratorEvidenceResponse.DuplicateEvidence(other.getId(), other.getReport().getId(),
                         other.getReport().getStatus() == null ? null : other.getReport().getStatus().name(),
-                        other.getCreatedAt(), evidence.getReport() != null && evidence.getReport().getReporterUser() != null
+                        other.getCreatedAt(), other.getReport().getUpdatedAt(), evidence.getReport() != null && evidence.getReport().getReporterUser() != null
                         && evidence.getReport().getReporterUser().getId() != null
                         && other.getReport().getReporterUser() != null
                         && Objects.equals(other.getReport().getReporterUser().getId(), evidence.getReport().getReporterUser().getId())))

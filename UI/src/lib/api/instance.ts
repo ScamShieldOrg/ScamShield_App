@@ -36,6 +36,10 @@ authorizeApi.interceptors.response.use(
     },
     async (error) => {
         const originalRequest = error.config
+        if (originalRequest?.responseType === "stream" && error.response?.status === 401
+            && typeof ReadableStream !== "undefined" && error.response.data instanceof ReadableStream) {
+            try { error.response.data = await new Response(error.response.data).json() } catch { /* Keep normal unauthorized handling. */ }
+        }
 
         const isTokenExpired =
             error.response?.status === 401 &&

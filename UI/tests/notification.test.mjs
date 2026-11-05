@@ -19,3 +19,17 @@ test("notification load errors are not converted into empty lists",async()=>{
 test("mark read respects unsuccessful envelope",async()=>{
  assert.equal(await client({patch:async url=>{assert.equal(url,"/notifications/1/read");return {status:200,data:{isSuccess:false}}}}).markNotificationAsRead(1),false)
 })
+
+test("realtime stream uses authenticated API and handles fragmented events, ignoring heartbeats", async () => {
+ const encoder = new TextEncoder()
+ const chunks = ["event:notifi", "cations-changed\r\ndata:{}\r\n\r\n", "event:heartbeat\ndata:{}\n\nevent: notifications-changed\ndata:{}\n\n"]
+ let updates=0
+ const controller = new AbortController()
+ const service=client({get:async (url, options)=>{
+   assert.equal(url,"/notifications/stream"); assert.equal(options.adapter,"fetch"); assert.equal(options.timeout,0)
+   assert.equal(options.signal, controller.signal)
+   return {data:new ReadableStream({ start(stream) { chunks.forEach(chunk=>stream.enqueue(encoder.encode(chunk))); stream.close() } })}
+ }})
+ await service.listenForNotificationChanges(controller.signal, ()=>updates++)
+ assert.equal(updates,2)
+})

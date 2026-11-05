@@ -33,25 +33,66 @@ export async function getNotifications(
     if ((res.data?.isSuccess ?? res.data?.success) && res.data?.data) {
       const d = res.data.data
       const pageData = d.notifications || {}
-      const rawList: Partial<NotificationItem>[] = Array.isArray(pageData.data) ? pageData.data : []
+      const rawList: Partial<NotificationItem>[] = Array.isArray(pageData.data)
+        ? pageData.data
+        : []
 
-      const items: NotificationItem[] = rawList.filter((item): item is Partial<NotificationItem> & { id: number } => Number.isSafeInteger(item.id) && Number(item.id) > 0).map((item) => ({
-        id: item.id,
-        title: item.title || "",
-        desc: item.desc || item.message || "",
-        message: item.message || item.desc || "",
-        time: item.time || (item.createdAt ? new Date(item.createdAt).toLocaleString("vi-VN") : "Vừa xong"),
-        createdAt: item.createdAt,
-        unread: item.unread !== undefined ? Boolean(item.unread) : !Boolean(item.isRead),
-        isRead: item.isRead !== undefined ? Boolean(item.isRead) : !Boolean(item.unread),
-        type: item.type || "SYSTEM",
-        referenceType: item.referenceType,
-        referenceId: item.referenceId,
-        dotColor: item.dotColor || (item.type === "REPORT" ? "bg-emerald-500" : item.type === "DISPUTE" ? "bg-indigo-500" : "bg-amber-500"),
-        icon: item.icon || (item.type === "REPORT" ? "SealCheck" : item.type === "DISPUTE" ? "Scales" : "Medal"),
-        iconBg: item.iconBg || (item.type === "REPORT" ? "bg-emerald-50 dark:bg-emerald-900/30" : item.type === "DISPUTE" ? "bg-indigo-50 dark:bg-indigo-900/30" : "bg-amber-50 dark:bg-amber-900/30"),
-        iconColor: item.iconColor || (item.type === "REPORT" ? "text-emerald-500" : item.type === "DISPUTE" ? "text-indigo-500" : "text-amber-500"),
-      }))
+      const items: NotificationItem[] = rawList
+        .filter(
+          (item): item is Partial<NotificationItem> & { id: number } =>
+            Number.isSafeInteger(item.id) && Number(item.id) > 0
+        )
+        .map((item) => ({
+          id: item.id,
+          title: item.title || "",
+          desc: item.desc || item.message || "",
+          message: item.message || item.desc || "",
+          time:
+            item.time ||
+            (item.createdAt
+              ? new Date(item.createdAt).toLocaleString("vi-VN")
+              : "Vừa xong"),
+          createdAt: item.createdAt,
+          unread:
+            item.unread !== undefined
+              ? Boolean(item.unread)
+              : !Boolean(item.isRead),
+          isRead:
+            item.isRead !== undefined
+              ? Boolean(item.isRead)
+              : !Boolean(item.unread),
+          type: item.type || "SYSTEM",
+          referenceType: item.referenceType,
+          referenceId: item.referenceId,
+          dotColor:
+            item.dotColor ||
+            (item.type === "REPORT"
+              ? "bg-emerald-500"
+              : item.type === "DISPUTE"
+                ? "bg-indigo-500"
+                : "bg-amber-500"),
+          icon:
+            item.icon ||
+            (item.type === "REPORT"
+              ? "SealCheck"
+              : item.type === "DISPUTE"
+                ? "Scales"
+                : "Medal"),
+          iconBg:
+            item.iconBg ||
+            (item.type === "REPORT"
+              ? "bg-emerald-50 dark:bg-emerald-900/30"
+              : item.type === "DISPUTE"
+                ? "bg-indigo-50 dark:bg-indigo-900/30"
+                : "bg-amber-50 dark:bg-amber-900/30"),
+          iconColor:
+            item.iconColor ||
+            (item.type === "REPORT"
+              ? "text-emerald-500"
+              : item.type === "DISPUTE"
+                ? "text-indigo-500"
+                : "text-amber-500"),
+        }))
 
       const tabCounts: NotificationTabCounts = d.tabCounts
         ? {
@@ -75,7 +116,11 @@ export async function getNotifications(
       }
     }
   } catch (error) {
-    throw new Error(error instanceof Error ? error.message : "Không thể tải danh sách thông báo")
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Không thể tải danh sách thông báo"
+    )
   }
 
   throw new Error("Không thể tải danh sách thông báo")
@@ -113,9 +158,11 @@ export async function getUnreadNotificationCount(): Promise<number> {
       return Number(res.data?.data || 0)
     }
   } catch (error) {
-    console.warn("Không thể tải số lượng chưa đọc:", error)
+    throw new Error(
+      error instanceof Error ? error.message : "Không thể tải số lượng chưa đọc"
+    )
   }
-  return 0
+  throw new Error("Không thể tải số lượng chưa đọc")
 }
 
 /**
@@ -132,4 +179,47 @@ export async function markAllNotificationsAsRead(): Promise<boolean> {
 export async function markNotificationAsRead(id: number): Promise<boolean> {
   const res = await authorizeApi.patch(`/notifications/${id}/read`)
   return Boolean(res.data?.isSuccess ?? res.data?.success)
+}
+
+/** Opens an authenticated stream through the same Axios instance as other APIs. */
+export async function listenForNotificationChanges(
+  signal: AbortSignal,
+  onChange: () => void
+): Promise<void> {
+  const response = await authorizeApi.get<ReadableStream<Uint8Array>>(
+    "/notifications/stream",
+    {
+      adapter: "fetch",
+      responseType: "stream",
+      timeout: 0,
+      signal,
+      headers: { Accept: "text/event-stream" },
+    }
+  )
+  const reader = response.data.getReader()
+  const decoder = new TextDecoder()
+  let pending = ""
+  try {
+    while (!signal.aborted) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      pending += decoder
+        .decode(chunk.value, { stream: true })
+        .replace(/\r/g, "")
+      let boundary: number
+      while ((boundary = pending.indexOf("\n\n")) >= 0) {
+        const event = pending.slice(0, boundary)
+        pending = pending.slice(boundary + 2)
+        if (
+          event
+            .split("\n")
+            .some((line) => /^event:\s*notifications-changed\s*$/.test(line))
+        )
+          onChange()
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+    reader.releaseLock()
+  }
 }

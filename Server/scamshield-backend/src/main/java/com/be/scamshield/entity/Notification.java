@@ -1,12 +1,14 @@
 package com.be.scamshield.entity;
 
 import com.be.scamshield.constant.NotificationType;
+import com.be.scamshield.serviceImpl.NotificationRealtimeListener;
 
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table(name = "notifications")
+@EntityListeners(NotificationRealtimeListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

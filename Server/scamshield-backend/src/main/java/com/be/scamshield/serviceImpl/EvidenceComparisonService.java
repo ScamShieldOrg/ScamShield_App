@@ -25,6 +25,7 @@ public class EvidenceComparisonService {
         Integer getImageDistance();
         Double getTextSimilarity();
         LocalDateTime getCreatedAt();
+        LocalDateTime getReportUpdatedAt();
         Long getTotalCount();
     }
 
@@ -39,6 +40,7 @@ public class EvidenceComparisonService {
         Integer imageDistance;
         Double textSimilarity;
         LocalDateTime createdAt;
+        LocalDateTime reportUpdatedAt;
         Long totalCount;
     }
 
@@ -67,7 +69,7 @@ public class EvidenceComparisonService {
                 var report = target.getReport();
                 matches.add(new Match(source.getId(), target.getId(), report.getId(),
                         report.getStatus().name(), report.getReporterUser().getId(), distance,
-                        score >= properties.getTextSimilarity() ? score : null, target.getCreatedAt(), 0L));
+                        score >= properties.getTextSimilarity() ? score : null, target.getCreatedAt(), report.getUpdatedAt(), 0L));
             }
             matches.sort(Comparator.comparingDouble((MatchRow m) -> Math.max(
                     m.getImageDistance() == null ? 0 : 1.0 - m.getImageDistance()/64.0,
@@ -75,7 +77,7 @@ public class EvidenceComparisonService {
                     .thenComparing(MatchRow::getEvidenceId));
             for (MatchRow m : matches.stream().limit(20).toList()) {
                 results.add(new Match(m.getSourceId(), m.getEvidenceId(), m.getReportId(), m.getReportStatus(),
-                        m.getReporterId(), m.getImageDistance(), m.getTextSimilarity(), m.getCreatedAt(), (long) matches.size()));
+                        m.getReporterId(), m.getImageDistance(), m.getTextSimilarity(), m.getCreatedAt(), m.getReportUpdatedAt(), (long) matches.size()));
             }
         }
         return results;
