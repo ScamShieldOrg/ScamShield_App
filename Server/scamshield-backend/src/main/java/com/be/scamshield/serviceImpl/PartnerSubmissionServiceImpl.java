@@ -1,6 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.PartnerVerificationStatus;
+import com.be.scamshield.constant.IndicatorType;
+import com.be.scamshield.constant.NotificationType;
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.partner.PartnerSubmissionCountsResponse;
 import com.be.scamshield.dto.partner.PartnerSubmissionFilterRequest;
@@ -275,10 +278,9 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                 }
                 Notification notification = Notification.builder()
                         .user(submission.getPartner().getUser())
-                        .type("PARTNER_SUBMISSION_REJECTED")
+                        .type(NotificationType.SYSTEM)
                         .title("Hồ sơ cảnh báo/tình báo bị từ chối")
                         .message(safeMessage)
-                        .referenceType("PARTNER_SUBMISSION")
                         .referenceId(submission.getId())
                         .isRead(false)
                         .createdAt(now)
@@ -307,24 +309,17 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
             // Flow: verified intelligence -> existing indicator updated or candidate created -> confirmed if approved
             if (StringUtils.hasText(target.indicatorType()) && StringUtils.hasText(target.indicatorValue())) {
                 String rawType = target.indicatorType().toUpperCase(Locale.ROOT);
-                String type = ("WEBSITE".equals(rawType) || "DOMAIN".equals(rawType)) ? "URL" : rawType;
-                String normalizedVal = normalizeIdentifier(type, target.indicatorValue());
+                IndicatorType type = supportedIndicatorType(rawType);
+                if (type == null) throw new BadRequestException("Loại đối tượng phải là PHONE, URL hoặc BANK_ACCOUNT");
+                String normalizedVal = normalizeIdentifier(type.name(), target.indicatorValue());
 
                 Optional<Indicator> existingIndicatorOpt = indicatorRepository.findByTypeAndNormalizedValue(type, normalizedVal);
-                if (existingIndicatorOpt.isEmpty() && "URL".equals(type)) {
-                    existingIndicatorOpt = indicatorRepository.findByTypeAndNormalizedValue("WEBSITE", normalizedVal);
-                    if (existingIndicatorOpt.isEmpty()) {
-                        existingIndicatorOpt = indicatorRepository.findByTypeAndNormalizedValue("DOMAIN", normalizedVal);
-                    }
-                }
+
 
                 Indicator indicator;
 
                 if (existingIndicatorOpt.isPresent()) {
                     indicator = existingIndicatorOpt.get();
-                    if ("URL".equals(type) && !"URL".equals(indicator.getType())) {
-                        indicator.setType("URL");
-                    }
                     indicator.setLastSeenAt(now);
                     indicator.setUpdatedAt(now);
                     indicator = indicatorRepository.save(indicator);
@@ -360,7 +355,7 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
 
                 if (existingConfirmedOpt.isPresent()) {
                     confirmed = existingConfirmedOpt.get();
-                    confirmed.setStatus("ACTIVE");
+                    confirmed.setStatus(ConfirmedIndicatorStatus.ACTIVE);
                     confirmed.setRetractedAt(null);
                     confirmed.setRetractionReason(null);
                     confirmed.setConfirmedAt(now);
@@ -376,7 +371,7 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                             .indicator(indicator)
                             .category(category)
                             .impersonatedPartner(submission.getPartner())
-                            .status("ACTIVE")
+                            .status(ConfirmedIndicatorStatus.ACTIVE)
                             .confirmedByUser(moderatorUser)
                             .confirmedAt(now)
                             .publicReason(publicReason)
@@ -431,10 +426,9 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                 }
                 Notification notification = Notification.builder()
                         .user(submission.getPartner().getUser())
-                        .type("PARTNER_SUBMISSION_VERIFIED")
+                        .type(NotificationType.SYSTEM)
                         .title("Hồ sơ cảnh báo/tình báo đã được xác thực")
                         .message(safeMessage)
-                        .referenceType("PARTNER_SUBMISSION")
                         .referenceId(submission.getId())
                         .isRead(false)
                         .createdAt(now)
@@ -507,9 +501,23 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản kiểm duyệt viên với ID: " + currentUser.getId()));
     }
 
+    private IndicatorType supportedIndicatorType(String value) {
+        if (!StringUtils.hasText(value)) return null;
+        String type = value.trim().toUpperCase(Locale.ROOT);
+        if ("WEBSITE".equals(type) || "DOMAIN".equals(type)) return IndicatorType.URL;
+        try {
+            return IndicatorType.valueOf(type);
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
     private String formatDescription(String indicatorType, String indicatorValue, String categoryCode, String userDescription) {
         String baseDesc = userDescription != null ? userDescription.trim() : "";
         String result = baseDesc;
+        if (StringUtils.hasText(indicatorType) && supportedIndicatorType(indicatorType) == null) {
+            throw new BadRequestException("Loại đối tượng phải là PHONE, URL hoặc BANK_ACCOUNT");
+        }
         if (StringUtils.hasText(indicatorType) && StringUtils.hasText(indicatorValue)) {
             String catPart = StringUtils.hasText(categoryCode) ? " | Category: " + categoryCode.trim() : "";
             result = String.format("[Target: %s:%s%s]\n%s", indicatorType.trim(), indicatorValue.trim(), catPart, baseDesc);
@@ -591,21 +599,16 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
 
         if (StringUtils.hasText(target.indicatorType()) && StringUtils.hasText(target.indicatorValue())) {
             String rawType = target.indicatorType().toUpperCase(Locale.ROOT);
-            String type = ("WEBSITE".equals(rawType) || "DOMAIN".equals(rawType)) ? "URL" : rawType;
-            String normalized = normalizeIdentifier(type, target.indicatorValue());
+            IndicatorType type = supportedIndicatorType(rawType);
+            String normalized = normalizeIdentifier(rawType, target.indicatorValue());
 
-            Optional<Indicator> indOpt = indicatorRepository.findByTypeAndNormalizedValue(type, normalized);
-            if (indOpt.isEmpty() && "URL".equals(type)) {
-                indOpt = indicatorRepository.findByTypeAndNormalizedValue("WEBSITE", normalized);
-                if (indOpt.isEmpty()) {
-                    indOpt = indicatorRepository.findByTypeAndNormalizedValue("DOMAIN", normalized);
-                }
-            }
+            Optional<Indicator> indOpt = type == null ? Optional.empty() : indicatorRepository.findByTypeAndNormalizedValue(type, normalized);
+
 
             if (indOpt.isPresent()) {
                 indicatorId = indOpt.get().getId();
                 Optional<ConfirmedIndicator> confOpt = confirmedIndicatorRepository.findByIndicatorId(indicatorId);
-                if (confOpt.isPresent() && "ACTIVE".equalsIgnoreCase(confOpt.get().getStatus())) {
+                if (confOpt.isPresent() && confOpt.get().getStatus() == ConfirmedIndicatorStatus.ACTIVE) {
                     confirmedId = confOpt.get().getId();
                     isConfirmed = true;
                 }

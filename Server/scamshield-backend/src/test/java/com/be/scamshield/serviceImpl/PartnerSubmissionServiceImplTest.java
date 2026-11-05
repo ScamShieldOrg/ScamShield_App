@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+import com.be.scamshield.constant.NotificationType;
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.dto.partner.PartnerSubmissionResponse;
 import com.be.scamshield.dto.partner.ReviewPartnerSubmissionRequest;
@@ -241,7 +245,7 @@ class PartnerSubmissionServiceImplTest {
 
         verify(notificationRepository).save(argThat(n ->
                 n.getUser().getId().equals(partnerUser.getId()) &&
-                "PARTNER_SUBMISSION_REJECTED".equals(n.getType())
+                n.getType() == NotificationType.SYSTEM
         ));
         verify(auditLogRepository).save(argThat(l ->
                 "REJECT_PARTNER_SUBMISSION".equals(l.getAction()) &&
@@ -268,16 +272,12 @@ class PartnerSubmissionServiceImplTest {
         when(partnerOfficialAlertRepository.findById(502L)).thenReturn(Optional.of(alert));
 
         // Chưa tồn tại trong Indicator -> Candidate created
-        when(indicatorRepository.findByTypeAndNormalizedValue("URL", "fake-shopee-pay.xyz"))
-                .thenReturn(Optional.empty());
-        when(indicatorRepository.findByTypeAndNormalizedValue("WEBSITE", "fake-shopee-pay.xyz"))
-                .thenReturn(Optional.empty());
-        when(indicatorRepository.findByTypeAndNormalizedValue("DOMAIN", "fake-shopee-pay.xyz"))
+        when(indicatorRepository.findByTypeAndNormalizedValue(IndicatorType.URL, "fake-shopee-pay.xyz"))
                 .thenReturn(Optional.empty());
 
         Indicator candidate = Indicator.builder()
                 .id(901L)
-                .type("URL")
+                .type(IndicatorType.URL)
                 .normalizedValue("fake-shopee-pay.xyz")
                 .displayValue("https://fake-shopee-pay.xyz/")
                 .build();
@@ -306,17 +306,17 @@ class PartnerSubmissionServiceImplTest {
         ArgumentCaptor<Indicator> indicatorCaptor = ArgumentCaptor.forClass(Indicator.class);
         verify(indicatorRepository).save(indicatorCaptor.capture());
         assertThat(indicatorCaptor.getValue().getNormalizedValue()).isEqualTo("fake-shopee-pay.xyz");
-        assertThat(indicatorCaptor.getValue().getType()).isEqualTo("URL");
+        assertThat(indicatorCaptor.getValue().getType()).isEqualTo(IndicatorType.URL);
 
         // Kiểm tra confirmed indicator được kích hoạt
         ArgumentCaptor<ConfirmedIndicator> confirmedCaptor = ArgumentCaptor.forClass(ConfirmedIndicator.class);
         verify(confirmedIndicatorRepository).save(confirmedCaptor.capture());
-        assertThat(confirmedCaptor.getValue().getStatus()).isEqualTo("ACTIVE");
+        assertThat(confirmedCaptor.getValue().getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
         assertThat(confirmedCaptor.getValue().getImpersonatedPartner().getId()).isEqualTo(partnerProfile.getId());
         assertThat(confirmedCaptor.getValue().getConfirmedByUser().getId()).isEqualTo(moderatorUser.getId());
 
         // Kiểm tra thông báo và audit log
-        verify(notificationRepository).save(argThat(n -> "PARTNER_SUBMISSION_VERIFIED".equals(n.getType())));
+        verify(notificationRepository).save(argThat(n -> n.getType() == NotificationType.SYSTEM));
         verify(auditLogRepository).save(argThat(l -> "CONFIRM_INDICATOR_FROM_PARTNER_INTEL".equals(l.getAction())));
     }
 
@@ -338,13 +338,13 @@ class PartnerSubmissionServiceImplTest {
         // Đã tồn tại Indicator
         Indicator existingIndicator = Indicator.builder()
                 .id(905L)
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .normalizedValue("0987654321")
                 .displayValue("0987654321")
                 .firstSeenAt(LocalDateTime.of(2025, 1, 1, 0, 0))
                 .lastSeenAt(LocalDateTime.of(2025, 1, 1, 0, 0))
                 .build();
-        when(indicatorRepository.findByTypeAndNormalizedValue("PHONE", "0987654321"))
+        when(indicatorRepository.findByTypeAndNormalizedValue(IndicatorType.PHONE, "0987654321"))
                 .thenReturn(Optional.of(existingIndicator));
         when(indicatorRepository.save(existingIndicator)).thenReturn(existingIndicator);
 
@@ -352,7 +352,7 @@ class PartnerSubmissionServiceImplTest {
         ConfirmedIndicator existingConfirmed = ConfirmedIndicator.builder()
                 .id(805L)
                 .indicator(existingIndicator)
-                .status("RETRACTED")
+                .status(ConfirmedIndicatorStatus.RETRACTED)
                 .build();
         when(confirmedIndicatorRepository.findByIndicatorId(905L)).thenReturn(Optional.of(existingConfirmed));
         when(confirmedIndicatorRepository.save(existingConfirmed)).thenReturn(existingConfirmed);
@@ -373,7 +373,7 @@ class PartnerSubmissionServiceImplTest {
         // Kiểm tra confirmed indicator được chuyển sang ACTIVE
         verify(confirmedIndicatorRepository).save(argThat(c ->
                 c.getId().equals(805L) &&
-                "ACTIVE".equals(c.getStatus()) &&
+                c.getStatus() == ConfirmedIndicatorStatus.ACTIVE &&
                 c.getRetractedAt() == null
         ));
     }

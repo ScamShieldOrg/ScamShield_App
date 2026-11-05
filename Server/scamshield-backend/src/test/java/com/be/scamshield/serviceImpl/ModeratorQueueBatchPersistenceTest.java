@@ -1,6 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.IndicatorType;
+import com.be.scamshield.config.EvidenceAnalysisProperties;
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.ReportEvidenceType;
 import com.be.scamshield.constant.ReportStatus;
@@ -24,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest(showSql = false, properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @ActiveProfiles("test")
-@Import(ModeratorReportServiceImpl.class)
+@Import({ModeratorReportServiceImpl.class, EvidenceComparisonService.class, EvidenceAnalysisProperties.class})
 class ModeratorQueueBatchPersistenceTest extends PostgresIntegrationTest {
     @Autowired EntityManager em;
     @Autowired ModeratorReportServiceImpl service;
@@ -74,14 +75,16 @@ class ModeratorQueueBatchPersistenceTest extends PostgresIntegrationTest {
             assertThat(item.getWhitelistMatches()).hasSize(1);
         });
         var first = large.getData().getFirst();
-        var duplicates = first.getEvidences().getFirst();
+        assertThat(first.getEvidences().getFirst().getDuplicateCount()).isZero();
+        assertThat(first.getEvidences().getFirst().getDuplicates()).isEmpty();
+        em.clear();
+        var detail = service.getReportById(first.getRawId(), viewer);
+        var duplicates = detail.getEvidences().getFirst();
         assertThat(duplicates.getDuplicateCount()).isEqualTo(26);
         assertThat(duplicates.getDuplicates()).hasSize(20);
         assertThat(duplicates.getDuplicates()).extracting(item -> item.sameReporter()).contains(true, false);
         assertThat(duplicates.getDuplicates()).extracting(item -> item.evidenceId()).doesNotContain(duplicates.getRawId());
-        em.clear();
-        var detail = service.getReportById(first.getRawId(), viewer);
-        assertThat(first).usingRecursiveComparison().isEqualTo(detail);
+        assertThat(first).usingRecursiveComparison().ignoringFields("evidences").isEqualTo(detail);
     }
 
     private User user(int index) {

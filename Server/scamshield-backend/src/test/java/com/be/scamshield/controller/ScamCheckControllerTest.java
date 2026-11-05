@@ -219,8 +219,8 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void urlOrDomainCandidateMatchesWebsiteIndicatorWithoutThrowing() throws Exception {
-        var indicator = indicator("WEBSITE", "phishing-bank-fake.xyz");
+    void urlOrDomainCandidateMatchesUrlIndicatorWithoutThrowing() throws Exception {
+        var indicator = indicator("URL", "phishing-bank-fake.xyz");
         confirm(indicator, NOW.minusMinutes(5));
         JsonNode result = data(submit("URL", "https://phishing-bank-fake.xyz/login", null, owner)
                 .andExpect(status().isOk()));

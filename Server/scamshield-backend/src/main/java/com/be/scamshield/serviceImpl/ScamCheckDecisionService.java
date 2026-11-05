@@ -34,7 +34,11 @@ public class ScamCheckDecisionService {
     public Decision decide(CheckRequest check, List<ScamCheckInputProcessor.Candidate> candidates) {
         Map<Long, Indicator> known = new LinkedHashMap<>();
         for (var candidate : candidates) {
-            indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(IndicatorType.valueOf(candidate.type()), candidate.aliases())
+            IndicatorType type = switch (candidate.type()) {
+                case "DOMAIN" -> IndicatorType.URL;
+                default -> IndicatorType.valueOf(candidate.type());
+            };
+            indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(type, candidate.aliases())
                     .forEach(indicator -> known.putIfAbsent(indicator.getId(), indicator));
         }
         log.info("Scam check catalog lookup: checkId={}, candidateCount={}, knownIndicatorCount={}",

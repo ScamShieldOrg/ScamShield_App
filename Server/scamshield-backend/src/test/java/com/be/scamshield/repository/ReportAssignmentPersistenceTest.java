@@ -1,5 +1,7 @@
 package com.be.scamshield.repository;
 
+import com.be.scamshield.serviceImpl.EvidenceComparisonService;
+import com.be.scamshield.config.EvidenceAnalysisProperties;
 import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.entity.*;
@@ -20,7 +22,7 @@ import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
 @ActiveProfiles("test")
-@Import({ReportAssignmentService.class, ModeratorReportServiceImpl.class})
+@Import({ReportAssignmentService.class, ModeratorReportServiceImpl.class, EvidenceComparisonService.class, EvidenceAnalysisProperties.class})
 class ReportAssignmentPersistenceTest extends PostgresIntegrationTest {
     @Autowired EntityManager em;
     @Autowired ReportAssignmentService service;
