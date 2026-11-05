@@ -12,6 +12,8 @@ import com.be.scamshield.constant.PartnerVerificationStatus;
 import java.util.Optional;
 
 public interface PartnerProfileRepository extends JpaRepository<PartnerProfile, Long> {
+    Optional<PartnerProfile> findByUserId(Long userId);
+
     boolean existsByTaxCode(String taxCode);
 
     long countByVerificationStatus(PartnerVerificationStatus status);

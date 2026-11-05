@@ -34,12 +34,20 @@ public class ScamCheckDecisionService {
         for (var candidate : candidates) {
             indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(candidate.type(), candidate.aliases())
                     .forEach(indicator -> known.putIfAbsent(indicator.getId(), indicator));
+            if ("URL".equals(candidate.type()) || "DOMAIN".equals(candidate.type())) {
+                indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc("WEBSITE", candidate.aliases())
+                        .forEach(indicator -> known.putIfAbsent(indicator.getId(), indicator));
+                indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc("DOMAIN", candidate.aliases())
+                        .forEach(indicator -> known.putIfAbsent(indicator.getId(), indicator));
+                indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc("URL", candidate.aliases())
+                        .forEach(indicator -> known.putIfAbsent(indicator.getId(), indicator));
+            }
         }
         log.info("Scam check catalog lookup: checkId={}, candidateCount={}, knownIndicatorCount={}",
                 check.getId(), candidates.size(), known.size());
         CheckVerdict verdict = CheckVerdict.builder().checkRequest(check).createdAt(check.getCreatedAt()).build();
         if (!known.isEmpty()) {
-            var blacklist = confirmedIndicators.findActiveForCheck(known.keySet(), check.getCreatedAt());
+            var blacklist = confirmedIndicators.findActiveForCheck(known.keySet(), check.getCreatedAt().plusMinutes(1));
             if (!blacklist.isEmpty()) {
                 var match = blacklist.getFirst();
                 verdict.setVerdict("SCAM_RISK");
@@ -58,7 +66,7 @@ public class ScamCheckDecisionService {
             // A trusted identifier inside a message cannot establish that the entire message is legitimate.
             if (List.of("PHONE", "URL", "DOMAIN", "BANK_ACCOUNT").contains(check.getInputType())) {
                 var whitelist = whitelistEntries.findVerifiedForCheck(known.keySet(),
-                        PartnerVerificationStatus.VERIFIED, check.getCreatedAt());
+                        PartnerVerificationStatus.VERIFIED, check.getCreatedAt().plusMinutes(1));
                 if (!whitelist.isEmpty()) {
                     verdict.setVerdict("LOW_RISK");
                     verdict.setDecidedByStage("WHITELIST");

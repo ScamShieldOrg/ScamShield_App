@@ -104,6 +104,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMINISTRATOR")
                         .requestMatchers("/api/moderator/**").hasRole("MODERATOR")
+                        .requestMatchers("/api/partner/**").hasRole("BUSINESS_PARTNER")
                         .anyRequest().authenticated()
                 );
 
