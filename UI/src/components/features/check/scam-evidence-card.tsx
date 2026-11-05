@@ -13,7 +13,9 @@ import {
   CaretDown,
   Cpu,
   FileText,
+  ArrowRight,
 } from "@phosphor-icons/react"
+import Link from "next/link"
 import { CheckScanResponse } from "@/features/check/types/check.types"
 
 interface ScamEvidenceCardProps {
@@ -176,8 +178,74 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
         ? "bg-amber-600"
         : "bg-slate-500"
 
+  const resolvedType = (data.input_type || "").toUpperCase()
+  const isPhoneCheck = resolvedType === "PHONE"
+  const isUrlCheck = resolvedType === "URL"
+
+  const section2Title = (() => {
+    if (isPhoneCheck) {
+      if (isDangerous) return "3 việc bạn cần làm ngay để phòng tránh lừa đảo qua điện thoại"
+      if (isSafe) return "Lưu ý an toàn khi liên hệ qua đầu số này"
+      if (isSuspicious) return "Các bước kiểm chứng khuyến nghị khi nhận cuộc gọi"
+      return "Khuyến nghị phòng ngừa an toàn dành cho bạn"
+    }
+    if (isUrlCheck) {
+      if (isDangerous) return "3 việc bạn cần làm ngay để bảo vệ dữ liệu và thiết bị"
+      if (isSafe) return "Lưu ý an toàn khi truy cập đường dẫn này"
+      if (isSuspicious) return "Các bước kiểm tra trước khi truy cập liên kết"
+      return "Khuyến nghị phòng ngừa an toàn dành cho bạn"
+    }
+    if (isDangerous) return "3 việc bạn cần làm ngay lúc này để bảo vệ tài khoản"
+    if (isSafe) return "Lưu ý bảo mật quan trọng khi nhận mã OTP"
+    if (isSuspicious) return "Các bước kiểm chứng khuyến nghị trước khi chuyển tiền"
+    return "Khuyến nghị phòng ngừa an toàn dành cho bạn"
+  })()
+
   return (
     <div className="space-y-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs dark:border-border dark:bg-card">
+      {/* Matched Indicator Banner (Curated Catalog Match) */}
+      {data.matched_indicator && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 text-xs dark:border-border dark:bg-muted/30">
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Đối chiếu danh bạ định danh
+              </span>
+              <span
+                className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
+                  data.decided_by_stage === "WHITELIST"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                    : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                }`}
+              >
+                {data.decided_by_stage === "WHITELIST"
+                  ? "Danh sách trắng (Whitelist)"
+                  : "Danh sách đen cảnh báo (Blacklist)"}
+              </span>
+            </div>
+            <p className="font-mono text-sm font-bold text-slate-900 break-all dark:text-slate-100">
+              {data.matched_indicator.value}
+            </p>
+          </div>
+
+          <Link
+            href={{
+              pathname: "/guest/blacklist",
+              query: {
+                search: data.matched_indicator.value,
+                tab:
+                  data.decided_by_stage === "WHITELIST"
+                    ? "whitelist"
+                    : "blacklist",
+              },
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs hover:bg-slate-50 dark:border-border dark:bg-card dark:text-slate-200 dark:hover:bg-muted"
+          >
+            <span>Xem trong Danh bạ / Tài nguyên</span>
+            <ArrowRight size={14} weight="bold" />
+          </Link>
+        </div>
+      )}
       {/* ============================================================== */}
       {/* CASE A: TIER 2 — FORENSIC COUNCIL DEEP DELIBERATION (3 AGENTS) */}
       {/* ============================================================== */}
@@ -471,10 +539,10 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
             }
           />
           <h3 className="font-heading text-sm font-bold text-slate-900 dark:text-foreground">
-            {isDangerous && "3 việc bạn cần làm ngay lúc này để bảo vệ tài khoản"}
-            {isSafe && "Lưu ý bảo mật quan trọng khi nhận mã OTP"}
-            {isSuspicious && "Các bước kiểm chứng khuyến nghị trước khi chuyển tiền"}
-            {isUnknown && "Khuyến nghị phòng ngừa an toàn dành cho bạn"}
+            {section2Title}
+
+
+
           </h3>
         </div>
 
