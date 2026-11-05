@@ -22,6 +22,8 @@ public class ReportStatusCountsResponse {
     @Schema(description = "Đang chờ duyệt", example = "3")
     private Long pending;
 
+    private Long inReview;
+
     @Schema(description = "Đã vào Blacklist", example = "14")
     private Long approvedBlacklist;
 

@@ -73,7 +73,7 @@ public class ResourceServiceImpl implements IResourceService {
                 .smsBrandNames(singleValue(partner.getSmsBrandName()))
                 .verifiedIndicators(entries.stream().map(entry -> WhitelistResourceResponse.VerifiedIndicator.builder()
                         .id(entry.getId())
-                        .resourceType(entry.getIndicator().getType())
+                        .resourceType(entry.getIndicator().getType().name())
                         .value(indicatorValue(entry))
                         .verifiedAt(entry.getVerifiedAt())
                         .build()).toList())

@@ -1,5 +1,7 @@
 package com.be.scamshield.dto.response;
 
+import com.be.scamshield.constant.NotificationType;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,8 +22,7 @@ public class NotificationItemResponse {
     private LocalDateTime createdAt;
     private boolean unread;
     private boolean isRead;
-    private String type;
-    private String referenceType;
+    private NotificationType type;
     private Long referenceId;
     private String dotColor;
     private String icon;

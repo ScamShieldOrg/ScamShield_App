@@ -10,6 +10,7 @@ import java.util.List;
 
 @Repository
 public interface ModerationActionRepository extends JpaRepository<ModerationAction, Long> {
+    boolean existsByReportIdAndAction(Long reportId, String action);
 
     List<ModerationAction> findByReportIdOrderByCreatedAtDesc(Long reportId);
 

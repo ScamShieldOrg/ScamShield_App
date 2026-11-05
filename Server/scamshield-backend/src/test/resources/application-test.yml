@@ -25,6 +25,13 @@ spring:
       replace: none
 
 app:
+  evidence-analysis:
+    enabled: false
+  supabase:
+    storage:
+      access-key-id: test-access-key
+      secret-access-key: test-secret-key
+      endpoint-override: https://storage.test.invalid
   scam-check:
     ai:
       enabled: false

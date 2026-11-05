@@ -1,5 +1,7 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.constant.NotificationType;
+
 import com.be.scamshield.config.SecurityConfig;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.response.NotificationItemResponse;
@@ -11,6 +13,8 @@ import com.be.scamshield.security.JwtAuthenticationEntryPoint;
 import com.be.scamshield.security.JwtTokenProvider;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.INotificationService;
+import com.be.scamshield.serviceImpl.NotificationStreamService;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,10 +36,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 
 @WebMvcTest(NotificationController.class)
 @Import({SecurityConfig.class, JwtAuthenticationEntryPoint.class, CustomAccessDeniedHandler.class})
 class NotificationControllerTest {
+    @MockitoBean private NotificationStreamService streams;
 
     private static final String BASE_URL = "/api/notifications";
 
@@ -76,8 +82,7 @@ class NotificationControllerTest {
                 .createdAt(LocalDateTime.now().minusMinutes(15))
                 .unread(true)
                 .isRead(false)
-                .type("REPORT")
-                .referenceType("REPORT")
+                .type(NotificationType.REPORT)
                 .referenceId(8492L)
                 .dotColor("bg-emerald-500")
                 .icon("SealCheck")
@@ -199,4 +204,17 @@ class NotificationControllerTest {
 
         verify(notificationService).markAsRead(1L, 1L);
     }
+    @Test
+    void streamIsScopedToAuthenticatedUser() throws Exception {
+        when(streams.subscribe(1L)).thenReturn(new SseEmitter(1000L));
+        mvc.perform(get(BASE_URL + "/stream").with(authentication(auth)))
+                .andExpect(status().isOk()).andExpect(request().asyncStarted());
+        verify(streams).subscribe(1L);
+    }
+
+    @Test
+    void streamRejectsAnonymousCaller() throws Exception {
+        mvc.perform(get(BASE_URL + "/stream")).andExpect(status().isUnauthorized());
+    }
+
 }

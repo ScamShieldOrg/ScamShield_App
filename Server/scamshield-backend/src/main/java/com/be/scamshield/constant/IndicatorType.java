@@ -4,11 +4,11 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 
-/** Ba loại Indicator được hệ thống chấp nhận. Entity vẫn lưu String. */
+/** Các loại Indicator, lưu trong database bằng tên enum. */
 public enum IndicatorType {
     PHONE, BANK_ACCOUNT, URL;
 
-    /** Không tự ánh xạ hoặc ghi đè giá trị cũ của entity. */
+    /** Chuẩn hóa loại đối tượng tại đầu vào trước khi chuyển sang enum. */
     public static Optional<IndicatorType> fromStoredValue(String value) {
         if (value == null || value.isBlank()) return Optional.empty();
         String normalized = value.strip().toUpperCase(Locale.ROOT);

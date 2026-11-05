@@ -1,17 +1,15 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.ReportEvidenceType;
-import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.ReportStatus;
 import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.external.SupabaseStorageService;
+import org.springframework.context.ApplicationEventPublisher;
+import com.be.scamshield.constant.EvidenceAnalysisStatus;
 import com.be.scamshield.constant.VietnamProvince;
 import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.dto.request.CreateReportRequest;
-import com.be.scamshield.dto.request.EvidenceItemDto;
-import com.be.scamshield.dto.request.PresignedUrlRequest;
-import com.be.scamshield.dto.response.PresignedUrlResponse;
 import com.be.scamshield.dto.response.ReportEvidenceResponse;
 import com.be.scamshield.dto.response.ReportResponse;
 import com.be.scamshield.entity.Indicator;
@@ -39,7 +37,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import com.be.scamshield.config.ReportPrivacyProperties;
 import javax.crypto.Mac;
@@ -50,7 +47,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -59,12 +55,15 @@ public class ReportServiceImpl implements IReportService {
     private final ReportPrivacyProperties reportPrivacyProperties;
 
 
+    private final ApplicationEventPublisher events;
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final IndicatorRepository indicatorRepository;
     private final ScamCategorieRepository scamCategorieRepository;
     private final UserRepository userRepository;
     private final SupabaseStorageService supabaseStorageService;
+    private final ReportAssignmentService reviewAssignments;
+    private final EvidenceAnalysisQueueService evidenceAnalysis;
 
     @Override
     @Transactional
@@ -84,13 +83,23 @@ public class ReportServiceImpl implements IReportService {
             throw new BadRequestException("Không thể tự báo cáo chính mình.");
         }
 
+        if (files == null || files.isEmpty()) {
+            throw new BadRequestException("Vui lòng tải lên ít nhất một tệp bằng chứng");
+        }
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) {
+                throw new BadRequestException("Tệp bằng chứng không được rỗng");
+            }
+            resolveEvidenceType(null, file.getOriginalFilename(), null);
+        }
+
         // 1. Resolve & normalize target indicator
         String normalizedValue = normalizeIdentifier(request.getTargetIdentifier());
         Indicator indicator = indicatorRepository
-                .findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(reportType.name(), normalizedValue)
+                .findFirstByTypeAndNormalizedValueOrderByIdAsc(reportType, normalizedValue)
                 .orElseGet(() -> {
                     Indicator newIndicator = Indicator.builder()
-                            .type(reportType.name())
+                            .type(reportType)
                             .normalizedValue(normalizedValue)
                             .displayValue(request.getTargetIdentifier())
                             .firstSeenAt(LocalDateTime.now())
@@ -158,10 +167,13 @@ public class ReportServiceImpl implements IReportService {
                                 .fileName(file.getOriginalFilename())
                                 .fileUrl(uploadResult.fileUrl())
                                 .fileHash(uploadResult.fileHash())
-                                .verificationStatus(EvidenceVerificationStatus.PENDING)
                                 .createdAt(LocalDateTime.now())
                                 .build();
+                        evidenceAnalysis.prepare(evidence, uploadResult.objectKey());
                         evidenceList.add(reportEvidenceRepository.save(evidence));
+                        if (evidence.getAnalysisStatus() == EvidenceAnalysisStatus.PENDING) {
+                            events.publishEvent(new EvidenceAnalysisRequested(evidence.getId()));
+                        }
                     }
                 }
             }
@@ -178,47 +190,9 @@ public class ReportServiceImpl implements IReportService {
             throw e;
         }
 
-        // 6. Process Evidence Items (Pre-uploaded Supabase Storage URLs)
-        if (request.getEvidences() != null && !request.getEvidences().isEmpty()) {
-            for (EvidenceItemDto dto : request.getEvidences()) {
-                if (StringUtils.hasText(dto.getFileUrl())) {
-                    ReportEvidence evidence = ReportEvidence.builder()
-                            .report(savedReport)
-                            .evidenceType(resolveEvidenceType(dto.getEvidenceType(), dto.getFileName(), dto.getFileUrl()))
-                            .fileName(dto.getFileName())
-                            .fileUrl(dto.getFileUrl())
-                            .fileHash(dto.getFileHash())
-                            .verificationStatus(EvidenceVerificationStatus.PENDING)
-                            .createdAt(LocalDateTime.now())
-                            .build();
-                    evidenceList.add(reportEvidenceRepository.save(evidence));
-                }
-            }
-        }
-
-        // Process simple string attachment URLs
-        if (request.getAttachmentUrls() != null && !request.getAttachmentUrls().isEmpty()) {
-            for (String url : request.getAttachmentUrls()) {
-                if (StringUtils.hasText(url)) {
-                    ReportEvidence evidence = ReportEvidence.builder()
-                            .report(savedReport)
-                            .evidenceType(resolveEvidenceType(null, null, url))
-                            .fileUrl(url)
-                            .verificationStatus(EvidenceVerificationStatus.PENDING)
-                            .createdAt(LocalDateTime.now())
-                            .build();
-                    evidenceList.add(reportEvidenceRepository.save(evidence));
-                }
-            }
-        }
-
         // Reputation is awarded only after a moderator approves the report.
+        reviewAssignments.assignPendingReports();
         return mapToResponse(savedReport, evidenceList, 0);
-    }
-
-    @Override
-    public PresignedUrlResponse generatePresignedUrl(PresignedUrlRequest request) {
-        return supabaseStorageService.generatePresignedUploadUrl(request.getFileName(), request.getContentType());
     }
 
     @Override
@@ -303,7 +277,6 @@ public class ReportServiceImpl implements IReportService {
                         .evidenceType(e.getEvidenceType() == null ? null : e.getEvidenceType().name())
                         .fileUrl(e.getFileUrl())
                         .fileHash(e.getFileHash())
-                        .verificationStatus(e.getVerificationStatus() == null ? null : e.getVerificationStatus().name())
                         .createdAt(e.getCreatedAt())
                         .build()
         ).toList();
@@ -312,7 +285,7 @@ public class ReportServiceImpl implements IReportService {
                 .id(report.getId())
                 .reportCode(reportCode)
                 .targetIdentifier(report.getIndicator() != null ? report.getIndicator().getDisplayValue() : "")
-                .threatType(report.getIndicator() != null ? report.getIndicator().getType() : "")
+                .threatType(report.getIndicator() != null ? report.getIndicator().getType().name() : "")
                 .categoryName(report.getCategory() != null ? report.getCategory().getName() : "")
                 .description(report.getDescription())
                 .reportedMessage(report.getReportedMessage())

@@ -67,6 +67,16 @@ google:
 
 # Application Configurations
 app:
+  evidence-analysis:
+    enabled: ${EVIDENCE_ANALYSIS_ENABLED:true}
+    executable: ${TESSERACT_EXECUTABLE:tesseract}
+    tessdata-directory: ${TESSERACT_DATA_DIRECTORY:}
+    languages: ${TESSERACT_LANGUAGES:vie+eng}
+    timeout-seconds: ${EVIDENCE_OCR_TIMEOUT_SECONDS:15}
+    max-pdf-pages: ${EVIDENCE_OCR_MAX_PDF_PAGES:3}
+    image-distance: ${EVIDENCE_PHASH_MAX_DISTANCE:10}
+    text-similarity: ${EVIDENCE_OCR_TEXT_SIMILARITY:0.80}
+    candidate-limit: ${EVIDENCE_SIMILARITY_CANDIDATE_LIMIT:200}
   scam-check:
     ai:
       enabled: ${SCAM_CHECK_AI_ENABLED:true}

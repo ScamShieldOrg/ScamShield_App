@@ -1,5 +1,13 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+import com.be.scamshield.external.ScamCheckAiClient;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+
 import com.be.scamshield.support.PostgresIntegrationTest;
 
 import com.be.scamshield.constant.PartnerVerificationStatus;
@@ -52,11 +60,14 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private CheckRequestRepository checks;
     @Autowired private IGuestSessionService sessions;
+    @MockitoBean private ScamCheckAiClient scamCheckAiClient;
     private User owner;
     private String guest;
 
     @BeforeEach
     void setUp() {
+        when(scamCheckAiClient.scan(any(), any(), any()))
+                .thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
         owner = account();
         guest = sessions.createOrGetSession(null, null).getSessionToken();
     }
@@ -208,8 +219,8 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void urlOrDomainCandidateMatchesWebsiteIndicatorWithoutThrowing() throws Exception {
-        var indicator = indicator("WEBSITE", "phishing-bank-fake.xyz");
+    void urlOrDomainCandidateMatchesUrlIndicatorWithoutThrowing() throws Exception {
+        var indicator = indicator("URL", "phishing-bank-fake.xyz");
         confirm(indicator, NOW.minusMinutes(5));
         JsonNode result = data(submit("URL", "https://phishing-bank-fake.xyz/login", null, owner)
                 .andExpect(status().isOk()));
@@ -227,7 +238,7 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
     }
 
     private Indicator indicator(String type, String value) {
-        Indicator indicator = Indicator.builder().type(type).normalizedValue(value)
+        Indicator indicator = Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue(value)
                 .createdAt(NOW).updatedAt(NOW).build();
         em.persist(indicator);
         return indicator;
@@ -235,7 +246,7 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
 
     private ConfirmedIndicator confirm(Indicator indicator, LocalDateTime confirmedAt) {
         ConfirmedIndicator confirmation = ConfirmedIndicator.builder().indicator(indicator)
-                .confirmedByUser(owner).status("ACTIVE").confirmedAt(confirmedAt).build();
+                .confirmedByUser(owner).status(ConfirmedIndicatorStatus.ACTIVE).confirmedAt(confirmedAt).build();
         em.persist(confirmation);
         em.flush();
         return confirmation;

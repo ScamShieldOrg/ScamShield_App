@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.UserStatus;
 import com.be.scamshield.dto.PaginatedResponse;
@@ -110,9 +111,8 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
         }
         LocalDateTime now = LocalDateTime.now(applicationClock);
         if (decision == PartnerVerificationStatus.VERIFIED) {
-            createEntry(profile, "DOMAIN", profile.getOfficialDomain(), now, reviewer);
-            createEntry(profile, "PHONE", normalizeHotline(profile.getOfficialHotline()), now, reviewer);
-            createEntry(profile, "SMS_BRAND_NAME", profile.getSmsBrandName(), now, reviewer);
+            createEntry(profile, IndicatorType.URL, profile.getOfficialDomain(), now, reviewer);
+            createEntry(profile, IndicatorType.PHONE, normalizeHotline(profile.getOfficialHotline()), now, reviewer);
             profile.getUser().setStatus(UserStatus.ACTIVE.name());
         } else {
             profile.getUser().setStatus(UserStatus.INACTIVE.name());
@@ -128,7 +128,7 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
         return detail(profile);
     }
 
-    private void createEntry(PartnerProfile profile, String type, String value, LocalDateTime now, User reviewer) {
+    private void createEntry(PartnerProfile profile, IndicatorType type, String value, LocalDateTime now, User reviewer) {
         if (!StringUtils.hasText(value)) {
             throw new PartnerReviewConflictException("Hồ sơ thiếu chỉ số chính thức; không thể phê duyệt");
         }

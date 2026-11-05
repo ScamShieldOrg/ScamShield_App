@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.VietnamProvince;
 
 import com.be.scamshield.exception.ResourceNotFoundException;
@@ -9,7 +11,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.be.scamshield.config.ReportPrivacyProperties;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import com.be.scamshield.dto.request.CreateReportRequest;
-import com.be.scamshield.dto.request.EvidenceItemDto;
 import com.be.scamshield.entity.Indicator;
 import com.be.scamshield.entity.Report;
 import com.be.scamshield.entity.ReportEvidence;
@@ -34,6 +35,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -48,20 +50,21 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ReportServiceImplTest {
+    @Mock private org.springframework.context.ApplicationEventPublisher events;
     @Mock private ReportPrivacyProperties reportPrivacyProperties;
     @ParameterizedTest
     @ValueSource(strings = {"PHONE", "BANK_ACCOUNT", "URL"})
     void acceptsAllStandardIndicatorTypes(String type) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(type, "external.example"))
-                .thenReturn(Optional.of(Indicator.builder().type(type).normalizedValue("external.example").build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.valueOf(type), "external.example"))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue("external.example").build()));
         when(categories.findByCode("OTHER")).thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
             Report saved = invocation.getArgument(0);
             saved.setId(42L);
             return saved;
         });
-        assertEquals(type, service.createReport(request(type, "external.example"), null, principal()).getThreatType());
+        assertEquals(type, service.createReport(request(type, "external.example"), validFiles(), principal()).getThreatType());
     }
 
     @Test
@@ -103,6 +106,10 @@ class ReportServiceImplTest {
     @Mock private ScamCategorieRepository categories;
     @Mock private UserRepository users;
     @Mock private SupabaseStorageService storage;
+    @Mock private ReportAssignmentService reviewAssignments;
+
+    @Mock private EvidenceAnalysisQueueService evidenceAnalysis;
+
     @InjectMocks private ReportServiceImpl service;
 
     @ParameterizedTest
@@ -124,7 +131,7 @@ class ReportServiceImplTest {
     }
 
     @Test
-    void rejectsOwnPhoneForJsonSubmissionAndFormattedStoredNumber() {
+    void rejectsOwnPhoneWithFormattedStoredNumber() {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("+84 912 345 678")));
         assertThrows(BadRequestException.class,
                 () -> service.createReport(request("PHONE", "0912345678"), null, principal()));
@@ -148,8 +155,8 @@ class ReportServiceImplTest {
         };
         User reporter = reporter("0912345678");
         when(users.findById(1L)).thenReturn(Optional.of(reporter));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(type, target))
-                .thenReturn(Optional.of(Indicator.builder().type(type).displayValue(target).build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.valueOf(type), target))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.valueOf(type)).displayValue(target).build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
@@ -158,7 +165,7 @@ class ReportServiceImplTest {
             return report;
         });
 
-        var result = service.createReport(request(type, target), null, principal());
+        var result = service.createReport(request(type, target), validFiles(), principal());
 
         assertEquals("PENDING", result.getStatus());
         assertEquals(42L, result.getId());
@@ -166,7 +173,7 @@ class ReportServiceImplTest {
         assertEquals(100, reporter.getReputationPoints());
         verify(users, never()).save(any());
         verify(reports).save(any(Report.class));
-        verifyNoInteractions(storage);
+        verify(storage).uploadFile(any(MultipartFile.class), org.mockito.ArgumentMatchers.eq("evidences"));
     }
 
     @ParameterizedTest
@@ -174,8 +181,8 @@ class ReportServiceImplTest {
     @ValueSource(strings = {" \n\t ", "  Tin nhắn gốc:\nChuyển tiền để xác minh tài khoản.  "})
     void storesOptionalReportedMessageSeparatelyFromDescription(String message) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
-                .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.PHONE, "0987654321"))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.PHONE).displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
@@ -186,7 +193,7 @@ class ReportServiceImplTest {
         CreateReportRequest request = request("PHONE", "0987654321");
         request.setReportedMessage(message);
 
-        var response = service.createReport(request, null, principal());
+        var response = service.createReport(request, validFiles(), principal());
 
         String expectedMessage = message == null || message.isBlank() ? null : message;
         ArgumentCaptor<Report> saved = ArgumentCaptor.forClass(Report.class);
@@ -214,8 +221,8 @@ class ReportServiceImplTest {
     @ValueSource(strings = {"01", "79", " 01 "})
     void storesRequiredProvinceCodeAndReturnsIt(String regionCode) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
-                .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.PHONE, "0987654321"))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.PHONE).displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
@@ -226,7 +233,7 @@ class ReportServiceImplTest {
         CreateReportRequest request = request("PHONE", "0987654321");
         request.setRegionCode(regionCode);
 
-        var response = service.createReport(request, null, principal());
+        var response = service.createReport(request, validFiles(), principal());
 
         String expected = regionCode == null || regionCode.isBlank() ? null : regionCode.strip();
         ArgumentCaptor<Report> saved = ArgumentCaptor.forClass(Report.class);
@@ -266,55 +273,52 @@ class ReportServiceImplTest {
         assertEquals(expected, response.getEvidences().get(0).getEvidenceType());
     }
 
-    @ParameterizedTest
-    @CsvSource({"proof.jpg,JPG", "proof.jpeg,JPG", "proof%2EPNG?token=123#preview,PNG", "proof.PDF?download=1,PDF"})
-    void infersSpecificFormatForBothJsonAttachmentForms(String suffix, String expected) {
-        stubEvidenceSubmission();
-        when(evidences.save(any(ReportEvidence.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        String url = "https://files.example/" + suffix;
-        CreateReportRequest request = request("PHONE", "0987654321");
-        request.setEvidences(List.of(EvidenceItemDto.builder().fileUrl(url).build()));
-        request.setAttachmentUrls(List.of(url));
+    @Test
+    void requiresAtLeastOneUploadedFileBeforeCreatingAnything() {
+        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        for (List<MultipartFile> files : java.util.Arrays.<List<MultipartFile>>asList(null, List.of())) {
+            assertThrows(BadRequestException.class,
+                    () -> service.createReport(request("PHONE", "0987654321"), files, principal()));
+        }
+        verifyNoInteractions(reports, indicators, categories, evidences, storage);
+    }
 
-        var response = service.createReport(request, null, principal());
-
-        assertEquals(2, response.getEvidenceCount());
-        response.getEvidences().forEach(evidence -> assertEquals(expected, evidence.getEvidenceType()));
-        verifyNoInteractions(storage);
+    @Test
+    void rejectsNullOrEmptyFileEvenAlongsideAValidFile() {
+        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        MultipartFile valid = new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1});
+        MultipartFile empty = new MockMultipartFile("files", "empty.png", "image/png", new byte[0]);
+        for (List<MultipartFile> files : List.of(java.util.Arrays.asList((MultipartFile) null),
+                List.of(empty), List.of(valid, empty))) {
+            assertThrows(BadRequestException.class,
+                    () -> service.createReport(request("PHONE", "0987654321"), files, principal()));
+        }
+        verifyNoInteractions(reports, indicators, categories, evidences, storage);
     }
 
     @ParameterizedTest
-    @CsvSource({"jpeg,JPG", "png,PNG", "pdf,PDF"})
-    void acceptsExplicitFormatWhenUrlHasNoExtension(String declared, String expected) {
-        stubEvidenceSubmission();
-        when(evidences.save(any(ReportEvidence.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        CreateReportRequest request = request("PHONE", "0987654321");
-        request.setEvidences(List.of(EvidenceItemDto.builder()
-                .fileUrl("https://files.example/download/123").evidenceType(declared).build()));
-
-        var response = service.createReport(request, null, principal());
-
-        assertEquals(expected, response.getEvidences().get(0).getEvidenceType());
+    @NullAndEmptySource
+    @ValueSource(strings = {"proof.exe", "proof.txt", "proof"})
+    void rejectsUnsupportedFileNameBeforeCreatingAnything(String name) {
+        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        MultipartFile file = new MockMultipartFile("files", name, "application/octet-stream", new byte[]{1});
+        assertThrows(BadRequestException.class,
+                () -> service.createReport(request("PHONE", "0987654321"), List.of(file), principal()));
+        verifyNoInteractions(reports, indicators, categories, evidences, storage);
     }
 
-    @ParameterizedTest
-    @CsvSource({"IMAGE,proof.png", "PNG,proof.pdf", "PDF,proof.exe"})
-    void rejectsUnsupportedOrConflictingFormats(String declared, String name) {
-        stubEvidenceSubmission();
-        CreateReportRequest request = request("PHONE", "0987654321");
-        request.setEvidences(List.of(EvidenceItemDto.builder().fileUrl("https://files.example/" + name)
-                .fileName(name).evidenceType(declared).build()));
-
-        assertThrows(BadRequestException.class, () -> service.createReport(request, null, principal()));
-
-        verify(evidences, never()).save(any());
-        verifyNoInteractions(storage);
+    private List<MultipartFile> validFiles() {
+        MultipartFile file = new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1});
+        when(storage.uploadFile(file, "evidences"))
+                .thenReturn(new SupabaseStorageService.UploadResult("https://files.example/proof.png", "hash", "key", "proof.png"));
+        when(evidences.save(any(ReportEvidence.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        return List.of(file);
     }
 
     private void stubEvidenceSubmission() {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
-                .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.PHONE, "0987654321"))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.PHONE).displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {

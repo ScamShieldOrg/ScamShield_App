@@ -24,9 +24,12 @@ import { ReportThreatTypeSelector } from "./report-threat-type-selector"
 import { ReportFileUpload, type ReportAttachment } from "./report-file-upload"
 import { validateReportFiles } from "@/features/report/utils/report-upload"
 import {
+  ScamCategoryItem,
   ReportThreatType,
   CreateReportPayload,
 } from "@/features/report/types/report.types"
+
+import { getReportCategories } from "@/features/report/services/report.service"
 
 interface ReportFormProps {
   onSubmit: (payload: CreateReportPayload) => Promise<void>
@@ -58,6 +61,19 @@ export function ReportForm({
       )
   useEffect(() => {
     void loadRegions()
+  }, [])
+  const [categories, setCategories] = useState<ScamCategoryItem[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
+  const loadCategories = async () => {
+    setCategoriesLoading(true)
+    try {
+      setCategories(await getReportCategories())
+    } finally {
+      setCategoriesLoading(false)
+    }
+  }
+  useEffect(() => {
+    void loadCategories()
   }, [])
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
@@ -435,6 +451,9 @@ export function ReportForm({
               <select
                 ref={categoryRef}
                 id="report-category"
+                disabled={
+                  isBusy || categoriesLoading || categories.length === 0
+                }
                 required
                 aria-invalid={categoryMissing}
                 aria-describedby={
@@ -445,24 +464,28 @@ export function ReportForm({
                 className="w-full rounded-xl border border-[#C6C6CE]/50 bg-[#FAF8FF] px-3 py-2.5 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-muted/30 dark:text-foreground"
               >
                 <option value="" disabled>
-                  Chọn danh mục thủ đoạn
+                  {categoriesLoading
+                    ? "Đang tải danh mục..."
+                    : "Chọn danh mục thủ đoạn"}
                 </option>
-                <option value="Mạo danh Cơ quan Nhà nước / Công an / VKSND">
-                  Mạo danh Cơ quan Nhà nước / Công an / VKSND
-                </option>
-                <option value="Website Phishing đánh cắp tài khoản ngân hàng">
-                  Website Phishing đánh cắp tài khoản ngân hàng
-                </option>
-                <option value="Tuyển dụng việc nhẹ lương cao / CTV TikTok, Shopee">
-                  Tuyển dụng việc nhẹ lương cao / CTV TikTok, Shopee
-                </option>
-                <option value="Lừa đảo đầu tư sàn Forex / Tiền ảo đa cấp">
-                  Lừa đảo đầu tư sàn Forex / Tiền ảo đa cấp
-                </option>
-                <option value="Mã độc giả mạo cổng dịch vụ công VNeID">
-                  Mã độc giả mạo cổng dịch vụ công VNeID
-                </option>
+                {categories.map((item) => (
+                  <option key={item.id} value={item.code}>
+                    {item.name}
+                  </option>
+                ))}
               </select>
+              {!categoriesLoading && categories.length === 0 && (
+                <p className="text-xs text-destructive" role="alert">
+                  Không tải được danh mục hoặc chưa có danh mục hoạt động.{" "}
+                  <button
+                    type="button"
+                    onClick={() => void loadCategories()}
+                    className="underline"
+                  >
+                    Thử lại
+                  </button>
+                </p>
+              )}
               {categoryMissing && (
                 <p
                   id="report-category-error"
@@ -476,15 +499,21 @@ export function ReportForm({
 
           {/* Description Textarea */}
           <div className="space-y-1.5">
-            <label
-              htmlFor="report-description"
-              className="text-xs font-bold text-[#131B2E] dark:text-foreground"
-            >
-              Mô tả ngắn gọn hành vi <span className="text-[#BA1A1A]">*</span>
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="report-description"
+                className="text-xs font-bold text-[#131B2E] dark:text-foreground"
+              >
+                Mô tả ngắn gọn hành vi <span className="text-[#BA1A1A]">*</span>
+              </label>
+              <span className="shrink-0 text-xs font-semibold text-black tabular-nums dark:text-white">
+                {description.length}/2000 ký tự
+              </span>
+            </div>
             <textarea
               ref={descriptionRef}
               id="report-description"
+              maxLength={2000}
               rows={3}
               required
               aria-invalid={descriptionMissing}
@@ -507,16 +536,21 @@ export function ReportForm({
           </div>
 
           <div className="space-y-1.5">
-            <label
-              htmlFor="report-message"
-              className="text-xs font-bold text-[#131B2E] dark:text-foreground"
-            >
-              Nội dung tin nhắn lừa đảo (tùy chọn)
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="report-message"
+                className="text-xs font-bold text-[#131B2E] dark:text-foreground"
+              >
+                Nội dung tin nhắn lừa đảo (tùy chọn)
+              </label>
+              <span className="shrink-0 text-xs font-semibold text-black tabular-nums dark:text-white">
+                {reportedMessage.length}/2000 ký tự
+              </span>
+            </div>
             <textarea
               id="report-message"
               rows={4}
-              maxLength={10000}
+              maxLength={2000}
               aria-describedby="report-message-hint"
               value={reportedMessage}
               onChange={(e) => setReportedMessage(e.target.value)}
@@ -527,7 +561,7 @@ export function ReportForm({
               id="report-message-hint"
               className="text-[11px] text-muted-foreground"
             >
-              Có thể bỏ trống nếu không có tin nhắn. Tối đa 10.000 ký tự.
+              Có thể bỏ trống nếu không có tin nhắn.
             </p>
           </div>
 

@@ -63,6 +63,7 @@ const success = {
   isSuccess: true,
   message: "Đã lưu báo cáo",
   data: {
+    categoryName: "Giả danh cơ quan chức năng",
     id: 42,
     reportCode: "#RPT-0042",
     evidenceCount: 2,
@@ -348,4 +349,22 @@ test("actual Axios transport sends a valid multipart boundary, auth header and b
   assert.ok(received.body.includes(Buffer.from('name="files"')))
   assert.ok(received.body.includes(Buffer.from(await file.arrayBuffer())))
   assert.ok(received.body.includes(Buffer.from("%PDF-1.4")))
+})
+
+test("each report text field accepts 2000 characters and rejects 2001 before upload", async () => {
+  const accepted = createHarness()
+  await accepted.submitScamReport({ ...payload(), description: "a".repeat(2000), reportedMessage: "b".repeat(2000) })
+  assert.equal(accepted.requests.length, 1)
+  for (const field of ["description", "reportedMessage"]) {
+    const rejected = createHarness()
+    await assert.rejects(rejected.submitScamReport({ ...payload(), [field]: "x".repeat(2001) }), /2\.000 ký tự/)
+    assert.equal(rejected.requests.length, 0)
+  }
+})
+
+test("submitted report exposes the friendly category name returned by the API", async () => {
+  const h = createHarness()
+  const result = await h.submitScamReport({ ...payload(), category: "GIA_DANH_CQCN" })
+  assert.equal(result.categoryName, success.data.categoryName ?? "Chưa phân loại")
+  assert.notEqual(result.categoryName, "GIA_DANH_CQCN")
 })

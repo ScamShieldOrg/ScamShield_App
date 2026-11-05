@@ -1,6 +1,7 @@
 package com.be.scamshield.repository;
 
 import com.be.scamshield.entity.ConfirmedIndicator;
+import com.be.scamshield.constant.IndicatorType;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -14,7 +15,7 @@ import java.util.Optional;
 public interface ConfirmedIndicatorRepository extends JpaRepository<ConfirmedIndicator, Long> {
     @Query("""
             SELECT c FROM ConfirmedIndicator c LEFT JOIN FETCH c.category
-            WHERE c.indicator.id IN :ids AND c.status = 'ACTIVE'
+            WHERE c.indicator.id IN :ids AND c.status = com.be.scamshield.constant.ConfirmedIndicatorStatus.ACTIVE
               AND c.retractedAt IS NULL AND c.confirmedAt <= :now ORDER BY c.id
             """)
     List<ConfirmedIndicator> findActiveForCheck(Collection<Long> ids, LocalDateTime now);
@@ -25,7 +26,7 @@ public interface ConfirmedIndicatorRepository extends JpaRepository<ConfirmedInd
             WHERE i.type IN :types AND i.normalizedValue IN :values
             ORDER BY c.id
             """)
-    List<ConfirmedIndicator> findForDispute(Collection<String> types, Collection<String> values);
+    List<ConfirmedIndicator> findForDispute(Collection<IndicatorType> types, Collection<String> values);
 
     Optional<ConfirmedIndicator> findByIndicatorId(Long indicatorId);
 }

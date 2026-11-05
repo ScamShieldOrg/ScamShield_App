@@ -1,5 +1,6 @@
 "use client"
 
+import { reportStatusClasses } from "@/features/report/utils/report-status"
 import { formatReportHotline } from "@/features/report/utils/report-phone"
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -66,15 +67,6 @@ const dangerButton = cn(
 )
 const cardClass =
   "rounded-2xl border border-border/70 bg-card p-5 shadow-xs sm:p-6"
-const statusClasses: Record<string, string> = {
-  PENDING:
-    "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-  IN_REVIEW:
-    "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
-  APPROVED:
-    "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
-  REJECTED: "border-destructive/20 bg-destructive/5 text-destructive",
-}
 function displayTarget(value: string, type: string) {
   if (type !== "PHONE") return value
   const hotline = formatReportHotline(value)
@@ -175,11 +167,7 @@ export function OwnReportDetailView({
       .then((data) => {
         if (active) {
           setReport(data)
-          if (
-            initialEdit &&
-            data.status === "PENDING" &&
-            data.moderationHistory.length === 0
-          ) {
+          if (initialEdit && data.status === "PENDING") {
             setDescription(data.description ?? "")
             setMessage(data.reportedMessage ?? "")
             setCategoryId(data.categoryId?.toString() ?? "")
@@ -209,8 +197,7 @@ export function OwnReportDetailView({
       active = false
     }
   }, [id, validId, initialEdit])
-  const editable =
-    report?.status === "PENDING" && report.moderationHistory.length === 0
+  const editable = report?.status === "PENDING"
   function startEdit() {
     if (!report) return
     setDescription(report.description ?? "")
@@ -349,8 +336,11 @@ export function OwnReportDetailView({
                 <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground">
                   Chi tiết báo cáo
                 </h1>
-                <p className="text-sm text-muted-foreground">
-                  Xem thông tin đã gửi và theo dõi kết quả kiểm duyệt.
+                <p className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground">
+                  Mã báo cáo
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {report.rawId}
+                  </span>
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -418,7 +408,7 @@ export function OwnReportDetailView({
                 <span
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
-                    statusClasses[report.status] ??
+                    reportStatusClasses[report.status] ??
                       "border-border bg-muted text-muted-foreground"
                   )}
                 >
@@ -453,7 +443,8 @@ export function OwnReportDetailView({
                 </div>
               </dl>
             </section>
-            {!editable && (
+            {(report.status === "IN_REVIEW" ||
+              report.status === "WITHDRAWN") && (
               <p className="rounded-lg bg-muted p-4 text-sm">
                 {report.status === "WITHDRAWN"
                   ? "Bạn đã thu hồi báo cáo. Dữ liệu được giữ để tra cứu lịch sử."
@@ -470,10 +461,15 @@ export function OwnReportDetailView({
                   </p>
                   <fieldset disabled={busy} className="space-y-4">
                     <label className="block space-y-2">
-                      <span>Mô tả *</span>
+                      <span className="flex items-center justify-between gap-3">
+                        <span>Mô tả *</span>
+                        <span className="text-xs font-semibold text-black tabular-nums dark:text-white">
+                          {description.length}/2000 ký tự
+                        </span>
+                      </span>
                       <textarea
                         required
-                        maxLength={255}
+                        maxLength={2000}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         className={fieldClass}
@@ -481,9 +477,14 @@ export function OwnReportDetailView({
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span>Tin nhắn nghi lừa đảo</span>
+                      <span className="flex items-center justify-between gap-3">
+                        <span>Tin nhắn nghi lừa đảo</span>
+                        <span className="text-xs font-semibold text-black tabular-nums dark:text-white">
+                          {message.length}/2000 ký tự
+                        </span>
+                      </span>
                       <textarea
-                        maxLength={10000}
+                        maxLength={2000}
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         className={fieldClass}
@@ -674,21 +675,6 @@ export function OwnReportDetailView({
                       ) : (
                         <p>Bằng chứng {i + 1}: không có tệp để mở</p>
                       )}
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {(
-                          {
-                            PENDING: "Chưa xác minh",
-                            VERIFIED: "Đã xác minh",
-                            REJECTED: "Không được chấp nhận",
-                          } as Record<string, string>
-                        )[item.verificationStatus ?? ""] ??
-                          "Chưa có kết quả xác minh"}
-                      </p>
-                      {item.ocrText && (
-                        <p className="mt-2 text-sm break-words whitespace-pre-wrap">
-                          {item.ocrText}
-                        </p>
-                      )}
                     </div>
                   ))}
                 </section>
@@ -721,7 +707,6 @@ export function OwnReportDetailView({
                           {step.reason}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {step.moderatorName || "Hệ thống"} ·{" "}
                           {date(step.createdAt)}
                         </p>
                       </div>

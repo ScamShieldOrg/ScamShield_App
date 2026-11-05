@@ -1,5 +1,6 @@
 package com.be.scamshield.dto.response;
 
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
 import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.DisputePriority;
 import com.be.scamshield.constant.DisputeStatus;
@@ -47,7 +48,7 @@ public record DisputeListItemResponse(
             String type,
             String displayValue,
             @Schema(description = "Trạng thái của xác thực blacklist liên quan đến hồ sơ")
-            String blacklistStatus,
+            ConfirmedIndicatorStatus blacklistStatus,
             LocalDateTime retractedAt
     ) {
     }

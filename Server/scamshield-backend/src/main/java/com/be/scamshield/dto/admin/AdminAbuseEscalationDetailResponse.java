@@ -1,6 +1,5 @@
 package com.be.scamshield.dto.admin;
 
-import com.be.scamshield.constant.EvidenceVerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -95,8 +94,7 @@ public class AdminAbuseEscalationDetailResponse {
         private String fileName;
         private String fileUrl;
         private String ocrText;
-        @Schema(description = "Trạng thái xác minh bằng chứng: PENDING, VERIFIED hoặc REJECTED")
-        private EvidenceVerificationStatus verificationStatus;
+
         private LocalDateTime createdAt;
     }
 

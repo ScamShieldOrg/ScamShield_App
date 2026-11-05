@@ -120,6 +120,12 @@ export function ReportTrackingTable({
       dotColor: "bg-[#F59E0B]",
     },
     {
+      status: "IN_REVIEW",
+      label: "Đang kiểm duyệt",
+      count: statusCounts?.inReview ?? 0,
+      dotColor: "bg-blue-500",
+    },
+    {
       status: "APPROVED",
       label: "Đã vào Blacklist",
       count: statusCounts?.approvedBlacklist ?? 0,

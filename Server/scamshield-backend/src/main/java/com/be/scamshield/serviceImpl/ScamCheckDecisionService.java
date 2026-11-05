@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.entity.CheckRequest;
 import com.be.scamshield.entity.CheckVerdict;
@@ -32,7 +34,11 @@ public class ScamCheckDecisionService {
     public Decision decide(CheckRequest check, List<ScamCheckInputProcessor.Candidate> candidates) {
         Map<Long, Indicator> known = new LinkedHashMap<>();
         for (var candidate : candidates) {
-            indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(candidate.type(), candidate.aliases())
+            IndicatorType type = switch (candidate.type()) {
+                case "DOMAIN" -> IndicatorType.URL;
+                default -> IndicatorType.valueOf(candidate.type());
+            };
+            indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(type, candidate.aliases())
                     .forEach(indicator -> known.putIfAbsent(indicator.getId(), indicator));
         }
         log.info("Scam check catalog lookup: checkId={}, candidateCount={}, knownIndicatorCount={}",

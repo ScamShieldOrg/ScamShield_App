@@ -6,6 +6,9 @@ import com.be.scamshield.dto.response.NotificationTabCountsResponse;
 import com.be.scamshield.exception.UnauthorizedException;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.INotificationService;
+import com.be.scamshield.serviceImpl.NotificationStreamService;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.http.MediaType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -28,6 +31,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class NotificationController {
 
     private final INotificationService notificationService;
+    private final NotificationStreamService notificationStreams;
+
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "Nhận tín hiệu thông báo realtime", description = "SSE có xác thực; mỗi sự kiện chứa BaseResponse. Kết nối tối đa 60 giây, client tự nối lại.")
+    public ResponseEntity<SseEmitter> stream(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok().header("Cache-Control", "no-cache")
+                .header("X-Accel-Buffering", "no").body(notificationStreams.subscribe(requireUserId(principal)));
+    }
+
 
     @GetMapping
     @Operation(summary = "Lấy danh sách thông báo hệ thống",

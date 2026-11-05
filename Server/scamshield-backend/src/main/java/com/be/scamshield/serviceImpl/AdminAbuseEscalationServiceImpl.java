@@ -213,7 +213,7 @@ public class AdminAbuseEscalationServiceImpl implements IAdminAbuseEscalationSer
     private RelatedReport mapRelatedReport(Report report, ModerationAction action, List<ReportEvidence> evidences) {
         return RelatedReport.builder().id(report.getId()).reportCode("RPT-" + report.getId())
                 .indicatorId(report.getIndicator() == null ? null : report.getIndicator().getId())
-                .targetType(report.getIndicator() == null ? null : report.getIndicator().getType())
+                .targetType(report.getIndicator() == null || report.getIndicator().getType() == null ? null : report.getIndicator().getType().name())
                 .targetValue(report.getIndicator() == null ? null
                         : report.getIndicator().getDisplayValue() == null ? report.getIndicator().getNormalizedValue()
                         : report.getIndicator().getDisplayValue())
@@ -230,7 +230,7 @@ public class AdminAbuseEscalationServiceImpl implements IAdminAbuseEscalationSer
                         .id(evidence.getId()).evidenceType(evidence.getEvidenceType() == null ? null : evidence.getEvidenceType().name()).fileName(evidence.getFileName())
                         .fileUrl(evidence.getFileUrl())
                         .ocrText(evidence.getOcrText())
-                        .verificationStatus(evidence.getVerificationStatus()).createdAt(evidence.getCreatedAt()).build()).toList())
+                        .createdAt(evidence.getCreatedAt()).build()).toList())
                 .build();
     }
 

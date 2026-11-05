@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
 import com.be.scamshield.constant.DisputeIndicatorType;
 import com.be.scamshield.constant.DisputeLegalRelationship;
 import com.be.scamshield.constant.DisputeStatus;
@@ -110,7 +114,7 @@ class DisputeSubmissionServiceImplTest {
 
                 sampleIndicator = Indicator.builder()
                                 .id(100L)
-                                .type("PHONE")
+                                .type(IndicatorType.PHONE)
                                 .normalizedValue("0912345678")
                                 .displayValue("0912 345 678")
                                 .build();
@@ -118,7 +122,7 @@ class DisputeSubmissionServiceImplTest {
                 sampleConfirmedIndicator = ConfirmedIndicator.builder()
                                 .id(50L)
                                 .indicator(sampleIndicator)
-                                .status("ACTIVE")
+                                .status(ConfirmedIndicatorStatus.ACTIVE)
                                 .build();
 
                 sampleSubmitRequest = new SubmitDisputeRequest();
@@ -196,14 +200,14 @@ class DisputeSubmissionServiceImplTest {
                 // Arrange
                 Indicator urlIndicator = Indicator.builder()
                                 .id(102L)
-                                .type("URL")
+                                .type(IndicatorType.URL)
                                 .normalizedValue("legit-shop.vn")
                                 .displayValue("legit-shop.vn")
                                 .build();
                 ConfirmedIndicator urlConfirmed = ConfirmedIndicator.builder()
                                 .id(52L)
                                 .indicator(urlIndicator)
-                                .status("ACTIVE")
+                                .status(ConfirmedIndicatorStatus.ACTIVE)
                                 .build();
 
                 sampleSubmitRequest.setIndicatorType(DisputeIndicatorType.URL);
@@ -242,14 +246,14 @@ class DisputeSubmissionServiceImplTest {
                 // Arrange
                 Indicator bankIndicator = Indicator.builder()
                                 .id(103L)
-                                .type("BANK_ACCOUNT")
+                                .type(IndicatorType.BANK_ACCOUNT)
                                 .normalizedValue("190384729102")
                                 .displayValue("190384729102")
                                 .build();
                 ConfirmedIndicator bankConfirmed = ConfirmedIndicator.builder()
                                 .id(53L)
                                 .indicator(bankIndicator)
-                                .status("ACTIVE")
+                                .status(ConfirmedIndicatorStatus.ACTIVE)
                                 .build();
 
                 sampleSubmitRequest.setIndicatorType(DisputeIndicatorType.BANK_ACCOUNT);
@@ -447,7 +451,7 @@ class DisputeSubmissionServiceImplTest {
                 sampleSubmitRequest.setIndicatorValue("+84912345678");
 
                 when(userRepository.findById(10L)).thenReturn(Optional.of(sampleUser));
-                when(confirmedRepository.findForDispute(eq(List.of("PHONE")), anyCollection()))
+                when(confirmedRepository.findForDispute(eq(List.of(IndicatorType.PHONE)), anyCollection()))
                                 .thenReturn(List.of(sampleConfirmedIndicator));
                 when(disputeRepository.existsBySubmittedByUserIdAndConfirmedIndicatorIdAndStatusIn(any(), any(), any()))
                                 .thenReturn(false);
@@ -462,7 +466,7 @@ class DisputeSubmissionServiceImplTest {
 
                 // Assert
                 assertThat(response).isNotNull();
-                verify(confirmedRepository).findForDispute(eq(List.of("PHONE")),
+                verify(confirmedRepository).findForDispute(eq(List.of(IndicatorType.PHONE)),
                                 argThat(candidates -> candidates.contains("0912345678")
                                                 && candidates.contains("+84912345678")));
         }
@@ -592,7 +596,7 @@ class DisputeSubmissionServiceImplTest {
         @DisplayName("submit: Throws DisputeConflictException when confirmed indicator has already been RETRACTED")
         void submit_IndicatorAlreadyRetracted_ThrowsDisputeConflictException() {
                 // Arrange
-                sampleConfirmedIndicator.setStatus("RETRACTED");
+                sampleConfirmedIndicator.setStatus(ConfirmedIndicatorStatus.RETRACTED);
 
                 when(userRepository.findById(10L)).thenReturn(Optional.of(sampleUser));
                 when(confirmedRepository.findForDispute(any(), any())).thenReturn(List.of(sampleConfirmedIndicator));
@@ -605,10 +609,10 @@ class DisputeSubmissionServiceImplTest {
         }
 
         @Test
-        @DisplayName("submit: Throws DisputeConflictException when confirmed indicator status is not ACTIVE")
-        void submit_IndicatorNotActive_ThrowsDisputeConflictException() {
+        @DisplayName("submit: Throws DisputeConflictException when confirmed indicator status is missing")
+        void submit_IndicatorStatusMissing_ThrowsDisputeConflictException() {
                 // Arrange
-                sampleConfirmedIndicator.setStatus("PENDING");
+                sampleConfirmedIndicator.setStatus(null);
 
                 when(userRepository.findById(10L)).thenReturn(Optional.of(sampleUser));
                 when(confirmedRepository.findForDispute(any(), any())).thenReturn(List.of(sampleConfirmedIndicator));

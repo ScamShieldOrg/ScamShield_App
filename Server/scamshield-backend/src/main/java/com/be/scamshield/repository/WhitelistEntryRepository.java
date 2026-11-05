@@ -4,6 +4,7 @@ import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.entity.WhitelistEntry;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -15,6 +16,7 @@ public interface WhitelistEntryRepository extends JpaRepository<WhitelistEntry, 
 
     Optional<WhitelistEntry> findByIndicatorIdAndPartnerId(Long indicatorId, Long partnerId);
 
+    @EntityGraph(attributePaths = {"partner"})
     @Query("""
             SELECT w FROM WhitelistEntry w JOIN w.partner p
             WHERE w.indicator.id IN :ids AND w.verificationStatus = 'VERIFIED'

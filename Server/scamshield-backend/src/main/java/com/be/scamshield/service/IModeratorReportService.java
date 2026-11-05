@@ -12,12 +12,15 @@ public interface IModeratorReportService {
 
     PaginatedResponse<ModeratorReportResponse> getReportQueue(
             ModeratorReportFilterRequest filter,
-            Pageable pageable
+            Pageable pageable,
+            UserPrincipal currentUser
     );
 
-    ModeratorQueueCountsResponse getQueueCounts();
+    ModeratorQueueCountsResponse getQueueCounts(UserPrincipal currentUser);
 
-    ModeratorReportResponse getReportById(Long id);
+    ModeratorReportResponse getReportById(Long id, UserPrincipal currentUser);
+
+    ModeratorReportResponse startReview(Long id, UserPrincipal currentUser);
 
     ModeratorReportResponse makeDecision(
             Long reportId,

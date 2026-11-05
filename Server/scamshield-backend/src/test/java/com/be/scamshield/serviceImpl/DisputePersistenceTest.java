@@ -1,5 +1,10 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+import com.be.scamshield.external.ScamCheckAiClient;
+
 import com.be.scamshield.support.PostgresIntegrationTest;
 
 import com.be.scamshield.constant.DisputePriority;
@@ -48,6 +53,7 @@ class DisputePersistenceTest extends PostgresIntegrationTest {
     @Autowired private EntityManager entityManager;
     @Autowired private MockMvc mvc;
     @MockitoBean private Clock clock;
+    @MockitoBean private ScamCheckAiClient scamCheckAiClient;
     private User owner;
     private User other;
     private int sequence;
@@ -219,19 +225,19 @@ class DisputePersistenceTest extends PostgresIntegrationTest {
         dispute(owner, DisputeStatus.NEEDS_MORE_INFO, NOW.minusDays(1));
         Dispute restored = dispute(owner, DisputeStatus.APPROVED, NOW.minusHours(4));
         restored.setResolvedAt(NOW.minusMinutes(40)); // 3h20m, should retain fractional hours.
-        restored.getConfirmedIndicator().setStatus("RETRACTED");
+        restored.getConfirmedIndicator().setStatus(ConfirmedIndicatorStatus.RETRACTED);
         restored.getConfirmedIndicator().setRetractedAt(NOW.minusMinutes(40));
         Dispute rejected = dispute(owner, DisputeStatus.REJECTED, NOW.minusHours(8));
         rejected.setResolvedAt(NOW.minusHours(1)); // 7 hours, included even though rejected.
         Dispute negative = dispute(owner, DisputeStatus.APPROVED, NOW.minusHours(5));
         negative.setResolvedAt(NOW.minusHours(6));
         Dispute noResolutionTime = dispute(owner, DisputeStatus.APPROVED, NOW.minusDays(1));
-        noResolutionTime.getConfirmedIndicator().setStatus("RETRACTED");
+        noResolutionTime.getConfirmedIndicator().setStatus(ConfirmedIndicatorStatus.RETRACTED);
         noResolutionTime.getConfirmedIndicator().setRetractedAt(NOW.minusHours(1));
         Dispute future = dispute(owner, DisputeStatus.REJECTED, NOW.minusDays(1));
         future.setResolvedAt(NOW.plusMinutes(1));
         Dispute undatedRetraction = dispute(owner, DisputeStatus.APPROVED, NOW.minusDays(1));
-        undatedRetraction.getConfirmedIndicator().setStatus("RETRACTED");
+        undatedRetraction.getConfirmedIndicator().setStatus(ConfirmedIndicatorStatus.RETRACTED);
         Dispute otherResolved = dispute(other, DisputeStatus.APPROVED, NOW.minusDays(10));
         otherResolved.setResolvedAt(NOW);
         dispute(null, DisputeStatus.PENDING, NOW);
@@ -323,7 +329,7 @@ class DisputePersistenceTest extends PostgresIntegrationTest {
         assertThat(after.getUpdatedAt()).isEqualTo(updatedAt);
         assertThat(after.getResolvedAt()).isNull();
         assertThat(entityManager.find(DisputeEvidence.class, evidenceId).getVerificationStatus()).isEqualTo("PENDING");
-        assertThat(entityManager.find(ConfirmedIndicator.class, confirmedId).getStatus()).isEqualTo("ACTIVE");
+        assertThat(entityManager.find(ConfirmedIndicator.class, confirmedId).getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
         assertThat(entityManager.find(ConfirmedIndicator.class, confirmedId).getRetractedAt()).isNull();
     }
 
@@ -356,13 +362,13 @@ class DisputePersistenceTest extends PostgresIntegrationTest {
 
     private Dispute dispute(User submitter, DisputeStatus disputeStatus, LocalDateTime createdAt) {
         sequence++;
-        Indicator indicator = Indicator.builder().type("PHONE").normalizedValue("+8491234" + String.format("%04d", sequence))
+        Indicator indicator = Indicator.builder().type(IndicatorType.PHONE).normalizedValue("+8491234" + String.format("%04d", sequence))
                 .displayValue("091.234.8899").createdAt(NOW.minusDays(10)).updatedAt(NOW.minusDays(10)).build();
         entityManager.persist(indicator);
-        ConfirmedIndicator confirmed = ConfirmedIndicator.builder().indicator(indicator).status("ACTIVE")
+        ConfirmedIndicator confirmed = ConfirmedIndicator.builder().indicator(indicator).status(ConfirmedIndicatorStatus.ACTIVE)
                 .confirmedByUser(other).confirmedAt(NOW.minusDays(10)).publicReason("Đã xác thực nguy cơ.").build();
         if (disputeStatus == DisputeStatus.APPROVED) {
-            confirmed.setStatus("RETRACTED");
+            confirmed.setStatus(ConfirmedIndicatorStatus.RETRACTED);
             confirmed.setRetractedAt(NOW.minusHours(1));
         }
         entityManager.persist(confirmed);

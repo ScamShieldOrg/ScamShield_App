@@ -1,5 +1,6 @@
 "use client"
 
+import { reportStatusClasses } from "@/features/report/utils/report-status"
 import { formatReportHotline } from "@/features/report/utils/report-phone"
 
 import { useRef, useState } from "react"
@@ -10,7 +11,6 @@ import {
   Funnel,
   Paperclip,
   ArrowsClockwise,
-  XCircle,
   Eye,
   DotsThree,
   PencilSimple,
@@ -91,48 +91,27 @@ export function RecentReportsTable({
     })
 
   const renderStatus = (item: RecentReportItem) => {
-    switch (item.status) {
-      case "APPROVED":
-        return (
-          <span className="text-emerald-700 dark:text-emerald-300">
-            Đã duyệt
-          </span>
-        )
-      case "IN_REVIEW":
-        return (
-          <span className="text-amber-700 dark:text-amber-300">
-            Đang kiểm duyệt
-          </span>
-        )
-      case "WITHDRAWN":
-        return <span className="text-muted-foreground">Đã thu hồi</span>
-      case "PENDING":
-        return (
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-[#B45309] dark:bg-amber-950/40 dark:text-amber-300">
-            <span>Đang chờ duyệt</span>
-          </div>
-        )
-      case "REJECTED":
-        return (
-          <div className="space-y-0.5">
-            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#BA1A1A] dark:text-rose-400">
-              <XCircle size={14} weight="fill" />
-              <span>Từ chối duyệt</span>
-            </div>
-            {item.rejectionReason && (
-              <p className="text-[10px] text-[#45464D] dark:text-muted-foreground">
-                Lý do: {item.rejectionReason}
-              </p>
-            )}
-          </div>
-        )
-      default:
-        return (
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            <span>{item.status}</span>
-          </div>
-        )
+    const labels: Record<string, string> = {
+      PENDING: "Đang chờ duyệt",
+      IN_REVIEW: "Đang kiểm duyệt",
+      APPROVED: "Đã duyệt",
+      REJECTED: "Từ chối duyệt",
+      WITHDRAWN: "Đã thu hồi",
     }
+    return (
+      <div className="space-y-1">
+        <span
+          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${reportStatusClasses[item.status] ?? "border-border bg-muted text-muted-foreground"}`}
+        >
+          {labels[item.status] ?? item.status}
+        </span>
+        {item.status === "REJECTED" && item.rejectionReason && (
+          <p className="text-[10px] text-muted-foreground">
+            Lý do: {item.rejectionReason}
+          </p>
+        )}
+      </div>
+    )
   }
 
   const renderTargetIcon = (type: RecentReportItem["targetType"]) => {
@@ -217,6 +196,7 @@ export function RecentReportsTable({
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-[#C6C6CE]/30 text-[11px] font-bold text-[#45464D] uppercase dark:border-border dark:text-muted-foreground">
+              <th className="py-2.5 pr-3">Mã báo cáo</th>
               <th className="py-2.5 pr-3">Đối tượng bị báo cáo</th>
               <th className="px-3 py-2.5">Danh Mục</th>
               <th className="px-3 py-2.5">Ngày Gửi</th>
@@ -230,7 +210,7 @@ export function RecentReportsTable({
             {isLoading ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="py-12 text-center text-xs text-[#45464D] dark:text-muted-foreground"
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -245,7 +225,7 @@ export function RecentReportsTable({
             ) : filteredItems.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="py-12 text-center text-xs text-[#45464D] dark:text-muted-foreground"
                 >
                   {search.trim()
@@ -259,6 +239,9 @@ export function RecentReportsTable({
                   key={item.id}
                   className="transition-colors hover:bg-[#FAF8FF]/80 dark:hover:bg-muted/20"
                 >
+                  <td className="py-3.5 pr-3 font-medium tabular-nums">
+                    {Number(item.id.split("-").at(-1))}
+                  </td>
                   {/* Target Value with Icon */}
                   <td className="py-3.5 pr-3">
                     <div className="flex items-center gap-2">

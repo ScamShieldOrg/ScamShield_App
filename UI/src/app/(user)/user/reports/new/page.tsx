@@ -47,7 +47,7 @@ export default function UserReportsNewPage() {
           id: res.reportId,
           targetValue: payload.targetIdentifier,
           targetType: payload.threatType,
-          category: payload.category,
+          category: res.categoryName,
           submittedDate: "Vừa xong",
           evidenceCount: res.evidenceCount,
           status: "PENDING",

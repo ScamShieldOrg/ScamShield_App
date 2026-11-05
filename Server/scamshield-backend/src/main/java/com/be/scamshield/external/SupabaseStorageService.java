@@ -1,5 +1,7 @@
 package com.be.scamshield.external;
 
+import java.io.IOException;
+
 import com.be.scamshield.dto.response.PresignedUrlResponse;
 import com.be.scamshield.exception.DisputeStorageException;
 import lombok.extern.slf4j.Slf4j;
@@ -377,6 +379,30 @@ public class SupabaseStorageService {
             log.error("Failed to compute SHA-256 hash", e);
             return "HASH_ERROR";
         }
+    }
+
+    public byte[] readEvidence(String objectKey, int maximumBytes) throws IOException {
+        if (!isStorageConfigured() || objectKey == null || !objectKey.startsWith("evidences/")
+                || objectKey.contains("..") || !objectKey.matches("[A-Za-z0-9._/-]+")) {
+            throw new IllegalArgumentException("Kho lưu trữ minh chứng chưa sẵn sàng");
+        }
+        GetObjectRequest request = GetObjectRequest.builder().bucket(getBucketName()).key(objectKey)
+                .range("bytes=0-" + maximumBytes)
+                .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(30))
+                        .apiCallAttemptTimeout(Duration.ofSeconds(20))).build();
+        try (S3Client client = createS3Client(); var stream = client.getObject(request)) {
+            byte[] bytes = stream.readNBytes(maximumBytes + 1);
+            if (bytes.length > maximumBytes) { stream.abort(); throw new IOException("FILE_SIZE_LIMIT"); }
+            return bytes;
+        }
+    }
+
+    public String evidenceKeyFromUrl(String url) {
+        if (url == null) return null;
+        String prefix = buildPublicUrl("evidences/");
+        if (!url.startsWith(prefix)) return null;
+        String key = "evidences/" + url.substring(prefix.length());
+        return key.contains("..") || !key.matches("[A-Za-z0-9._/-]+") ? null : key;
     }
 
     private S3Client createS3Client() {

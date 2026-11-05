@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
 import com.be.scamshield.constant.VietnamProvince;
 import com.be.scamshield.external.ScamCheckAiClient;
 
@@ -249,13 +253,13 @@ class ScamDashboardPersistenceTest extends PostgresIntegrationTest {
     }
 
     private Indicator indicator(String type, String value) {
-        Indicator indicator = Indicator.builder().type(type).normalizedValue(value).createdAt(NOW).updatedAt(NOW).build();
+        Indicator indicator = Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue(value).createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(indicator);
         return indicator;
     }
 
     private void confirm(Indicator indicator, ScamCategory category, String status, LocalDateTime confirmedAt, LocalDateTime retractedAt) {
-        entityManager.persist(ConfirmedIndicator.builder().indicator(indicator).category(category).status(status)
+        entityManager.persist(ConfirmedIndicator.builder().indicator(indicator).category(category).status(ConfirmedIndicatorStatus.valueOf(status))
                 .confirmedByUser(reporter).confirmedAt(confirmedAt).retractedAt(retractedAt).build());
     }
 

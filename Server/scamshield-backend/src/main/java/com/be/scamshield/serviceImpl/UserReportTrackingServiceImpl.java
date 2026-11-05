@@ -57,7 +57,8 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
 
         // Accuracy rate = (blacklisted / totalProcessed) * 100
         long withdrawnCount = reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.WITHDRAWN);
-        long processedCount = totalReports - pendingCount - withdrawnCount;
+        long inReviewCount = reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.IN_REVIEW);
+        long processedCount = totalReports - pendingCount - inReviewCount - withdrawnCount;
         double accuracyRate = 0.0;
         if (processedCount > 0) {
             accuracyRate = Math.round(((double) blacklistedCount / processedCount) * 1000.0) / 10.0;
@@ -113,6 +114,7 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
                 .withdrawn(reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.WITHDRAWN))
                 .all(all)
                 .pending(pending)
+                .inReview(reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.IN_REVIEW))
                 .approvedBlacklist(approvedBlacklist)
                 .mergedDuplicate(mergedDuplicate)
                 .rejected(rejected)
@@ -246,7 +248,6 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
                         .fileName(ev.getFileName())
                         .fileHash(ev.getFileHash())
                         .ocrText(ev.getOcrText())
-                        .verificationStatus(ev.getVerificationStatus() == null ? null : ev.getVerificationStatus().name())
                         .createdAt(ev.getCreatedAt())
                         .build())
                 .toList();
@@ -258,7 +259,7 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
                         .reason(m.getReason())
                         .previousStatus(m.getPreviousStatus())
                         .newStatus(m.getNewStatus())
-                        .moderatorName(m.getModeratorUser() != null ? m.getModeratorUser().getFullName() : "Hệ thống A05/NCSC")
+                        .moderatorName(m.getModeratorUser() != null ? "Kiểm duyệt viên" : "Hệ thống A05/NCSC")
                         .createdAt(m.getCreatedAt())
                         .build())
                 .toList();
@@ -405,7 +406,7 @@ public class UserReportTrackingServiceImpl implements IUserReportTrackingService
 
     private String resolveTargetType(Report report) {
         if (report.getIndicator() != null && report.getIndicator().getType() != null) {
-            String type = report.getIndicator().getType().toUpperCase(Locale.ROOT);
+            String type = report.getIndicator().getType().name();
             if (type.contains("PHONE")) return "PHONE";
             if (type.contains("BANK")) return "BANK";
             if (type.contains("WEB") || type.contains("DOMAIN") || type.contains("URL")) return "WEBSITE";

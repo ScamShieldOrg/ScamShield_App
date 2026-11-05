@@ -1,10 +1,11 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.ReportEvidenceType;
 import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.support.PostgresIntegrationTest;
 
-import com.be.scamshield.constant.EvidenceVerificationStatus;
 import java.util.Locale;
 import java.time.Clock;
 import java.time.Instant;
@@ -364,24 +365,22 @@ class AdminAbuseEscalationPersistenceTest extends PostgresIntegrationTest {
         assertThatThrownBy(() -> service.getEscalationById(id)).isInstanceOf(BadRequestException.class);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"PENDING", "VERIFIED", "REJECTED"})
-    void detailReadsPersistedEnumEvidenceStatus(String storedStatus) {
-        Report linked = report(target, "enum-evidence.example");
+    @Test
+    void detailReturnsEvidenceAndUsesTheReportDecision() {
+        Report linked = report(target, "report-decision.example");
+        linked.setStatus(ReportStatus.REJECTED);
         AbuseFlag selected = flag(target, "PENDING", NOW);
         selected.setReport(linked);
-        ReportEvidence attached = evidence(linked, "status.png");
-        attached.setVerificationStatus(EvidenceVerificationStatus.valueOf(storedStatus));
+        ReportEvidence attached = evidence(linked, "decision.png");
         flushAndClear();
-
-        var response = service.getEscalationById(selected.getId()).getReports().getFirst().getEvidences().getFirst();
-        assertThat(response.getVerificationStatus()).isEqualTo(EvidenceVerificationStatus.valueOf(storedStatus));
-        assertThat(entityManager.find(ReportEvidence.class, attached.getId()).getVerificationStatus()).isEqualTo(EvidenceVerificationStatus.valueOf(storedStatus));
+        var response = service.getEscalationById(selected.getId()).getReports().getFirst();
+        assertThat(response.getStatus()).isEqualTo("REJECTED");
+        assertThat(response.getEvidences().getFirst().getId()).isEqualTo(attached.getId());
     }
 
     private ReportEvidence evidence(Report report, String fileName) {
         ReportEvidence evidence = ReportEvidence.builder().report(report).evidenceType(ReportEvidenceType.PNG).fileName(fileName)
-                .fileUrl("https://files.example.test/" + fileName).verificationStatus(EvidenceVerificationStatus.PENDING).createdAt(NOW).build();
+                .fileUrl("https://files.example.test/" + fileName).createdAt(NOW).build();
         entityManager.persist(evidence);
         return evidence;
     }
@@ -627,7 +626,7 @@ class AdminAbuseEscalationPersistenceTest extends PostgresIntegrationTest {
     }
 
     private Report report(User user, String value) {
-        Indicator indicator = Indicator.builder().type("URL").normalizedValue(value).createdAt(NOW).updatedAt(NOW).build();
+        Indicator indicator = Indicator.builder().type(IndicatorType.URL).normalizedValue(value).createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(indicator);
         Report report = Report.builder().reporterUser(user).indicator(indicator).status(ReportStatus.REJECTED)
 

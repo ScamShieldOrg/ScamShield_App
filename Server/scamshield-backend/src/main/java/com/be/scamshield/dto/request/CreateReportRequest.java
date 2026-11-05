@@ -11,7 +11,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 
 @Data
 @Builder
@@ -31,10 +30,11 @@ public class CreateReportRequest {
     private String category;
 
     @NotBlank(message = "Mô tả ngắn gọn hành vi không được để trống")
+    @Size(max = 2000, message = "Mô tả hành vi tối đa 2.000 ký tự")
     private String description;
 
-    @Size(max = 10000, message = "Nội dung tin nhắn lừa đảo tối đa 10.000 ký tự")
-    @Schema(description = "Nguyên văn tin nhắn nghi lừa đảo do người dùng sao chép; không bắt buộc, tối đa 10.000 ký tự")
+    @Size(max = 2000, message = "Nội dung tin nhắn lừa đảo tối đa 2.000 ký tự")
+    @Schema(description = "Nguyên văn tin nhắn nghi lừa đảo do người dùng sao chép; không bắt buộc, tối đa 2.000 ký tự")
     private String reportedMessage;
 
     @Pattern(regexp = "^\\s*(?:[0-9]{2})?\\s*$", message = "Mã tỉnh/thành phải gồm 2 chữ số")
@@ -47,8 +47,4 @@ public class CreateReportRequest {
     private Boolean isConfirmed;
 
 
-    // Optional list of pre-uploaded S3 evidence URLs/items
-    private List<EvidenceItemDto> evidences;
-
-    private List<String> attachmentUrls;
 }

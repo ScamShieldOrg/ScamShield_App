@@ -1,14 +1,44 @@
 export type QueueItemPriority = "URGENT" | "HIGH" | "NORMAL"
 
-export type QueueItemStatus = "Pending" | "In Review" | "Locked" | "Approved" | "Rejected"
+export type QueueItemStatus =
+  "Pending" | "In Review" | "Approved" | "Rejected" | "Withdrawn"
 
-export type QueueFilterTab = "ALL" | "PENDING" | "IN_REVIEW" | "LOCKED"
+export type QueueFilterTab =
+  "ALL" | "PENDING" | "IN_REVIEW" | "APPROVED" | "REJECTED" | "WITHDRAWN"
 
 export interface QueueEvidence {
   id: string
   rawId?: number
   name: string
   type: "image" | "video" | "pdf" | string
+  duplicateCheckAvailable?: boolean
+  duplicateCount?: number
+  analysisStatus?:
+    "PENDING" | "COMPLETED" | "PARTIAL" | "FAILED" | "NOT_ANALYZED"
+  analysisMessage?: string | null
+  analyzedAt?: string | null
+  imageFingerprintAvailable?: boolean
+  ocrTextAvailable?: boolean
+  similarEvidenceCount?: number
+  similarEvidences?: {
+    evidenceId: number
+    reportId: number
+    reportStatus: string
+    createdAt: string | null
+    reportUpdatedAt?: string | null
+    sameReporter: boolean
+    matchTypes: string[]
+    imageSimilarity: number | null
+    textSimilarity: number | null
+  }[]
+  duplicates?: {
+    evidenceId: number
+    reportId: number
+    reportStatus: string
+    createdAt: string | null
+    reportUpdatedAt?: string | null
+    sameReporter: boolean
+  }[]
   url?: string
 }
 
@@ -17,11 +47,14 @@ export interface ModeratorReportItem {
   rawId?: number
   targetIdentifier: string
   targetType?: string
+  description?: string | null
+  reportedMessage?: string | null
   category: string
   categoryId?: number
   reportCount: number
   reportedBy: string
   reportedAt: string
+  processedAt?: string | null
   priority: QueueItemPriority
   status: QueueItemStatus
   aiScore?: number | null
@@ -32,6 +65,14 @@ export interface ModeratorReportItem {
   evidences: QueueEvidence[]
   taxonomies: string[]
   isLocked?: boolean
+  canReview?: boolean
+  whitelisted?: boolean
+  whitelistMatches?: {
+    whitelistEntryId: number
+    partnerId: number
+    legalName: string
+    verifiedAt: string | null
+  }[]
 }
 
 export interface ModeratorReportFilterParams {
@@ -60,7 +101,8 @@ export interface ModerationDecisionPayload {
 }
 
 export interface BaseApiResponse<T> {
-  isSuccess: boolean
+  isSuccess?: boolean
+  success?: boolean
   message: string
   data: T
 }

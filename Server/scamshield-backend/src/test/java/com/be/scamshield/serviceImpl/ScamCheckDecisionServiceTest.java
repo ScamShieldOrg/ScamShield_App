@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.entity.CheckRequest;
 import com.be.scamshield.entity.ConfirmedIndicator;
 import com.be.scamshield.entity.Indicator;
@@ -37,13 +39,13 @@ class ScamCheckDecisionServiceTest {
     private ScamCheckAiClient aiClient;
     @InjectMocks
     private ScamCheckDecisionService service;
-    private final Indicator indicator = Indicator.builder().id(12L).type("URL").normalizedValue("example.com").build();
+    private final Indicator indicator = Indicator.builder().id(12L).type(IndicatorType.URL).normalizedValue("example.com").build();
     private final List<ScamCheckInputProcessor.Candidate> candidates = List.of(
             new ScamCheckInputProcessor.Candidate("URL", "example.com", List.of("example.com"), 0, 11));
 
     @Test
     void confirmedBlacklistWinsAndDoesNotRequireAnAiScore() {
-        when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(anyString(), anyCollection())).thenReturn(List.of(indicator));
+        when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(any(IndicatorType.class), anyCollection())).thenReturn(List.of(indicator));
         when(blacklist.findActiveForCheck(anyCollection(), any())).thenReturn(List.of(
                 ConfirmedIndicator.builder().indicator(indicator).publicReason("Mạo danh ngân hàng").build()));
 
@@ -57,7 +59,7 @@ class ScamCheckDecisionServiceTest {
 
     @Test
     void verifiedWhitelistSupportsDirectLookup() {
-        when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(anyString(), anyCollection())).thenReturn(List.of(indicator));
+        when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(any(IndicatorType.class), anyCollection())).thenReturn(List.of(indicator));
         when(whitelist.findVerifiedForCheck(anyCollection(), any(), any())).thenReturn(List.of(
                 WhitelistEntry.builder().indicator(indicator).build()));
         assertThat(service.decide(check("URL"), candidates).verdict().getVerdict()).isEqualTo("LOW_RISK");
@@ -65,7 +67,7 @@ class ScamCheckDecisionServiceTest {
 
     @Test
     void trustedLinkInsideMessageStillRequiresAnalysis() {
-        when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(anyString(), anyCollection())).thenReturn(List.of(indicator));
+        when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(any(IndicatorType.class), anyCollection())).thenReturn(List.of(indicator));
         when(aiClient.scan(any(), anyString(), any())).thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
         var decision = service.decide(check("MESSAGE"), candidates);
         assertThat(decision.verdict().getVerdict()).isEqualTo("UNKNOWN");

@@ -80,7 +80,7 @@ public class ReportDetailTrackingResponse {
         private String fileName;
         private String fileHash;
         private String ocrText;
-        private String verificationStatus;
+
         private LocalDateTime createdAt;
     }
 
