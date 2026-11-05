@@ -12,9 +12,10 @@ import {
  * Maps Spring Boot Backend ScamCheckResult DTO into UI CheckScanResponse contract.
  * Guarantees nested verdict object with risk_level and prevents undefined fields.
  */
-function mapBackendDtoToScanResponse(
+export function mapBackendDtoToScanResponse(
   backendData: ScamCheckResult,
-  executionTimeMs: number
+  executionTimeMs: number,
+  inputTypeOverride?: string
 ): CheckScanResponse {
   if (!backendData || typeof backendData !== "object" || !backendData.verdict) {
     throw new Error("Dữ liệu phản hồi từ máy chủ kiểm tra không hợp lệ.")
@@ -22,6 +23,7 @@ function mapBackendDtoToScanResponse(
 
   const ai = backendData.aiDetails
   const rawVerdict = String(backendData.verdict).toUpperCase()
+  const resolvedType = (inputTypeOverride || backendData.inputType || "").toUpperCase()
 
   // 1. Determine risk level
   let riskLevel: RiskLevel = "UNKNOWN"
@@ -56,18 +58,38 @@ function mapBackendDtoToScanResponse(
     ai?.verdict?.scamType ||
     backendData.categoryCode ||
     (riskLevel === "DANGEROUS"
-      ? "Cảnh báo nguy cơ lừa đảo"
+      ? resolvedType === "PHONE"
+        ? "Số điện thoại có nguy cơ lừa đảo / làm phiền"
+        : resolvedType === "URL"
+          ? "Đường dẫn (URL) độc hại / giả mạo"
+          : "Cảnh báo nguy cơ lừa đảo"
       : riskLevel === "SAFE"
-        ? "Tin nhắn an toàn"
-        : "Nội dung cần kiểm chứng")
+        ? resolvedType === "PHONE"
+          ? "Số điện thoại chính thức đã xác minh"
+          : resolvedType === "URL"
+            ? "Đường dẫn (URL) chính thức đã xác thực"
+            : "Tin nhắn an toàn"
+        : resolvedType === "PHONE"
+          ? "Số điện thoại cần kiểm chứng thêm"
+          : resolvedType === "URL"
+            ? "Đường dẫn (URL) cần kiểm chứng thêm"
+            : "Nội dung cần kiểm chứng")
 
   const summary =
     ai?.verdict?.summary ||
     backendData.explanation ||
     (riskLevel === "DANGEROUS"
-      ? "Hệ thống phát hiện dấu hiệu rủi ro cao trong nội dung kiểm tra."
+      ? resolvedType === "PHONE"
+        ? "Hệ thống ghi nhận số điện thoại này trong danh sách cảnh báo hoặc có dấu hiệu mạo danh."
+        : resolvedType === "URL"
+          ? "Hệ thống phát hiện đường dẫn này có dấu hiệu lừa đảo hoặc chứa mã độc đánh cắp thông tin."
+          : "Hệ thống phát hiện dấu hiệu rủi ro cao trong nội dung kiểm tra."
       : riskLevel === "SAFE"
-        ? "Nội dung khớp với thông báo thông thường, không phát hiện dấu hiệu lừa đảo."
+        ? resolvedType === "PHONE"
+          ? "Số điện thoại thuộc danh bạ đối tác chính thức đã được chứng thực."
+          : resolvedType === "URL"
+            ? "Đường dẫn thuộc danh bạ tên miền chính thức đã được chứng thực."
+            : "Nội dung khớp với thông báo thông thường, không phát hiện dấu hiệu lừa đảo."
         : "Chưa đủ dữ liệu để kết luận chắc chắn. Khuyến nghị kiểm chứng thêm.")
 
   // 4. Execution provenance
@@ -78,28 +100,68 @@ function mapBackendDtoToScanResponse(
     provenance = "TRI_STATE_UNKNOWN"
   }
 
-  // 5. Actionable steps
+  // 5. Actionable steps tailored by inputType & riskLevel
   const actionableSteps: string[] = []
   if (ai?.recommendations && ai.recommendations.length > 0) {
     actionableSteps.push(...ai.recommendations)
   } else if (backendData.safetyGuidance) {
     actionableSteps.push(backendData.safetyGuidance)
-  } else if (riskLevel === "DANGEROUS") {
-    actionableSteps.push(
-      "Tuyệt đối không nhấp vào liên kết lạ hoặc cung cấp mã xác thực OTP.",
-      "Không chuyển tiền hoặc làm theo bất kỳ hướng dẫn nào từ người gửi lạ.",
-      "Liên hệ ngay tổng đài hỗ trợ chính thức của ngân hàng nếu đã lỡ cung cấp thông tin."
-    )
-  } else if (riskLevel === "SAFE") {
-    actionableSteps.push(
-      "Tin nhắn an toàn nhưng hãy luôn bảo mật mã OTP của bạn.",
-      "Ngân hàng không bao giờ yêu cầu cung cấp mật khẩu qua điện thoại hay tin nhắn."
-    )
+  } else if (resolvedType === "PHONE") {
+    if (riskLevel === "DANGEROUS") {
+      actionableSteps.push(
+        "Tuyệt đối không làm theo bất kỳ hướng dẫn nào từ người gọi và không chuyển tiền dưới mọi hình thức.",
+        "Chặn ngay số điện thoại này trên thiết bị để phòng tránh bị làm phiền hoặc thao túng tâm lý.",
+        "Nếu người gọi tự xưng là cán bộ công an, viện kiểm sát hoặc cơ quan thuế, hãy nhớ cơ quan nhà nước không bao giờ làm việc hay yêu cầu chuyển tiền qua điện thoại."
+      )
+    } else if (riskLevel === "SAFE") {
+      actionableSteps.push(
+        "Số điện thoại/tổng đài này thuộc danh bạ đối tác chính thức đã được chứng thực an toàn.",
+        "Cảnh giác nếu cuộc gọi yêu cầu bạn cung cấp mật khẩu cá nhân hay mã xác thực OTP."
+      )
+    } else {
+      actionableSteps.push(
+        "Xác minh lại danh tính người gọi qua kênh chính thức trước khi cung cấp bất kỳ thông tin cá nhân nào.",
+        "Cảnh giác trước các kịch bản đe dọa phạt nguội, thông báo trúng thưởng hoặc mượn tiền khẩn cấp.",
+        "Tuyệt đối không cài đặt bất kỳ ứng dụng nào theo hướng dẫn hoặc đường link gửi qua tin nhắn/Zalo."
+      )
+    }
+  } else if (resolvedType === "URL") {
+    if (riskLevel === "DANGEROUS") {
+      actionableSteps.push(
+        "Tuyệt đối không truy cập, không tải tệp tin và không nhập thông tin vào đường dẫn này.",
+        "Nếu đã lỡ đăng nhập, hãy lập tức đổi mật khẩu tài khoản và kích hoạt xác thực hai yếu tố (2FA).",
+        "Xóa lịch sử duyệt web và kiểm tra các ứng dụng/tiện ích lạ vừa được cài đặt gần đây."
+      )
+    } else if (riskLevel === "SAFE") {
+      actionableSteps.push(
+        "Đường dẫn thuộc danh bạ cổng thông tin chính thức đã được xác thực an toàn.",
+        "Luôn kiểm tra biểu tượng ổ khóa an toàn (HTTPS) và tên miền trên thanh địa chỉ trình duyệt."
+      )
+    } else {
+      actionableSteps.push(
+        "Thận trọng trước khi truy cập hoặc chia sẻ đường dẫn chưa được xác minh danh tính.",
+        "Không đăng nhập tài khoản ngân hàng hoặc cung cấp dữ liệu cá nhân trên các trang web lạ."
+      )
+    }
   } else {
-    actionableSteps.push(
-      "Kiểm tra lại thông tin người gửi qua một kênh độc lập khác.",
-      "Không vội vàng thực hiện các giao dịch chuyển tiền khi chưa xác thực danh tính."
-    )
+    // TEXT / MESSAGE
+    if (riskLevel === "DANGEROUS") {
+      actionableSteps.push(
+        "Tuyệt đối không nhấp vào liên kết lạ hoặc cung cấp mã xác thực OTP.",
+        "Không chuyển tiền hoặc làm theo bất kỳ hướng dẫn nào từ người gửi lạ.",
+        "Liên hệ ngay tổng đài hỗ trợ chính thức của ngân hàng nếu đã lỡ cung cấp thông tin."
+      )
+    } else if (riskLevel === "SAFE") {
+      actionableSteps.push(
+        "Tin nhắn an toàn nhưng hãy luôn bảo mật mã OTP của bạn.",
+        "Ngân hàng không bao giờ yêu cầu cung cấp mật khẩu qua điện thoại hay tin nhắn."
+      )
+    } else {
+      actionableSteps.push(
+        "Kiểm tra lại thông tin người gửi qua một kênh độc lập khác.",
+        "Không vội vàng thực hiện các giao dịch chuyển tiền khi chưa xác thực danh tính."
+      )
+    }
   }
 
   // Determine confidence (represent unavailable as undefined)
@@ -145,6 +207,9 @@ function mapBackendDtoToScanResponse(
     actionable_steps: actionableSteps,
     tier_executed: ai?.tierExecuted === 2 ? 2 : 1,
     recommendations: actionableSteps,
+    input_type: resolvedType || "TEXT",
+    matched_indicator: backendData.matchedIndicator,
+    decided_by_stage: backendData.decidedByStage,
   }
 }
 
@@ -206,7 +271,7 @@ export async function checkScamContent(
       (typeof performance !== "undefined" ? performance.now() : Date.now()) - startTime
 
     if (res?.isSuccess && res.data) {
-      return mapBackendDtoToScanResponse(res.data, elapsedMs)
+      return mapBackendDtoToScanResponse(res.data, elapsedMs, inputType)
     }
 
     throw new Error(res?.message || "Không thể hoàn tất phân tích.")

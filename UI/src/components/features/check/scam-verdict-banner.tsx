@@ -7,11 +7,14 @@ import {
   Lightning,
   Scales,
   PhoneCall,
+  PhoneSlash,
+  GlobeSimple,
 } from "@phosphor-icons/react"
 import {
   Verdict,
   ExecutionProvenance,
   DeterministicFeatures,
+  MatchedIndicatorInfo,
 } from "@/features/check/types/check.types"
 
 interface ScamVerdictBannerProps {
@@ -22,6 +25,9 @@ interface ScamVerdictBannerProps {
   modelName?: string
   features?: DeterministicFeatures
   targetBank?: string | null
+  inputType?: string
+  matchedIndicator?: MatchedIndicatorInfo | null
+  decidedByStage?: string
 }
 
 const BANK_HOTLINES: Record<string, { name: string; hotline: string }> = {
@@ -39,15 +45,20 @@ export function ScamVerdictBanner({
   provenance = "TIER1_FAST_PATH",
   executionTimeMs = 38.2,
   cloudCostUsd = 0.0,
-  modelName,
   features,
   targetBank,
+  inputType = "TEXT",
 }: ScamVerdictBannerProps) {
   const isDangerous = verdict.risk_level === "DANGEROUS"
   const isSafe = verdict.risk_level === "SAFE"
   const isSuspicious = verdict.risk_level === "SUSPICIOUS"
   const isUnknown = verdict.risk_level === "UNKNOWN"
   const isAtRisk = isDangerous || isSuspicious
+
+  const resolvedType = (inputType || "").toUpperCase()
+  const isPhoneCheck = resolvedType === "PHONE"
+  const isUrlCheck = resolvedType === "URL"
+  const isTextCheck = !isPhoneCheck && !isUrlCheck
 
   // Structured signals from API response
   const rawType = (verdict.scam_type || "").toLowerCase()
@@ -108,8 +119,9 @@ export function ScamVerdictBanner({
 
   const matchedBankInfo = bankMatched ? BANK_HOTLINES[bankMatched] : null
 
-  // Social engineering threat: strictly only for non-safe verdicts with interpersonal impersonation/manipulation
+  // Social engineering threat: strictly only for non-safe verdicts with interpersonal impersonation/manipulation in TEXT checks
   const isSocialEng =
+    isTextCheck &&
     isAtRisk &&
     (rawType.includes("người quen") ||
       rawType.includes("mượn tiền") ||
@@ -121,8 +133,9 @@ export function ScamVerdictBanner({
             !rawType.includes("link") &&
             !rawType.includes("liên kết")))))
 
-  // Phishing threat: strictly only for non-safe verdicts targeting credentials, links, or bank accounts
+  // Phishing threat: strictly only for non-safe verdicts targeting credentials or links in TEXT checks
   const isPhishing =
+    isTextCheck &&
     isAtRisk &&
     !isSocialEng &&
     (hasSuspiciousUrl ||
@@ -140,18 +153,58 @@ export function ScamVerdictBanner({
       rawType
     )
 
-  const displayScamType =
-    verdict.scam_type && !hasEnglishLeak
-      ? verdict.scam_type
-      : isPhishing
-        ? matchedBankInfo
-          ? `Mạo danh liên kết ${matchedBankInfo.name} & Đe dọa khóa tài khoản`
-          : "Mạo danh liên kết & Đe dọa khóa tài khoản"
-        : isSocialEng
-          ? "Thao túng tâm lý & Mạo danh người quen mượn tiền khẩn cấp"
-          : isSafe
-            ? "Thông báo biến động số dư & Mã OTP chính danh"
-            : "Nội dung chưa đủ căn cứ đánh giá"
+  // Dynamic Display Scam Type tailored by inputType
+  const displayScamType = (() => {
+    if (verdict.scam_type && !hasEnglishLeak) {
+      return verdict.scam_type
+    }
+    if (isPhoneCheck) {
+      if (isDangerous) return "Số điện thoại có nguy cơ lừa đảo / làm phiền"
+      if (isSafe) return "Số điện thoại / Tổng đài chính thức đã xác minh"
+      if (isSuspicious) return "Số điện thoại có dấu hiệu nghi vấn / làm phiền"
+      return "Số điện thoại chưa có trong danh bạ xác minh"
+    }
+    if (isUrlCheck) {
+      if (isDangerous) return "Đường dẫn (URL) độc hại / giả mạo"
+      if (isSafe) return "Đường dẫn (URL) chính thức đã xác thực an toàn"
+      if (isSuspicious) return "Đường dẫn (URL) có dấu hiệu đáng ngờ"
+      return "Đường dẫn (URL) chưa có trong danh bạ xác minh"
+    }
+    // TEXT checks
+    if (isPhishing) {
+      return matchedBankInfo
+        ? `Mạo danh liên kết ${matchedBankInfo.name} & Đe dọa khóa tài khoản`
+        : "Mạo danh liên kết & Đe dọa khóa tài khoản"
+    }
+    if (isSocialEng) {
+      return "Thao túng tâm lý & Mạo danh người quen mượn tiền khẩn cấp"
+    }
+    if (isSafe) {
+      return "Thông báo biến động số dư & Mã OTP chính danh"
+    }
+    return "Nội dung chưa đủ căn cứ đánh giá"
+  })()
+
+  // Badge text tailored by inputType
+  const badgeText = (() => {
+    if (isPhoneCheck) {
+      if (isDangerous) return "Dấu hiệu số điện thoại lừa đảo — Khuyến nghị chặn số"
+      if (isSafe) return "Đầu số chính danh — Độ tin cậy cao"
+      if (isSuspicious) return "Số điện thoại nghi vấn — Cần cảnh giác khi nghe máy"
+      return "Số điện thoại chưa xác minh — Nên kiểm chứng thêm"
+    }
+    if (isUrlCheck) {
+      if (isDangerous) return "Dấu hiệu liên kết độc hại — Tuyệt đối không truy cập"
+      if (isSafe) return "Tên miền chính thức — Đã xác thực an toàn"
+      if (isSuspicious) return "Đường dẫn đáng ngờ — Cần kiểm chứng nguồn gửi"
+      return "Đường dẫn chưa xác minh — Cần thận trọng"
+    }
+    // TEXT checks
+    if (isDangerous) return "Dấu hiệu rủi ro cao — Khuyến nghị kiểm tra"
+    if (isSafe) return "Tin nhắn chính danh — Độ tin cậy cao"
+    if (isSuspicious) return "Cần lưu ý — Có dấu hiệu mạo danh"
+    return "Chưa đủ dữ liệu — Nên kiểm chứng thêm"
+  })()
 
   // Refined chromatic palette focusing on calm authority rather than alarm fatigue
   const containerClass = isDangerous
@@ -238,14 +291,14 @@ export function ScamVerdictBanner({
       {/* 2. Main Protective Verdict Banner (Balanced 12-Column Grid) */}
       <div className={`relative overflow-hidden rounded-2xl border p-6 shadow-xs ${containerClass}`}>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-12 md:items-stretch">
-          {/* Left Column: Protective Headline, Reassurance & Action (8 cols on lg, 7 on md) */}
+          {/* Left Column: Protective Headline, Reassurance & Action */}
           <div className="flex flex-col justify-between space-y-4 md:col-span-7 lg:col-span-8">
             <div className="flex items-start gap-4">
               <div
                 className={`flex size-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${iconBgClass}`}
               >
                 {isSafe && <ShieldCheck size={32} weight="fill" />}
-                {isDangerous && <ShieldWarning size={32} weight="fill" />}
+                {isDangerous && (isPhoneCheck ? <PhoneSlash size={32} weight="fill" /> : <ShieldWarning size={32} weight="fill" />)}
                 {isSuspicious && <ShieldWarning size={32} weight="fill" />}
                 {isUnknown && <WarningCircle size={32} weight="fill" />}
               </div>
@@ -255,10 +308,7 @@ export function ScamVerdictBanner({
                   <span
                     className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase ${badgeBgClass}`}
                   >
-                    {isDangerous && "Dấu hiệu rủi ro cao — Khuyến nghị kiểm tra"}
-                    {isSafe && "Tin nhắn chính danh — Độ tin cậy cao"}
-                    {isSuspicious && "Cần lưu ý — Có dấu hiệu mạo danh"}
-                    {isUnknown && "Chưa đủ dữ liệu — Nên kiểm chứng thêm"}
+                    {badgeText}
                   </span>
                 </div>
 
@@ -268,34 +318,129 @@ export function ScamVerdictBanner({
               </div>
             </div>
 
-            {/* Context-Aware Reassurance Callout */}
+            {/* Context-Aware Reassurance Callout (Tailored by inputType) */}
             <div className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
-              {isPhishing && (
+              {/* --- PHONE CHECK REASSURANCE --- */}
+              {isPhoneCheck && isDangerous && (
+                <p className="rounded-lg bg-rose-100/70 p-3 text-pretty text-rose-900 dark:bg-rose-950/60 dark:text-rose-100">
+                  <strong>Số điện thoại này đã được xác nhận trong danh sách cảnh báo lừa đảo/làm phiền</strong> hoặc có dấu hiệu mạo danh. Hãy cẩn trọng, không nghe máy, không làm theo bất kỳ hướng dẫn nào và tuyệt đối không chuyển tiền.
+                </p>
+              )}
+              {isPhoneCheck && isSafe && (
+                <p className="rounded-lg bg-emerald-100/70 p-3 text-pretty text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100">
+                  Số điện thoại hoặc tổng đài này <strong>thuộc danh bạ đối tác chính thức đã được kiểm chứng an toàn</strong>. Lưu ý không bao giờ chia sẻ mã xác thực OTP hay mật khẩu tài khoản cho người gọi.
+                </p>
+              )}
+              {isPhoneCheck && isSuspicious && (
+                <p className="rounded-lg bg-amber-100/70 p-3 text-pretty text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">
+                  Số điện thoại có dấu hiệu nghi vấn hoặc bị báo cáo làm phiền gần đây. Hãy cẩn trọng trước các cuộc gọi đe dọa phạt nguội, yêu cầu cài ứng dụng lạ hoặc đề nghị nộp tiền.
+                </p>
+              )}
+              {isPhoneCheck && isUnknown && (
+                <p className="rounded-lg bg-slate-200/70 p-3 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                  Số điện thoại chưa có trong danh bạ xác minh chính thức. Hãy chủ động gác máy và kiểm tra lại danh tính người gọi qua các kênh liên lạc tin cậy độc lập.
+                </p>
+              )}
+
+              {/* --- URL CHECK REASSURANCE --- */}
+              {isUrlCheck && isDangerous && (
+                <p className="rounded-lg bg-rose-100/70 p-3 text-pretty text-rose-900 dark:bg-rose-950/60 dark:text-rose-100">
+                  <strong>Đường dẫn website giả mạo hoặc có nguy cơ chứa mã độc đánh cắp tài khoản.</strong> Thiết bị của bạn vẫn an toàn nếu bạn chưa truy cập liên kết hoặc chưa nhập thông tin đăng nhập.
+                </p>
+              )}
+              {isUrlCheck && isSafe && (
+                <p className="rounded-lg bg-emerald-100/70 p-3 text-pretty text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100">
+                  Đường dẫn <strong>thuộc tên miền cổng thông tin chính thức đã được chứng thực an toàn</strong>. Luôn kiểm tra biểu tượng ổ khóa HTTPS khi thực hiện các giao dịch nhạy cảm.
+                </p>
+              )}
+              {isUrlCheck && isSuspicious && (
+                <p className="rounded-lg bg-amber-100/70 p-3 text-pretty text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">
+                  Đường dẫn có cấu trúc tên miền lạ hoặc chưa được chứng thực trong danh bạ an toàn. Tuyệt đối không nhập thông tin tài khoản ngân hàng hoặc mật khẩu vào trang web này.
+                </p>
+              )}
+              {isUrlCheck && isUnknown && (
+                <p className="rounded-lg bg-slate-200/70 p-3 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                  Hệ thống chưa đủ dữ liệu để kết luận chắc chắn về đường dẫn này. Không mở liên kết nếu được gửi từ người lạ hoặc qua tin nhắn quảng cáo không rõ nguồn gốc.
+                </p>
+              )}
+
+              {/* --- TEXT CHECK REASSURANCE --- */}
+              {isTextCheck && isPhishing && (
                 <p className="rounded-lg bg-rose-100/70 p-3 text-pretty text-rose-900 dark:bg-rose-950/60 dark:text-rose-100">
                   <strong>Tài khoản của bạn hiện vẫn an toàn</strong> nếu bạn chưa nhập mật khẩu hay mã OTP. Hãy bình tĩnh và không nhấp vào liên kết trong tin nhắn.
                 </p>
               )}
-              {isSocialEng && (
+              {isTextCheck && isSocialEng && (
                 <p className="rounded-lg bg-amber-100/70 p-3 text-pretty text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">
                   Khuyến nghị bạn <strong>chưa vội chuyển tiền</strong> lúc này. Tin nhắn có dấu hiệu mượn cớ cấp cứu khẩn cấp để đề nghị chuyển tiền vào tài khoản người khác.
                 </p>
               )}
-              {isSafe && (
+              {isTextCheck && isSafe && (
                 <p className="rounded-lg bg-emerald-100/70 p-3 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100">
                   Nội dung tin nhắn khớp với thông báo giao dịch thông thường từ ngân hàng. Lưu ý không chia sẻ mã xác thực OTP này cho bất kỳ ai.
                 </p>
               )}
-              {isUnknown && (
+              {isTextCheck && isUnknown && (
                 <p className="rounded-lg bg-slate-200/70 p-3 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
                   Hệ thống chưa đủ dữ liệu để đưa ra đánh giá chắc chắn. Vui lòng kiểm tra lại kết nối mạng hoặc liên hệ người gửi qua kênh quen thuộc.
                 </p>
               )}
             </div>
 
-            {/* Context-Aware Action CTA */}
-            {isPhishing && (
-              <div className="pt-1">
-                {matchedBankInfo ? (
+            {/* Context-Aware Action CTA (Tailored by inputType) */}
+            <div className="pt-1">
+              {isPhoneCheck && isDangerous && (
+                <div className="inline-flex items-center gap-2 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white shadow-xs">
+                  <PhoneSlash size={16} weight="fill" />
+                  <span>
+                    Khuyến cáo: Chặn số điện thoại này trên thiết bị và tuyệt đối không làm theo yêu cầu qua cuộc gọi
+                  </span>
+                </div>
+              )}
+              {isPhoneCheck && isSafe && (
+                <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-xs">
+                  <ShieldCheck size={16} weight="fill" />
+                  <span>
+                    Đầu số chính danh an toàn — Luôn giữ bảo mật mã OTP cá nhân
+                  </span>
+                </div>
+              )}
+              {isPhoneCheck && isSuspicious && (
+                <div className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white shadow-xs dark:bg-amber-800">
+                  <WarningCircle size={16} weight="fill" />
+                  <span>
+                    Khuyến cáo: Cảnh giác khi nghe máy, tuyệt đối không chuyển tiền dưới mọi hình thức
+                  </span>
+                </div>
+              )}
+
+              {isUrlCheck && isDangerous && (
+                <div className="inline-flex items-center gap-2 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white shadow-xs">
+                  <WarningCircle size={16} weight="fill" />
+                  <span>
+                    Khuyến cáo: Tuyệt đối không bấm vào liên kết lạ hoặc tải tệp tin từ trang web này
+                  </span>
+                </div>
+              )}
+              {isUrlCheck && isSafe && (
+                <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-xs">
+                  <GlobeSimple size={16} weight="bold" />
+                  <span>
+                    Website chính danh đã xác thực an toàn trong danh bạ
+                  </span>
+                </div>
+              )}
+              {isUrlCheck && isSuspicious && (
+                <div className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white shadow-xs dark:bg-amber-800">
+                  <WarningCircle size={16} weight="fill" />
+                  <span>
+                    Khuyến cáo: Thận trọng, không đăng nhập thông tin cá nhân vào liên kết lạ
+                  </span>
+                </div>
+              )}
+
+              {isTextCheck && isPhishing && (
+                matchedBankInfo ? (
                   <a
                     href={`tel:${matchedBankInfo.hotline.replace(/\s+/g, "")}`}
                     className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white shadow-xs transition-transform hover:bg-rose-800 active:scale-95"
@@ -312,19 +457,18 @@ export function ScamVerdictBanner({
                       Khuyến cáo: Tuyệt đối không bấm vào liên kết lạ hoặc cung cấp thông tin bảo mật
                     </span>
                   </div>
-                )}
-              </div>
-            )}
-            {isSocialEng && (
-              <div className="pt-1">
+                )
+              )}
+
+              {isTextCheck && isSocialEng && (
                 <div className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white shadow-xs dark:bg-amber-800">
                   <PhoneCall size={16} weight="fill" />
                   <span>
                     Nên gọi điện thoại trực tiếp cho người thân để xác thực trước khi giao dịch
                   </span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Right Column: Dedicated Metric Gauge Panel (Balanced 4 or 5 cols) */}
@@ -387,13 +531,25 @@ export function ScamVerdictBanner({
             <p className="mt-3 text-xs text-pretty leading-relaxed text-slate-700 dark:text-slate-300">
               {isUnknown || verdict.risk_score === null
                 ? "Chưa đủ cơ sở dữ liệu xác thực danh tính. Hệ thống từ chối kết luận vội vã theo nguyên tắc thận trọng để bảo vệ người dùng."
-                : isSocialEng
-                  ? "Hệ thống AI ghi nhận sự khác biệt về tên chủ tài khoản và tình huống gấp gáp; điểm đánh giá đã được điều chỉnh giảm do không chứa mã độc."
-                  : isPhishing
-                    ? riskSignalsDescription
-                    : (verdict.risk_score ?? 0) >= 25
-                      ? "Giao dịch thông thường có một vài từ khóa nhạy cảm nhưng không có yếu tố trục lợi."
-                      : "Mức độ rủi ro rất thấp. Kênh gửi tin đã được xác thực chính thức, không có liên kết đáng ngờ ra ngoài."}
+                : isPhoneCheck
+                  ? isDangerous
+                    ? "Số điện thoại đã bị định danh rủi ro cao từ báo cáo cộng đồng hoặc danh sách cảnh báo viễn thông."
+                    : isSafe
+                      ? "Đầu số thương hiệu chính thức đã được xác thực bảo vệ từ các nhà mạng viễn thông."
+                      : "Chưa ghi nhận báo cáo lừa đảo nhưng đầu số chưa được cấp chứng nhận chính danh."
+                  : isUrlCheck
+                    ? isDangerous
+                      ? "Tên miền có dấu hiệu lừa đảo, giả mạo thương hiệu hoặc máy chủ độc hại."
+                      : isSafe
+                        ? "Tên miền đã được Ngân hàng Nhà nước và các đối tác chính thức xác minh an toàn."
+                        : "Đường dẫn lạ chưa được xác thực, cần thận trọng khi truy cập."
+                    : isSocialEng
+                      ? "Hệ thống AI ghi nhận sự khác biệt về tên chủ tài khoản và tình huống gấp gáp; điểm đánh giá đã được điều chỉnh giảm do không chứa mã độc."
+                      : isPhishing
+                        ? riskSignalsDescription
+                        : (verdict.risk_score ?? 0) >= 25
+                          ? "Giao dịch thông thường có một vài từ khóa nhạy cảm nhưng không có yếu tố trục lợi."
+                          : "Mức độ rủi ro rất thấp. Kênh gửi tin đã được xác thực chính thức, không có liên kết đáng ngờ ra ngoài."}
             </p>
           </div>
         </div>
