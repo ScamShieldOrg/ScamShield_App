@@ -86,6 +86,9 @@ export function UserScamCheck() {
             modelName={result.engine_details?.model_name}
             features={result.deterministic_features}
             targetBank={result.target_bank}
+            inputType={result.input_type}
+            matchedIndicator={result.matched_indicator}
+            decidedByStage={result.decided_by_stage}
           />
 
           {/* Evidence Card: Deterministic Features (Tier 1) / Forensic Council (Tier 2) / Epistemic Caution */}

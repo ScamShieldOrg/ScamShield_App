@@ -1,4 +1,4 @@
-export type CheckType = "TEXT" | "URL" | "PHONE" | "OCR"
+export type CheckType = "TEXT" | "URL" | "PHONE"
 
 export type RiskLevel = "SAFE" | "SUSPICIOUS" | "DANGEROUS" | "UNKNOWN"
 
@@ -79,6 +79,12 @@ export interface CouncilDeliberation {
   consensus_ratio?: string
 }
 
+export interface MatchedIndicatorInfo {
+  id: number
+  type: string
+  value: string
+}
+
 export interface EngineDetails {
   model_name: string
   runtime_type: RuntimeType
@@ -99,6 +105,9 @@ export interface CheckScanResponse {
   actionable_steps: string[]
   target_bank?: string | null
   target_account_number?: string | null
+  input_type?: CheckType | string
+  matched_indicator?: MatchedIndicatorInfo | null
+  decided_by_stage?: string
   // Backwards compatibility / optional fields
   tier_executed?: 1 | 2
   recommendations?: string[]
