@@ -5,10 +5,12 @@ import com.be.scamshield.converter.VietnamProvinceConverter;
 import jakarta.persistence.*;
 import com.be.scamshield.constant.ReportStatus;
 import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
 
 @Entity
+@DynamicUpdate
 @Table(name = "reports")
 @Data
 @NoArgsConstructor
@@ -26,6 +28,10 @@ public class Report {
     private User reporterUser;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_moderator_id")
+    private User assignedModerator;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "indicator_id", nullable = false)
     private Indicator indicator;
 
@@ -36,7 +42,7 @@ public class Report {
     @Column(name = "reported_message", columnDefinition = "text")
     private String reportedMessage;
 
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "text")
     private String description;
 
     @Enumerated(EnumType.STRING)

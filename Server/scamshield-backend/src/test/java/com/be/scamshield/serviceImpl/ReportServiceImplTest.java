@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.VietnamProvince;
 
 import com.be.scamshield.exception.ResourceNotFoundException;
@@ -48,13 +50,14 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ReportServiceImplTest {
+    @Mock private org.springframework.context.ApplicationEventPublisher events;
     @Mock private ReportPrivacyProperties reportPrivacyProperties;
     @ParameterizedTest
     @ValueSource(strings = {"PHONE", "BANK_ACCOUNT", "URL"})
     void acceptsAllStandardIndicatorTypes(String type) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(type, "external.example"))
-                .thenReturn(Optional.of(Indicator.builder().type(type).normalizedValue("external.example").build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.valueOf(type), "external.example"))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue("external.example").build()));
         when(categories.findByCode("OTHER")).thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
             Report saved = invocation.getArgument(0);
@@ -103,6 +106,10 @@ class ReportServiceImplTest {
     @Mock private ScamCategorieRepository categories;
     @Mock private UserRepository users;
     @Mock private SupabaseStorageService storage;
+    @Mock private ReportAssignmentService reviewAssignments;
+
+    @Mock private EvidenceAnalysisQueueService evidenceAnalysis;
+
     @InjectMocks private ReportServiceImpl service;
 
     @ParameterizedTest
@@ -148,8 +155,8 @@ class ReportServiceImplTest {
         };
         User reporter = reporter("0912345678");
         when(users.findById(1L)).thenReturn(Optional.of(reporter));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(type, target))
-                .thenReturn(Optional.of(Indicator.builder().type(type).displayValue(target).build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.valueOf(type), target))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.valueOf(type)).displayValue(target).build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
@@ -174,8 +181,8 @@ class ReportServiceImplTest {
     @ValueSource(strings = {" \n\t ", "  Tin nhắn gốc:\nChuyển tiền để xác minh tài khoản.  "})
     void storesOptionalReportedMessageSeparatelyFromDescription(String message) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
-                .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.PHONE, "0987654321"))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.PHONE).displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
@@ -214,8 +221,8 @@ class ReportServiceImplTest {
     @ValueSource(strings = {"01", "79", " 01 "})
     void storesRequiredProvinceCodeAndReturnsIt(String regionCode) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
-                .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.PHONE, "0987654321"))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.PHONE).displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
@@ -310,8 +317,8 @@ class ReportServiceImplTest {
 
     private void stubEvidenceSubmission() {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc("PHONE", "0987654321"))
-                .thenReturn(Optional.of(Indicator.builder().type("PHONE").displayValue("0987654321").build()));
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.PHONE, "0987654321"))
+                .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.PHONE).displayValue("0987654321").build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {

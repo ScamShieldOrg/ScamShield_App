@@ -55,4 +55,16 @@ public interface ReportRepository extends JpaRepository<Report, Long>, JpaSpecif
     Optional<Report> findByIdAndReporterUserId(Long id, Long reporterUserId);
 
     long countByStatus(ReportStatus status);
+
+    @Query("select r from Report r where r.status in (com.be.scamshield.constant.ReportStatus.PENDING, com.be.scamshield.constant.ReportStatus.IN_REVIEW) order by r.id")
+    List<Report> findPendingReportsForAssignment();
+
+    @Query("""
+            select count(r) from Report r
+            where r.status = :status and exists (
+                select a.id from ModerationAction a
+                where a.report = r and a.action = 'IN_REVIEW'
+            )
+            """)
+    long countStartedReviewsByStatus(@Param("status") ReportStatus status);
 }

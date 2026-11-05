@@ -30,8 +30,9 @@ class OwnReportServiceTest {
     private final ScamCategorieRepository categories = mock(ScamCategorieRepository.class);
     private final AuditLogRepository audits = mock(AuditLogRepository.class);
     private final IUserReportTrackingService tracking = mock(IUserReportTrackingService.class);
+    private final EvidenceAnalysisQueueService evidenceAnalysis = mock(EvidenceAnalysisQueueService.class);
     private final OwnReportService service = new OwnReportService(reports, indicators, evidence, moderation,
-            categories, audits, tracking, Clock.systemUTC());
+            categories, audits, tracking, Clock.systemUTC(), evidenceAnalysis);
     private final UserPrincipal principal = UserPrincipal.builder().id(7L).build();
     private Report report;
 
@@ -67,9 +68,11 @@ class OwnReportServiceTest {
     }
 
     @Test
-    void moderationHistoryBlocksEvenPendingReport() {
-        when(moderation.findByReportIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(new ModerationAction()));
-        assertThatThrownBy(() -> service.update(1L, request(), principal)).isInstanceOf(ResponseStatusException.class);
+    void pendingReportRemainsEditableUntilStatusChangesToInReview() {
+        service.update(1L, request(), principal);
+        assertThat(report.getStatus()).isEqualTo(ReportStatus.PENDING);
+        service.withdraw(1L, principal);
+        assertThat(report.getStatus()).isEqualTo(ReportStatus.WITHDRAWN);
     }
 
     @Test

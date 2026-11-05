@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
 import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.external.SupabaseStorageService;
 
@@ -209,7 +211,7 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
     private ConfirmedIndicator requireActiveIndicator(DisputeIndicatorType type, String value) {
         IndicatorType indicatorType = IndicatorType.fromStoredValue(type.name())
                 .orElseThrow(() -> new BadRequestException("Loại đối tượng phải là PHONE, BANK_ACCOUNT hoặc URL"));
-        Collection<String> types = List.of(indicatorType.name());
+        Collection<IndicatorType> types = List.of(indicatorType);
         List<ConfirmedIndicator> matches = confirmedRepository.findForDispute(types, indicatorCandidates(type, value));
         if (matches.isEmpty()) {
             throw new ResourceNotFoundException("Không tìm thấy xác thực blacklist cho chỉ số này");
@@ -222,10 +224,10 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
             throw new BadRequestException("Giá trị chỉ số khớp nhiều bản ghi; vui lòng nhập đúng giá trị cần khiếu nại");
         }
         ConfirmedIndicator confirmed = matches.getFirst();
-        if ("RETRACTED".equals(confirmed.getStatus())) {
+        if (confirmed.getStatus() == ConfirmedIndicatorStatus.RETRACTED) {
             throw new DisputeConflictException("Chỉ số này đã được giải tỏa; không cần gửi thêm khiếu nại gỡ nhãn");
         }
-        if (!"ACTIVE".equals(confirmed.getStatus())) {
+        if (confirmed.getStatus() != ConfirmedIndicatorStatus.ACTIVE) {
             throw new DisputeConflictException("Xác thực blacklist của chỉ số này không còn hiệu lực");
         }
         return confirmed;
@@ -380,8 +382,8 @@ public class DisputeSubmissionServiceImpl implements IDisputeSubmissionService {
         String value = dispute.getDraftIndicatorValue();
         if (dispute.getConfirmedIndicator() != null) {
             var indicator = dispute.getConfirmedIndicator().getIndicator();
-            IndicatorType indicatorType = IndicatorType.fromStoredValue(indicator.getType())
-                    .orElseThrow(() -> new BadRequestException("Loại đối tượng khiếu nại không được hỗ trợ"));
+            IndicatorType indicatorType = indicator.getType();
+            if (indicatorType == null) throw new BadRequestException("Loại đối tượng khiếu nại không được hỗ trợ");
             type = switch (indicatorType) {
                 case URL -> DisputeIndicatorType.URL;
                 case PHONE, BANK_ACCOUNT -> DisputeIndicatorType.valueOf(indicatorType.name());

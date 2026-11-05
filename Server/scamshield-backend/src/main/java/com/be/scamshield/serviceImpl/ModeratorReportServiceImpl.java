@@ -1,7 +1,15 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.NotificationType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
 import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.constant.PartnerVerificationStatus;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import com.be.scamshield.util.ReportStatusFilter;
+import com.be.scamshield.util.ModeratorReportScope;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.request.ModeratorDecisionRequest;
 import com.be.scamshield.dto.request.ModeratorReportFilterRequest;
@@ -12,6 +20,9 @@ import com.be.scamshield.entity.*;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.ResourceNotFoundException;
 import com.be.scamshield.repository.*;
+import com.be.scamshield.repository.ReportEvidenceRepository.DuplicateRow;
+import com.be.scamshield.serviceImpl.EvidenceComparisonService.MatchRow;
+import com.be.scamshield.constant.EvidenceAnalysisStatus;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IModeratorReportService;
 import jakarta.persistence.criteria.Join;
@@ -38,10 +49,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ModeratorReportServiceImpl implements IModeratorReportService {
 
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM HH:mm");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final Pattern CASE_CODE_PATTERN = Pattern.compile("(?i)CS-\\d{4}-(\\d+)");
     private static final Set<ReportStatus> DECIDABLE_STATUSES = Set.of(
-            ReportStatus.PENDING,
             ReportStatus.IN_REVIEW
     );
 
@@ -55,15 +65,19 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     private final NotificationRepository notificationRepository;
     private final ScamCategorieRepository scamCategorieRepository;
     private final ReputationTransactionRepository reputationTransactionRepository;
+    private final WhitelistEntryRepository whitelistEntryRepository;
+    private final ReportAssignmentService reviewAssignments;
+    private final EvidenceComparisonService evidenceSimilarities;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public PaginatedResponse<ModeratorReportResponse> getReportQueue(
             ModeratorReportFilterRequest filter,
-            Pageable pageable) {
+            Pageable pageable, UserPrincipal currentUser) {
 
         ModeratorReportFilterRequest safeFilter = filter != null ? filter : new ModeratorReportFilterRequest();
-        Specification<Report> spec = createFilterSpecification(safeFilter);
+        Specification<Report> spec = ModeratorReportScope.visibleTo(currentUser).and(createFilterSpecification(safeFilter));
+        reviewAssignments.assignPendingReports();
         Page<Report> pageResult = reportRepository.findAll(spec, pageable);
 
         if (pageResult.isEmpty()) {
@@ -86,10 +100,20 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .stream()
                 .collect(Collectors.groupingBy(ev -> ev.getReport().getId()));
 
+        Set<Long> indicatorIds = pageResult.getContent().stream().map(Report::getIndicator)
+                .filter(Objects::nonNull).map(Indicator::getId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, List<ModeratorReportResponse.WhitelistMatch>> whitelistMap = indicatorIds.isEmpty() ? Map.of()
+                : whitelistEntryRepository.findVerifiedForCheck(indicatorIds, PartnerVerificationStatus.VERIFIED, LocalDateTime.now())
+                .stream().collect(Collectors.groupingBy(entry -> entry.getIndicator().getId(),
+                        Collectors.mapping(this::mapWhitelistMatch, Collectors.toList())));
+        Map<String, List<DuplicateRow>> duplicateMap = Map.of();
+        QueueLookups lookups = new QueueLookups(whitelistMap, duplicateMap,
+                Map.of());
+
         List<ModeratorReportResponse> responseList = pageResult.getContent().stream()
                 .map(report -> mapToModeratorReportResponse(
                         report,
-                        evidenceMap.getOrDefault(report.getId(), Collections.emptyList())
+                        evidenceMap.getOrDefault(report.getId(), Collections.emptyList()), currentUser, lookups
                 ))
                 .toList();
 
@@ -106,11 +130,14 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public ModeratorQueueCountsResponse getQueueCounts() {
-        long pending = reportRepository.countByStatus(ReportStatus.PENDING);
-        long inReview = reportRepository.countByStatus(ReportStatus.IN_REVIEW);
-        long all = reportRepository.count();
+    @Transactional
+    public ModeratorQueueCountsResponse getQueueCounts(UserPrincipal currentUser) {
+        Specification<Report> scope = ModeratorReportScope.visibleTo(currentUser);
+        reviewAssignments.assignPendingReports();
+        long all = reportRepository.count(scope);
+        Specification<Report> pendingScope = scope.and((root, query, cb) -> cb.equal(root.get("status"), ReportStatus.PENDING));
+        long pending = reportRepository.count(pendingScope);
+        long inReview = reportRepository.count(scope.and((root, query, cb) -> cb.equal(root.get("status"), ReportStatus.IN_REVIEW)));
 
         return ModeratorQueueCountsResponse.builder()
                 .all(all)
@@ -120,13 +147,14 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public ModeratorReportResponse getReportById(Long id) {
+    @Transactional
+    public ModeratorReportResponse getReportById(Long id, UserPrincipal currentUser) {
+        ModeratorReportScope.requireViewer(currentUser);
+        reviewAssignments.assignPendingReports();
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ báo cáo với ID: " + id));
-
         List<ReportEvidence> evidences = reportEvidenceRepository.findByReportId(id);
-        return mapToModeratorReportResponse(report, evidences);
+        return mapToModeratorReportResponse(report, evidences, currentUser);
     }
 
     @Override
@@ -136,6 +164,14 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             UserPrincipal currentUser,
             ModeratorDecisionRequest request) {
 
+        if (request == null || request.getDecision() == null) throw new BadRequestException("Quyết định không được để trống");
+        String reason = request.getReason();
+        if (request.getDecision() == ModeratorDecisionRequest.DecisionType.REJECT
+                && (reason == null || reason.strip().length() < 20 || reason.strip().length() > 2000)) {
+            throw new BadRequestException("Lý do từ chối phải từ 20 đến 2000 ký tự");
+        }
+        if (reason != null && reason.length() > 2000) throw new BadRequestException("Lý do tối đa 2000 ký tự");
+        reason = StringUtils.hasText(reason) ? reason.strip() : "Phê duyệt báo cáo và toàn bộ bằng chứng";
         indicatorRepository.lockForReport(reportId);
         Report report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ báo cáo với ID: " + reportId));
@@ -143,12 +179,13 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         ReportStatus previousStatus = report.getStatus();
         if (previousStatus == null || !DECIDABLE_STATUSES.contains(previousStatus)) {
             if (previousStatus == ReportStatus.APPROVED || previousStatus == ReportStatus.REJECTED) {
-                throw new BadRequestException("Hồ sơ báo cáo này đã có quyết định xử lý trước đó (" + previousStatus + ")");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Hồ sơ đã có quyết định xử lý trước đó");
             }
             throw new BadRequestException("Không thể xử lý hồ sơ ở trạng thái hiện tại (" + previousStatus + ")");
         }
 
         User moderatorUser = resolveModeratorUser(currentUser);
+        reviewAssignments.requireAssigned(report, currentUser);
         LocalDateTime now = LocalDateTime.now();
 
         ReportStatus newReportStatus = switch (request.getDecision()) {
@@ -163,21 +200,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục lừa đảo với ID: " + request.getCategoryId()));
         }
 
-        // Find all reports of this Indicator currently in eligible decidable statuses (PENDING, IN_REVIEW) to process in bulk
-        List<Report> reportsToProcess = new ArrayList<>();
-        reportsToProcess.add(report);
-
-        if (report.getIndicator() != null) {
-            for (ReportStatus decidableStatus : DECIDABLE_STATUSES) {
-                List<Report> siblingReports = reportRepository.findByIndicatorIdAndStatus(
-                        report.getIndicator().getId(), decidableStatus);
-                for (Report siblingReport : siblingReports) {
-                    if (!siblingReport.getId().equals(report.getId())) {
-                        reportsToProcess.add(siblingReport);
-                    }
-                }
-            }
-        }
+        List<Report> reportsToProcess = List.of(report);
 
         // Process all affected reports
         for (Report r : reportsToProcess) {
@@ -196,7 +219,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     .report(r)
                     .moderatorUser(moderatorUser)
                     .action(request.getDecision().name())
-                    .reason(request.getReason())
+                    .reason(reason)
                     .previousStatus(prevStatus.name())
                     .newStatus(newReportStatus.name())
                     .createdAt(now)
@@ -211,14 +234,15 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     .entityId(r.getId())
                     .previousValue(prevStatus.name())
                     .newValue(newReportStatus.name())
-                    .reason(request.getReason())
+                    .reason(reason)
                     .createdAt(now)
                     .build();
             auditLogRepository.save(auditLog);
 
             // Reporter rewards and notifications
             if (r.getReporterUser() != null) {
-                User reporter = r.getReporterUser();
+                User reporter = userRepository.findByIdForUpdate(r.getReporterUser().getId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người gửi báo cáo"));
                 String targetVal = r.getIndicator() != null ? r.getIndicator().getDisplayValue() : ("#RPT-" + r.getId());
 
                 if (request.getDecision() == ModeratorDecisionRequest.DecisionType.APPROVE) {
@@ -241,10 +265,10 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     // Send approval notification
                     Notification notification = Notification.builder()
                             .user(reporter)
-                            .type("REPORT_VERDICT")
+                            .type(NotificationType.REPORT)
                             .title("Báo cáo đã được phê duyệt")
                             .message("Báo cáo của bạn về " + targetVal + " đã được xác thực và đưa vào danh sách cảnh báo.")
-                            .referenceType("REPORT")
+                            
                             .referenceId(r.getId())
                             .isRead(false)
                             .createdAt(now)
@@ -254,10 +278,10 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     // Send rejection notification
                     Notification notification = Notification.builder()
                             .user(reporter)
-                            .type("REPORT_VERDICT")
+                            .type(NotificationType.REPORT)
                             .title("Báo cáo đã bị từ chối")
-                            .message("Báo cáo của bạn về " + targetVal + " chưa đủ căn cứ xác thực và đã bị từ chối.")
-                            .referenceType("REPORT")
+                            .message("Báo cáo của bạn về " + targetVal + " đã bị từ chối. Lý do: " + reason)
+                            
                             .referenceId(r.getId())
                             .isRead(false)
                             .createdAt(now)
@@ -272,31 +296,59 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             Optional<ConfirmedIndicator> existingConfirmedOpt = confirmedIndicatorRepository.findByIndicatorId(report.getIndicator().getId());
             if (existingConfirmedOpt.isPresent()) {
                 ConfirmedIndicator existing = existingConfirmedOpt.get();
-                existing.setStatus("ACTIVE");
+                existing.setStatus(ConfirmedIndicatorStatus.ACTIVE);
                 existing.setRetractedAt(null);
                 existing.setRetractionReason(null);
                 existing.setConfirmedAt(now);
                 existing.setConfirmedByUser(moderatorUser);
                 existing.setSourceReport(report);
                 existing.setCategory(report.getCategory());
-                existing.setPublicReason(request.getReason());
+                existing.setPublicReason(reason);
                 confirmedIndicatorRepository.save(existing);
             } else {
                 ConfirmedIndicator newConfirmed = ConfirmedIndicator.builder()
                         .indicator(report.getIndicator())
                         .category(report.getCategory())
-                        .status("ACTIVE")
+                        .status(ConfirmedIndicatorStatus.ACTIVE)
                         .confirmedByUser(moderatorUser)
                         .sourceReport(report)
                         .confirmedAt(now)
-                        .publicReason(request.getReason())
+                        .publicReason(reason)
                         .build();
                 confirmedIndicatorRepository.save(newConfirmed);
             }
         }
 
         List<ReportEvidence> evidences = reportEvidenceRepository.findByReportId(reportId);
-        return mapToModeratorReportResponse(report, evidences);
+        return mapToModeratorReportResponse(report, evidences, currentUser);
+    }
+
+    @Override
+    @Transactional
+    public ModeratorReportResponse startReview(Long id, UserPrincipal currentUser) {
+        indicatorRepository.lockForReport(id);
+        Report report = reportRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo"));
+        reviewAssignments.requireAssigned(report, currentUser);
+        if (report.getStatus() != ReportStatus.PENDING && report.getStatus() != ReportStatus.IN_REVIEW) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Báo cáo đã kết thúc xử lý");
+        }
+        if (report.getStatus() == ReportStatus.PENDING) {
+            User moderator = resolveModeratorUser(currentUser);
+            LocalDateTime now = LocalDateTime.now();
+            report.setStatus(ReportStatus.IN_REVIEW);
+            report.setUpdatedAt(now);
+            reportRepository.save(report);
+            if (!moderationActionRepository.existsByReportIdAndAction(id, "IN_REVIEW")) {
+                moderationActionRepository.save(ModerationAction.builder().report(report).moderatorUser(moderator)
+                        .action("IN_REVIEW").previousStatus("PENDING").newStatus("IN_REVIEW")
+                        .reason("Báo cáo đang được kiểm duyệt").createdAt(now).build());
+                auditLogRepository.save(AuditLog.builder().actorUser(moderator).entityType("REPORT").entityId(id)
+                        .action("IN_REVIEW").previousValue("PENDING").newValue("IN_REVIEW")
+                        .reason("Báo cáo đang được kiểm duyệt").createdAt(now).build());
+            }
+        }
+        return mapToModeratorReportResponse(report, reportEvidenceRepository.findByReportId(id), currentUser);
     }
 
     private User resolveModeratorUser(UserPrincipal currentUser) {
@@ -370,14 +422,34 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         return null;
     }
 
-    private ModeratorReportResponse mapToModeratorReportResponse(Report report, List<ReportEvidence> evidences) {
+    private ModeratorReportResponse mapToModeratorReportResponse(Report report, List<ReportEvidence> evidences, UserPrincipal currentUser) {
+        return mapToModeratorReportResponse(report, evidences, currentUser, null);
+    }
+
+    private record QueueLookups(Map<Long, List<ModeratorReportResponse.WhitelistMatch>> whitelists,
+                                Map<String, List<DuplicateRow>> duplicates, Map<Long, List<MatchRow>> similarities) { }
+
+    private Map<Long, List<MatchRow>> loadSimilarities(List<ReportEvidence> evidences) {
+        List<Long> ids = evidences.stream().map(ReportEvidence::getId).filter(Objects::nonNull).toList();
+        return ids.isEmpty() ? Map.of() : evidenceSimilarities.findMatchesForEvidenceIds(ids).stream()
+                .collect(Collectors.groupingBy(MatchRow::getSourceId));
+    }
+
+    private ModeratorReportResponse.WhitelistMatch mapWhitelistMatch(WhitelistEntry entry) {
+        return new ModeratorReportResponse.WhitelistMatch(entry.getId(), entry.getPartner().getId(),
+                entry.getPartner().getLegalName(), entry.getVerifiedAt());
+    }
+
+    private ModeratorReportResponse mapToModeratorReportResponse(Report report, List<ReportEvidence> evidences,
+                                                                UserPrincipal currentUser, QueueLookups lookups) {
+        User assignedModerator = report.getAssignedModerator();
         int year = report.getCreatedAt() != null ? report.getCreatedAt().getYear() : 2024;
         String formattedCode = String.format("CS-%d-%04d", year, report.getId());
 
         String targetIdentifier = "N/A";
         String targetType = null;
         if (report.getIndicator() != null) {
-            targetType = report.getIndicator().getType();
+            targetType = report.getIndicator().getType() == null ? null : report.getIndicator().getType().name();
             if (StringUtils.hasText(report.getIndicator().getDisplayValue())) {
                 targetIdentifier = report.getIndicator().getDisplayValue();
             } else if (StringUtils.hasText(report.getIndicator().getNormalizedValue())) {
@@ -393,10 +465,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         String reportedBy = "Ẩn danh";
         if (report.getReporterUser() != null) {
             User user = report.getReporterUser();
-            if (StringUtils.hasText(user.getEmail())) {
-                reportedBy = user.getEmail().split("@")[0];
-            } else if (StringUtils.hasText(user.getFullName())) {
-                reportedBy = user.getFullName();
+            if (StringUtils.hasText(user.getFullName())) {
+                reportedBy = user.getFullName().strip();
             }
         }
 
@@ -404,13 +474,21 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 ? report.getCreatedAt().format(DATE_TIME_FORMATTER)
                 : "";
 
+        Map<Long, List<MatchRow>> similarMatches = lookups == null ? loadSimilarities(evidences) : lookups.similarities();
         List<ModeratorEvidenceResponse> evidenceResponses = evidences.stream()
-                .map(this::mapToModeratorEvidenceResponse)
+                .map(evidence -> lookups == null ? mapToModeratorEvidenceResponse(evidence, similarMatches.getOrDefault(evidence.getId(), List.of()))
+                        : mapBatchEvidence(evidence, lookups.duplicates(), similarMatches.getOrDefault(evidence.getId(), List.of())))
                 .toList();
 
         List<String> taxonomies = report.getCategory() != null
                 ? List.of(report.getCategory().getName())
                 : Collections.emptyList();
+
+        List<ModeratorReportResponse.WhitelistMatch> whitelistMatches = report.getIndicator() == null ? List.of()
+                : lookups != null ? lookups.whitelists().getOrDefault(report.getIndicator().getId(), List.of())
+                : whitelistEntryRepository.findVerifiedForCheck(List.of(report.getIndicator().getId()),
+                        PartnerVerificationStatus.VERIFIED, LocalDateTime.now()).stream()
+                .map(this::mapWhitelistMatch).toList();
 
         String uiStatus = mapToUiStatus(report.getStatus() == null ? null : report.getStatus().name());
 
@@ -419,8 +497,14 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .rawId(report.getId())
                 .targetIdentifier(targetIdentifier)
                 .targetType(targetType)
+                .description(report.getDescription())
+                .reportedMessage(report.getReportedMessage())
                 .category(categoryName)
                 .categoryId(categoryId)
+                .canReview((report.getStatus() == ReportStatus.PENDING || report.getStatus() == ReportStatus.IN_REVIEW) && assignedModerator != null
+                        && Objects.equals(assignedModerator.getId(), currentUser.getId()))
+                .whitelisted(!whitelistMatches.isEmpty())
+                .whitelistMatches(whitelistMatches)
                 .reportCount(1)
                 .reportedBy(reportedBy)
                 .reportedAt(reportedAt)
@@ -435,7 +519,31 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .build();
     }
 
-    private ModeratorEvidenceResponse mapToModeratorEvidenceResponse(ReportEvidence ev) {
+    private ModeratorEvidenceResponse mapToModeratorEvidenceResponse(ReportEvidence ev, List<MatchRow> matches) {
+        return mapToModeratorEvidenceResponse(ev,
+                StringUtils.hasText(ev.getFileHash()) ? reportEvidenceRepository.countByFileHashAndIdNot(ev.getFileHash(), ev.getId()) : 0,
+                findDuplicates(ev), matches);
+    }
+
+    private ModeratorEvidenceResponse mapBatchEvidence(ReportEvidence evidence, Map<String, List<DuplicateRow>> byHash, List<MatchRow> matches) {
+        List<DuplicateRow> rows = StringUtils.hasText(evidence.getFileHash())
+                ? byHash.getOrDefault(evidence.getFileHash(), List.of()) : List.of();
+        long count = rows.isEmpty() ? 0 : Math.max(0, rows.getFirst().getTotalCount() - 1);
+        List<ModeratorEvidenceResponse.DuplicateEvidence> duplicates = rows.stream()
+                .filter(row -> !Objects.equals(row.getEvidenceId(), evidence.getId())).limit(20)
+                .map(row -> new ModeratorEvidenceResponse.DuplicateEvidence(row.getEvidenceId(), row.getReportId(),
+                        row.getReportStatus(), row.getCreatedAt(), sameReporter(evidence, row.getReporterUserId())))
+                .toList();
+        return mapToModeratorEvidenceResponse(evidence, count, duplicates, matches);
+    }
+
+    private boolean sameReporter(ReportEvidence evidence, Long reporterId) {
+        return reporterId != null && evidence.getReport() != null && evidence.getReport().getReporterUser() != null
+                && Objects.equals(reporterId, evidence.getReport().getReporterUser().getId());
+    }
+
+    private ModeratorEvidenceResponse mapToModeratorEvidenceResponse(ReportEvidence ev, long duplicateCount,
+                                                                    List<ModeratorEvidenceResponse.DuplicateEvidence> duplicates, List<MatchRow> matches) {
         String name = extractFileName(ev);
         String type = resolveEvidenceType(ev.getEvidenceType() == null ? null : ev.getEvidenceType().name(), ev.getFileUrl());
 
@@ -444,8 +552,38 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .rawId(ev.getId())
                 .name(name)
                 .type(type)
+                .duplicateCheckAvailable(StringUtils.hasText(ev.getFileHash()))
+                .duplicateCount(duplicateCount)
+                .duplicates(duplicates)
+                .analysisStatus(ev.getAnalysisStatus() == null ? EvidenceAnalysisStatus.NOT_ANALYZED : ev.getAnalysisStatus())
+                .analysisMessage(ev.getAnalysisMessage())
+                .analyzedAt(ev.getAnalyzedAt())
+                .imageFingerprintAvailable(ev.getPerceptualHash() != null)
+                .ocrTextAvailable(StringUtils.hasText(ev.getOcrText()))
+                .similarEvidenceCount(matches.isEmpty() ? 0 : matches.getFirst().getTotalCount())
+                .similarEvidences(matches.stream().map(row -> {
+                    List<String> types = new ArrayList<>();
+                    if (row.getImageDistance() != null) types.add("PHASH");
+                    if (row.getTextSimilarity() != null) types.add("OCR_TEXT");
+                    return new ModeratorEvidenceResponse.SimilarEvidence(row.getEvidenceId(), row.getReportId(), row.getReportStatus(),
+                            row.getCreatedAt(), sameReporter(ev, row.getReporterId()), types,
+                            row.getImageDistance() == null ? null : 1.0 - row.getImageDistance() / 64.0, row.getTextSimilarity());
+                }).toList())
                 .url(ev.getFileUrl())
                 .build();
+    }
+
+    private List<ModeratorEvidenceResponse.DuplicateEvidence> findDuplicates(ReportEvidence evidence) {
+        if (!StringUtils.hasText(evidence.getFileHash())) return List.of();
+        return reportEvidenceRepository.findTop20ByFileHashAndIdNotOrderByIdAsc(evidence.getFileHash(), evidence.getId()).stream()
+                .filter(other -> !Objects.equals(other.getId(), evidence.getId()))
+                .map(other -> new ModeratorEvidenceResponse.DuplicateEvidence(other.getId(), other.getReport().getId(),
+                        other.getReport().getStatus() == null ? null : other.getReport().getStatus().name(),
+                        other.getCreatedAt(), evidence.getReport() != null && evidence.getReport().getReporterUser() != null
+                        && evidence.getReport().getReporterUser().getId() != null
+                        && other.getReport().getReporterUser() != null
+                        && Objects.equals(other.getReport().getReporterUser().getId(), evidence.getReport().getReporterUser().getId())))
+                .toList();
     }
 
     private String extractFileName(ReportEvidence ev) {

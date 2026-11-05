@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.support.PostgresIntegrationTest;
 
 import com.be.scamshield.constant.ReportStatus;
@@ -219,7 +221,7 @@ class AbuseEscalationPersistenceTest extends PostgresIntegrationTest {
     }
 
     private Report report(User reporter) {
-        Indicator indicator = Indicator.builder().type("PHONE").normalizedValue(reporter.getPhoneNumber())
+        Indicator indicator = Indicator.builder().type(IndicatorType.PHONE).normalizedValue(reporter.getPhoneNumber())
                 .createdAt(NOW).updatedAt(NOW).firstSeenAt(NOW).lastSeenAt(NOW).build();
         entityManager.persist(indicator);
         Report report = Report.builder().reporterUser(reporter).indicator(indicator).status(ReportStatus.REJECTED)

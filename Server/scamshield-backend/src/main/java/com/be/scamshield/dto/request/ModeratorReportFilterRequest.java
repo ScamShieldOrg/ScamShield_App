@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Schema(description = "Bộ lọc và phân trang hàng đợi xét duyệt báo cáo của kiểm duyệt viên")
 public class ModeratorReportFilterRequest {
 
-    @Schema(description = "Tab trạng thái hàng đợi (ALL, PENDING, IN_REVIEW)", defaultValue = "ALL", example = "ALL")
+    @Schema(description = "Tab trạng thái hàng đợi (ALL, PENDING, IN_REVIEW, APPROVED, REJECTED, WITHDRAWN)", defaultValue = "ALL", example = "ALL")
     @Builder.Default
     @Pattern(regexp = "(?i)\\s*(ALL|PENDING|IN_REVIEW|APPROVED|REJECTED|WITHDRAWN)\\s*",
             message = "Trạng thái báo cáo không hợp lệ")

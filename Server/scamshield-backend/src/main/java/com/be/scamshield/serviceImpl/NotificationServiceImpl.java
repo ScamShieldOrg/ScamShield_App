@@ -1,5 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.NotificationType;
+import com.be.scamshield.exception.BadRequestException;
+
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.response.NotificationItemResponse;
 import com.be.scamshield.dto.response.NotificationListResponse;
@@ -42,7 +45,7 @@ public class NotificationServiceImpl implements INotificationService {
             predicates.add(cb.equal(root.get("user").get("id"), userId));
 
             if (type != null && !type.isBlank() && !"ALL".equalsIgnoreCase(type.trim())) {
-                predicates.add(cb.equal(cb.upper(root.get("type")), type.trim().toUpperCase(Locale.ROOT)));
+                predicates.add(cb.equal(root.get("type"), parseNotificationType(type)));
             }
 
             if (Boolean.TRUE.equals(unreadOnly)) {
@@ -80,9 +83,9 @@ public class NotificationServiceImpl implements INotificationService {
     @Transactional(readOnly = true)
     public NotificationTabCountsResponse getTabCounts(Long userId) {
         long allCount = notificationRepository.countByUserId(userId);
-        long reportCount = notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "REPORT");
-        long disputeCount = notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "DISPUTE");
-        long systemCount = notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "SYSTEM");
+        long reportCount = notificationRepository.countByUserIdAndType(userId, NotificationType.REPORT);
+        long disputeCount = notificationRepository.countByUserIdAndType(userId, NotificationType.DISPUTE);
+        long systemCount = notificationRepository.countByUserIdAndType(userId, NotificationType.SYSTEM);
         long unreadCount = notificationRepository.countByUserIdAndIsReadFalse(userId);
 
         return NotificationTabCountsResponse.builder()
@@ -127,7 +130,6 @@ public class NotificationServiceImpl implements INotificationService {
                 .unread(unread)
                 .isRead(Boolean.TRUE.equals(n.getIsRead()))
                 .type(n.getType())
-                .referenceType(n.getReferenceType())
                 .referenceId(n.getReferenceId())
                 .dotColor(meta.dotColor())
                 .icon(meta.icon())
@@ -137,8 +139,7 @@ public class NotificationServiceImpl implements INotificationService {
     }
 
     private VisualMeta resolveVisualMeta(Notification n, boolean unread) {
-        String type = n.getType() != null ? n.getType().toUpperCase(Locale.ROOT) : "SYSTEM";
-        String refType = n.getReferenceType() != null ? n.getReferenceType().toUpperCase(Locale.ROOT) : "";
+        String type = n.getType() != null ? n.getType().name() : "SYSTEM";
         String title = n.getTitle() != null ? n.getTitle() : "";
 
         String dotColor = null;
@@ -172,7 +173,7 @@ public class NotificationServiceImpl implements INotificationService {
             }
         } else if ("SYSTEM".equals(type) || "RANK".equals(type)) {
             if (title.contains("nâng cấp") || title.contains("Sentinel") || title.contains("thưởng")
-                    || "SENTINEL_RANK".equals(refType) || "RANK".equals(refType)) {
+                    || "RANK".equals(type)) {
                 icon = "Medal";
                 iconBg = "bg-amber-50 dark:bg-amber-900/30";
                 iconColor = "text-amber-500";
@@ -233,4 +234,10 @@ public class NotificationServiceImpl implements INotificationService {
     }
 
     private record VisualMeta(String icon, String iconBg, String iconColor, String dotColor) {}
-}
+    private NotificationType parseNotificationType(String type) {
+        try {
+            return NotificationType.valueOf(type.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Loại thông báo không hợp lệ");
+        }
+    }}

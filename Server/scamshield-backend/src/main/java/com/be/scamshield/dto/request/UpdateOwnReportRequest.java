@@ -11,9 +11,9 @@ import java.util.List;
 @AllArgsConstructor
 public class UpdateOwnReportRequest {
     @NotBlank(message = "Mô tả không được để trống")
-    @Size(max = 255, message = "Mô tả tối đa 255 ký tự")
+    @Size(max = 2000, message = "Mô tả tối đa 2.000 ký tự")
     private String description;
-    @Size(max = 10000, message = "Nội dung tin nhắn tối đa 10000 ký tự")
+    @Size(max = 2000, message = "Nội dung tin nhắn tối đa 2.000 ký tự")
     private String reportedMessage;
     @Positive(message = "ID danh mục phải là số dương")
     private Long categoryId;

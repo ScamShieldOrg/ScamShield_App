@@ -1,9 +1,10 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.VietnamProvince;
 
 import com.be.scamshield.constant.ReportEvidenceType;
-import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.response.ReportStatusCountsResponse;
@@ -71,9 +72,23 @@ class UserReportTrackingServiceImplTest {
     }
 
     @Test
+    void reportHistoryUsesGenericReviewerLabelWithoutDisclosingName() {
+        Report report = Report.builder().id(41L).status(ReportStatus.IN_REVIEW)
+                .createdAt(fixedNow).updatedAt(fixedNow).build();
+        when(reportRepository.findByIdAndReporterUserId(41L, 1L)).thenReturn(Optional.of(report));
+        when(moderationActionRepository.findByReportIdOrderByCreatedAtDesc(41L)).thenReturn(List.of(
+                ModerationAction.builder().id(8L).action("IN_REVIEW").createdAt(fixedNow)
+                        .moderatorUser(User.builder().id(99L).fullName("Private reviewer name").build()).build()));
+        var detail = service.getReportDetail(1L, 41L);
+        assertThat(detail.getModerationHistory()).hasSize(1);
+        assertThat(detail.getSlaStatus()).isEqualTo("processing");
+        assertThat(detail.getModerationHistory().getFirst().getModeratorName()).isEqualTo("Kiểm duyệt viên");
+    }
+
+    @Test
     void detailIncludesCategoryIdAndRegionForEditingWithoutDataLoss() {
         ScamCategory category = ScamCategory.builder().id(2L).name("Trúng thưởng").build();
-        Indicator indicator = Indicator.builder().id(3L).type("PHONE").normalizedValue("0912345678").build();
+        Indicator indicator = Indicator.builder().id(3L).type(IndicatorType.PHONE).normalizedValue("0912345678").build();
         Report report = Report.builder().id(41L).indicator(indicator).category(category).regionCode(VietnamProvince.HA_NOI)
                 .status(ReportStatus.PENDING).createdAt(fixedNow).updatedAt(fixedNow).build();
         when(reportRepository.findByIdAndReporterUserId(41L, 1L)).thenReturn(Optional.of(report));
@@ -146,7 +161,7 @@ class UserReportTrackingServiceImplTest {
     void getTrackingReportsMapsColumnsCorrectly() {
         Long userId = 1L;
         Indicator indicator = Indicator.builder()
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .normalizedValue("0898421234")
                 .displayValue("089.842.xxxx")
                 .build();
@@ -169,8 +184,7 @@ class UserReportTrackingServiceImplTest {
         ReportEvidence evidence = ReportEvidence.builder()
                 .id(1L)
                 .report(report)
-                .evidenceType(ReportEvidenceType.PNG)
-                .verificationStatus(EvidenceVerificationStatus.PENDING).ocrText("Nội dung OCR")
+                .evidenceType(ReportEvidenceType.PNG).ocrText("Nội dung OCR")
                 .build();
 
         when(reportRepository.findAll(any(Specification.class), any(Pageable.class)))
@@ -201,7 +215,7 @@ class UserReportTrackingServiceImplTest {
     void exportCsvProducesValidCsvContentWithBom() {
         Long userId = 1L;
         Indicator indicator = Indicator.builder()
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .displayValue("089.842.xxxx")
                 .build();
 
@@ -227,7 +241,7 @@ class UserReportTrackingServiceImplTest {
     void exportCsvNeutralizesFormulaCharacters() {
         Long userId = 1L;
         Indicator indicator = Indicator.builder()
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .displayValue("=1+1")
                 .build();
 
@@ -253,7 +267,7 @@ class UserReportTrackingServiceImplTest {
     void getTrackingReportsDerivesDeterministicHashIgnoringIpAndDeviceHash() {
         Long userId = 1L;
         Indicator indicator = Indicator.builder()
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .normalizedValue("0898421234")
                 .displayValue("089.842.xxxx")
                 .build();

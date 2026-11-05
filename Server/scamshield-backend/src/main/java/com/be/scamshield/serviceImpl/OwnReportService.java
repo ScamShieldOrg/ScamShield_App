@@ -2,7 +2,6 @@ package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.ReportStatus;
 import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
-import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.VietnamProvince;
 import com.be.scamshield.dto.request.UpdateOwnReportRequest;
 import com.be.scamshield.dto.response.ReportDetailTrackingResponse;
@@ -35,6 +34,7 @@ public class OwnReportService implements IOwnReportService {
     private final AuditLogRepository audits;
     private final IUserReportTrackingService tracking;
     private final Clock applicationClock;
+    private final EvidenceAnalysisQueueService evidenceAnalysis;
 
     private Report editable(Long id, UserPrincipal principal) {
         if (principal == null || principal.getId() == null) throw new UnauthorizedException("Vui lòng đăng nhập");
@@ -43,7 +43,7 @@ public class OwnReportService implements IOwnReportService {
         indicators.lockForReport(id);
         Report report = reports.findByIdAndReporterUserId(id, principal.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo của bạn"));
-        if (report.getStatus() != ReportStatus.PENDING || !moderation.findByReportIdOrderByCreatedAtDesc(id).isEmpty()) {
+        if (report.getStatus() != ReportStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ được sửa hoặc thu hồi báo cáo chưa bắt đầu kiểm duyệt");
         }
         return report;
@@ -71,10 +71,11 @@ public class OwnReportService implements IOwnReportService {
         if (request.getEvidences() != null) {
             evidences.deleteAll(evidences.findByReportId(id));
             for (var item : request.getEvidences()) {
-                evidences.save(ReportEvidence.builder().report(report).fileUrl(item.getFileUrl())
+                ReportEvidence replacement = ReportEvidence.builder().report(report).fileUrl(item.getFileUrl())
                         .fileName(item.getFileName()).fileHash(item.getFileHash())
-                        .evidenceType(resolveEvidenceType(item.getEvidenceType(), item.getFileName(), item.getFileUrl()))
-                        .verificationStatus(EvidenceVerificationStatus.PENDING).createdAt(now).build());
+                        .evidenceType(resolveEvidenceType(item.getEvidenceType(), item.getFileName(), item.getFileUrl())).createdAt(now).build();
+                evidenceAnalysis.prepareFromUrl(replacement);
+                evidences.save(replacement);
             }
         }
         report.setUpdatedAt(now);

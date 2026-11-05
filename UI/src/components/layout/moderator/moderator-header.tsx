@@ -2,12 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  ShieldCheck,
-  Bell,
-  CaretDown,
-  SignOut,
-} from "@phosphor-icons/react"
+import { ShieldCheck, Bell, CaretDown, SignOut } from "@phosphor-icons/react"
 import { useLogout } from "@/hooks/use-logout"
 
 interface ModeratorHeaderProps {
@@ -18,11 +13,14 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
   const pathname = usePathname()
   const handleLogout = useLogout()
 
-  const isReportsActive = pathname?.includes("/moderator/reports") || pathname === "/moderator"
+  const isReportsActive =
+    pathname?.includes("/moderator/reports") || pathname === "/moderator"
   const isDisputesActive = pathname?.includes("/moderator/disputes")
 
   return (
-    <header className={`w-full border-b border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 ${className}`}>
+    <header
+      className={`w-full border-b border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 ${className}`}
+    >
       <div className="mx-auto flex h-16 w-full items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Left: Brand + Navigation Tabs */}
         <div className="flex items-center gap-8">
@@ -73,12 +71,6 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
 
         {/* Right: Sync Status & Officer Profile */}
         <div className="flex items-center gap-4">
-          {/* Live Sync Status */}
-          <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-400">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Đồng bộ 24/7</span>
-          </div>
-
           {/* Notification Bell */}
           <button
             type="button"

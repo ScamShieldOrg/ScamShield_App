@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
 import com.be.scamshield.external.SupabaseStorageService;
 
 import com.be.scamshield.constant.DisputeStatus;
@@ -180,7 +182,7 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
             dispute.setStatus(DisputeStatus.APPROVED);
             if (dispute.getConfirmedIndicator() != null) {
                 ConfirmedIndicator confirmed = dispute.getConfirmedIndicator();
-                confirmed.setStatus("RETRACTED");
+                confirmed.setStatus(ConfirmedIndicatorStatus.RETRACTED);
                 confirmed.setRetractedAt(now);
                 confirmed.setRetractionReason(request.getReason());
                 confirmedIndicatorRepository.save(confirmed);
@@ -325,7 +327,7 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
             }
 
             if (ci.getIndicator() != null) {
-                targetType = ci.getIndicator().getType();
+                targetType = ci.getIndicator().getType() == null ? null : ci.getIndicator().getType().name();
                 targetIdentifier = StringUtils.hasText(ci.getIndicator().getDisplayValue())
                         ? ci.getIndicator().getDisplayValue()
                         : ci.getIndicator().getNormalizedValue();
@@ -335,7 +337,7 @@ public class ModeratorDisputeServiceImpl implements IModeratorDisputeService {
                 categoryName = ci.getCategory().getName();
             }
 
-            if ("RETRACTED".equalsIgnoreCase(ci.getStatus())) {
+            if (ci.getStatus() == ConfirmedIndicatorStatus.RETRACTED) {
                 originalDecision = "Rejected";
             }
         } else if (StringUtils.hasText(dispute.getDraftIndicatorValue())) {

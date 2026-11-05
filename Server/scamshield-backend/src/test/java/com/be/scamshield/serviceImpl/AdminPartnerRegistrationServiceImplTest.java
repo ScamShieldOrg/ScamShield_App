@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.UserStatus;
 import com.be.scamshield.dto.request.AdminPartnerReviewRequest;
@@ -76,7 +78,7 @@ class AdminPartnerRegistrationServiceImplTest {
     }
 
     @Test
-    void approvalActivatesPartnerAndCreatesThreeVerifiedIdentifiers() {
+    void approvalActivatesPartnerAndCreatesTwoVerifiedIdentifiers() {
         when(users.findById(1L)).thenReturn(Optional.of(reviewer));
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
         AtomicLong nextId = new AtomicLong(100);
@@ -90,12 +92,13 @@ class AdminPartnerRegistrationServiceImplTest {
 
         assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.VERIFIED);
         assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.ACTIVE.name());
+        assertThat(profile.getSmsBrandName()).isEqualTo("EXAMPLE");
         ArgumentCaptor<WhitelistEntry> entry = ArgumentCaptor.forClass(WhitelistEntry.class);
-        verify(whitelistEntries, org.mockito.Mockito.times(3)).save(entry.capture());
+        verify(whitelistEntries, org.mockito.Mockito.times(2)).save(entry.capture());
         assertThat(entry.getAllValues()).extracting(value -> value.getIndicator().getType())
-                .containsExactly("DOMAIN", "PHONE", "SMS_BRAND_NAME");
+                .containsExactly(IndicatorType.URL, IndicatorType.PHONE);
         assertThat(entry.getAllValues()).extracting(value -> value.getIndicator().getNormalizedValue())
-                .containsExactly("example.com.vn", "0912345678", "EXAMPLE");
+                .containsExactly("example.com.vn", "0912345678");
         assertThat(entry.getAllValues()).allSatisfy(value ->
                 assertThat(value.getVerificationStatus()).isEqualTo("VERIFIED"));
         ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
@@ -152,8 +155,8 @@ class AdminPartnerRegistrationServiceImplTest {
     void identifierAlreadyVerifiedForAnotherPartnerIsConflict() {
         when(users.findById(1L)).thenReturn(Optional.of(reviewer));
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
-        Indicator existing = Indicator.builder().id(5L).type("DOMAIN").normalizedValue("example.com.vn").build();
-        when(indicators.findByTypeAndNormalizedValue("DOMAIN", "example.com.vn"))
+        Indicator existing = Indicator.builder().id(5L).type(IndicatorType.URL).normalizedValue("example.com.vn").build();
+        when(indicators.findByTypeAndNormalizedValue(IndicatorType.URL, "example.com.vn"))
                 .thenReturn(Optional.of(existing));
         when(whitelistEntries.existsByIndicatorIdAndVerificationStatusAndPartnerIdNot(5L, "VERIFIED", 10L))
                 .thenReturn(true);

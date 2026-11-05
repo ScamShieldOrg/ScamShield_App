@@ -1,6 +1,8 @@
 package com.be.scamshield.controller;
 
 import com.be.scamshield.config.SecurityConfig;
+import com.be.scamshield.serviceImpl.EvidenceAnalysisQueueService;
+import com.be.scamshield.constant.EvidenceAnalysisStatus;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.request.ModeratorDecisionRequest;
 import com.be.scamshield.dto.request.ModeratorReportFilterRequest;
@@ -35,10 +37,13 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(ModeratorReportController.class)
+@WebMvcTest({ModeratorReportController.class, ModeratorEvidenceAnalysisController.class})
 @Import({SecurityConfig.class, JwtAuthenticationEntryPoint.class, CustomAccessDeniedHandler.class})
 class ModeratorReportControllerTest {
 
@@ -46,6 +51,8 @@ class ModeratorReportControllerTest {
 
     @MockitoBean
     private IModeratorReportService moderatorReportService;
+
+    @MockitoBean private EvidenceAnalysisQueueService evidenceAnalysis;
 
     @MockitoBean
     private JwtTokenProvider tokenProvider;
@@ -121,7 +128,7 @@ class ModeratorReportControllerTest {
         page.setPageSize(20);
         page.setTotalPages(1);
 
-        when(moderatorReportService.getReportQueue(any(ModeratorReportFilterRequest.class), any(Pageable.class)))
+        when(moderatorReportService.getReportQueue(any(ModeratorReportFilterRequest.class), any(Pageable.class), eq((UserPrincipal) moderatorAuth.getPrincipal())))
                 .thenReturn(page);
 
         mvc.perform(get(BASE_URL)
@@ -193,7 +200,7 @@ class ModeratorReportControllerTest {
                 .inReview(1L)
                 .build();
 
-        when(moderatorReportService.getQueueCounts()).thenReturn(counts);
+        when(moderatorReportService.getQueueCounts(eq((UserPrincipal) moderatorAuth.getPrincipal()))).thenReturn(counts);
 
         mvc.perform(get(BASE_URL + "/counts")
                         .with(authentication(moderatorAuth)))
@@ -207,7 +214,7 @@ class ModeratorReportControllerTest {
 
     @Test
     void getReportById_WhenModeratorAndFound_ReturnsSuccess() throws Exception {
-        when(moderatorReportService.getReportById(1891L)).thenReturn(mockReportResponse);
+        when(moderatorReportService.getReportById(eq(1891L), eq((UserPrincipal) moderatorAuth.getPrincipal()))).thenReturn(mockReportResponse);
 
         mvc.perform(get(BASE_URL + "/1891")
                         .with(authentication(moderatorAuth)))
@@ -219,7 +226,7 @@ class ModeratorReportControllerTest {
 
     @Test
     void getReportById_WhenNotFound_ReturnsNotFound() throws Exception {
-        when(moderatorReportService.getReportById(9999L))
+        when(moderatorReportService.getReportById(eq(9999L), any(UserPrincipal.class)))
                 .thenThrow(new ResourceNotFoundException("Không tìm thấy hồ sơ báo cáo với ID: 9999"));
 
         mvc.perform(get(BASE_URL + "/9999")
@@ -295,7 +302,7 @@ class ModeratorReportControllerTest {
     @Test
     void submitDecision_WhenReasonTooShort_ReturnsBadRequest() throws Exception {
         ModeratorDecisionRequest request = ModeratorDecisionRequest.builder()
-                .decision(ModeratorDecisionRequest.DecisionType.APPROVE)
+                .decision(ModeratorDecisionRequest.DecisionType.REJECT)
                 .reason("Quá ngắn")
                 .build();
 
@@ -341,6 +348,27 @@ class ModeratorReportControllerTest {
         mvc.perform(put(BASE_URL + "/1891")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void openingReportCallsPersistentInReviewWithoutSessionHeader() throws Exception {
+        mockReportResponse.setStatus("In Review");
+        when(moderatorReportService.startReview(eq(1891L), eq((UserPrincipal) moderatorAuth.getPrincipal())))
+                .thenReturn(mockReportResponse);
+        mvc.perform(post(BASE_URL + "/1891/review").with(authentication(moderatorAuth)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("In Review"));
+        mvc.perform(post(BASE_URL + "/1891/review").with(authentication(userAuth)))
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void evidenceAnalysisCanOnlyBeQueuedByModeratorOrAdministrator() throws Exception {
+        when(evidenceAnalysis.enqueue(1891L, 4L)).thenReturn(EvidenceAnalysisStatus.PENDING);
+        mvc.perform(post(BASE_URL + "/1891/evidence/4/analysis").with(authentication(moderatorAuth)))
+                .andExpect(status().isAccepted()).andExpect(jsonPath("$.data").value("PENDING"));
+        mvc.perform(post(BASE_URL + "/1891/evidence/4/analysis").with(authentication(userAuth)))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(BASE_URL + "/1891/evidence/4/analysis"))
                 .andExpect(status().isUnauthorized());
     }
 }

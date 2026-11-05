@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
 import com.be.scamshield.support.PostgresIntegrationTest;
 
 import com.be.scamshield.external.SupabaseStorageService;
@@ -163,7 +167,7 @@ class DisputeSubmissionTest extends PostgresIntegrationTest {
             assertThat(row.getStatus()).isEqualTo(DisputeStatus.PENDING);
             assertThat(row.getDeclarationAcceptedAt()).isEqualTo(NOW);
             assertThat(row.getResolvedAt()).isNull();
-            assertThat(entityManager.find(ConfirmedIndicator.class, active.getId()).getStatus()).isEqualTo("ACTIVE");
+            assertThat(entityManager.find(ConfirmedIndicator.class, active.getId()).getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
         });
         assertThat(result.getResponse().getContentAsString())
                 .doesNotContain("private-file-hash", "objectKey", "s3://", "passwordHash");
@@ -191,8 +195,7 @@ class DisputeSubmissionTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void brandnameIsRejectedEvenWhenAnActiveLegacyIndicatorExists() throws Exception {
-        transactions.executeWithoutResult(ignored -> confirmed("BRANDNAME", "SCAMSHIELD", "ACTIVE"));
+    void brandnameIsRejectedAsUnsupportedIndicatorType() throws Exception {
         String request = validRequest("scamshield").replace("\"PHONE\"", "\"BRANDNAME\"");
         mvc.perform(multipart(SUBMIT).file(json(request)).file(pdf("proof.pdf"))
                         .with(user(UserPrincipal.create(owner))))
@@ -244,7 +247,7 @@ class DisputeSubmissionTest extends PostgresIntegrationTest {
     void retractedTargetAndUnknownTargetCannotBeSubmitted() throws Exception {
         transactions.executeWithoutResult(ignored -> {
             ConfirmedIndicator row = entityManager.find(ConfirmedIndicator.class, active.getId());
-            row.setStatus("RETRACTED");
+            row.setStatus(ConfirmedIndicatorStatus.RETRACTED);
             row.setRetractedAt(NOW.minusHours(1));
         });
         mvc.perform(multipart(SUBMIT).file(json(validRequest("0912348899"))).file(pdf("proof.pdf"))
@@ -418,7 +421,7 @@ class DisputeSubmissionTest extends PostgresIntegrationTest {
         Long draftId = responseId(createDraft(owner, validRequest("0912348899"), pdf("proof.pdf")));
         transactions.executeWithoutResult(ignored -> {
             ConfirmedIndicator row = entityManager.find(ConfirmedIndicator.class, active.getId());
-            row.setStatus("RETRACTED");
+            row.setStatus(ConfirmedIndicatorStatus.RETRACTED);
             row.setRetractedAt(NOW);
         });
         mvc.perform(multipart(DRAFTS + "/" + draftId + "/submit").file(json(validRequest("0912348899")))
@@ -646,11 +649,11 @@ class DisputeSubmissionTest extends PostgresIntegrationTest {
     }
 
     private ConfirmedIndicator confirmed(String type, String value, String confirmationStatus) {
-        Indicator indicator = Indicator.builder().type(type).normalizedValue(value).displayValue(value)
+        Indicator indicator = Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue(value).displayValue(value)
                 .createdAt(NOW.minusDays(10)).updatedAt(NOW.minusDays(10)).build();
         entityManager.persist(indicator);
         indicatorIds.add(indicator.getId());
-        ConfirmedIndicator row = ConfirmedIndicator.builder().indicator(indicator).status(confirmationStatus)
+        ConfirmedIndicator row = ConfirmedIndicator.builder().indicator(indicator).status(ConfirmedIndicatorStatus.valueOf(confirmationStatus))
                 .confirmedByUser(other).confirmedAt(NOW.minusDays(10)).publicReason("Đã xác thực nguy cơ.").build();
         entityManager.persist(row);
         confirmedIds.add(row.getId());

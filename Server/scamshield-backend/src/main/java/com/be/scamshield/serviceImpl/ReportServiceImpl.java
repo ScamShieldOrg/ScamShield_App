@@ -1,10 +1,11 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.ReportEvidenceType;
-import com.be.scamshield.constant.EvidenceVerificationStatus;
 import com.be.scamshield.constant.ReportStatus;
 import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.external.SupabaseStorageService;
+import org.springframework.context.ApplicationEventPublisher;
+import com.be.scamshield.constant.EvidenceAnalysisStatus;
 import com.be.scamshield.constant.VietnamProvince;
 import com.be.scamshield.constant.IndicatorType;
 
@@ -54,12 +55,15 @@ public class ReportServiceImpl implements IReportService {
     private final ReportPrivacyProperties reportPrivacyProperties;
 
 
+    private final ApplicationEventPublisher events;
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final IndicatorRepository indicatorRepository;
     private final ScamCategorieRepository scamCategorieRepository;
     private final UserRepository userRepository;
     private final SupabaseStorageService supabaseStorageService;
+    private final ReportAssignmentService reviewAssignments;
+    private final EvidenceAnalysisQueueService evidenceAnalysis;
 
     @Override
     @Transactional
@@ -92,10 +96,10 @@ public class ReportServiceImpl implements IReportService {
         // 1. Resolve & normalize target indicator
         String normalizedValue = normalizeIdentifier(request.getTargetIdentifier());
         Indicator indicator = indicatorRepository
-                .findFirstByTypeIgnoreCaseAndNormalizedValueOrderByIdAsc(reportType.name(), normalizedValue)
+                .findFirstByTypeAndNormalizedValueOrderByIdAsc(reportType, normalizedValue)
                 .orElseGet(() -> {
                     Indicator newIndicator = Indicator.builder()
-                            .type(reportType.name())
+                            .type(reportType)
                             .normalizedValue(normalizedValue)
                             .displayValue(request.getTargetIdentifier())
                             .firstSeenAt(LocalDateTime.now())
@@ -163,10 +167,13 @@ public class ReportServiceImpl implements IReportService {
                                 .fileName(file.getOriginalFilename())
                                 .fileUrl(uploadResult.fileUrl())
                                 .fileHash(uploadResult.fileHash())
-                                .verificationStatus(EvidenceVerificationStatus.PENDING)
                                 .createdAt(LocalDateTime.now())
                                 .build();
+                        evidenceAnalysis.prepare(evidence, uploadResult.objectKey());
                         evidenceList.add(reportEvidenceRepository.save(evidence));
+                        if (evidence.getAnalysisStatus() == EvidenceAnalysisStatus.PENDING) {
+                            events.publishEvent(new EvidenceAnalysisRequested(evidence.getId()));
+                        }
                     }
                 }
             }
@@ -184,6 +191,7 @@ public class ReportServiceImpl implements IReportService {
         }
 
         // Reputation is awarded only after a moderator approves the report.
+        reviewAssignments.assignPendingReports();
         return mapToResponse(savedReport, evidenceList, 0);
     }
 
@@ -269,7 +277,6 @@ public class ReportServiceImpl implements IReportService {
                         .evidenceType(e.getEvidenceType() == null ? null : e.getEvidenceType().name())
                         .fileUrl(e.getFileUrl())
                         .fileHash(e.getFileHash())
-                        .verificationStatus(e.getVerificationStatus() == null ? null : e.getVerificationStatus().name())
                         .createdAt(e.getCreatedAt())
                         .build()
         ).toList();
@@ -278,7 +285,7 @@ public class ReportServiceImpl implements IReportService {
                 .id(report.getId())
                 .reportCode(reportCode)
                 .targetIdentifier(report.getIndicator() != null ? report.getIndicator().getDisplayValue() : "")
-                .threatType(report.getIndicator() != null ? report.getIndicator().getType() : "")
+                .threatType(report.getIndicator() != null ? report.getIndicator().getType().name() : "")
                 .categoryName(report.getCategory() != null ? report.getCategory().getName() : "")
                 .description(report.getDescription())
                 .reportedMessage(report.getReportedMessage())

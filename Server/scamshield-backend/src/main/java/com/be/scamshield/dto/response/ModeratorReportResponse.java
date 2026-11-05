@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import java.time.LocalDateTime;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
@@ -27,6 +28,9 @@ public class ModeratorReportResponse {
     @Schema(description = "Loại đối tượng (PHONE, WEBSITE, BANK_ACCOUNT...)", example = "PHONE")
     private String targetType;
 
+    private String description;
+    private String reportedMessage;
+
     @Schema(description = "Tên danh mục thủ đoạn chính", example = "Lừa đảo ngân hàng / OTP Phishing")
     private String category;
 
@@ -36,14 +40,25 @@ public class ModeratorReportResponse {
     @Schema(description = "Tổng số lượng báo cáo gộp cho đối tượng này", example = "47")
     private Integer reportCount;
 
-    @Schema(description = "Người gửi báo cáo", example = "nguyenthanh_vn")
+    @Schema(description = "Họ tên đầy đủ của người gửi báo cáo", example = "Nguyễn Thành")
     private String reportedBy;
 
-    @Schema(description = "Thời gian gửi báo cáo định dạng", example = "15/01 14:32")
+    @Schema(description = "Thời gian gửi báo cáo định dạng", example = "15/01/2024 14:32")
     private String reportedAt;
 
-    @Schema(description = "Trạng thái hiển thị (Pending, In Review, Approved, Rejected)", example = "Pending")
+    @Schema(description = "Trạng thái hiển thị (Pending, Approved, Rejected)", example = "Pending")
     private String status;
+
+    @Schema(description = "Tài khoản hiện tại có quyền nhận duyệt báo cáo")
+    private boolean canReview;
+
+    @Schema(description = "Indicator thuộc whitelist đang có hiệu lực; cảnh báo hỗ trợ quyết định")
+    private boolean whitelisted;
+    private List<WhitelistMatch> whitelistMatches;
+
+    public record WhitelistMatch(Long whitelistEntryId, Long partnerId, String legalName,
+                                 LocalDateTime verifiedAt) { }
+
 
     @Schema(description = "Điểm đánh giá AI (0 - 100). Hiện tại để trống theo yêu cầu", example = "null")
     private Integer aiScore;

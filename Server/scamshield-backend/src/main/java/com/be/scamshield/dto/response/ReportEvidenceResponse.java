@@ -16,6 +16,6 @@ public class ReportEvidenceResponse {
     private String evidenceType;
     private String fileUrl;
     private String fileHash;
-    private String verificationStatus;
+
     private LocalDateTime createdAt;
 }

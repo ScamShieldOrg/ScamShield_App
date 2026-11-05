@@ -59,6 +59,7 @@ export interface ReportStatusCounts {
   withdrawn?: number
   all: number
   pending: number
+  inReview?: number
   approvedBlacklist: number
   mergedDuplicate: number
   rejected: number
@@ -97,7 +98,6 @@ export interface OwnReportEvidence {
   id?: number
   fileUrl: string | null
   evidenceType: string
-  verificationStatus?: string
   ocrText?: string | null
 }
 

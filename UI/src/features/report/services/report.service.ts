@@ -219,6 +219,7 @@ export async function exportTrackingReportsCsv(
 }
 
 export interface SubmitReportResponse {
+  categoryName: string
   success: boolean
   reportId: string
   message: string
@@ -234,6 +235,12 @@ export async function submitScamReport(
   payload: CreateReportPayload,
   onUploadProgress?: (percentage: number) => void
 ): Promise<SubmitReportResponse> {
+  if (payload.description.length > 2000) {
+    throw new Error("Mô tả hành vi tối đa 2.000 ký tự")
+  }
+  if ((payload.reportedMessage?.length ?? 0) > 2000) {
+    throw new Error("Nội dung tin nhắn tối đa 2.000 ký tự")
+  }
   const fileError = validateReportFiles(payload.attachments)
   if (fileError) throw new Error(fileError)
 
@@ -243,7 +250,8 @@ export async function submitScamReport(
     new Blob(
       [
         JSON.stringify({
-          threatType: payload.threatType === "WEBSITE" ? "URL" : payload.threatType,
+          threatType:
+            payload.threatType === "WEBSITE" ? "URL" : payload.threatType,
           targetIdentifier: payload.targetIdentifier.trim(),
           category: payload.category,
           regionCode: payload.regionCode,
@@ -289,6 +297,10 @@ export async function submitScamReport(
     return {
       success: true,
       reportId: data.reportCode || `#RPT-${data.id}`,
+      categoryName:
+        typeof data.categoryName === "string" && data.categoryName.trim()
+          ? data.categoryName.trim()
+          : "Chưa phân loại",
       message: res.data?.message || "Gửi báo cáo lừa đảo thành công!",
       evidenceCount: data.evidenceCount ?? payload.attachments.length,
       rewardPoints: data.rewardPoints ?? 0,

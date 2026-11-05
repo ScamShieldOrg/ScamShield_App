@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
 import com.be.scamshield.external.SupabaseStorageService;
 
 import com.be.scamshield.constant.DisputeStatus;
@@ -83,7 +87,7 @@ class ModeratorDisputeServiceImplTest {
 
         indicator = Indicator.builder()
                 .id(100L)
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .normalizedValue("0383456789")
                 .displayValue("0383 456 789")
                 .build();
@@ -103,7 +107,7 @@ class ModeratorDisputeServiceImplTest {
                 .id(50L)
                 .indicator(indicator)
                 .category(category)
-                .status("ACTIVE")
+                .status(ConfirmedIndicatorStatus.ACTIVE)
                 .sourceReport(sourceReport)
                 .confirmedByUser(moderator)
                 .confirmedAt(LocalDateTime.of(2024, 1, 10, 12, 0))
@@ -366,7 +370,7 @@ class ModeratorDisputeServiceImplTest {
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo("Chấp nhận");
         assertThat(sampleDispute.getStatus()).isEqualTo(DisputeStatus.APPROVED);
-        assertThat(confirmedIndicator.getStatus()).isEqualTo("RETRACTED");
+        assertThat(confirmedIndicator.getStatus()).isEqualTo(ConfirmedIndicatorStatus.RETRACTED);
         assertThat(confirmedIndicator.getRetractedAt()).isNotNull();
         assertThat(confirmedIndicator.getRetractionReason()).isEqualTo(request.getReason());
 
@@ -392,7 +396,7 @@ class ModeratorDisputeServiceImplTest {
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo("Từ chối");
         assertThat(sampleDispute.getStatus()).isEqualTo(DisputeStatus.REJECTED);
-        assertThat(confirmedIndicator.getStatus()).isEqualTo("ACTIVE");
+        assertThat(confirmedIndicator.getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
 
         verify(confirmedIndicatorRepository, never()).save(any());
         verify(disputeRepository).save(sampleDispute);
@@ -527,7 +531,7 @@ class ModeratorDisputeServiceImplTest {
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo("Chấp nhận");
         assertThat(sampleDispute.getStatus()).isEqualTo(DisputeStatus.APPROVED);
-        assertThat(confirmedIndicator.getStatus()).isEqualTo("RETRACTED");
+        assertThat(confirmedIndicator.getStatus()).isEqualTo(ConfirmedIndicatorStatus.RETRACTED);
     }
 
     @Test
@@ -547,7 +551,7 @@ class ModeratorDisputeServiceImplTest {
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo("Từ chối");
         assertThat(sampleDispute.getStatus()).isEqualTo(DisputeStatus.REJECTED);
-        assertThat(confirmedIndicator.getStatus()).isEqualTo("ACTIVE");
+        assertThat(confirmedIndicator.getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
     }
 
     @Test

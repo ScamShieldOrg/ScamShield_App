@@ -1,5 +1,7 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.constant.NotificationType;
+
 import com.be.scamshield.config.SecurityConfig;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.response.NotificationItemResponse;
@@ -76,8 +78,7 @@ class NotificationControllerTest {
                 .createdAt(LocalDateTime.now().minusMinutes(15))
                 .unread(true)
                 .isRead(false)
-                .type("REPORT")
-                .referenceType("REPORT")
+                .type(NotificationType.REPORT)
                 .referenceId(8492L)
                 .dotColor("bg-emerald-500")
                 .icon("SealCheck")
