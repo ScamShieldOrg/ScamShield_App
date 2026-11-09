@@ -1,9 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ShieldCheck, Bell, CaretDown, SignOut } from "@phosphor-icons/react"
+import { ShieldCheck, Bell, SignOut } from "@phosphor-icons/react"
 import { useLogout } from "@/hooks/use-logout"
+import { authServices } from "@/features/auth/services/auth-services"
+import { useAuthStore } from "@/store/auth.store"
 
 interface ModeratorHeaderProps {
   className?: string
@@ -12,6 +15,26 @@ interface ModeratorHeaderProps {
 export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
   const pathname = usePathname()
   const handleLogout = useLogout()
+  const user = useAuthStore(state => state.user)
+  const token = useAuthStore(state => state.token)
+  const [profile, setProfile] = useState<{ token: string; data: Awaited<ReturnType<typeof authServices.getCurrentProfile>> } | null>(null)
+
+  useEffect(() => {
+    if (!token) return
+    const controller = new AbortController()
+    void authServices.getCurrentProfile(controller.signal).then(result => {
+      if (!controller.signal.aborted) setProfile({ token, data: result })
+    }).catch(() => {
+      if (!controller.signal.aborted) setProfile(null)
+    })
+    return () => controller.abort()
+  }, [token])
+
+  const currentProfile = profile?.token === token ? profile?.data : null
+  const accountName = currentProfile?.fullName?.trim() || currentProfile?.username || currentProfile?.email || user?.email || "Chưa tải được tài khoản"
+  const role = currentProfile?.role ?? user?.role
+  const roleLabel = role === "ADMINISTRATOR" ? "Quản trị viên" : "Kiểm duyệt viên"
+  const initials = Array.from((currentProfile?.fullName?.trim() || currentProfile?.username || currentProfile?.email || user?.email || "").trim()).slice(0, 2).join("").toLocaleUpperCase("vi-VN")
 
   const isReportsActive =
     pathname?.includes("/moderator/reports") || pathname === "/moderator"
@@ -95,17 +118,16 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
           {/* User Profile */}
           <div className="flex items-center gap-2.5 pl-1">
             <div className="flex size-9 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white ring-2 ring-slate-200 dark:bg-slate-700 dark:ring-slate-800">
-              KD
+              {initials || "—"}
             </div>
             <div className="hidden text-left lg:block">
-              <div className="text-xs font-bold text-slate-900 dark:text-white">
-                VCB Security Sentinel
+              <div className="max-w-56 truncate text-xs font-bold text-slate-900 dark:text-white" title={accountName}>
+                {accountName}
               </div>
               <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Kiểm Duyệt Viên Cấp 2
+                {roleLabel}
               </div>
             </div>
-            <CaretDown size={14} className="text-slate-400" />
             <button
               type="button"
               onClick={() => void handleLogout()}

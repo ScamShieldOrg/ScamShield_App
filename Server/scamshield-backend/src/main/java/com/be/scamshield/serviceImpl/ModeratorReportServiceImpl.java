@@ -423,7 +423,25 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     }
 
     private ModeratorReportResponse mapToModeratorReportResponse(Report report, List<ReportEvidence> evidences, UserPrincipal currentUser) {
-        return mapToModeratorReportResponse(report, evidences, currentUser, null);
+        ModeratorReportResponse response = mapToModeratorReportResponse(report, evidences, currentUser, null);
+        reportRepository.findReviewStats(report.getId()).ifPresent(stats -> {
+            var indicator = report.getIndicator();
+            if (indicator != null) {
+                response.setIndicatorContext(new ModeratorReportResponse.IndicatorContext(
+                        stats.getBlacklistStatus(), stats.getIndicatorReports(), stats.getIndicatorApprovedReports(),
+                        stats.getIndicatorRejectedReports(), stats.getIndicatorDisputes(),
+                        indicator.getFirstSeenAt(), indicator.getLastSeenAt()));
+            }
+            var reporter = report.getReporterUser();
+            if (reporter != null) {
+                response.setReporterContext(new ModeratorReportResponse.ReporterContext(
+                        reporter.getEmail(), reporter.getPhoneNumber(), reporter.getReputationPoints(),
+                        reporter.getCreatedAt(), stats.getReporterReports(), stats.getApprovedReports(),
+                        stats.getDecidedReports(), stats.getReporterDisputes(), stats.getApprovedDisputes(),
+                        stats.getDecidedDisputes(), stats.getAbuseFlags(), stats.getOpenFlags()));
+            }
+        });
+        return response;
     }
 
     private record QueueLookups(Map<Long, List<ModeratorReportResponse.WhitelistMatch>> whitelists,

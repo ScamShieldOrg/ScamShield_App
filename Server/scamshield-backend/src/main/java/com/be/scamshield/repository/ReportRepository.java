@@ -19,6 +19,55 @@ import java.util.Optional;
 @Repository
 public interface ReportRepository extends JpaRepository<Report, Long>, JpaSpecificationExecutor<Report> {
 
+    interface ReviewStats {
+        String getBlacklistStatus();
+        long getIndicatorReports();
+        long getIndicatorApprovedReports();
+        long getIndicatorRejectedReports();
+        long getIndicatorDisputes();
+        long getReporterReports();
+        long getApprovedReports();
+        long getDecidedReports();
+        long getReporterDisputes();
+        long getApprovedDisputes();
+        long getDecidedDisputes();
+        long getAbuseFlags();
+        long getOpenFlags();
+    }
+
+    @Query(value = """
+            SELECT ci.status AS "blacklistStatus",
+                   ir.total AS "indicatorReports", ir.approved AS "indicatorApprovedReports",
+                   ir.rejected AS "indicatorRejectedReports",
+                   (SELECT count(*) FROM disputes d WHERE d.confirmed_indicator_id = ci.id AND d.status <> 'DRAFT') AS "indicatorDisputes",
+                   rr.total AS "reporterReports", rr.approved AS "approvedReports", rr.decided AS "decidedReports",
+                   rd.total AS "reporterDisputes", rd.approved AS "approvedDisputes", rd.decided AS "decidedDisputes",
+                   af.total AS "abuseFlags", af.open_count AS "openFlags"
+            FROM reports source
+            LEFT JOIN confirmed_indicators ci ON ci.indicator_id = source.indicator_id
+            CROSS JOIN LATERAL (
+                SELECT count(*) AS total, count(*) FILTER (WHERE status = 'APPROVED') AS approved,
+                       count(*) FILTER (WHERE status = 'REJECTED') AS rejected
+                FROM reports WHERE indicator_id = source.indicator_id
+            ) ir
+            CROSS JOIN LATERAL (
+                SELECT count(*) AS total, count(*) FILTER (WHERE status = 'APPROVED') AS approved,
+                       count(*) FILTER (WHERE status IN ('APPROVED', 'REJECTED')) AS decided
+                FROM reports WHERE reporter_user_id = source.reporter_user_id
+            ) rr
+            CROSS JOIN LATERAL (
+                SELECT count(*) AS total, count(*) FILTER (WHERE status = 'APPROVED') AS approved,
+                       count(*) FILTER (WHERE status IN ('APPROVED', 'REJECTED')) AS decided
+                FROM disputes WHERE submitted_by_user_id = source.reporter_user_id AND status <> 'DRAFT'
+            ) rd
+            CROSS JOIN LATERAL (
+                SELECT count(*) AS total, count(*) FILTER (WHERE status = 'OPEN') AS open_count
+                FROM abuse_flags WHERE user_id = source.reporter_user_id
+            ) af
+            WHERE source.id = :reportId
+            """, nativeQuery = true)
+    Optional<ReviewStats> findReviewStats(@Param("reportId") Long reportId);
+
     List<Report> findByReporterUserIdAndIdIn(Long userId, List<Long> reportIds);
 
     interface AbuseReportActivity {

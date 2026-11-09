@@ -221,7 +221,6 @@ export function ReportReviewWorkspace({
         const result = await submitModerationDecision({
           ...decision,
           rawId: detail.rawId,
-          categoryId: detail.categoryId,
         })
         setDetail(result.data)
         reviewingId.current = null

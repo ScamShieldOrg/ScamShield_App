@@ -1,10 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { CheckCircle, XCircle, ShieldWarning } from "@phosphor-icons/react"
 import { ModerationDecisionPayload } from "@/features/moderator/types/moderator.types"
 
+import { getReportCategories } from "@/features/report/services/report.service"
+import type { ScamCategoryItem } from "@/features/report/types/report.types"
+
 interface ReportDecisionFormProps {
+  currentCategoryId?: number
+  currentCategoryName: string
   reportId: string | number
   selectedTaxonomies: string[]
   onSubmit: (payload: ModerationDecisionPayload) => Promise<void>
@@ -15,6 +20,8 @@ interface ReportDecisionFormProps {
 type DecisionType = "APPROVE" | "REJECT"
 
 export function ReportDecisionForm({
+  currentCategoryId,
+  currentCategoryName,
   reportId,
   selectedTaxonomies,
   onSubmit,
@@ -23,6 +30,17 @@ export function ReportDecisionForm({
 }: ReportDecisionFormProps) {
   const [decision, setDecision] = useState<DecisionType | null>(null)
   const [reason, setReason] = useState<string>("")
+
+  const [categories, setCategories] = useState<ScamCategoryItem[] | null>(null)
+  const [categoryId, setCategoryId] = useState<number>()
+
+  useEffect(() => {
+    let active = true
+    void getReportCategories().then(items => {
+      if (active) setCategories(items)
+    })
+    return () => { active = false }
+  }, [])
 
   const minLength = 20
   const isReasonValid =
@@ -39,6 +57,7 @@ export function ReportDecisionForm({
       decision,
       reason: reason.trim(),
       selectedTaxonomies,
+      categoryId: categoryId === currentCategoryId ? undefined : categoryId,
     })
   }
 
@@ -51,6 +70,30 @@ export function ReportDecisionForm({
 
       <form onSubmit={handleSubmit} className="mt-4">
         <fieldset disabled={isSubmitting} className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="moderation-category" className="block text-xs font-bold">
+              Xác nhận lại loại thủ đoạn
+            </label>
+            <select
+              id="moderation-category"
+              value={categoryId === currentCategoryId ? "" : (categoryId ?? "")}
+              disabled={!categories?.length}
+              onChange={event => {
+                const nextCategoryId = event.target.value ? Number(event.target.value) : undefined
+                setCategoryId(nextCategoryId)
+                onDirtyChange?.(nextCategoryId !== undefined || decision !== null || reason.length > 0)
+              }}
+              className="w-full rounded-lg border border-border bg-background p-2 text-sm"
+            >
+              <option value="">Giữ danh mục hiện tại — {currentCategoryName}</option>
+              {categories?.filter(category => category.id !== currentCategoryId).map(category => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+            {categories?.length === 0 && (
+              <p className="text-xs text-muted-foreground">Không có danh mục để chọn. Bạn vẫn có thể duyệt với danh mục hiện tại.</p>
+            )}
+          </div>
           {/* 2 Decision Action Buttons matching UI mockups and backend enum */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
@@ -111,7 +154,7 @@ export function ReportDecisionForm({
               value={reason}
               onChange={(e) => {
                 setReason(e.target.value)
-                onDirtyChange?.(decision !== null || e.target.value.length > 0)
+                onDirtyChange?.(decision !== null || categoryId !== undefined || e.target.value.length > 0)
               }}
               placeholder={
                 decision === "REJECT"
