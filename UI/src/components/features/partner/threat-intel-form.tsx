@@ -36,14 +36,10 @@ interface EvidenceItem {
 
 export function ThreatIntelForm() {
   // Title / Scenario Name
-  const [intelTitle, setIntelTitle] = useState<string>(
-    "Chiêu trò tuyển mẫu nhí Tết 2025 kết hợp mở thẻ tín dụng ảo & thao túng tâm lý"
-  )
+  const [intelTitle, setIntelTitle] = useState<string>("")
 
   // Taxonomy tags
-  const [selectedTaxonomies, setSelectedTaxonomies] = useState<string[]>([
-    "Tuyển dụng / CTV online",
-  ])
+  const [selectedTaxonomies, setSelectedTaxonomies] = useState<string[]>([])
 
   // Confidence
   const [confidence, setConfidence] = useState<string>(
@@ -51,41 +47,20 @@ export function ThreatIntelForm() {
   )
 
   // MITRE ATT&CK Stages
-  const [stage1, setStage1] = useState<string>(
-    "Quảng cáo tuyển mẫu nhí, kéo vào Telegram"
-  )
-  const [stage2, setStage2] = useState<string>(
-    "Giao nhiệm vụ nạp cọc nhỏ, trả hoa hồng mồi"
-  )
-  const [stage3, setStage3] = useState<string>(
-    "Yêu cầu nạp tiền lớn rồi cắt liên lạc"
-  )
+  const [stage1, setStage1] = useState<string>("")
+  const [stage2, setStage2] = useState<string>("")
+  const [stage3, setStage3] = useState<string>("")
 
   // Data source
-  const [dataSource, setDataSource] = useState<string>(
-    "Hotline CSKH"
-  )
-  const [firstObservedDate, setFirstObservedDate] = useState<string>("2025-12-01")
+  const [dataSource, setDataSource] = useState<string>("Hotline CSKH")
+  const [firstObservedDate, setFirstObservedDate] = useState<string>("")
 
-  // Evidences
-  const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([
-    {
-      id: "ev1",
-      name: "screenshot_zalo_chat_tax.png",
-      sizeText: "1.4 MB",
-      uploadedAt: "14/01/2025 08:12",
-    },
-    {
-      id: "ev2",
-      name: "sao_ke_dong_tien_mule_account.pdf",
-      sizeText: "3.8 MB",
-      uploadedAt: "14/01/2025 10:45",
-    },
-  ])
+  // Evidences - clean empty initial state
+  const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([])
   const [realUploadedFile, setRealUploadedFile] = useState<File | null>(null)
 
   // Zero PII agreement
-  const [zeroPiiChecked, setZeroPiiChecked] = useState<boolean>(true)
+  const [zeroPiiChecked, setZeroPiiChecked] = useState<boolean>(false)
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
   // Right column tab & items
@@ -183,6 +158,17 @@ export function ThreatIntelForm() {
       if (created) {
         setHistoryItems((prev) => [created, ...prev])
       }
+
+      // Reset form
+      setIntelTitle("")
+      setStage1("")
+      setStage2("")
+      setStage3("")
+      setFirstObservedDate("")
+      setEvidenceList([])
+      setRealUploadedFile(null)
+      setSelectedTaxonomies([])
+      setZeroPiiChecked(false)
     } catch (err: any) {
       console.error("Submit error", err)
       toast.error(err?.response?.data?.message || "Không thể nộp hồ sơ tình báo, vui lòng thử lại sau.")
@@ -200,6 +186,10 @@ export function ThreatIntelForm() {
 
   const fullDescPreview = `[ATT&CK] 1: ${stage1.trim()} | 2: ${stage2.trim()} | 3: ${stage3.trim()} | Nguồn: ${dataSource.trim()} | ${firstObservedDate}`
   const isDescOverLimit = fullDescPreview.length > 240
+
+  const totalCount = historyItems.length
+  const verifiedCount = historyItems.filter((i) => i.status === "VERIFIED").length
+  const pendingCount = historyItems.filter((i) => i.status === "PENDING").length
 
   return (
     <div className="space-y-6">
@@ -238,7 +228,7 @@ export function ThreatIntelForm() {
             Đã đóng góp
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">38</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">{totalCount}</span>
             <span className="text-[11px] text-slate-400">Hồ sơ STIX</span>
           </div>
         </div>
@@ -249,7 +239,7 @@ export function ThreatIntelForm() {
             Tích hợp Blacklist
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">29</span>
+            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{verifiedCount}</span>
             <span className="text-[11px] text-slate-400">Mẫu chuẩn hóa</span>
           </div>
         </div>
@@ -260,7 +250,7 @@ export function ThreatIntelForm() {
             Đang thẩm định
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">05</span>
+            <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{pendingCount}</span>
             <span className="text-[11px] text-slate-400">Mẫu NCSC/A05</span>
           </div>
         </div>
@@ -585,7 +575,7 @@ export function ThreatIntelForm() {
                     : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 )}
               >
-                Tất cả (38)
+                Tất cả ({totalCount})
               </button>
               <button
                 type="button"
@@ -597,7 +587,7 @@ export function ThreatIntelForm() {
                     : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 )}
               >
-                Chờ duyệt (5)
+                Chờ duyệt ({pendingCount})
               </button>
               <button
                 type="button"
@@ -609,116 +599,53 @@ export function ThreatIntelForm() {
                     : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 )}
               >
-                Đã tích hợp (29)
+                Đã tích hợp ({verifiedCount})
               </button>
             </div>
 
             {/* List items */}
             <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
-              {/* Item 1 */}
-              <div className="py-3 first:pt-0 last:pb-0">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white">
-                    INTEL-2025-047
-                  </span>
-                  <span className="rounded bg-blue-50 border border-blue-200 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 dark:bg-blue-950 dark:border-blue-900 dark:text-blue-300">
-                    CHỜ THẨM ĐỊNH
-                  </span>
+              {isLoadingHistory ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Đang tải danh sách hồ sơ...
                 </div>
-                <div className="mt-1 text-xs font-medium text-slate-800 dark:text-slate-200 line-clamp-2">
-                  Mạo danh nhân viên điện lực EVN thu tiền điện qua app giả
+              ) : filteredHistory.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Chưa có hồ sơ đóng góp nào
                 </div>
-                <div className="mt-1 text-[10px] text-slate-400">
-                  Hôm nay 08:30 • 4 Chỉ số IOC
-                </div>
-              </div>
-
-              {/* Item 2 */}
-              <div className="py-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white">
-                    INTEL-2025-044
-                  </span>
-                  <span className="rounded bg-amber-50 border border-amber-200 px-1.5 py-0.2 text-[9px] font-bold text-amber-700 dark:bg-amber-950 dark:border-amber-900 dark:text-amber-300">
-                    YÊU CẦU BỔ SUNG
-                  </span>
-                </div>
-                <div className="mt-1 text-xs font-medium text-slate-800 dark:text-slate-200 line-clamp-2">
-                  Phishing đầu tư sàn Forex AI lợi nhuận 30%/ngày
-                </div>
-                <div className="mt-1 text-[10px] text-slate-400">
-                  12/01/2025 • Thiếu bằng chứng log SMS
-                </div>
-              </div>
-
-              {/* Item 3 */}
-              <div className="py-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white">
-                    INTEL-2025-041
-                  </span>
-                  <span className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-300">
-                    ĐÃ TÍCH HỢP BLACKLIST
-                  </span>
-                </div>
-                <div className="mt-1 text-xs font-medium text-slate-800 dark:text-slate-200 line-clamp-2">
-                  Tuyển mẫu nhí Tết lừa tiền cọc đa tầng
-                </div>
-                <div className="mt-1 text-[10px] text-slate-400">
-                  10/01/2025 • 7 Chỉ số IOC
-                </div>
-              </div>
-
-              {/* Item 4 */}
-              <div className="py-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white">
-                    INTEL-2025-039
-                  </span>
-                  <span className="rounded bg-purple-50 border border-purple-200 px-1.5 py-0.2 text-[9px] font-bold text-purple-700 dark:bg-purple-950 dark:border-purple-900 dark:text-purple-300">
-                    ĐÃ DUYỆT TAXONOMY
-                  </span>
-                </div>
-                <div className="mt-1 text-xs font-medium text-slate-800 dark:text-slate-200 line-clamp-2">
-                  Giả mạo nhân viên hỗ trợ nâng hạn mức thẻ tín dụng
-                </div>
-                <div className="mt-1 text-[10px] text-slate-400">
-                  09/01/2025 • 3 Phishing Domain
-                </div>
-              </div>
-
-              {/* Real items from backend if available */}
-              {filteredHistory.map((item) => (
-                <div key={item.id} className="py-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white">
-                      {item.submissionCode || `PAL-${item.id}`}
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.2 text-[9px] font-bold",
-                        item.status === "VERIFIED"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+              ) : (
+                filteredHistory.map((item) => (
+                  <div key={item.id} className="py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white">
+                        {item.submissionCode || `PAL-${item.id}`}
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded px-1.5 py-0.2 text-[9px] font-bold",
+                          item.status === "VERIFIED"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : item.status === "REJECTED"
+                              ? "bg-red-50 text-red-700 border border-red-200"
+                              : "bg-blue-50 text-blue-700 border border-blue-200"
+                        )}
+                      >
+                        {item.status === "VERIFIED"
+                          ? "ĐÃ DUYỆT"
                           : item.status === "REJECTED"
-                            ? "bg-red-50 text-red-700 border border-red-200"
-                            : "bg-blue-50 text-blue-700 border border-blue-200"
-                      )}
-                    >
-                      {item.status === "VERIFIED"
-                        ? "ĐÃ DUYỆT"
-                        : item.status === "REJECTED"
-                          ? "TỪ CHỐI"
-                          : "CHỜ THẨM ĐỊNH"}
-                    </span>
+                            ? "TỪ CHỐI"
+                            : "CHỜ THẨM ĐỊNH"}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs font-medium text-slate-800 dark:text-slate-200 line-clamp-2">
+                      {item.title}
+                    </div>
+                    <div className="mt-1 text-[10px] text-slate-400">
+                      {item.createdAt ? new Date(item.createdAt).toLocaleDateString("vi-VN") : "Vừa xong"} • {item.indicatorType || "IOC"}
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs font-medium text-slate-800 dark:text-slate-200 line-clamp-2">
-                    {item.title}
-                  </div>
-                  <div className="mt-1 text-[10px] text-slate-400">
-                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString("vi-VN") : "Vừa xong"} • {item.indicatorType || "IOC"}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
