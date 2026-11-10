@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import { ArrowRight, CheckCircle, FileText, X } from "@phosphor-icons/react"
+import { toast } from "react-toastify"
 import { Button } from "@/components/ui/button"
 import {
   adminPartnerRegistrations,
@@ -44,6 +45,7 @@ export function WhitelistReviewDialog({
   const [detail, setDetail] = useState<PartnerRegistrationDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [resending, setResending] = useState(false)
   const [openingDocument, setOpeningDocument] = useState<number | null>(null)
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState("")
@@ -120,8 +122,12 @@ export function WhitelistReviewDialog({
   }
 
   async function review(status: "VERIFIED" | "REJECTED") {
-    if (status === "REJECTED" && !reason.trim()) {
-      setError("Vui lòng nhập lý do từ chối.")
+    if (!reason.trim()) {
+      setError(
+        status === "VERIFIED"
+          ? "Vui lòng nhập lý do phê duyệt."
+          : "Vui lòng nhập lý do từ chối."
+      )
       return
     }
     setSaving(true)
@@ -134,6 +140,16 @@ export function WhitelistReviewDialog({
       )
       onUpdated()
       setOpen(false)
+      if (status === "VERIFIED") {
+        try {
+          const updated = await adminPartnerRegistrations.detail(item.id)
+          if (updated.passwordLinkEmailStatus === "SENT") {
+            toast.success("Đã gửi email đặt mật khẩu cho doanh nghiệp.")
+          }
+        } catch {
+          // Approval succeeded; an unavailable status refresh must not report failure.
+        }
+      }
     } catch (cause) {
       if (cause instanceof PartnerReviewApiError && cause.status === 409) {
         try {
@@ -150,7 +166,44 @@ export function WhitelistReviewDialog({
     }
   }
 
+  async function resendPasswordLink() {
+    setResending(true)
+    setError(null)
+    try {
+      await adminPartnerRegistrations.resendPasswordLink(item.id)
+      const updated = await adminPartnerRegistrations.detail(item.id)
+      setDetail(updated)
+      if (updated.passwordLinkEmailStatus === "SENT") {
+        toast.success("Đã gửi lại email đặt mật khẩu cho doanh nghiệp.")
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Không thể gửi lại link."
+      )
+    } finally {
+      setResending(false)
+    }
+  }
+
   const verification = detail?.businessVerification
+  const emailStatusLabel = detail?.passwordSetupCompletedAt
+    ? "Đã đặt mật khẩu"
+    : detail?.passwordLinkEmailStatus === "SENT"
+      ? "Đã gửi"
+      : detail?.passwordLinkEmailStatus === "FAILED"
+        ? "Gửi thất bại"
+        : detail?.passwordLinkEmailStatus === "PENDING"
+          ? "Đang gửi"
+          : "Chưa gửi"
+  const emailStatusStyle =
+    detail?.passwordSetupCompletedAt ||
+    detail?.passwordLinkEmailStatus === "SENT"
+      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+      : detail?.passwordLinkEmailStatus === "FAILED"
+        ? "bg-destructive/10 text-destructive"
+        : detail?.passwordLinkEmailStatus === "PENDING"
+          ? "bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200"
+          : "bg-muted text-muted-foreground"
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -168,7 +221,7 @@ export function WhitelistReviewDialog({
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs" />
-        <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 max-h-[92dvh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-card p-6 text-card-foreground shadow-2xl outline-none">
+        <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 max-h-[92dvh] w-[calc(100%-2rem)] max-w-5xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-card p-4 text-card-foreground shadow-2xl outline-none sm:p-6">
           <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
             <div>
               <Dialog.Title className="font-heading text-lg font-bold">
@@ -222,112 +275,129 @@ export function WhitelistReviewDialog({
                   Gửi {formatDate(detail.createdAt)}
                 </span>
               </div>
-              <dl className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:grid-cols-2">
-                <div>
-                  <dt className="text-muted-foreground">Tên pháp nhân</dt>
-                  <dd className="mt-0.5 font-semibold">{detail.legalName}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Mã số thuế</dt>
-                  <dd className="mt-0.5 font-mono font-semibold">
-                    {detail.taxCode}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Người đăng ký</dt>
-                  <dd className="mt-0.5 font-semibold">
-                    {detail.representativeNameAndTitle}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Đại diện pháp luật</dt>
-                  <dd className="mt-0.5">
-                    {detail.legalRepresentative ? "Có" : "Được ủy quyền"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Email</dt>
-                  <dd className="mt-0.5 break-all">{detail.corporateEmail}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">
-                    Số điện thoại liên hệ
-                  </dt>
-                  <dd className="mt-0.5">{detail.contactPhone}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Tên miền</dt>
-                  <dd className="mt-0.5 font-mono break-all">
-                    {detail.officialDomain}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Hotline</dt>
-                  <dd className="mt-0.5 font-mono">{detail.officialHotline}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">SMS Brandname</dt>
-                  <dd className="mt-0.5 font-mono">{detail.smsBrandName}</dd>
-                </div>
-              </dl>
-
-              <section
-                aria-label="Đối soát doanh nghiệp"
-                className="rounded-lg border border-border p-4"
-              >
-                <h3 className="font-heading text-sm font-bold">
-                  Đối soát doanh nghiệp
-                </h3>
-                {verification ? (
-                  <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+                <section
+                  aria-labelledby="partner-info-title"
+                  className="min-w-0 rounded-lg border border-border bg-muted/20 p-4"
+                >
+                  <h3
+                    id="partner-info-title"
+                    className="font-heading text-sm font-bold"
+                  >
+                    Thông tin doanh nghiệp
+                  </h3>
+                  <dl className="mt-4 grid gap-y-3 sm:grid-cols-2 sm:gap-x-8">
                     <div>
-                      <dt className="text-muted-foreground">Kết quả</dt>
-                      <dd className="font-semibold">{verification.outcome}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">
-                        Trạng thái hoạt động
-                      </dt>
-                      <dd>{verification.xinvoice.activityStatus}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">
-                        Tên trên XinVoice
-                      </dt>
-                      <dd>{verification.xinvoice.legalName || "—"}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">
-                        MST trên XinVoice
-                      </dt>
-                      <dd>{verification.xinvoice.taxCode || "—"}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Khớp tên / MST</dt>
-                      <dd>
-                        {verification.formNameVsXinvoice} /{" "}
-                        {verification.formTaxCodeVsXinvoice}
+                      <dt className="text-muted-foreground">Tên pháp nhân</dt>
+                      <dd className="mt-0.5 font-semibold">
+                        {detail.legalName}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-muted-foreground">OCR</dt>
-                      <dd>
-                        {verification.ocrEnabled
-                          ? verification.documents
-                              .map(
-                                (entry) => `${entry.fileName}: ${entry.status}`
-                              )
-                              .join(", ") || "Chưa có"
-                          : "Đang tắt"}
+                      <dt className="text-muted-foreground">Mã số thuế</dt>
+                      <dd className="mt-0.5 font-mono font-semibold">
+                        {detail.taxCode}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Người đăng ký</dt>
+                      <dd className="mt-0.5 font-semibold">
+                        {detail.representativeNameAndTitle}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">
+                        Đại diện pháp luật
+                      </dt>
+                      <dd className="mt-0.5">
+                        {detail.legalRepresentative ? "Có" : "Được ủy quyền"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Email</dt>
+                      <dd className="mt-0.5 break-all">
+                        {detail.corporateEmail}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">
+                        Số điện thoại liên hệ
+                      </dt>
+                      <dd className="mt-0.5">{detail.contactPhone}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Tên miền</dt>
+                      <dd className="mt-0.5 font-mono break-all">
+                        {detail.officialDomain}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Hotline</dt>
+                      <dd className="mt-0.5 font-mono">
+                        {detail.officialHotline}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">SMS Brandname</dt>
+                      <dd className="mt-0.5 font-mono">
+                        {detail.smsBrandName}
                       </dd>
                     </div>
                   </dl>
-                ) : (
-                  <p className="mt-2 text-muted-foreground">
-                    Chưa có kết quả đối soát được lưu.
-                  </p>
-                )}
-              </section>
+                </section>
+
+                <section
+                  aria-label="Đối soát doanh nghiệp"
+                  className="min-w-0 rounded-lg border border-border p-4"
+                >
+                  <h3 className="font-heading text-sm font-bold">
+                    Đối soát doanh nghiệp
+                  </h3>
+                  {verification ? (
+                    <dl className="mt-4 grid gap-y-3 sm:grid-cols-2 sm:gap-x-8">
+                      <div>
+                        <dt className="text-muted-foreground">Kết quả</dt>
+                        <dd className="font-semibold">
+                          {verification.outcome}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">
+                          Trạng thái hoạt động
+                        </dt>
+                        <dd>{verification.xinvoice.activityStatus}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">
+                          Tên trên XinVoice
+                        </dt>
+                        <dd className="break-words">
+                          {verification.xinvoice.legalName || "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">
+                          MST trên XinVoice
+                        </dt>
+                        <dd>{verification.xinvoice.taxCode || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">
+                          Khớp tên / MST
+                        </dt>
+                        <dd>
+                          {verification.formNameVsXinvoice} /{" "}
+                          {verification.formTaxCodeVsXinvoice}
+                        </dd>
+                      </div>
+                    </dl>
+                  ) : (
+                    <p className="mt-2 text-muted-foreground">
+                      Chưa có kết quả đối soát được lưu.
+                    </p>
+                  )}
+                </section>
+              </div>
 
               <section aria-label="Tài liệu đính kèm">
                 <h3 className="font-heading text-sm font-bold">
@@ -362,48 +432,113 @@ export function WhitelistReviewDialog({
               </section>
 
               {detail.verificationStatus !== "PENDING" && (
-                <div className="rounded-lg bg-muted/30 p-3">
-                  <p>
-                    Người xét duyệt: {detail.reviewedBy || "—"}
-                    {detail.reviewedAt
-                      ? ` · ${formatDate(detail.reviewedAt)}`
-                      : ""}
+                <section
+                  aria-labelledby="review-result-title"
+                  className="rounded-lg border border-border bg-muted/20 p-4"
+                >
+                  <h3
+                    id="review-result-title"
+                    className="font-heading text-sm font-bold"
+                  >
+                    Kết quả xét duyệt
+                  </h3>
+                  <dl className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <dt className="text-muted-foreground">Người xét duyệt</dt>
+                      <dd className="mt-1 text-sm font-semibold">
+                        {detail.reviewedBy || "—"}
+                      </dd>
+                      {detail.reviewedAt && (
+                        <dd className="mt-0.5 text-muted-foreground">
+                          {formatDate(detail.reviewedAt)}
+                        </dd>
+                      )}
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">
+                        {detail.verificationStatus === "VERIFIED"
+                          ? "Lý do phê duyệt"
+                          : "Lý do từ chối"}
+                      </dt>
+                      <dd className="mt-1 text-sm font-medium break-words">
+                        {detail.reviewReason ||
+                          (detail.verificationStatus === "VERIFIED"
+                            ? "Chưa có lý do phê duyệt"
+                            : "—")}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+              )}
+
+              {detail.verificationStatus === "VERIFIED" && (
+                <section
+                  className="rounded-lg border border-border bg-card p-4"
+                  aria-label="Email đặt mật khẩu"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-heading text-sm font-bold">
+                      Email đặt mật khẩu
+                    </h3>
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${emailStatusStyle}`}
+                    >
+                      {emailStatusLabel}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-muted-foreground">
+                    Gửi tới {detail.corporateEmail}
                   </p>
-                  {detail.reviewReason && (
-                    <p className="mt-1">Lý do: {detail.reviewReason}</p>
+                  {!detail.passwordSetupCompletedAt && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={resending}
+                      onClick={resendPasswordLink}
+                      className="mt-3"
+                    >
+                      {resending ? "Đang gửi..." : "Gửi lại link đặt mật khẩu"}
+                    </Button>
                   )}
-                </div>
+                </section>
               )}
 
               {detail.verificationStatus === "PENDING" && (
                 <div className="space-y-3 border-t border-border pt-4">
-                  {rejecting && (
-                    <div>
-                      <label
-                        htmlFor={`rejection-reason-${item.id}`}
-                        className="font-semibold"
-                      >
-                        Lý do từ chối{" "}
-                        <span className="text-destructive">*</span>
-                      </label>
-                      <textarea
-                        id={`rejection-reason-${item.id}`}
-                        value={reason}
-                        onChange={(event) => setReason(event.target.value)}
-                        maxLength={2000}
-                        rows={3}
-                        className="mt-1 w-full rounded-lg border border-input bg-card p-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label
+                      htmlFor={`review-reason-${item.id}`}
+                      className="font-semibold"
+                    >
+                      {rejecting ? "Lý do từ chối" : "Lý do phê duyệt"}{" "}
+                      <span className="text-destructive">*</span>
+                    </label>
+                    <textarea
+                      id={`review-reason-${item.id}`}
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                      required
+                      maxLength={2000}
+                      rows={3}
+                      placeholder={
+                        rejecting
+                          ? "Nêu lý do từ chối hồ sơ"
+                          : "Nêu căn cứ phê duyệt hồ sơ"
+                      }
+                      className="mt-1 w-full rounded-lg border border-input bg-card p-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    />
+                  </div>
                   <div className="flex flex-wrap justify-end gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={saving}
                       onClick={() => {
-                        if (rejecting) setRejecting(false)
-                        else setOpen(false)
+                        if (rejecting) {
+                          setRejecting(false)
+                          setReason("")
+                        } else setOpen(false)
                       }}
                     >
                       Đóng
@@ -422,7 +557,10 @@ export function WhitelistReviewDialog({
                         variant="destructive"
                         size="sm"
                         disabled={saving}
-                        onClick={() => setRejecting(true)}
+                        onClick={() => {
+                          setRejecting(true)
+                          setReason("")
+                        }}
                       >
                         Từ chối
                       </Button>
@@ -430,7 +568,7 @@ export function WhitelistReviewDialog({
                     {!rejecting && (
                       <Button
                         size="sm"
-                        disabled={saving}
+                        disabled={saving || !reason.trim()}
                         onClick={() => review("VERIFIED")}
                         className="bg-emerald-600 text-white hover:bg-emerald-700"
                       >

@@ -103,6 +103,16 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 }
 
 export const authServices = {
+    setupPartnerPassword: async function (token: string, newPassword: string) {
+        try {
+            const response = await publicApi.post("/auth/partner-password/setup", { token, newPassword })
+            if (response.data?.isSuccess !== true) {
+                throw new Error(response.data?.message || "Không thể đặt mật khẩu.")
+            }
+        } catch (cause) {
+            throw new Error(extractErrorMessage(cause, "Không thể đặt mật khẩu. Vui lòng thử lại."))
+        }
+    },
     loginByForm: async function (identifier: string, password: string) {
         try {
             const response = await publicApi.post("/auth/login", {
@@ -120,7 +130,7 @@ export const authServices = {
     
             const decoded = decodeJwt(accessToken)
             return { role: (decoded?.role || "") }
-        } catch (error: unknown) {
+        } catch {
             throw new Error("Tài khoản/mật khẩu không chính xác")
         }
     },

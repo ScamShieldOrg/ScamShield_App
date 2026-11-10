@@ -67,6 +67,7 @@ google:
 
 # Application Configurations
 app:
+  ui-base-url: ${APP_UI_BASE_URL:http://localhost:3001}
   evidence-analysis:
     enabled: ${EVIDENCE_ANALYSIS_ENABLED:true}
     executable: ${TESSERACT_EXECUTABLE:tesseract}

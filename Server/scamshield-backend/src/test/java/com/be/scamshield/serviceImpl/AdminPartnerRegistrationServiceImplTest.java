@@ -19,6 +19,7 @@ import com.be.scamshield.repository.PartnerDocumentRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
+import com.be.scamshield.service.PartnerPasswordSetupService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -52,6 +53,7 @@ class AdminPartnerRegistrationServiceImplTest {
     @Mock private IndicatorRepository indicators;
     @Mock private WhitelistEntryRepository whitelistEntries;
     @Mock private AuditLogRepository auditLogs;
+    @Mock private PartnerPasswordSetupService passwordSetupService;
 
     private AdminPartnerRegistrationServiceImpl service;
     private PartnerProfile profile;
@@ -61,7 +63,7 @@ class AdminPartnerRegistrationServiceImplTest {
     void setUp() {
         service = new AdminPartnerRegistrationServiceImpl(profiles, documents, users, indicators,
                 whitelistEntries, auditLogs, new ObjectMapper(),
-                Clock.fixed(Instant.parse("2026-10-28T08:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")));
+                Clock.fixed(Instant.parse("2026-10-28T08:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")), passwordSetupService);
         User partnerUser = User.builder().id(20L).fullName("Người đăng ký").status(UserStatus.INACTIVE.name()).build();
         reviewer = User.builder().id(1L).fullName("Quản trị viên").build();
         profile = PartnerProfile.builder().id(10L).user(partnerUser).legalName("Công ty A")
@@ -88,10 +90,13 @@ class AdminPartnerRegistrationServiceImplTest {
             return indicator;
         });
 
-        var result = service.review(10L, request(PartnerVerificationStatus.VERIFIED, null), 1L);
+        var result = service.review(10L, request(PartnerVerificationStatus.VERIFIED, "Đã đối soát giấy phép và kênh chính thức"), 1L);
 
         assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.VERIFIED);
         assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.ACTIVE.name());
+        assertThat(profile.getVerificationReason()).isEqualTo("Đã đối soát giấy phép và kênh chính thức");
+        assertThat(result.reviewReason()).isEqualTo(profile.getVerificationReason());
+        verify(passwordSetupService).issue(10L);
         assertThat(profile.getSmsBrandName()).isEqualTo("EXAMPLE");
         ArgumentCaptor<WhitelistEntry> entry = ArgumentCaptor.forClass(WhitelistEntry.class);
         verify(whitelistEntries, org.mockito.Mockito.times(2)).save(entry.capture());
@@ -105,6 +110,15 @@ class AdminPartnerRegistrationServiceImplTest {
         verify(auditLogs).save(audit.capture());
         assertThat(audit.getValue().getActorUser()).isSameAs(reviewer);
         assertThat(audit.getValue().getNewValue()).isEqualTo("VERIFIED");
+        assertThat(audit.getValue().getReason()).isEqualTo(profile.getVerificationReason());
+    }
+
+    @Test
+    void approvalRequiresAdministratorReason() {
+        assertThatThrownBy(() -> service.review(10L,
+                request(PartnerVerificationStatus.VERIFIED, "  "), 1L))
+                .isInstanceOf(com.be.scamshield.exception.BadRequestException.class);
+        verifyNoInteractions(profiles, indicators, whitelistEntries, auditLogs);
     }
 
     @Test
@@ -120,6 +134,7 @@ class AdminPartnerRegistrationServiceImplTest {
         var result = service.review(10L, request(PartnerVerificationStatus.REJECTED, "Không đủ bằng chứng"), 1L);
         assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.REJECTED);
         assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.INACTIVE.name());
+        assertThat(profile.getVerificationReason()).isNull();
         verifyNoInteractions(indicators, whitelistEntries);
         ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
         verify(auditLogs).save(audit.capture());
@@ -161,7 +176,7 @@ class AdminPartnerRegistrationServiceImplTest {
         when(whitelistEntries.existsByIndicatorIdAndVerificationStatusAndPartnerIdNot(5L, "VERIFIED", 10L))
                 .thenReturn(true);
         assertThatThrownBy(() -> service.review(10L,
-                request(PartnerVerificationStatus.VERIFIED, null), 1L))
+                request(PartnerVerificationStatus.VERIFIED, "Đã xác minh hồ sơ"), 1L))
                 .isInstanceOf(PartnerReviewConflictException.class);
         assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.INACTIVE.name());
         verify(auditLogs, never()).save(any());

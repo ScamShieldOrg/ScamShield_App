@@ -26,6 +26,7 @@ import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.service.AdminPartnerRegistrationService;
+import com.be.scamshield.service.PartnerPasswordSetupService;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -52,6 +53,7 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
     private final AuditLogRepository auditLogs;
     private final ObjectMapper objectMapper;
     private final Clock applicationClock;
+    private final PartnerPasswordSetupService passwordSetupService;
 
     @Override
     public PaginatedResponse<AdminPartnerRegistrationItemResponse> list(String search,
@@ -99,8 +101,9 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
             throw new BadRequestException("Chỉ có thể phê duyệt hoặc từ chối hồ sơ");
         }
         String reason = request.getReason() == null ? "" : request.getReason().trim();
-        if (decision == PartnerVerificationStatus.REJECTED && reason.isBlank()) {
-            throw new BadRequestException("Cần nhập lý do từ chối hồ sơ");
+        if (reason.isBlank()) {
+            throw new BadRequestException(decision == PartnerVerificationStatus.VERIFIED
+                    ? "Cần nhập lý do phê duyệt hồ sơ" : "Cần nhập lý do từ chối hồ sơ");
         }
         User reviewer = users.findById(reviewerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản quản trị"));
@@ -118,12 +121,16 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
             profile.getUser().setStatus(UserStatus.INACTIVE.name());
         }
         profile.setVerificationStatus(decision);
+        if (decision == PartnerVerificationStatus.VERIFIED) {
+            profile.setVerificationReason(reason);
+            passwordSetupService.issue(id);
+        }
         profile.setVerifiedByUser(reviewer);
         profile.setVerifiedAt(now);
         profile.setUpdatedAt(now);
         auditLogs.save(AuditLog.builder().actorUser(reviewer).action("REVIEW_PARTNER_REGISTRATION")
                 .entityType("PARTNER_PROFILE").entityId(id).previousValue("PENDING")
-                .newValue(decision.name()).reason(reason.isBlank() ? "Đã phê duyệt hồ sơ đối tác" : reason)
+                .newValue(decision.name()).reason(reason)
                 .createdAt(now).build());
         return detail(profile);
     }
@@ -156,6 +163,12 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
         return normalized.startsWith("+84") ? "0" + normalized.substring(3) : normalized;
     }
 
+    @Transactional
+    public AdminPartnerRegistrationDetailResponse resendPasswordLink(Long id) {
+        passwordSetupService.issue(id);
+        return detail(id);
+    }
+
     private AdminPartnerRegistrationItemResponse item(PartnerProfile profile) {
         return new AdminPartnerRegistrationItemResponse(profile.getId(), profile.getLegalName(), profile.getTaxCode(),
                 profile.getCorporateEmail(), profile.getRepresentativeNameAndTitle(), profile.getOfficialDomain(),
@@ -164,9 +177,11 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
     }
 
     private AdminPartnerRegistrationDetailResponse detail(PartnerProfile profile) {
-        String reason = auditLogs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("PARTNER_PROFILE", profile.getId())
-                .stream().filter(log -> "REVIEW_PARTNER_REGISTRATION".equals(log.getAction()))
-                .map(AuditLog::getReason).findFirst().orElse(null);
+        String reason = profile.getVerificationStatus() == PartnerVerificationStatus.VERIFIED
+                ? profile.getVerificationReason()
+                : auditLogs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("PARTNER_PROFILE", profile.getId())
+                        .stream().filter(log -> "REVIEW_PARTNER_REGISTRATION".equals(log.getAction()))
+                        .map(AuditLog::getReason).findFirst().orElse(null);
         PartnerBusinessVerificationResponse verification = null;
         if (StringUtils.hasText(profile.getBusinessVerificationResult())) {
             verification = objectMapper.readValue(profile.getBusinessVerificationResult(),
@@ -178,6 +193,7 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
                 profile.getOfficialDomain(), profile.getOfficialHotline(), profile.getSmsBrandName(),
                 profile.getVerificationStatus(), profile.getCreatedAt(), profile.getVerifiedAt(),
                 profile.getVerifiedByUser() == null ? null : profile.getVerifiedByUser().getFullName(), reason,
+                profile.getPasswordLinkEmailStatus(), profile.getPasswordSetupCompletedAt(),
                 verification, documents.findMetadataByPartnerId(profile.getId()));
     }
 }

@@ -1,6 +1,7 @@
 package com.be.scamshield.entity;
 
 import com.be.scamshield.constant.PartnerVerificationStatus;
+import com.be.scamshield.constant.PartnerPasswordEmailStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -61,11 +62,21 @@ public class PartnerProfile {
     @Column(name = "verified_at")
     private LocalDateTime verifiedAt;
 
+    @Column(name = "verification_reason", length = 2000)
+    private String verificationReason;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "password_link_email_status", length = 16)
+    private PartnerPasswordEmailStatus passwordLinkEmailStatus;
+
+    @Column(name = "password_setup_completed_at")
+    private LocalDateTime passwordSetupCompletedAt;
 
     @Column(name = "official_domain", length = 253)
     private String officialDomain;

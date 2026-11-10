@@ -31,6 +31,8 @@ export interface PartnerRegistrationDetail extends PartnerRegistrationItem {
   legalRepresentative: boolean
   reviewedBy: string | null
   reviewReason: string | null
+  passwordLinkEmailStatus: "PENDING" | "SENT" | "FAILED" | null
+  passwordSetupCompletedAt: string | null
   businessVerification: {
     outcome: string
     checkedAt: string
@@ -139,6 +141,11 @@ export const adminPartnerRegistrations = {
   ) {
     return unwrap<PartnerRegistrationDetail>(
       authorizeApi.patch(`${basePath}/${id}`, { verificationStatus, reason })
+    )
+  },
+  resendPasswordLink(id: number) {
+    return unwrap<PartnerRegistrationDetail>(
+      authorizeApi.post(`${basePath}/${id}/password-link/resend`)
     )
   },
   document(partnerId: number, documentId: number) {
