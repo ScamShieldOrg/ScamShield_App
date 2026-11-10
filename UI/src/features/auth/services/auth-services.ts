@@ -251,25 +251,41 @@ export const authServices = {
         files: RegisterPartnerFiles
     ) {
         try {
-            const formData = new FormData()
-            formData.append(
-                "request",
-                new Blob([JSON.stringify(requestData)], { type: "application/json" })
-            )
-            files.businessLicenseFiles.forEach((file) => {
-                formData.append("businessLicenseFiles", file)
+            const documents = [
+                ...files.businessLicenseFiles.map((file) => ({ file, documentType: "BUSINESS_LICENSE" })),
+                ...files.ownershipProofFiles.map((file) => ({ file, documentType: "OWNERSHIP_PROOF" })),
+                ...files.authorizationFiles.map((file) => ({ file, documentType: "AUTHORIZATION" })),
+            ]
+            const precheck = await publicApi.post("/partners/registrations/precheck", {
+                registration: requestData,
+                documents: documents.map(({ file, documentType }) => ({
+                    documentType,
+                    fileName: file.name,
+                    contentType: file.type,
+                    fileSize: file.size,
+                })),
             })
-            files.ownershipProofFiles.forEach((file) => {
-                formData.append("ownershipProofFiles", file)
+            const precheckData = precheck.data?.data
+            if (!precheck.data?.isSuccess || !precheckData?.draftToken || !Array.isArray(precheckData.uploads)) {
+                throw new Error(precheck.data?.message || "Không thể bắt đầu tải tài liệu.")
+            }
+            await Promise.all(precheckData.uploads.map(async (target: {
+                documentIndex: number
+                uploadUrl: string
+            }) => {
+                const file = documents[target.documentIndex]?.file
+                if (!file) throw new Error("Thông tin tài liệu tải lên không khớp.")
+                const uploaded = await fetch(target.uploadUrl, {
+                    method: "PUT",
+                    headers: { "Content-Type": file.type },
+                    body: file,
+                })
+                if (!uploaded.ok) throw new Error(`Không tải được tài liệu ${file.name}.`)
+            }))
+            const finalized = await publicApi.post("/partners/registrations/finalize", {
+                draftToken: precheckData.draftToken,
             })
-            files.authorizationFiles.forEach((file) => {
-                formData.append("authorizationFiles", file)
-            })
-
-            const response = await publicApi.post("/partners/registrations", formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            })
-            return response.data
+            return finalized.data?.data
         } catch (error) {
             throw new Error(extractErrorMessage(error, "Đăng ký đối tác thất bại."))
         }

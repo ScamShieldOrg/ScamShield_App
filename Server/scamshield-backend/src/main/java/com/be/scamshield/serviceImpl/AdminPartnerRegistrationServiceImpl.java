@@ -19,6 +19,7 @@ import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.PartnerReviewConflictException;
 import com.be.scamshield.exception.ResourceNotFoundException;
+import com.be.scamshield.external.PartnerDocumentStorageService;
 import com.be.scamshield.repository.AuditLogRepository;
 import com.be.scamshield.repository.IndicatorRepository;
 import com.be.scamshield.repository.PartnerDocumentRepository;
@@ -54,6 +55,7 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
     private final ObjectMapper objectMapper;
     private final Clock applicationClock;
     private final PartnerPasswordSetupService passwordSetupService;
+    private final PartnerDocumentStorageService documentStorage;
 
     @Override
     public PaginatedResponse<AdminPartnerRegistrationItemResponse> list(String search,
@@ -88,9 +90,12 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
         }
         PartnerDocument document = documents.findByIdAndPartnerId(documentId, partnerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài liệu của hồ sơ này"));
+        String downloadUrl = document.getStorageObjectKey() == null ? null
+                : documentStorage.createDownloadUrl(document.getStorageObjectKey(), document.getFileName());
+        String contentBase64 = document.getContent() == null ? null
+                : Base64.getEncoder().encodeToString(document.getContent());
         return new PartnerDocumentContentResponse(document.getId(), document.getFileName(),
-                document.getContentType(), document.getFileSize(),
-                Base64.getEncoder().encodeToString(document.getContent()));
+                document.getContentType(), document.getFileSize(), downloadUrl, contentBase64);
     }
 
     @Transactional

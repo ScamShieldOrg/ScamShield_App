@@ -74,7 +74,8 @@ interface ApiResponse<T> {
 }
 
 interface DocumentContent extends PartnerDocumentMetadata {
-  contentBase64: string
+  downloadUrl: string | null
+  contentBase64: string | null
 }
 
 export class PartnerReviewApiError extends Error {

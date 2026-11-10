@@ -4,6 +4,7 @@ import com.be.scamshield.external.ScamCheckAiClient;
 import com.be.scamshield.support.PostgresIntegrationTest;
 
 import com.be.scamshield.external.BusinessLicenseOcrClient;
+import com.be.scamshield.external.PartnerDocumentStorageService;
 import com.be.scamshield.external.FirebasePhoneClient;
 import com.be.scamshield.external.XinvoiceBusinessClient;
 
@@ -117,6 +118,8 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
     private XinvoiceBusinessClient xinvoiceBusinessClient;
     @MockitoBean
     private BusinessLicenseOcrClient businessLicenseOcrClient;
+    @MockitoBean
+    private PartnerDocumentStorageService documentStorage;
     @Autowired
     private ObjectMapper objectMapper;
     @Autowired
@@ -166,6 +169,11 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
             return new BusinessDocumentOcr(SourceStatus.SUCCESS,
                     List.of(new ExtractedBusiness(request.getLegalName(), request.getTaxCode(), 0.99, 0.99)));
         });
+        when(documentStorage.uploadPendingBytes(any(), any(), any(), any()))
+                .thenAnswer(invocation -> "pending/test/" + java.util.UUID.randomUUID() + ".pdf");
+        when(documentStorage.promotePending(any(), any()))
+                .thenAnswer(invocation -> "documents/" + invocation.getArgument(1) + "/"
+                        + java.util.UUID.randomUUID() + ".pdf");
     }
 
     @Test
@@ -198,8 +206,10 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
         assertThat(documentRepository.count()).isEqualTo(2);
         assertThat(jdbc.queryForObject("select official_domain from partner_profiles where id = ?", String.class,
                 response.getRegistrationId())).isEqualTo("example.com.vn");
-        byte[] stored = jdbc.queryForObject("select content from partner_documents where document_type = 'BUSINESS_LICENSE'", byte[].class);
-        assertThat(stored).isEqualTo("%PDF-1.7\nproof".getBytes(StandardCharsets.US_ASCII));
+        assertThat(jdbc.queryForObject("select content from partner_documents where document_type = 'BUSINESS_LICENSE'", byte[].class))
+                .isNull();
+        assertThat(jdbc.queryForObject("select storage_object_key from partner_documents where document_type = 'BUSINESS_LICENSE'", String.class))
+                .startsWith("documents/");
         assertThat(userRepository.count()).isEqualTo(usersBefore + 1);
         transactionTemplate.executeWithoutResult(status -> {
             User user = userRepository.findById(response.getUserId()).orElseThrow();

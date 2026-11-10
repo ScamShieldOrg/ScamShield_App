@@ -3,11 +3,11 @@ package com.be.scamshield.controller;
 import com.be.scamshield.dto.BaseResponse;
 import com.be.scamshield.dto.request.RegisterPartnerRequest;
 import com.be.scamshield.dto.response.PartnerRegistrationResponse;
+import com.be.scamshield.dto.request.PartnerRegistrationPrecheckRequest;
+import com.be.scamshield.dto.request.PartnerRegistrationFinalizeRequest;
+import com.be.scamshield.dto.response.PartnerRegistrationPrecheckResponse;
 import com.be.scamshield.service.IPartnerRegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Encoding;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,10 +30,27 @@ import java.util.List;
 public class PartnerRegistrationController {
     private final IPartnerRegistrationService registrationService;
 
+    @PostMapping(value = "/precheck", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Đối soát doanh nghiệp và cấp URL tải tài liệu",
+            description = "Đối chiếu tên/MST với XInvoice trước khi cấp presigned URL cho bucket partner-documents")
+    public ResponseEntity<BaseResponse<PartnerRegistrationPrecheckResponse>> precheck(
+            @Valid @RequestBody PartnerRegistrationPrecheckRequest request) {
+        return ResponseEntity.ok(new BaseResponse<>(true, "Thông tin doanh nghiệp hợp lệ; có thể tải tài liệu",
+                registrationService.precheck(request)));
+    }
+
+    @PostMapping(value = "/finalize", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Hoàn tất đăng ký đối tác sau khi tải tài liệu",
+            description = "Xác minh các object đã tải lên, chạy OCR nếu bật và tạo hồ sơ chờ duyệt")
+    public ResponseEntity<BaseResponse<PartnerRegistrationResponse>> finalizeRegistration(
+            @Valid @RequestBody PartnerRegistrationFinalizeRequest request) {
+        PartnerRegistrationResponse response = registrationService.finalizeRegistration(request.draftToken());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new BaseResponse<>(true, "Hồ sơ đối tác đã được gửi và đang chờ xét duyệt", response));
+    }
+
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Tạo tài khoản và nộp hồ sơ đối tác", description = "Cần verificationToken từ /api/auth/verify-contacts sau khi xác thực điện thoại. Giấy phép kinh doanh phải là PDF; các tài liệu khác hỗ trợ PDF/JPG/PNG, tối đa 25MB/tệp. Đối soát tên doanh nghiệp và MST giữa form và XinVoice, kiểm tra status đủ điều kiện đang hoạt động; không đối soát người đại diện. OCR tạm tắt mặc định do chưa có API key: trả ocrEnabled=false và trạng thái tài liệu DISABLED, không chặn vì thiếu cấu hình OCR. Khi bật BUSINESS_LICENSE_OCR_ENABLED=true, bắt buộc tên/MST khớp cả PDF OCR. HTTP 422 nếu chưa đạt; HTTP 503 nếu dịch vụ đang dùng chưa sẵn sàng. Thành công lưu kết quả và tạo hồ sơ PENDING, tài khoản INACTIVE chờ duyệt.",
-            requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                    encoding = @Encoding(name = "request", contentType = MediaType.APPLICATION_JSON_VALUE))))
+    @Operation(summary = "Tạo tài khoản và nộp hồ sơ đối tác", description = "API multipart cũ; luồng mới dùng precheck và finalize để tải file trực tiếp lên Storage.")
     public ResponseEntity<BaseResponse<PartnerRegistrationResponse>> register(
             @Valid @RequestPart("request") RegisterPartnerRequest request,
             @RequestPart(value = "businessLicenseFiles", required = false) List<MultipartFile> businessLicenseFiles,

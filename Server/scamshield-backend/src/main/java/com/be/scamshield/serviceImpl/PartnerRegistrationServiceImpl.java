@@ -4,7 +4,10 @@ import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.RoleEnum;
 import com.be.scamshield.constant.UserStatus;
 import com.be.scamshield.dto.request.RegisterPartnerRequest;
+import com.be.scamshield.dto.request.PartnerRegistrationPrecheckRequest;
+import com.be.scamshield.dto.request.PartnerDocumentUploadRequest;
 import com.be.scamshield.dto.response.PartnerRegistrationResponse;
+import com.be.scamshield.dto.response.PartnerRegistrationPrecheckResponse;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse;
 import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.entity.PartnerDocument;
@@ -13,6 +16,7 @@ import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.RegistrationConflictException;
 import com.be.scamshield.exception.PartnerBusinessVerificationException;
+import com.be.scamshield.external.PartnerDocumentStorageService;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.Outcome;
 import com.be.scamshield.repository.PartnerDocumentRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
@@ -55,6 +59,179 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
     private final PartnerBusinessVerificationService businessVerificationService;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
+    private final PartnerRegistrationDraftStore draftStore;
+    private final PartnerDocumentStorageService documentStorage;
+
+    @Override
+    public PartnerRegistrationPrecheckResponse precheck(PartnerRegistrationPrecheckRequest precheckRequest) {
+        RegisterPartnerRequest request = precheckRequest.registration();
+        if (!request.isAgreeTerms()) {
+            throw new BadRequestException("Bạn phải cam kết thông tin chính xác và thuộc quyền sở hữu hợp pháp");
+        }
+        String taxCode = request.getTaxCode().replace("-", "");
+        if (profileRepository.existsByTaxCode(taxCode)) throw duplicateRegistration();
+        normalizeSingleValue(request.getOfficialDomains(), this::normalizeDomain);
+        normalizeSingleValue(request.getOfficialHotlines(), value -> normalizePhone(value, 6));
+        normalizeSingleValue(request.getSmsBrandNames(), this::normalizeBrandName);
+        String email = contactVerificationService.normalizeEmail(request.getCorporateEmail());
+        String phone = VietnamPhoneNumbers.nationalMobile(request.getContactPhone());
+        contactVerificationService.validateForRegistration(request.getVerificationToken(), phone);
+        if (userRepository.existsByEmailIgnoreCase(email) || userRepository.findByPhoneNumber(phone).isPresent()) {
+            throw new RegistrationConflictException("Email hoặc số điện thoại đã được dùng cho một tài khoản");
+        }
+        List<PartnerDocumentUploadRequest> manifest = validateManifest(precheckRequest.documents());
+        var verification = businessVerificationService.precheck(request.getLegalName().trim(), taxCode);
+        if (verification.outcome() != Outcome.MATCHED) throw new PartnerBusinessVerificationException(verification);
+
+        String draftToken = UUID.randomUUID().toString();
+        List<PartnerRegistrationPrecheckResponse.Upload> uploads = new ArrayList<>();
+        for (int i = 0; i < manifest.size(); i++) {
+            var file = manifest.get(i);
+            var target = documentStorage.createUploadTarget(draftToken, file.fileName(), file.contentType());
+            uploads.add(new PartnerRegistrationPrecheckResponse.Upload(i, target.uploadUrl(),
+                    target.objectKey(), target.expiresInSeconds()));
+        }
+        LocalDateTime expiresAt = draftStore.save(draftToken, request, request.getVerificationToken(),
+                manifest, verification, uploads);
+        return new PartnerRegistrationPrecheckResponse(draftToken, expiresAt, verification, uploads);
+    }
+
+    @Override
+    public PartnerRegistrationResponse finalizeRegistration(String draftToken) {
+        PartnerRegistrationDraftStore.Draft draft = draftStore.find(draftToken)
+                .orElseThrow(() -> new BadRequestException("Phiên tải tài liệu không hợp lệ hoặc đã hết hạn; vui lòng đăng ký lại"));
+        if (!draftStore.claim(draftToken)) {
+            throw new BadRequestException("Yêu cầu hoàn tất đăng ký này đang được xử lý");
+        }
+        try {
+            return completeRegistration(draftToken, draft);
+        } finally {
+            draftStore.releaseClaim(draftToken);
+        }
+    }
+
+    private PartnerRegistrationResponse completeRegistration(String draftToken,
+                                                               PartnerRegistrationDraftStore.Draft draft) {
+        RegisterPartnerRequest request = draft.registration();
+        request.setVerificationToken(draft.verificationToken());
+        String phone = VietnamPhoneNumbers.nationalMobile(request.getContactPhone());
+        String email = contactVerificationService.normalizeEmail(request.getCorporateEmail());
+        String taxCode = request.getTaxCode().replace("-", "");
+        contactVerificationService.validateForRegistration(draft.verificationToken(), phone);
+        if (profileRepository.existsByTaxCode(taxCode)) throw duplicateRegistration();
+        if (userRepository.existsByEmailIgnoreCase(email) || userRepository.findByPhoneNumber(phone).isPresent()) {
+            throw new RegistrationConflictException("Email hoặc số điện thoại đã được dùng cho một tài khoản");
+        }
+
+        LocalDateTime now = LocalDateTime.now(applicationClock);
+        PartnerProfile profile = createProfile(request, taxCode, email, phone, now);
+        List<PartnerDocument> documents = new ArrayList<>();
+        List<String> pendingKeys = new ArrayList<>();
+        List<String> promotedKeys = new ArrayList<>();
+        try {
+            for (int i = 0; i < draft.documents().size(); i++) {
+                var metadata = draft.documents().get(i);
+                var upload = draft.uploads().get(i);
+                byte[] content = documentStorage.readUploadedDocument(upload.objectKey(),
+                        metadata.fileSize(), metadata.contentType());
+                validateDocumentBytes(metadata, content);
+                pendingKeys.add(upload.objectKey());
+                documents.add(PartnerDocument.builder().partner(profile).documentType(metadata.documentType())
+                        .fileName(metadata.fileName()).contentType(metadata.contentType())
+                        .fileSize(metadata.fileSize()).content(content).storageObjectKey(upload.objectKey())
+                        .createdAt(now).build());
+            }
+            var verification = businessVerificationService.verifyDocuments(profile.getLegalName(), taxCode,
+                    documents, draft.businessVerification());
+            if (verification.outcome() != Outcome.MATCHED) throw new PartnerBusinessVerificationException(verification);
+            profile.setBusinessVerificationResult(objectMapper.writeValueAsString(verification));
+            documents.forEach(document -> document.setContent(null));
+            Role partnerRole = roleRepository.findByName(RoleEnum.BUSINESS_PARTNER.name())
+                    .orElseThrow(() -> new IllegalStateException("Chưa cấu hình role BUSINESS_PARTNER"));
+            String passwordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+            PartnerRegistrationResponse response = transactionTemplate.execute(status ->
+                    persistRegistration(request, profile, documents, partnerRole, passwordHash, verification, promotedKeys));
+            draftStore.delete(draftToken);
+            pendingKeys.forEach(documentStorage::deletePending);
+            return response;
+        } catch (RuntimeException ex) {
+            promotedKeys.forEach(key -> safelyDeleteDocument(key));
+            pendingKeys.forEach(key -> safelyDeletePending(key));
+            draftStore.delete(draftToken);
+            throw ex;
+        } catch (Exception ex) {
+            promotedKeys.forEach(key -> safelyDeleteDocument(key));
+            pendingKeys.forEach(key -> safelyDeletePending(key));
+            draftStore.delete(draftToken);
+            throw new IllegalStateException("Không thể hoàn tất hồ sơ đối tác", ex);
+        }
+    }
+
+    private List<PartnerDocumentUploadRequest> validateManifest(List<PartnerDocumentUploadRequest> requested) {
+        if (requested == null || requested.isEmpty() || requested.size() > MAX_FILES) {
+            throw new BadRequestException("Cần từ 1 đến 10 tài liệu cho hồ sơ");
+        }
+        long total = 0;
+        boolean hasLicense = false;
+        boolean hasOwnership = false;
+        List<PartnerDocumentUploadRequest> result = new ArrayList<>();
+        for (var file : requested) {
+            String name = file.fileName().replace('\\', '/');
+            name = name.substring(name.lastIndexOf('/') + 1);
+            String type = file.documentType();
+            if (!Set.of("BUSINESS_LICENSE", "OWNERSHIP_PROOF", "AUTHORIZATION").contains(type)
+                    || name.isBlank() || name.length() > 255 || name.chars().anyMatch(Character::isISOControl)
+                    || file.fileSize() <= 0 || file.fileSize() > MAX_FILE_SIZE
+                    || !Set.of("application/pdf", "image/jpeg", "image/png").contains(file.contentType())) {
+                throw new BadRequestException("Thông tin hoặc định dạng tài liệu không hợp lệ");
+            }
+            String extension = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+            boolean validExtension = switch (file.contentType()) {
+                case "application/pdf" -> extension.equals("pdf");
+                case "image/jpeg" -> extension.equals("jpg") || extension.equals("jpeg");
+                case "image/png" -> extension.equals("png");
+                default -> false;
+            };
+            if (!validExtension || ("BUSINESS_LICENSE".equals(type) && !"application/pdf".equals(file.contentType()))) {
+                throw new BadRequestException("Giấy phép kinh doanh phải là PDF; tài liệu khác hỗ trợ PDF, JPG, PNG");
+            }
+            hasLicense |= "BUSINESS_LICENSE".equals(type);
+            hasOwnership |= "OWNERSHIP_PROOF".equals(type);
+            total += file.fileSize();
+            result.add(new PartnerDocumentUploadRequest(type, name, file.contentType(), file.fileSize()));
+        }
+        if (!hasLicense || !hasOwnership || total > MAX_TOTAL_SIZE) {
+            throw new BadRequestException("Cần giấy phép kinh doanh và tài liệu chứng minh quyền sở hữu; tổng dung lượng tối đa 75MB");
+        }
+        return result;
+    }
+
+    private void validateDocumentBytes(PartnerDocumentUploadRequest metadata, byte[] content) {
+        String detected = detectContentType(content);
+        if (!detected.equals(metadata.contentType())) {
+            throw new BadRequestException("Chữ ký nội dung file không khớp MIME đã khai báo");
+        }
+    }
+
+    private PartnerProfile createProfile(RegisterPartnerRequest request, String taxCode, String email,
+                                         String phone, LocalDateTime now) {
+        return PartnerProfile.builder().legalName(request.getLegalName().trim())
+                .brandName(request.getLegalName().trim()).taxCode(taxCode).corporateEmail(email)
+                .representativeNameAndTitle(request.getRepresentativeNameAndTitle().trim())
+                .contactPhone(phone).verificationStatus(PartnerVerificationStatus.PENDING)
+                .createdAt(now).updatedAt(now)
+                .officialDomain(normalizeSingleValue(request.getOfficialDomains(), this::normalizeDomain))
+                .officialHotline(normalizeSingleValue(request.getOfficialHotlines(), value -> normalizePhone(value, 6)))
+                .smsBrandName(normalizeSingleValue(request.getSmsBrandNames(), this::normalizeBrandName)).build();
+    }
+
+    private void safelyDeletePending(String key) {
+        try { documentStorage.deletePending(key); } catch (RuntimeException ignored) { }
+    }
+
+    private void safelyDeleteDocument(String key) {
+        try { documentStorage.deleteDocument(key); } catch (RuntimeException ignored) { }
+    }
 
     @Override
     public PartnerRegistrationResponse register(RegisterPartnerRequest request,
@@ -140,13 +317,39 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
         }
         profile.setBusinessVerificationResult(objectMapper.writeValueAsString(businessVerification));
         String passwordHash = passwordEncoder.encode(UUID.randomUUID().toString());
-        return transactionTemplate.execute(status -> persistRegistration(request, profile, documents,
-                partnerRole, passwordHash, businessVerification));
+        List<String> pendingKeys = new ArrayList<>();
+        List<String> promotedKeys = new ArrayList<>();
+        try {
+            for (PartnerDocument document : documents) {
+                String key = documentStorage.uploadPendingBytes(UUID.randomUUID().toString(), document.getFileName(),
+                        document.getContentType(), document.getContent());
+                pendingKeys.add(key);
+                document.setStorageObjectKey(key);
+                document.setContent(null);
+            }
+            PartnerRegistrationResponse response = transactionTemplate.execute(status ->
+                    persistRegistration(request, profile, documents, partnerRole, passwordHash,
+                            businessVerification, promotedKeys));
+            pendingKeys.forEach(this::safelyDeletePending);
+            return response;
+        } catch (RuntimeException ex) {
+            promotedKeys.forEach(this::safelyDeleteDocument);
+            pendingKeys.forEach(this::safelyDeletePending);
+            throw ex;
+        }
     }
 
     private PartnerRegistrationResponse persistRegistration(RegisterPartnerRequest request, PartnerProfile profile,
                                                             List<PartnerDocument> documents, Role partnerRole,
                                                             String passwordHash, PartnerBusinessVerificationResponse businessVerification) {
+        return persistRegistration(request, profile, documents, partnerRole, passwordHash, businessVerification,
+                new ArrayList<>());
+    }
+
+    private PartnerRegistrationResponse persistRegistration(RegisterPartnerRequest request, PartnerProfile profile,
+                                                            List<PartnerDocument> documents, Role partnerRole,
+                                                            String passwordHash, PartnerBusinessVerificationResponse businessVerification,
+                                                            List<String> promotedKeys) {
         LocalDateTime now = LocalDateTime.now(applicationClock);
         contactVerificationService.consume(request.getVerificationToken(), profile.getContactPhone());
         User user = User.builder()
@@ -178,6 +381,13 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
                 throw duplicateRegistration();
             }
             throw ex;
+        }
+        for (PartnerDocument document : documents) {
+            if (document.getStorageObjectKey() != null) {
+                String permanentKey = documentStorage.promotePending(document.getStorageObjectKey(), profile.getId());
+                promotedKeys.add(permanentKey);
+                document.setStorageObjectKey(permanentKey);
+            }
         }
         documentRepository.saveAll(documents);
         return new PartnerRegistrationResponse(profile.getId(), user.getId(), profile.getVerificationStatus(), now, businessVerification);

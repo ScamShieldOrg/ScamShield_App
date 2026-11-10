@@ -90,6 +90,8 @@ public class SecurityConfig {
                         .requestMatchers("/firebase-otp-test.html", "/firebase-otp-test.js")
                             .access((authentication, context) -> new AuthorizationDecision(testUiEnabled))
                         .requestMatchers(HttpMethod.POST, "/api/partners/registrations").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/partners/registrations/precheck",
+                                "/api/partners/registrations/finalize").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/guest/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/scam-checks").permitAll()

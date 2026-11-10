@@ -65,7 +65,7 @@ public class AdminPartnerRegistrationController {
     }
 
     @GetMapping("/{id}/documents/{documentId}")
-    @Operation(summary = "Tải một tài liệu của hồ sơ", description = "Chỉ quản trị viên; trả nội dung Base64 trong BaseResponse")
+    @Operation(summary = "Tải một tài liệu của hồ sơ", description = "Chỉ quản trị viên; trả signed URL ngắn hạn cho tài liệu mới, Base64 cho dữ liệu cũ")
     public ResponseEntity<BaseResponse<PartnerDocumentContentResponse>> document(
             @PathVariable Long id, @PathVariable Long documentId) {
         return ResponseEntity.ok(new BaseResponse<>(true, "Lấy tài liệu thành công", service.document(id, documentId)));

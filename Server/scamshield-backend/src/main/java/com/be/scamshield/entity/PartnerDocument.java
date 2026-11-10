@@ -45,8 +45,11 @@ public class PartnerDocument {
     @Column(nullable = false)
     private Long fileSize;
 
-    // PostgreSQL bytea keeps legal evidence private and in the same DB transaction.
-    @Column(nullable = false, columnDefinition = "bytea")
+    @Column(name = "storage_object_key", length = 1024)
+    private String storageObjectKey;
+
+    // Nullable during the transition for legacy rows; new registrations store bytes only transiently.
+    @Column(columnDefinition = "bytea")
     private byte[] content;
 
     @Column(nullable = false)

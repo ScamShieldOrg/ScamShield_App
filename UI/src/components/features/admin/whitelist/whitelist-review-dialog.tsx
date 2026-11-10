@@ -93,24 +93,41 @@ export function WhitelistReviewDialog({
     const tab = window.open("", "_blank")
     setOpeningDocument(document.id)
     setError(null)
+    let blobUrl: string | undefined
     try {
       const response = await adminPartnerRegistrations.document(
         item.id,
         document.id
       )
-      const blob = new Blob([decodeBase64(response.contentBase64)], {
-        type: response.contentType,
-      })
-      const url = URL.createObjectURL(blob)
       if (tab) {
-        tab.location.href = url
+        if (response.downloadUrl) {
+          tab.location.href = response.downloadUrl
+        } else if (response.contentBase64) {
+          const blob = new Blob([decodeBase64(response.contentBase64)], {
+            type: response.contentType,
+          })
+          blobUrl = URL.createObjectURL(blob)
+          tab.location.href = blobUrl
+        } else {
+          tab.close()
+          throw new Error("Không nhận được liên kết tải tài liệu.")
+        }
       } else {
+        if (response.downloadUrl) {
+          window.location.assign(response.downloadUrl)
+          return
+        }
+        if (!response.contentBase64) throw new Error("Không nhận được nội dung tài liệu.")
+        const blob = new Blob([decodeBase64(response.contentBase64)], {
+          type: response.contentType,
+        })
+        blobUrl = URL.createObjectURL(blob)
         const link = window.document.createElement("a")
-        link.href = url
+        link.href = blobUrl
         link.download = response.fileName
         link.click()
       }
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      if (blobUrl) window.setTimeout(() => URL.revokeObjectURL(blobUrl!), 60_000)
     } catch (cause) {
       tab?.close()
       setError(

@@ -20,6 +20,7 @@ import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.service.PartnerPasswordSetupService;
+import com.be.scamshield.external.PartnerDocumentStorageService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -54,6 +55,7 @@ class AdminPartnerRegistrationServiceImplTest {
     @Mock private WhitelistEntryRepository whitelistEntries;
     @Mock private AuditLogRepository auditLogs;
     @Mock private PartnerPasswordSetupService passwordSetupService;
+    @Mock private PartnerDocumentStorageService documentStorage;
 
     private AdminPartnerRegistrationServiceImpl service;
     private PartnerProfile profile;
@@ -63,7 +65,8 @@ class AdminPartnerRegistrationServiceImplTest {
     void setUp() {
         service = new AdminPartnerRegistrationServiceImpl(profiles, documents, users, indicators,
                 whitelistEntries, auditLogs, new ObjectMapper(),
-                Clock.fixed(Instant.parse("2026-10-28T08:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")), passwordSetupService);
+                Clock.fixed(Instant.parse("2026-10-28T08:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")), passwordSetupService,
+                documentStorage);
         User partnerUser = User.builder().id(20L).fullName("Người đăng ký").status(UserStatus.INACTIVE.name()).build();
         reviewer = User.builder().id(1L).fullName("Quản trị viên").build();
         profile = PartnerProfile.builder().id(10L).user(partnerUser).legalName("Công ty A")
