@@ -19,7 +19,7 @@ public interface WhitelistResourceRepository extends JpaRepository<PartnerProfil
             SELECT p FROM PartnerProfile p
             WHERE p.verificationStatus = :verified
               AND EXISTS (SELECT w.id FROM WhitelistEntry w
-                          WHERE w.partner = p AND w.verificationStatus = 'VERIFIED')
+                          WHERE w.partner = p AND w.verificationStatus = com.be.scamshield.constant.WhitelistVerificationStatus.VERIFIED)
               AND (:keyword IS NULL
                    OR LOWER(p.legalName) LIKE :keyword
                    OR LOWER(p.brandName) LIKE :keyword
@@ -29,7 +29,7 @@ public interface WhitelistResourceRepository extends JpaRepository<PartnerProfil
                    OR LOWER(COALESCE(p.contactPhone, '')) LIKE :keyword
                    OR LOWER(COALESCE(p.corporateEmail, '')) LIKE :keyword
                    OR EXISTS (SELECT w.id FROM WhitelistEntry w JOIN w.indicator i
-                              WHERE w.partner = p AND w.verificationStatus = 'VERIFIED'
+                              WHERE w.partner = p AND w.verificationStatus = com.be.scamshield.constant.WhitelistVerificationStatus.VERIFIED
                                 AND (LOWER(i.normalizedValue) LIKE :keyword
                                      OR LOWER(COALESCE(i.displayValue, '')) LIKE :keyword)))
             ORDER BY CASE WHEN :sortBy = 'name' THEN LOWER(p.legalName) END ASC,
@@ -39,7 +39,7 @@ public interface WhitelistResourceRepository extends JpaRepository<PartnerProfil
                     SELECT COUNT(p) FROM PartnerProfile p
                     WHERE p.verificationStatus = :verified
                       AND EXISTS (SELECT w.id FROM WhitelistEntry w
-                                  WHERE w.partner = p AND w.verificationStatus = 'VERIFIED')
+                                  WHERE w.partner = p AND w.verificationStatus = com.be.scamshield.constant.WhitelistVerificationStatus.VERIFIED)
                       AND (:keyword IS NULL
                            OR LOWER(p.legalName) LIKE :keyword
                            OR LOWER(p.brandName) LIKE :keyword
@@ -49,7 +49,7 @@ public interface WhitelistResourceRepository extends JpaRepository<PartnerProfil
                            OR LOWER(COALESCE(p.contactPhone, '')) LIKE :keyword
                            OR LOWER(COALESCE(p.corporateEmail, '')) LIKE :keyword
                            OR EXISTS (SELECT w.id FROM WhitelistEntry w JOIN w.indicator i
-                                      WHERE w.partner = p AND w.verificationStatus = 'VERIFIED'
+                                      WHERE w.partner = p AND w.verificationStatus = com.be.scamshield.constant.WhitelistVerificationStatus.VERIFIED
                                         AND (LOWER(i.normalizedValue) LIKE :keyword
                                              OR LOWER(COALESCE(i.displayValue, '')) LIKE :keyword)))
                     """)
@@ -58,6 +58,6 @@ public interface WhitelistResourceRepository extends JpaRepository<PartnerProfil
                                               @Param("sortBy") String sortBy,
                                               Pageable pageable);
 
-    @Query("SELECT w FROM WhitelistEntry w JOIN FETCH w.indicator WHERE w.partner.id IN :partnerIds AND w.verificationStatus = 'VERIFIED' ORDER BY w.id")
+    @Query("SELECT w FROM WhitelistEntry w JOIN FETCH w.indicator WHERE w.partner.id IN :partnerIds AND w.verificationStatus = com.be.scamshield.constant.WhitelistVerificationStatus.VERIFIED ORDER BY w.id")
     List<WhitelistEntry> findVerifiedEntries(@Param("partnerIds") Collection<Long> partnerIds);
 }

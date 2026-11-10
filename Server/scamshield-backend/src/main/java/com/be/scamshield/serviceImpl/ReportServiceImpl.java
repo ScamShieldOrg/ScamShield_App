@@ -2,6 +2,7 @@ package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.ReportEvidenceType;
 import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.constant.PartnerVerificationStatus;
 import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.external.SupabaseStorageService;
 import org.springframework.context.ApplicationEventPublisher;
@@ -25,6 +26,7 @@ import com.be.scamshield.repository.ReportEvidenceRepository;
 import com.be.scamshield.repository.ReportRepository;
 import com.be.scamshield.repository.ScamCategorieRepository;
 import com.be.scamshield.repository.UserRepository;
+import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IReportService;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +62,7 @@ public class ReportServiceImpl implements IReportService {
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final IndicatorRepository indicatorRepository;
+    private final WhitelistEntryRepository whitelistEntries;
     private final ScamCategorieRepository scamCategorieRepository;
     private final UserRepository userRepository;
     private final SupabaseStorageService supabaseStorageService;
@@ -105,6 +108,16 @@ public class ReportServiceImpl implements IReportService {
         if (!StringUtils.hasText(normalizedValue)) {
             throw new BadRequestException("Đối tượng báo cáo không hợp lệ");
         }
+        List<String> targetValues = legacyIndicatorValues(reportType, normalizedValue, legacyValue);
+        targetValues.add(normalizedValue);
+        List<Long> matchingIds = indicatorRepository
+                .findByTypeAndNormalizedValueInOrderByIdAsc(reportType, targetValues)
+                .stream().map(Indicator::getId).toList();
+        if (!matchingIds.isEmpty() && !whitelistEntries.findVerifiedForCheck(
+                matchingIds, PartnerVerificationStatus.VERIFIED, LocalDateTime.now()).isEmpty()) {
+            throw new BadRequestException("Đối tượng này thuộc danh sách tin cậy (whitelist) đang có hiệu lực. Hiện tại bạn không thể gửi báo cáo về đối tượng này.");
+        }
+
         Indicator indicator = indicatorRepository
                 .findFirstByTypeAndNormalizedValueOrderByIdAsc(reportType, normalizedValue)
                 .or(() -> indicatorRepository.findFirstByTypeAndNormalizedValueInOrderByIdAsc(

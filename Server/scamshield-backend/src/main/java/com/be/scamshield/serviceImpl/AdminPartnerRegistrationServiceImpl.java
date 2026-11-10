@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.WhitelistVerificationStatus;
 import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.UserStatus;
@@ -137,13 +138,15 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
                 indicators.save(Indicator.builder().type(type).normalizedValue(value).displayValue(value)
                         .firstSeenAt(now).lastSeenAt(now).createdAt(now).updatedAt(now).build()));
         if (whitelistEntries.existsByIndicatorIdAndVerificationStatusAndPartnerIdNot(
-                indicator.getId(), "VERIFIED", profile.getId())) {
+                indicator.getId(), WhitelistVerificationStatus.VERIFIED, profile.getId())) {
             throw new PartnerReviewConflictException("Chỉ số " + value + " đã được xác minh cho đối tác khác");
         }
         WhitelistEntry entry = whitelistEntries.findByIndicatorIdAndPartnerId(indicator.getId(), profile.getId())
                 .orElseGet(() -> WhitelistEntry.builder().partner(profile).indicator(indicator)
                         .autoLockModeration(false).createdAt(now).build());
-        entry.setVerificationStatus("VERIFIED");
+        entry.setVerificationStatus(WhitelistVerificationStatus.VERIFIED);
+        entry.setRevokedAt(null);
+        entry.setRevocationReason(null);
         entry.setVerifiedByUser(reviewer);
         entry.setVerifiedAt(now);
         entry.setUpdatedAt(now);

@@ -1,5 +1,6 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.constant.WhitelistVerificationStatus;
 import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.constant.ConfirmedIndicatorStatus;
@@ -257,7 +258,7 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
                 .brandName("Test partner").verificationStatus(PartnerVerificationStatus.VERIFIED)
                 .createdAt(NOW).build();
         em.persist(partner);
-        em.persist(WhitelistEntry.builder().partner(partner).indicator(indicator).verificationStatus("VERIFIED")
+        em.persist(WhitelistEntry.builder().partner(partner).indicator(indicator).verificationStatus(WhitelistVerificationStatus.VERIFIED)
                 .autoLockModeration(true).createdAt(NOW).build());
         em.flush();
     }

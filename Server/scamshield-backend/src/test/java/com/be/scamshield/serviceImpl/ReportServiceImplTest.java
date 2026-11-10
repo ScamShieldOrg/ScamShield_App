@@ -1,5 +1,9 @@
 package com.be.scamshield.serviceImpl;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.be.scamshield.entity.WhitelistEntry;
+import com.be.scamshield.constant.PartnerVerificationStatus;
+import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.constant.VietnamProvince;
@@ -43,6 +47,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -56,7 +62,11 @@ class ReportServiceImplTest {
     @ValueSource(strings = {"PHONE", "BANK_ACCOUNT", "URL"})
     void acceptsAllStandardIndicatorTypes(String type) {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
-        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.valueOf(type), "external.example"))
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.valueOf(type), switch (type) {
+            case "PHONE" -> "externalexample";
+            case "BANK_ACCOUNT" -> "EXTERNAL.EXAMPLE";
+            default -> "external.example";
+        }))
                 .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue("external.example").build()));
         when(categories.findByCode("OTHER")).thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
         when(reports.save(any(Report.class))).thenAnswer(invocation -> {
@@ -103,6 +113,7 @@ class ReportServiceImplTest {
     @Mock private ReportRepository reports;
     @Mock private ReportEvidenceRepository evidences;
     @Mock private IndicatorRepository indicators;
+    @Mock private WhitelistEntryRepository whitelistEntries;
     @Mock private ScamCategorieRepository categories;
     @Mock private UserRepository users;
     @Mock private SupabaseStorageService storage;
@@ -155,7 +166,7 @@ class ReportServiceImplTest {
         };
         User reporter = reporter("0912345678");
         when(users.findById(1L)).thenReturn(Optional.of(reporter));
-        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.valueOf(type), target))
+        when(indicators.findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType.valueOf(type), type.equals("URL") ? "example.com" : target))
                 .thenReturn(Optional.of(Indicator.builder().type(IndicatorType.valueOf(type)).displayValue(target).build()));
         when(categories.findByCode("OTHER"))
                 .thenReturn(Optional.of(ScamCategory.builder().name("Khác").build()));
@@ -339,5 +350,22 @@ class ReportServiceImplTest {
     private CreateReportRequest request(String type, String target) {
         return CreateReportRequest.builder().threatType(type).targetIdentifier(target)
                 .regionCode("01").category("OTHER").description("Nội dung báo cáo").isConfirmed(true).build();
+    }
+    @Test
+    void blocksWhitelistedPhoneAliasBeforeSavingReportOrUploadingEvidence() {
+        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        Indicator alias = Indicator.builder().id(42L).type(IndicatorType.PHONE)
+                .normalizedValue("+84987654321").build();
+        when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(
+                eq(IndicatorType.PHONE), argThat(values -> values.contains("+84987654321"))))
+                .thenReturn(List.of(alias));
+        when(whitelistEntries.findVerifiedForCheck(eq(List.of(42L)),
+                eq(PartnerVerificationStatus.VERIFIED), any()))
+                .thenReturn(List.of(WhitelistEntry.builder().build()));
+
+        assertThatThrownBy(() -> service.createReport(request("PHONE", "0987654321"), List.of(new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1})), principal()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("danh sách tin cậy");
+        verifyNoInteractions(reports, storage);
     }
 }
