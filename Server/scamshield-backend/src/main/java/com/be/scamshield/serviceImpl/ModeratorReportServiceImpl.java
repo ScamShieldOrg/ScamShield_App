@@ -31,8 +31,14 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.query.QueryUtils;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Order;
+import java.util.ArrayList;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -78,7 +84,28 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         ModeratorReportFilterRequest safeFilter = filter != null ? filter : new ModeratorReportFilterRequest();
         Specification<Report> spec = ModeratorReportScope.visibleTo(currentUser).and(createFilterSpecification(safeFilter));
         reviewAssignments.assignPendingReports();
-        Page<Report> pageResult = reportRepository.findAll(spec, pageable);
+        Sort queueSort = pageable.getSort();
+        if (queueSort.getOrderFor("id") == null) {
+            queueSort = queueSort.and(Sort.by("id"));
+        }
+        Sort stableSort = queueSort;
+        Specification<Report> prioritized = spec.and((root, query, cb) -> {
+            if (query != null && Report.class.equals(query.getResultType())) {
+                var assignee = root.join("assignedModerator", JoinType.LEFT);
+                var priority = cb.<Integer>selectCase()
+                        .when(cb.equal(assignee.get("id"), currentUser.getId()), 0)
+                        .otherwise(1);
+                List<Order> orders = new ArrayList<>();
+                orders.add(cb.asc(priority));
+                orders.addAll(QueryUtils.toOrders(stableSort, root, cb));
+                query.orderBy(orders);
+            }
+            return cb.conjunction();
+        });
+        Pageable pageWithoutSort = pageable.isPaged()
+                ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize())
+                : Pageable.unpaged();
+        Page<Report> pageResult = reportRepository.findAll(prioritized, pageWithoutSort);
 
         if (pageResult.isEmpty()) {
             PaginatedResponse<ModeratorReportResponse> emptyResponse = new PaginatedResponse<>();
@@ -192,6 +219,11 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             case APPROVE -> ReportStatus.APPROVED;
             case REJECT -> ReportStatus.REJECTED;
         };
+        if (newReportStatus == ReportStatus.APPROVED && report.getIndicator() != null
+                && !whitelistEntryRepository.findVerifiedForCheck(List.of(report.getIndicator().getId()),
+                        PartnerVerificationStatus.VERIFIED, now).isEmpty()) {
+            throw new BadRequestException("Không thể phê duyệt báo cáo vì đối tượng đang thuộc danh sách tin cậy.");
+        }
 
         // Determine optional matched ScamCategory from categoryId
         ScamCategory matchedCategory = null;
@@ -461,6 +493,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     private ModeratorReportResponse mapToModeratorReportResponse(Report report, List<ReportEvidence> evidences,
                                                                 UserPrincipal currentUser, QueueLookups lookups) {
         User assignedModerator = report.getAssignedModerator();
+        boolean assignedToMe = currentUser != null && assignedModerator != null
+                && Objects.equals(assignedModerator.getId(), currentUser.getId());
         int year = report.getCreatedAt() != null ? report.getCreatedAt().getYear() : 2024;
         String formattedCode = String.format("CS-%d-%04d", year, report.getId());
 
@@ -519,8 +553,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .reportedMessage(report.getReportedMessage())
                 .category(categoryName)
                 .categoryId(categoryId)
-                .canReview((report.getStatus() == ReportStatus.PENDING || report.getStatus() == ReportStatus.IN_REVIEW) && assignedModerator != null
-                        && Objects.equals(assignedModerator.getId(), currentUser.getId()))
+                .canReview(assignedToMe && (report.getStatus() == ReportStatus.PENDING || report.getStatus() == ReportStatus.IN_REVIEW))
+                .assignedToMe(assignedToMe)
                 .whitelisted(!whitelistMatches.isEmpty())
                 .whitelistMatches(whitelistMatches)
                 .reportCount(1)

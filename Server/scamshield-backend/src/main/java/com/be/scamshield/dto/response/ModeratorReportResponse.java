@@ -52,6 +52,7 @@ public class ModeratorReportResponse {
 
     @Schema(description = "Tài khoản hiện tại có quyền nhận duyệt báo cáo")
     private boolean canReview;
+    private boolean assignedToMe;
 
     @Schema(description = "Indicator thuộc whitelist đang có hiệu lực; cảnh báo hỗ trợ quyết định")
     private boolean whitelisted;

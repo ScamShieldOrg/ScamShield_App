@@ -89,6 +89,7 @@ export interface ModeratorReportItem {
   taxonomies: string[]
   isLocked?: boolean
   canReview?: boolean
+  assignedToMe?: boolean
   whitelisted?: boolean
   whitelistMatches?: {
     whitelistEntryId: number

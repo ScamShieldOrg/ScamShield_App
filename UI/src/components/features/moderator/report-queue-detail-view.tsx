@@ -254,6 +254,7 @@ export function ReportQueueDetailView({
           className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
         >
           <h2 className="font-bold">Đối tượng đang thuộc danh sách tin cậy</h2>
+          {pending && <p className="mt-1">Báo cáo này không thể được phê duyệt.</p>}
 
           <ul className="mt-2 space-y-1">
             {item.whitelistMatches?.map((match) => (
@@ -284,6 +285,7 @@ export function ReportQueueDetailView({
             onSubmit={onDecisionSubmitted}
             onDirtyChange={onDirtyChange}
             isSubmitting={busy}
+            approvalBlocked={item.whitelisted}
           />
         </>
       )}

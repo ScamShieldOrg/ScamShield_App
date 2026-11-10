@@ -15,6 +15,7 @@ interface ReportDecisionFormProps {
   onSubmit: (payload: ModerationDecisionPayload) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
   isSubmitting?: boolean
+  approvalBlocked?: boolean
 }
 
 type DecisionType = "APPROVE" | "REJECT"
@@ -27,6 +28,7 @@ export function ReportDecisionForm({
   onSubmit,
   onDirtyChange,
   isSubmitting = false,
+  approvalBlocked = false,
 }: ReportDecisionFormProps) {
   const [decision, setDecision] = useState<DecisionType | null>(null)
   const [reason, setReason] = useState<string>("")
@@ -46,7 +48,11 @@ export function ReportDecisionForm({
   const isReasonValid =
     reason.trim().length <= 2000 &&
     (decision !== "REJECT" || reason.trim().length >= minLength)
-  const canSubmit = decision !== null && isReasonValid && !isSubmitting
+  const canSubmit =
+    decision !== null &&
+    !(decision === "APPROVE" && approvalBlocked) &&
+    isReasonValid &&
+    !isSubmitting
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,13 +104,16 @@ export function ReportDecisionForm({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               type="button"
+              disabled={approvalBlocked}
               onClick={() => {
                 setDecision("APPROVE")
                 onDirtyChange?.(true)
               }}
               aria-pressed={decision === "APPROVE"}
               className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border py-3 text-xs font-bold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-                decision === "APPROVE"
+                approvalBlocked
+                  ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                  : decision === "APPROVE"
                   ? "border-emerald-700 bg-emerald-700 text-white shadow-xs hover:bg-emerald-800 dark:border-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                   : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
               }`}

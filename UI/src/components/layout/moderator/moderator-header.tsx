@@ -37,7 +37,7 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
   const initials = Array.from((currentProfile?.fullName?.trim() || currentProfile?.username || currentProfile?.email || user?.email || "").trim()).slice(0, 2).join("").toLocaleUpperCase("vi-VN")
 
   const isReportsActive =
-    pathname?.includes("/moderator/reports") || pathname === "/moderator"
+    pathname?.includes("/moderator/reports")
   const isDisputesActive = pathname?.includes("/moderator/disputes")
   const isPartnersActive = pathname?.includes("/moderator/indicators")
 
@@ -49,7 +49,7 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
         {/* Left: Brand + Navigation Tabs */}
         <div className="flex items-center gap-8">
           {/* Brand Logo */}
-          <Link href="/moderator/reports" className="flex items-center gap-3">
+          <Link href="/moderator" className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-xl bg-slate-950 text-emerald-400 shadow-sm dark:bg-emerald-500 dark:text-slate-950">
               <ShieldCheck size={22} weight="fill" />
             </div>
@@ -70,6 +70,10 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
 
           {/* Navigation Tabs */}
           <nav className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 p-1 md:flex dark:border-slate-800 dark:bg-slate-800/80">
+            <Link href="/moderator" aria-current={pathname === "/moderator" ? "page" : undefined}
+              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold ${pathname === "/moderator" ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 dark:text-slate-300"}`}>
+              Tổng quan
+            </Link>
             <Link
               href="/moderator/reports"
               className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-all ${
@@ -78,7 +82,7 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
             >
-              Hàng chờ kiểm duyệt
+              Xử lý báo cáo
             </Link>
             <Link
               href="/moderator/disputes"
@@ -130,7 +134,11 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
             </div>
             <button
               type="button"
-              onClick={() => void handleLogout()}
+              onClick={() => {
+                if (window.confirm("Bạn có muốn đăng xuất?")) {
+                  void handleLogout()
+                }
+              }}
               className="ml-1 inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               aria-label="Đăng xuất khỏi tài khoản kiểm duyệt"
             >
