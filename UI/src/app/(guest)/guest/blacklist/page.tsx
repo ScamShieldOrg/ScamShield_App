@@ -60,6 +60,7 @@ interface WhitelistItem {
 }
 
 function toWhitelistItem(resource: WhitelistResource): WhitelistItem {
+  const partnerType = resource.partnerType?.trim()
   const type = resource.verifiedIndicators[0]?.resourceType?.toUpperCase()
   const category =
     type === "PHONE"
@@ -79,9 +80,9 @@ function toWhitelistItem(resource: WhitelistResource): WhitelistItem {
     name: resource.name,
     category,
     categoryLabel:
-      resource.partnerType === "BUSINESS"
+      partnerType === "BUSINESS"
         ? "DOANH NGHIỆP"
-        : resource.partnerType,
+        : partnerType || "ĐƠN VỊ ĐÃ XÁC MINH",
     description:
       resource.brandName !== resource.name
         ? `Thương hiệu: ${resource.brandName}`
@@ -898,7 +899,7 @@ function GuestBlacklistContent({
                       ) : item.category === "bank" ? (
                         <CreditCardIcon size={20} weight="bold" />
                       ) : item.category === "website" &&
-                        item.categoryLabel.includes("CƠ QUAN") ? (
+                        item.categoryLabel?.includes("CƠ QUAN") ? (
                         <BuildingsIcon size={20} weight="bold" />
                       ) : (
                         <ShieldCheckIcon size={20} weight="bold" />
