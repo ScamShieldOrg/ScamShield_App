@@ -145,9 +145,6 @@ export function OfficialAlertForm() {
     const submittedBrandname = brandnamePhone
     const submittedDomains = domains
     const submittedMuleAccounts = muleAccounts
-    const submittedFirstObserved = firstObserved
-    const submittedLastObserved = lastObserved
-    const submittedAffectedScope = affectedScope
     const submittedScenarioDescription = scenarioDescription
     const submittedFiles = files
     const submittedRealFile = uploadedRealFile
@@ -182,13 +179,11 @@ export function OfficialAlertForm() {
 
       toast.success("Đã gửi phát lệnh cảnh báo khẩn cấp thành công! Hồ sơ đã được đưa vào luồng C1 Fast-Track.")
 
-      // Clear only fields whose current values still match the submitted draft
+      // Clear only fields that were actually submitted and whose current values still match the submitted draft.
+      // firstObserved, lastObserved, and affectedScope are retained until the submission contract includes them.
       setBrandnamePhone((curr) => (curr === submittedBrandname ? "" : curr))
       setDomains((curr) => (curr === submittedDomains ? "" : curr))
       setMuleAccounts((curr) => (curr === submittedMuleAccounts ? "" : curr))
-      setFirstObserved((curr) => (curr === submittedFirstObserved ? "" : curr))
-      setLastObserved((curr) => (curr === submittedLastObserved ? "" : curr))
-      setAffectedScope((curr) => (curr === submittedAffectedScope ? "" : curr))
       setScenarioDescription((curr) => (curr === submittedScenarioDescription ? "" : curr))
       setFiles((curr) => (curr === submittedFiles ? [] : curr))
       setUploadedRealFile((curr) => (curr === submittedRealFile ? null : curr))
