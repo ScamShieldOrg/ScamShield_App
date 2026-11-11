@@ -141,6 +141,18 @@ export function OfficialAlertForm() {
 
     setIsSubmitting(true)
 
+    // Snapshot draft values at submission time to preserve edits made while pending
+    const submittedBrandname = brandnamePhone
+    const submittedDomains = domains
+    const submittedMuleAccounts = muleAccounts
+    const submittedFirstObserved = firstObserved
+    const submittedLastObserved = lastObserved
+    const submittedAffectedScope = affectedScope
+    const submittedScenarioDescription = scenarioDescription
+    const submittedFiles = files
+    const submittedRealFile = uploadedRealFile
+    const submittedAgreement = agreementChecked
+
     try {
       // Pick representative indicator
       const primaryUrl = domains.split(",")[0]?.trim()
@@ -170,17 +182,17 @@ export function OfficialAlertForm() {
 
       toast.success("Đã gửi phát lệnh cảnh báo khẩn cấp thành công! Hồ sơ đã được đưa vào luồng C1 Fast-Track.")
 
-      // Reset form
-      setBrandnamePhone("")
-      setDomains("")
-      setMuleAccounts("")
-      setFirstObserved("")
-      setLastObserved("")
-      setAffectedScope("")
-      setScenarioDescription("")
-      setFiles([])
-      setUploadedRealFile(null)
-      setAgreementChecked(false)
+      // Clear only fields whose current values still match the submitted draft
+      setBrandnamePhone((curr) => (curr === submittedBrandname ? "" : curr))
+      setDomains((curr) => (curr === submittedDomains ? "" : curr))
+      setMuleAccounts((curr) => (curr === submittedMuleAccounts ? "" : curr))
+      setFirstObserved((curr) => (curr === submittedFirstObserved ? "" : curr))
+      setLastObserved((curr) => (curr === submittedLastObserved ? "" : curr))
+      setAffectedScope((curr) => (curr === submittedAffectedScope ? "" : curr))
+      setScenarioDescription((curr) => (curr === submittedScenarioDescription ? "" : curr))
+      setFiles((curr) => (curr === submittedFiles ? [] : curr))
+      setUploadedRealFile((curr) => (curr === submittedRealFile ? null : curr))
+      setAgreementChecked((curr) => (curr === submittedAgreement ? false : curr))
 
       // Refresh dynamic stats
       try {

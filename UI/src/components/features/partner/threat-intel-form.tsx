@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import {
   FileText,
@@ -65,8 +65,11 @@ export function ThreatIntelForm() {
 
   // Right column tab & items
   const [activeTab, setActiveTab] = useState<"ALL" | "PENDING" | "VERIFIED">("ALL")
+  const [currentPage, setCurrentPage] = useState<number>(0)
+  const [totalPages, setTotalPages] = useState<number>(1)
   const [historyItems, setHistoryItems] = useState<PartnerSubmissionItem[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false)
+  const [counts, setCounts] = useState({ total: 0, pending: 0, verified: 0 })
 
   // Taxonomy options
   const taxonomyOptions = [
@@ -78,23 +81,50 @@ export function ThreatIntelForm() {
     "Gian lận TMĐT / Voucher",
   ]
 
-  // Fetch real submissions on mount
-  useEffect(() => {
-    async function loadHistory() {
-      setIsLoadingHistory(true)
-      try {
-        const res = await getMySubmissions("ALL", 0, 10)
-        if (res?.data && res.data.length > 0) {
-          setHistoryItems(res.data)
-        }
-      } catch (e) {
-        console.warn("Could not load backend submissions, using fallback", e)
-      } finally {
-        setIsLoadingHistory(false)
-      }
+  // Server-side totals across all statuses
+  const loadCounts = useCallback(async () => {
+    try {
+      const [allRes, pendingRes, verifiedRes] = await Promise.all([
+        getMySubmissions("ALL", 0, 1),
+        getMySubmissions("PENDING", 0, 1),
+        getMySubmissions("VERIFIED", 0, 1),
+      ])
+      setCounts({
+        total: allRes?.totalItems ?? 0,
+        pending: pendingRes?.totalItems ?? 0,
+        verified: verifiedRes?.totalItems ?? 0,
+      })
+    } catch (e) {
+      console.warn("Could not load submission counts", e)
     }
-    loadHistory()
   }, [])
+
+  // Status-filtered and paginated history from server
+  const loadHistory = useCallback(async (tab: "ALL" | "PENDING" | "VERIFIED", page: number) => {
+    setIsLoadingHistory(true)
+    try {
+      const res = await getMySubmissions(tab, page, 10)
+      if (res) {
+        setHistoryItems(res.data ?? [])
+        setTotalPages(res.totalPages ?? 1)
+        setCurrentPage(res.currentPage ?? page)
+      }
+    } catch (e) {
+      console.warn("Could not load backend submissions", e)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }, [])
+
+  // Initial load of server totals
+  useEffect(() => {
+    loadCounts()
+  }, [loadCounts])
+
+  // Fetch status-filtered paginated submissions whenever tab or page changes
+  useEffect(() => {
+    loadHistory(activeTab, currentPage)
+  }, [activeTab, currentPage, loadHistory])
 
   function toggleTaxonomy(tag: string) {
     setSelectedTaxonomies((prev) =>
@@ -155,8 +185,13 @@ export function ThreatIntelForm() {
       const created = await submitPartnerAlertOrIntel(payload, realUploadedFile)
 
       toast.success("Đã nộp hồ sơ đóng góp tình báo thành công! Mã hồ sơ đang chờ chuyên viên NCSC/A05 thẩm định.")
-      if (created) {
-        setHistoryItems((prev) => [created, ...prev])
+
+      // Refresh server-side counts and reload current list
+      loadCounts()
+      if (currentPage === 0) {
+        loadHistory(activeTab, 0)
+      } else {
+        setCurrentPage(0)
       }
 
       // Reset form
@@ -177,19 +212,8 @@ export function ThreatIntelForm() {
     }
   }
 
-  // Filtered history list
-  const filteredHistory = historyItems.filter((item) => {
-    if (activeTab === "PENDING") return item.status === "PENDING"
-    if (activeTab === "VERIFIED") return item.status === "VERIFIED"
-    return true
-  })
-
   const fullDescPreview = `[ATT&CK] 1: ${stage1.trim()} | 2: ${stage2.trim()} | 3: ${stage3.trim()} | Nguồn: ${dataSource.trim()} | ${firstObservedDate}`
   const isDescOverLimit = fullDescPreview.length > 240
-
-  const totalCount = historyItems.length
-  const verifiedCount = historyItems.filter((i) => i.status === "VERIFIED").length
-  const pendingCount = historyItems.filter((i) => i.status === "PENDING").length
 
   return (
     <div className="space-y-6">
@@ -228,7 +252,7 @@ export function ThreatIntelForm() {
             Đã đóng góp
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">{totalCount}</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">{counts.total}</span>
             <span className="text-[11px] text-slate-400">Hồ sơ STIX</span>
           </div>
         </div>
@@ -239,7 +263,7 @@ export function ThreatIntelForm() {
             Tích hợp Blacklist
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{verifiedCount}</span>
+            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{counts.verified}</span>
             <span className="text-[11px] text-slate-400">Mẫu chuẩn hóa</span>
           </div>
         </div>
@@ -250,7 +274,7 @@ export function ThreatIntelForm() {
             Đang thẩm định
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{pendingCount}</span>
+            <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{counts.pending}</span>
             <span className="text-[11px] text-slate-400">Mẫu NCSC/A05</span>
           </div>
         </div>
@@ -567,7 +591,10 @@ export function ThreatIntelForm() {
             <div className="mt-3 flex items-center gap-1.5 border-b border-slate-100 pb-2 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setActiveTab("ALL")}
+                onClick={() => {
+                  setActiveTab("ALL")
+                  setCurrentPage(0)
+                }}
                 className={cn(
                   "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
                   activeTab === "ALL"
@@ -575,11 +602,14 @@ export function ThreatIntelForm() {
                     : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 )}
               >
-                Tất cả ({totalCount})
+                Tất cả ({counts.total})
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab("PENDING")}
+                onClick={() => {
+                  setActiveTab("PENDING")
+                  setCurrentPage(0)
+                }}
                 className={cn(
                   "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
                   activeTab === "PENDING"
@@ -587,11 +617,14 @@ export function ThreatIntelForm() {
                     : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 )}
               >
-                Chờ duyệt ({pendingCount})
+                Chờ duyệt ({counts.pending})
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab("VERIFIED")}
+                onClick={() => {
+                  setActiveTab("VERIFIED")
+                  setCurrentPage(0)
+                }}
                 className={cn(
                   "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
                   activeTab === "VERIFIED"
@@ -599,7 +632,7 @@ export function ThreatIntelForm() {
                     : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 )}
               >
-                Đã tích hợp ({verifiedCount})
+                Đã tích hợp ({counts.verified})
               </button>
             </div>
 
@@ -609,12 +642,12 @@ export function ThreatIntelForm() {
                 <div className="py-8 text-center text-xs text-slate-400">
                   Đang tải danh sách hồ sơ...
                 </div>
-              ) : filteredHistory.length === 0 ? (
+              ) : historyItems.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
                   Chưa có hồ sơ đóng góp nào
                 </div>
               ) : (
-                filteredHistory.map((item) => (
+                historyItems.map((item) => (
                   <div key={item.id} className="py-3">
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white">
@@ -647,6 +680,31 @@ export function ThreatIntelForm() {
                 ))
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
+                <button
+                  type="button"
+                  disabled={currentPage <= 0 || isLoadingHistory}
+                  onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                  className="rounded px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Trang trước
+                </button>
+                <span className="text-[11px] text-slate-500">
+                  Trang {currentPage + 1} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages - 1 || isLoadingHistory}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="rounded px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Trang sau
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
