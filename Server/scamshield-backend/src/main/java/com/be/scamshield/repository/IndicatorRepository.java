@@ -25,6 +25,8 @@ public interface IndicatorRepository extends JpaRepository<Indicator, Long> {
 
     Optional<Indicator> findFirstByTypeAndNormalizedValueOrderByIdAsc(IndicatorType type, String normalizedValue);
 
+    Optional<Indicator> findFirstByTypeAndNormalizedValueInOrderByIdAsc(IndicatorType type, List<String> normalizedValues);
+
     List<Indicator> findByTypeAndNormalizedValueInOrderByIdAsc(IndicatorType type, Collection<String> values);
 
     @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(hashtext(:key))", nativeQuery = true)

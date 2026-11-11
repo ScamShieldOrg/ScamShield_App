@@ -12,6 +12,140 @@ import {
 import { ReportEvidencePreview } from "./report-evidence-preview"
 import { ReportDecisionForm } from "./report-decision-form"
 
+function contextDate(value: string | null) {
+  return value ? new Date(value).toLocaleDateString("vi-VN") : "Chưa có dữ liệu"
+}
+
+function approvalRate(approved: number, decided: number) {
+  return decided
+    ? `${Math.round((approved / decided) * 100)}%`
+    : "Chưa có quyết định"
+}
+
+function ReviewContext({ item }: { item: ModeratorReportItem }) {
+  const { indicatorContext: indicator, reporterContext: reporter } = item
+
+  const indicatorFields = indicator && [
+    ["Khiếu nại về đối tượng", indicator.disputes],
+    ["Ghi nhận lần đầu", contextDate(indicator.firstSeenAt)],
+    ["Ghi nhận gần nhất", contextDate(indicator.lastSeenAt)],
+  ]
+  const reporterFields = reporter && [
+    ["Điểm uy tín", reporter.reputationPoints ?? "Chưa có dữ liệu"],
+    ["Tham gia từ", contextDate(reporter.joinedAt)],
+    ["Email", reporter.email || "Chưa cung cấp"],
+    ["Số điện thoại", reporter.phoneNumber || "Chưa cung cấp"],
+    ["Báo cáo đã gửi", reporter.reports],
+    [
+      "Tỷ lệ báo cáo được duyệt",
+      approvalRate(reporter.approvedReports, reporter.decidedReports),
+    ],
+    ["Khiếu nại đã gửi", reporter.disputes],
+    [
+      "Tỷ lệ khiếu nại được duyệt",
+      approvalRate(reporter.approvedDisputes, reporter.decidedDisputes),
+    ],
+    [
+      "Dấu hiệu cần xem xét",
+      reporter.abuseFlags === 0
+        ? "Chưa ghi nhận"
+        : `${reporter.abuseFlags} lượt ghi nhận · ${reporter.openFlags} đang mở`,
+    ],
+  ]
+
+  return (
+    <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      {[
+        {
+          title: "Đối tượng bị báo cáo",
+          name: item.targetIdentifier,
+          fields: indicatorFields,
+        },
+        { title: "Người gửi", name: item.reportedBy, fields: reporterFields },
+      ].map(({ title, name, fields }, index) => (
+        <section
+          key={title}
+          className={`min-w-0 rounded-2xl border p-4 sm:p-5 ${index === 0 ? "border-primary/25 bg-primary/5 ring-1 ring-primary/10" : "border-border bg-muted/30"}`}
+        >
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground">
+            {title}
+          </p>
+          {index === 0 ? (
+            <h1 className="mt-2 font-heading text-2xl font-bold break-words text-primary sm:text-3xl">
+              {name}
+            </h1>
+          ) : (
+            <h2 className="mt-1 text-lg font-bold break-words">{name}</h2>
+          )}
+          {index === 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">
+                {reportTargetTypeLabel(item.targetType)}
+              </span>
+              {indicator && (
+                <span
+                  className={`rounded-full border px-2.5 py-1 font-semibold ${indicator.blacklistStatus === "ACTIVE" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"}`}
+                >
+                  {indicator.blacklistStatus === "ACTIVE"
+                    ? "Đang trong blacklist"
+                    : indicator.blacklistStatus === "RETRACTED"
+                      ? "Đã gỡ khỏi blacklist"
+                      : "Chưa vào blacklist"}
+                </span>
+              )}
+            </div>
+          )}
+          {index === 0 && indicator && (
+            <dl className="mt-4 grid grid-cols-3 gap-2">
+              {[
+                {
+                  label: "Tổng báo cáo",
+                  value: indicator.reports,
+                  color: "text-foreground",
+                },
+                {
+                  label: "Đã duyệt",
+                  value: indicator.approvedReports,
+                  color: "text-emerald-700 dark:text-emerald-300",
+                },
+                {
+                  label: "Bị từ chối",
+                  value: indicator.rejectedReports,
+                  color: "text-destructive",
+                },
+              ].map(({ label, value, color }) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-border bg-card p-2.5"
+                >
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd
+                    className={`mt-1 text-lg font-bold tabular-nums ${color}`}
+                  >
+                    {value ?? "—"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {fields && (
+            <dl className="mt-4 grid gap-x-4 gap-y-3 border-t border-border pt-4 sm:grid-cols-2">
+              {fields.map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="mt-1 text-sm font-semibold break-words tabular-nums">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      ))}
+    </div>
+  )
+}
+
 export function ReportQueueDetailView({
   item,
   onDecisionSubmitted,
@@ -51,26 +185,12 @@ export function ReportQueueDetailView({
             {reportStatusLabel[item.status] ?? item.status}
           </span>
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Đối tượng bị báo cáo
-        </p>
-        <h1 className="mt-1 text-xl font-bold break-all">
-          {item.targetIdentifier}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {reportTargetTypeLabel(item.targetType)}
-        </p>
+        <ReviewContext item={item} />
         <dl className="mt-4 grid gap-4 border-t border-border pt-4 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-xs text-muted-foreground">Danh mục</dt>
             <dd className="mt-1 font-medium text-foreground">
               {item.category}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Người gửi</dt>
-            <dd className="mt-1 font-medium text-foreground">
-              {item.reportedBy}
             </dd>
           </div>
           <div>
@@ -134,6 +254,7 @@ export function ReportQueueDetailView({
           className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
         >
           <h2 className="font-bold">Đối tượng đang thuộc danh sách tin cậy</h2>
+          {pending && <p className="mt-1">Báo cáo này không thể được phê duyệt.</p>}
 
           <ul className="mt-2 space-y-1">
             {item.whitelistMatches?.map((match) => (
@@ -158,10 +279,13 @@ export function ReportQueueDetailView({
           <ReportDecisionForm
             key={item.id}
             reportId={item.id}
+            currentCategoryId={item.categoryId}
+            currentCategoryName={item.category}
             selectedTaxonomies={item.taxonomies ?? []}
             onSubmit={onDecisionSubmitted}
             onDirtyChange={onDirtyChange}
             isSubmitting={busy}
+            approvalBlocked={item.whitelisted}
           />
         </>
       )}

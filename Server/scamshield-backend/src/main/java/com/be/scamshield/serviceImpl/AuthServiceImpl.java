@@ -468,6 +468,7 @@ public class AuthServiceImpl implements IAuthService {
         return UserDto.builder()
                 .id(user.getId())
                 .username(user.getUsername())
+                .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phoneNumber(user.getPhoneNumber())
                 .isPhoneVerified(user.getIsPhoneVerified() != null ? user.getIsPhoneVerified() : false)

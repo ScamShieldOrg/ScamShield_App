@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.WhitelistVerificationStatus;
 import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.config.EvidenceAnalysisProperties;
 import com.be.scamshield.constant.PartnerVerificationStatus;
@@ -52,8 +53,12 @@ class ModeratorQueueBatchPersistenceTest extends PostgresIntegrationTest {
                     .brandName("Brand " + index).verificationStatus(PartnerVerificationStatus.VERIFIED)
                     .verifiedAt(now).createdAt(now).build();
             em.persist(partner);
-            em.persist(WhitelistEntry.builder().partner(partner).indicator(indicator).verificationStatus("VERIFIED")
-                    .autoLockModeration(false).verifiedAt(now).createdAt(now).build());
+            boolean revoked = index == 19;
+            em.persist(WhitelistEntry.builder().partner(partner).indicator(indicator)
+                    .verificationStatus(revoked ? WhitelistVerificationStatus.REVOKED : WhitelistVerificationStatus.VERIFIED)
+                    .revokedAt(revoked ? now : null)
+                    .revocationReason(revoked ? "Đã thu hồi xác minh" : null)
+                    .autoLockModeration(false).verifiedAt(now).createdAt(now).updatedAt(now).build());
         }
         em.flush();
         em.clear();
@@ -70,10 +75,12 @@ class ModeratorQueueBatchPersistenceTest extends PostgresIntegrationTest {
         long largeQueries = statistics.getPrepareStatementCount();
         assertThat(large.getData()).hasSize(20);
         assertThat(largeQueries).isEqualTo(smallQueries).isLessThanOrEqualTo(6);
-        assertThat(large.getData()).allSatisfy(item -> {
+        assertThat(large.getData().subList(0, 19)).allSatisfy(item -> {
             assertThat(item.isWhitelisted()).isTrue();
             assertThat(item.getWhitelistMatches()).hasSize(1);
         });
+        assertThat(large.getData().getLast().isWhitelisted()).isFalse();
+        assertThat(large.getData().getLast().getWhitelistMatches()).isEmpty();
         var first = large.getData().getFirst();
         assertThat(first.getEvidences().getFirst().getDuplicateCount()).isZero();
         assertThat(first.getEvidences().getFirst().getDuplicates()).isEmpty();
@@ -84,7 +91,7 @@ class ModeratorQueueBatchPersistenceTest extends PostgresIntegrationTest {
         assertThat(duplicates.getDuplicates()).hasSize(20);
         assertThat(duplicates.getDuplicates()).extracting(item -> item.sameReporter()).contains(true, false);
         assertThat(duplicates.getDuplicates()).extracting(item -> item.evidenceId()).doesNotContain(duplicates.getRawId());
-        assertThat(first).usingRecursiveComparison().ignoringFields("evidences").isEqualTo(detail);
+        assertThat(first).usingRecursiveComparison().ignoringFields("evidences", "indicatorContext", "reporterContext").isEqualTo(detail);
     }
 
     private User user(int index) {

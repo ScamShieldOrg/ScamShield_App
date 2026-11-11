@@ -43,6 +43,29 @@ export interface QueueEvidence {
 }
 
 export interface ModeratorReportItem {
+  indicatorContext?: {
+    blacklistStatus: string | null
+    reports: number
+    approvedReports?: number
+    rejectedReports?: number
+    disputes: number
+    firstSeenAt: string | null
+    lastSeenAt: string | null
+  } | null
+  reporterContext?: {
+    email: string | null
+    phoneNumber: string | null
+    reputationPoints: number | null
+    joinedAt: string | null
+    reports: number
+    approvedReports: number
+    decidedReports: number
+    disputes: number
+    approvedDisputes: number
+    decidedDisputes: number
+    abuseFlags: number
+    openFlags: number
+  } | null
   id: string
   rawId?: number
   targetIdentifier: string
@@ -66,6 +89,7 @@ export interface ModeratorReportItem {
   taxonomies: string[]
   isLocked?: boolean
   canReview?: boolean
+  assignedToMe?: boolean
   whitelisted?: boolean
   whitelistMatches?: {
     whitelistEntryId: number

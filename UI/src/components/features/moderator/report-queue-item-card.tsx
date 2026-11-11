@@ -23,11 +23,18 @@ export function ReportQueueItemCard({
       className={`w-full space-y-2 rounded-xl border p-4 text-left disabled:opacity-60 ${isSelected ? "border-primary bg-muted ring-1 ring-primary" : "border-border bg-card hover:bg-muted"}`}
     >
       <span className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
-          Mã báo cáo
-          <span className="font-semibold text-foreground tabular-nums">
-            {item.rawId ?? Number(item.id.split("-").at(-1))}
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
+            Mã báo cáo
+            <span className="font-semibold text-foreground tabular-nums">
+              {item.rawId ?? Number(item.id.split("-").at(-1))}
+            </span>
           </span>
+          {item.assignedToMe && (
+            <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+              Phụ trách
+            </span>
+          )}
         </span>
         <span
           className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${reportStatusClass[item.status]}`}

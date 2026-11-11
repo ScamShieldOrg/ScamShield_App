@@ -21,6 +21,9 @@ public class UserDto {
     @Schema(description = "Username", example = "johndoe")
     private String username;
 
+    @Schema(description = "Full name")
+    private String fullName;
+
     @Schema(description = "Email address", example = "johndoe@example.com")
     private String email;
 
