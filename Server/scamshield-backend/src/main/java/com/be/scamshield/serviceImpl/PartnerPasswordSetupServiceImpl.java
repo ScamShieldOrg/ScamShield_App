@@ -1,6 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
-import com.be.scamshield.service.PartnerPasswordEmailService;
+import com.be.scamshield.service.PartnerEmailService;
 import com.be.scamshield.service.PartnerPasswordSetupService;
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.PartnerPasswordEmailStatus;
@@ -36,7 +36,7 @@ public class PartnerPasswordSetupServiceImpl implements PartnerPasswordSetupServ
     private final PartnerProfileRepository profiles;
     private final RefreshTokenRepository refreshTokens;
     private final PasswordEncoder passwordEncoder;
-    private final PartnerPasswordEmailService emailService;
+    private final PartnerEmailService emailService;
     private final Clock applicationClock;
 
     @Value("${app.ui-base-url:http://localhost:3001}")
@@ -64,7 +64,7 @@ public class PartnerPasswordSetupServiceImpl implements PartnerPasswordSetupServ
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCommit() {
                 try {
-                    emailService.send(partnerId, email, url, hash(token));
+                    emailService.sendPassword(partnerId, email, url, hash(token));
                 } catch (Exception ex) {
                     log.error("Không thể cập nhật trạng thái gửi link cho hồ sơ {}", partnerId, ex);
                 }

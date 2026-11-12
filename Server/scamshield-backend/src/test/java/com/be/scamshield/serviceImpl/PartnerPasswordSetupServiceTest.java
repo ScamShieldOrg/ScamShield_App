@@ -9,7 +9,7 @@ import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.repository.PartnerPasswordLinkRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.RefreshTokenRepository;
-import com.be.scamshield.service.PartnerPasswordEmailService;
+import com.be.scamshield.service.PartnerEmailService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -40,7 +40,7 @@ class PartnerPasswordSetupServiceTest {
     @Mock private PartnerProfileRepository profiles;
     @Mock private RefreshTokenRepository refreshTokens;
     @Mock private PasswordEncoder encoder;
-    @Mock private PartnerPasswordEmailService emailService;
+    @Mock private PartnerEmailService emailService;
 
     private PartnerPasswordSetupServiceImpl service;
     private PartnerProfile profile;
@@ -114,9 +114,9 @@ class PartnerPasswordSetupServiceTest {
             ArgumentCaptor<PartnerPasswordLink> saved = ArgumentCaptor.forClass(PartnerPasswordLink.class);
             verify(links).save(saved.capture());
             assertThat(saved.getValue().getExpiresAt()).isEqualTo(now.plusMinutes(10));
-            verify(emailService, never()).send(any(), anyString(), anyString(), anyString());
+            verify(emailService, never()).sendPassword(any(), anyString(), anyString(), anyString());
             TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
-            verify(emailService).send(any(), anyString(), anyString(), anyString());
+            verify(emailService).sendPassword(any(), anyString(), anyString(), anyString());
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }

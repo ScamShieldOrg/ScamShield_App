@@ -20,6 +20,7 @@ import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.service.PartnerPasswordSetupService;
+import com.be.scamshield.service.PartnerEmailService;
 import com.be.scamshield.external.PartnerDocumentStorageService;
 import java.time.Clock;
 import java.time.Instant;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,6 +57,7 @@ class AdminPartnerRegistrationServiceImplTest {
     @Mock private WhitelistEntryRepository whitelistEntries;
     @Mock private AuditLogRepository auditLogs;
     @Mock private PartnerPasswordSetupService passwordSetupService;
+    @Mock private PartnerEmailService emailService;
     @Mock private PartnerDocumentStorageService documentStorage;
 
     private AdminPartnerRegistrationServiceImpl service;
@@ -66,7 +69,7 @@ class AdminPartnerRegistrationServiceImplTest {
         service = new AdminPartnerRegistrationServiceImpl(profiles, documents, users, indicators,
                 whitelistEntries, auditLogs, new ObjectMapper(),
                 Clock.fixed(Instant.parse("2026-10-28T08:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")), passwordSetupService,
-                documentStorage);
+                emailService, documentStorage);
         User partnerUser = User.builder().id(20L).fullName("Người đăng ký").status(UserStatus.INACTIVE.name()).build();
         reviewer = User.builder().id(1L).fullName("Quản trị viên").build();
         profile = PartnerProfile.builder().id(10L).user(partnerUser).legalName("Công ty A")
@@ -145,16 +148,23 @@ class AdminPartnerRegistrationServiceImplTest {
         when(users.findById(1L)).thenReturn(Optional.of(reviewer));
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
         profile.getUser().setStatus(UserStatus.ACTIVE.name());
-        var result = service.review(10L, request(PartnerVerificationStatus.REJECTED, "  Không đủ bằng chứng  "), 1L);
-        assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.REJECTED);
-        assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.INACTIVE.name());
-        assertThat(profile.getVerificationReason()).isEqualTo("Không đủ bằng chứng");
-        assertThat(result.reviewReason()).isEqualTo(profile.getVerificationReason());
-        verify(auditLogs, never()).findByEntityTypeAndEntityIdOrderByCreatedAtDesc(any(), any());
-        verifyNoInteractions(indicators, whitelistEntries);
-        ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogs).save(audit.capture());
-        assertThat(audit.getValue().getReason()).isEqualTo("Không đủ bằng chứng");
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            var result = service.review(10L, request(PartnerVerificationStatus.REJECTED, "  Không đủ bằng chứng  "), 1L);
+            assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.REJECTED);
+            assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.INACTIVE.name());
+            assertThat(profile.getVerificationReason()).isEqualTo("Không đủ bằng chứng");
+            assertThat(result.reviewReason()).isEqualTo(profile.getVerificationReason());
+            verify(auditLogs, never()).findByEntityTypeAndEntityIdOrderByCreatedAtDesc(any(), any());
+            verifyNoInteractions(indicators, whitelistEntries, emailService);
+            ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
+            verify(auditLogs).save(audit.capture());
+            assertThat(audit.getValue().getReason()).isEqualTo("Không đủ bằng chứng");
+            TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+            verify(emailService).sendRejection(10L, "a@example.com", "Công ty A", "Không đủ bằng chứng");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test

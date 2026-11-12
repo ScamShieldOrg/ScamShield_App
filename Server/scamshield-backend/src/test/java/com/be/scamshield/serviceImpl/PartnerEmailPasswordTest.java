@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-class PartnerPasswordEmailServiceTest {
+class PartnerEmailPasswordTest {
     @Mock private JavaMailSender sender;
     @Mock private PartnerProfileRepository profiles;
     @Mock private PartnerPasswordLinkRepository links;
@@ -40,11 +40,11 @@ class PartnerPasswordEmailServiceTest {
         doThrow(new MailSendException("SMTP unavailable")).when(sender).send(any(MimeMessage.class));
         when(profiles.findById(10L)).thenReturn(Optional.of(profile));
         when(links.findByTokenHash("hash")).thenReturn(Optional.of(token));
-        var service = new PartnerPasswordEmailServiceImpl(sender, profiles, links);
+        var service = new PartnerEmailServiceImpl(sender, profiles, links);
         ReflectionTestUtils.setField(service, "fromEmail", "no-reply@example.com");
         ReflectionTestUtils.setField(service, "mailDisplayName", "ScamShield");
 
-        service.send(10L, "partner@example.com", "https://example.com/reset-password?token=abc", "hash");
+        service.sendPassword(10L, "partner@example.com", "https://example.com/reset-password?token=abc", "hash");
 
         assertThat(profile.getPasswordLinkEmailStatus()).isEqualTo(PartnerPasswordEmailStatus.FAILED);
     }
@@ -56,12 +56,12 @@ class PartnerPasswordEmailServiceTest {
         when(sender.createMimeMessage()).thenReturn(new MimeMessage(Session.getInstance(new Properties())));
         when(profiles.findById(10L)).thenReturn(Optional.of(profile));
         when(links.findByTokenHash("hash")).thenReturn(Optional.of(token));
-        var service = new PartnerPasswordEmailServiceImpl(sender, profiles, links);
+        var service = new PartnerEmailServiceImpl(sender, profiles, links);
         ReflectionTestUtils.setField(service, "fromEmail", "no-reply@example.com");
         ReflectionTestUtils.setField(service, "mailDisplayName", "ScamShield");
         String link = "https://example.com/reset-password?token=abc";
 
-        service.send(10L, "partner@example.com", link, "hash");
+        service.sendPassword(10L, "partner@example.com", link, "hash");
 
         ArgumentCaptor<MimeMessage> sent = ArgumentCaptor.forClass(MimeMessage.class);
         verify(sender).send(sent.capture());

@@ -28,6 +28,7 @@ import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.service.AdminPartnerRegistrationService;
 import com.be.scamshield.service.PartnerPasswordSetupService;
+import com.be.scamshield.service.PartnerEmailService;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -39,6 +40,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
 
@@ -55,6 +58,7 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
     private final ObjectMapper objectMapper;
     private final Clock applicationClock;
     private final PartnerPasswordSetupService passwordSetupService;
+    private final PartnerEmailService emailService;
     private final PartnerDocumentStorageService documentStorage;
 
     @Override
@@ -143,6 +147,15 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
                 .entityType("PARTNER_PROFILE").entityId(id).previousValue("PENDING")
                 .newValue(decision.name()).reason(reason)
                 .createdAt(now).build());
+        if (decision == PartnerVerificationStatus.REJECTED) {
+            String email = profile.getCorporateEmail();
+            String partnerName = profile.getLegalName();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() {
+                    emailService.sendRejection(id, email, partnerName, reason);
+                }
+            });
+        }
         return detail(profile);
     }
 
