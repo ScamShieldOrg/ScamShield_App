@@ -125,6 +125,17 @@ class AdminPartnerRegistrationServiceImplTest {
     }
 
     @Test
+    void approvalWaitsForOcrAndReadyDocuments() {
+        when(users.findById(1L)).thenReturn(Optional.of(reviewer));
+        when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
+        profile.setDocumentVerificationStatus("PENDING_OCR");
+        assertThatThrownBy(() -> service.review(10L,
+                request(PartnerVerificationStatus.VERIFIED, "Đã kiểm tra"), 1L))
+                .isInstanceOf(com.be.scamshield.exception.PartnerReviewConflictException.class);
+        verifyNoInteractions(indicators, whitelistEntries, auditLogs);
+    }
+
+    @Test
     void rejectionRequiresReasonAndLeavesUserInactive() {
         assertThatThrownBy(() -> service.review(10L,
                 request(PartnerVerificationStatus.REJECTED, "  "), 1L))
@@ -134,14 +145,29 @@ class AdminPartnerRegistrationServiceImplTest {
         when(users.findById(1L)).thenReturn(Optional.of(reviewer));
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
         profile.getUser().setStatus(UserStatus.ACTIVE.name());
-        var result = service.review(10L, request(PartnerVerificationStatus.REJECTED, "Không đủ bằng chứng"), 1L);
+        var result = service.review(10L, request(PartnerVerificationStatus.REJECTED, "  Không đủ bằng chứng  "), 1L);
         assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.REJECTED);
         assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.INACTIVE.name());
-        assertThat(profile.getVerificationReason()).isNull();
+        assertThat(profile.getVerificationReason()).isEqualTo("Không đủ bằng chứng");
+        assertThat(result.reviewReason()).isEqualTo(profile.getVerificationReason());
+        verify(auditLogs, never()).findByEntityTypeAndEntityIdOrderByCreatedAtDesc(any(), any());
         verifyNoInteractions(indicators, whitelistEntries);
         ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
         verify(auditLogs).save(audit.capture());
         assertThat(audit.getValue().getReason()).isEqualTo("Không đủ bằng chứng");
+    }
+
+    @Test
+    void detailReadsAuditReasonForPreviouslyRejectedProfile() {
+        profile.setVerificationStatus(PartnerVerificationStatus.REJECTED);
+        when(profiles.findById(10L)).thenReturn(Optional.of(profile));
+        when(auditLogs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("PARTNER_PROFILE", 10L))
+                .thenReturn(java.util.List.of(AuditLog.builder()
+                        .action("REVIEW_PARTNER_REGISTRATION").reason("Thiếu giấy phép").build()));
+
+        var result = service.detail(10L);
+
+        assertThat(result.reviewReason()).isEqualTo("Thiếu giấy phép");
     }
 
     @Test

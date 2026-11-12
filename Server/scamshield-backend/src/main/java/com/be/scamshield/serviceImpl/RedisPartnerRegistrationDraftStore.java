@@ -20,7 +20,7 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class RedisPartnerRegistrationDraftStore implements PartnerRegistrationDraftStore {
     private static final String KEY_PREFIX = "partner-registration:draft:";
-    private static final Duration TTL = Duration.ofMinutes(15);
+    private static final Duration TTL = Duration.ofMinutes(60);
 
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
@@ -55,14 +55,44 @@ public class RedisPartnerRegistrationDraftStore implements PartnerRegistrationDr
     }
 
     @Override
-    public boolean claim(String token) {
-        return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(
-                KEY_PREFIX + "processing:" + token, "1", TTL));
+    public LocalDateTime refresh(String token) {
+        if (!Boolean.TRUE.equals(redis.expire(KEY_PREFIX + token, TTL))) {
+            throw new IllegalArgumentException("Phiên đăng ký đã hết hạn");
+        }
+        LocalDateTime expiresAt = LocalDateTime.now(applicationClock).plus(TTL);
+        return expiresAt;
     }
 
     @Override
-    public void releaseClaim(String token) {
-        redis.delete(KEY_PREFIX + "processing:" + token);
+    public void replaceUpload(String token, int index, PartnerRegistrationPrecheckResponse.Upload upload) {
+        Draft draft = find(token).orElseThrow(() -> new IllegalArgumentException("Phiên đăng ký đã hết hạn"));
+        var uploads = new java.util.ArrayList<>(draft.uploads());
+        uploads.set(index, upload);
+        write(token, new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
+                draft.businessVerification(), uploads, LocalDateTime.now(applicationClock).plus(TTL)));
+    }
+
+    private void write(String token, Draft draft) {
+        try {
+            redis.opsForValue().set(KEY_PREFIX + token, objectMapper.writeValueAsString(draft), TTL);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Không thể cập nhật phiên đăng ký", ex);
+        }
+    }
+
+    @Override
+    public String claim(String token) {
+        String claimId = java.util.UUID.randomUUID().toString();
+        return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(
+                KEY_PREFIX + "processing:" + token, claimId, Duration.ofMinutes(2))) ? claimId : null;
+    }
+
+    @Override
+    public void releaseClaim(String token, String claimId) {
+        var script = new org.springframework.data.redis.core.script.DefaultRedisScript<Long>(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+                Long.class);
+        redis.execute(script, java.util.List.of(KEY_PREFIX + "processing:" + token), claimId);
     }
 
     @Override

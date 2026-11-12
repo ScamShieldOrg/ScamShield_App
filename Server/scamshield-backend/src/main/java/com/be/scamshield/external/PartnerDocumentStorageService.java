@@ -18,6 +18,8 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import com.be.scamshield.repository.PartnerDocumentRepository;
+import com.be.scamshield.serviceImpl.PartnerRegistrationDraftStore;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -28,6 +30,8 @@ public class PartnerDocumentStorageService {
     private static final long UPLOAD_URL_SECONDS = 900;
 
     private final SupabaseStorageClientFactory clients;
+    private final PartnerDocumentRepository documentRepository;
+    private final PartnerRegistrationDraftStore drafts;
 
     @Value("${app.supabase.storage.region:${AWS_REGION:${SUPABASE_STORAGE_REGION:ap-south-1}}}")
     private String region;
@@ -39,11 +43,14 @@ public class PartnerDocumentStorageService {
     private String endpoint;
     @Value("${app.supabase.storage.partner-document-bucket-name:${SUPABASE_PARTNER_DOCUMENT_BUCKET:partner-documents}}")
     private String bucket;
-    @Value("${app.supabase.storage.download-url-expiration-seconds:${PARTNER_DOCUMENT_URL_EXPIRATION_SECONDS:300}}")
+    @Value("${app.supabase.storage.download-url-expiration-seconds:${PARTNER_DOCUMENT_URL_EXPIRATION_SECONDS:900}}")
     private long downloadUrlExpirationSeconds;
 
-    public PartnerDocumentStorageService(SupabaseStorageClientFactory clients) {
+    public PartnerDocumentStorageService(SupabaseStorageClientFactory clients, PartnerDocumentRepository documentRepository,
+                                         PartnerRegistrationDraftStore drafts) {
         this.clients = clients;
+        this.documentRepository = documentRepository;
+        this.drafts = drafts;
     }
 
     public UploadTarget createUploadTarget(String draftId, String fileName, String contentType) {
@@ -83,6 +90,9 @@ public class PartnerDocumentStorageService {
                     || !expectedContentType.equalsIgnoreCase(head.contentType())) {
                 throw new IllegalArgumentException("Tài liệu tải lên không khớp thông tin đã đăng ký");
             }
+            if (!StringUtils.hasText(head.eTag())) {
+                throw new IllegalArgumentException("Không thể xác nhận phiên bản tài liệu đã tải lên");
+            }
             try (var stream = client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build())) {
                 byte[] bytes = stream.readNBytes((int) expectedSize + 1);
                 if (bytes.length != expectedSize) {
@@ -93,14 +103,65 @@ public class PartnerDocumentStorageService {
         }
     }
 
+    public Inspection inspectUploadedDocument(String key, long expectedSize, String expectedContentType) throws IOException {
+        requirePendingKey(key);
+        if (expectedSize <= 0 || expectedSize > 25L * 1024 * 1024) {
+            throw new IllegalArgumentException("Kích thước tài liệu không hợp lệ");
+        }
+        try (var client = clients.createClient(region, accessKeyId, secretAccessKey, endpoint)) {
+            var head = client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+            if (head.contentLength() == null || head.contentLength() != expectedSize
+                    || !expectedContentType.equalsIgnoreCase(head.contentType())) {
+                throw new IllegalArgumentException("Tài liệu tải lên không khớp thông tin đã đăng ký");
+            }
+            if (!StringUtils.hasText(head.eTag())) {
+                throw new IllegalArgumentException("Không thể xác nhận phiên bản tài liệu đã tải lên");
+            }
+            int length = (int) Math.min(expectedSize, 8192);
+            try (var stream = client.getObject(GetObjectRequest.builder().bucket(bucket).key(key)
+                    .range("bytes=0-" + (length - 1)).build())) {
+                byte[] signature = stream.readNBytes(length);
+                if (signature.length != length) throw new IOException("Không thể đọc chữ ký tài liệu");
+                return new Inspection(signature, head.eTag());
+            }
+        }
+    }
+
+    public String copyPending(String key, Long partnerId, Long documentId, String etag) {
+        requirePendingKey(key);
+        String extension = StringUtils.getFilenameExtension(key);
+        String permanentKey = "documents/" + partnerId + "/" + documentId
+                + (StringUtils.hasText(extension) ? "." + extension : "");
+        try (var client = clients.createClient(region, accessKeyId, secretAccessKey, endpoint)) {
+            var copy = CopyObjectRequest.builder().copySource(bucket + "/" + key)
+                    .destinationBucket(bucket).destinationKey(permanentKey);
+            if (StringUtils.hasText(etag)) copy.copySourceIfMatch(etag);
+            client.copyObject(copy.build());
+            return permanentKey;
+        }
+    }
+
+    public byte[] readStoredDocument(String key, long expectedSize) throws IOException {
+        requirePartnerKey(key);
+        if (expectedSize <= 0 || expectedSize > 25L * 1024 * 1024) {
+            throw new IllegalArgumentException("Kích thước tài liệu không hợp lệ");
+        }
+        try (var client = clients.createClient(region, accessKeyId, secretAccessKey, endpoint);
+             var stream = client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build())) {
+            byte[] bytes = stream.readNBytes((int) expectedSize + 1);
+            if (bytes.length != expectedSize) throw new IOException("Kích thước tài liệu không khớp");
+            return bytes;
+        }
+    }
+
     public String createDownloadUrl(String key, String fileName) {
         requireConfigured();
         requirePartnerKey(key);
-        if (downloadUrlExpirationSeconds <= 0 || downloadUrlExpirationSeconds > 3600) {
+        if (downloadUrlExpirationSeconds <= 0 || downloadUrlExpirationSeconds > 900) {
             throw new IllegalStateException("Thời hạn URL tải tài liệu partner chưa hợp lệ");
         }
         var get = GetObjectRequest.builder().bucket(bucket).key(key)
-                .responseContentDisposition("attachment; filename=\"" + safeFileName(fileName) + "\"")
+                .responseContentDisposition("inline; filename=\"" + safeFileName(fileName) + "\"")
                 .build();
         try (var presigner = clients.createPresigner(region, accessKeyId, secretAccessKey, endpoint, true)) {
             return enforceHttps(presigner.presignGetObject(GetObjectPresignRequest.builder()
@@ -147,7 +208,10 @@ public class PartnerDocumentStorageService {
                 var page = client.listObjectsV2(ListObjectsV2Request.builder().bucket(bucket)
                         .prefix("pending/").continuationToken(continuation).build());
                 for (var object : page.contents()) {
-                    if (object.lastModified() != null && object.lastModified().isBefore(cutoff)) {
+                    String[] segments = object.key().split("/");
+                    boolean activeDraft = segments.length >= 3 && drafts.find(segments[1]).isPresent();
+                    if (object.lastModified() != null && object.lastModified().isBefore(cutoff)
+                            && !activeDraft && !documentRepository.existsByStorageObjectKey(object.key())) {
                         client.deleteObject(builder -> builder.bucket(bucket).key(object.key()));
                     }
                 }
@@ -191,4 +255,5 @@ public class PartnerDocumentStorageService {
     }
 
     public record UploadTarget(String objectKey, String uploadUrl, long expiresInSeconds) { }
+    public record Inspection(byte[] signature, String etag) { }
 }

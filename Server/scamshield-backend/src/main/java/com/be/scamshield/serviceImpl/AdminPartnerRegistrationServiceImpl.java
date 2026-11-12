@@ -117,6 +117,12 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
         if (profile.getVerificationStatus() != PartnerVerificationStatus.PENDING) {
             throw new PartnerReviewConflictException("Hồ sơ đã được xét duyệt; hãy tải lại trạng thái mới nhất");
         }
+        if (decision == PartnerVerificationStatus.VERIFIED &&
+                (("PENDING_OCR".equals(profile.getDocumentVerificationStatus())
+                        || "RUNNING_OCR".equals(profile.getDocumentVerificationStatus()))
+                        || documents.existsByPartnerIdAndStorageStatusNot(id, "READY"))) {
+            throw new PartnerReviewConflictException("Tài liệu hoặc đối soát OCR chưa hoàn tất; chưa thể phê duyệt");
+        }
         LocalDateTime now = LocalDateTime.now(applicationClock);
         if (decision == PartnerVerificationStatus.VERIFIED) {
             createEntry(profile, IndicatorType.URL, profile.getOfficialDomain(), now, reviewer);
@@ -126,8 +132,8 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
             profile.getUser().setStatus(UserStatus.INACTIVE.name());
         }
         profile.setVerificationStatus(decision);
+        profile.setVerificationReason(reason);
         if (decision == PartnerVerificationStatus.VERIFIED) {
-            profile.setVerificationReason(reason);
             passwordSetupService.issue(id);
         }
         profile.setVerifiedByUser(reviewer);
@@ -182,23 +188,29 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
     }
 
     private AdminPartnerRegistrationDetailResponse detail(PartnerProfile profile) {
-        String reason = profile.getVerificationStatus() == PartnerVerificationStatus.VERIFIED
-                ? profile.getVerificationReason()
-                : auditLogs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("PARTNER_PROFILE", profile.getId())
-                        .stream().filter(log -> "REVIEW_PARTNER_REGISTRATION".equals(log.getAction()))
-                        .map(AuditLog::getReason).findFirst().orElse(null);
+        String reason = profile.getVerificationReason();
+        if (reason == null && profile.getVerificationStatus() == PartnerVerificationStatus.REJECTED) {
+            reason = auditLogs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("PARTNER_PROFILE", profile.getId())
+                    .stream().filter(log -> "REVIEW_PARTNER_REGISTRATION".equals(log.getAction()))
+                    .map(AuditLog::getReason).findFirst().orElse(null);
+        }
         PartnerBusinessVerificationResponse verification = null;
         if (StringUtils.hasText(profile.getBusinessVerificationResult())) {
             verification = objectMapper.readValue(profile.getBusinessVerificationResult(),
                     PartnerBusinessVerificationResponse.class);
         }
+        var metadata = documents.findMetadataByPartnerId(profile.getId());
+        var documentGroups = List.of("BUSINESS_LICENSE", "OWNERSHIP_PROOF", "AUTHORIZATION").stream()
+                .map(type -> new AdminPartnerRegistrationDetailResponse.DocumentGroup(type,
+                        metadata.stream().filter(document -> type.equals(document.documentType())).toList()))
+                .toList();
         return new AdminPartnerRegistrationDetailResponse(profile.getId(), profile.getUser().getId(),
                 profile.getLegalName(), profile.getTaxCode(), profile.getCorporateEmail(),
-                profile.getRepresentativeNameAndTitle(), profile.getContactPhone(),
+                profile.getRepresentativeNameAndTitle(), profile.getLegalRepresentative(), profile.getContactPhone(),
                 profile.getOfficialDomain(), profile.getOfficialHotline(), profile.getSmsBrandName(),
                 profile.getVerificationStatus(), profile.getCreatedAt(), profile.getVerifiedAt(),
                 profile.getVerifiedByUser() == null ? null : profile.getVerifiedByUser().getFullName(), reason,
                 profile.getPasswordLinkEmailStatus(), profile.getPasswordSetupCompletedAt(),
-                verification, documents.findMetadataByPartnerId(profile.getId()));
+                verification, profile.getDocumentVerificationStatus(), documentGroups);
     }
 }

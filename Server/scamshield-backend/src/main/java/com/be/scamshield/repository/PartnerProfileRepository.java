@@ -16,6 +16,33 @@ public interface PartnerProfileRepository extends JpaRepository<PartnerProfile, 
 
     boolean existsByTaxCode(String taxCode);
 
+    @Query("SELECT p FROM PartnerProfile p JOIN FETCH p.user WHERE p.registrationToken = :registrationToken")
+    Optional<PartnerProfile> findByRegistrationToken(@Param("registrationToken") String registrationToken);
+
+    java.util.List<PartnerProfile> findTop20ByDocumentVerificationStatusOrderByCreatedAtAsc(String status);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE PartnerProfile p SET p.documentVerificationStatus = 'RUNNING_OCR', p.documentVerificationStartedAt = :startedAt WHERE p.id = :id AND p.documentVerificationStatus = 'PENDING_OCR'")
+    int claimDocumentVerification(@Param("id") Long id, @Param("startedAt") java.time.LocalDateTime startedAt);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE PartnerProfile p SET p.documentVerificationStatus = 'PENDING_OCR', p.documentVerificationStartedAt = NULL WHERE p.documentVerificationStatus = 'RUNNING_OCR' AND p.documentVerificationStartedAt < :cutoff")
+    int resetStaleDocumentVerification(@Param("cutoff") java.time.LocalDateTime cutoff);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE PartnerProfile p SET p.businessVerificationResult = :result, p.documentVerificationStatus = :status, p.documentVerificationStartedAt = NULL WHERE p.id = :id AND p.documentVerificationStatus = 'RUNNING_OCR'")
+    int completeDocumentVerification(@Param("id") Long id, @Param("result") String result,
+                                     @Param("status") String status);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE PartnerProfile p SET p.documentVerificationAttempts = :attempts, p.documentVerificationStatus = :status, p.documentVerificationStartedAt = NULL WHERE p.id = :id AND p.documentVerificationStatus = 'RUNNING_OCR'")
+    int failDocumentVerification(@Param("id") Long id, @Param("attempts") int attempts,
+                                 @Param("status") String status);
+
     long countByVerificationStatus(PartnerVerificationStatus status);
 
     @Query(value = """

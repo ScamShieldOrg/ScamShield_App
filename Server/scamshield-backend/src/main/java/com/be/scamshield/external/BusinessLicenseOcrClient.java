@@ -14,14 +14,20 @@ import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 
 @Service
-@RequiredArgsConstructor
 public class BusinessLicenseOcrClient {
     private final RestClient businessVerificationRestClient;
     private final PartnerBusinessVerificationProperties properties;
+
+    public BusinessLicenseOcrClient(@Qualifier("businessVerificationRestClient") RestClient businessVerificationRestClient,
+                                    PartnerBusinessVerificationProperties properties) {
+        this.businessVerificationRestClient = businessVerificationRestClient;
+        this.properties = properties;
+    }
 
     public BusinessDocumentOcr extract(byte[] pdf, String fileName) {
         var config = properties.getOcr();

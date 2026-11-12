@@ -14,6 +14,12 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class PartnerProfile {
+    @PrePersist
+    void defaults() {
+        if (legalRepresentative == null) legalRepresentative = true;
+        if (documentVerificationStatus == null) documentVerificationStatus = "NOT_REQUIRED";
+        if (documentVerificationAttempts == null) documentVerificationAttempts = 0;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,6 +49,9 @@ public class PartnerProfile {
     @Column(name = "representative_name_and_title")
     private String representativeNameAndTitle;
 
+    @Column(name = "legal_representative", nullable = false, columnDefinition = "boolean default true")
+    private Boolean legalRepresentative;
+
     @Column(name = "contact_phone", length = 30)
     private String contactPhone;
 
@@ -52,6 +61,18 @@ public class PartnerProfile {
 
     @Column(name = "business_verification_result", columnDefinition = "text")
     private String businessVerificationResult;
+
+    @Column(name = "registration_token", unique = true, length = 36)
+    private String registrationToken;
+
+    @Column(name = "document_verification_status", nullable = false, length = 20, columnDefinition = "varchar(20) default 'NOT_REQUIRED'")
+    private String documentVerificationStatus;
+
+    @Column(name = "document_verification_attempts", nullable = false, columnDefinition = "integer default 0")
+    private Integer documentVerificationAttempts;
+
+    @Column(name = "document_verification_started_at")
+    private LocalDateTime documentVerificationStartedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")

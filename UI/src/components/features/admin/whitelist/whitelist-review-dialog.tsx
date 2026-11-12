@@ -20,6 +20,18 @@ const documentLabels: Record<string, string> = {
   AUTHORIZATION: "Giấy ủy quyền",
 }
 
+const documentTypes = ["BUSINESS_LICENSE", "OWNERSHIP_PROOF", "AUTHORIZATION"]
+
+function getDocumentGroups(detail: PartnerRegistrationDetail) {
+  if (detail.documentGroups) return detail.documentGroups
+  return documentTypes.map((documentType) => ({
+    documentType,
+    documents: (detail.documents ?? []).filter(
+      (document) => document.documentType === documentType
+    ),
+  }))
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "medium",
@@ -91,6 +103,12 @@ export function WhitelistReviewDialog({
 
   async function openDocument(document: PartnerDocumentMetadata) {
     const tab = window.open("", "_blank")
+    if (!tab) {
+      setError(
+        "Trình duyệt đã chặn cửa sổ xem tài liệu. Vui lòng cho phép cửa sổ bật lên và thử lại."
+      )
+      return
+    }
     setOpeningDocument(document.id)
     setError(null)
     let blobUrl: string | undefined
@@ -99,35 +117,19 @@ export function WhitelistReviewDialog({
         item.id,
         document.id
       )
-      if (tab) {
-        if (response.downloadUrl) {
-          tab.location.href = response.downloadUrl
-        } else if (response.contentBase64) {
-          const blob = new Blob([decodeBase64(response.contentBase64)], {
-            type: response.contentType,
-          })
-          blobUrl = URL.createObjectURL(blob)
-          tab.location.href = blobUrl
-        } else {
-          tab.close()
-          throw new Error("Không nhận được liên kết tải tài liệu.")
-        }
-      } else {
-        if (response.downloadUrl) {
-          window.location.assign(response.downloadUrl)
-          return
-        }
-        if (!response.contentBase64) throw new Error("Không nhận được nội dung tài liệu.")
+      if (response.downloadUrl) {
+        tab.location.href = response.downloadUrl
+      } else if (response.contentBase64) {
         const blob = new Blob([decodeBase64(response.contentBase64)], {
           type: response.contentType,
         })
         blobUrl = URL.createObjectURL(blob)
-        const link = window.document.createElement("a")
-        link.href = blobUrl
-        link.download = response.fileName
-        link.click()
+        tab.location.href = blobUrl
+      } else {
+        throw new Error("Không nhận được liên kết xem tài liệu.")
       }
-      if (blobUrl) window.setTimeout(() => URL.revokeObjectURL(blobUrl!), 60_000)
+      if (blobUrl)
+        window.setTimeout(() => URL.revokeObjectURL(blobUrl!), 60_000)
     } catch (cause) {
       tab?.close()
       setError(
@@ -203,6 +205,16 @@ export function WhitelistReviewDialog({
   }
 
   const verification = detail?.businessVerification
+  const approvalWaiting =
+    detail?.documentVerificationStatus === "PENDING_OCR" ||
+    detail?.documentVerificationStatus === "RUNNING_OCR" ||
+    (detail
+      ? getDocumentGroups(detail).some((group) =>
+          group.documents.some(
+            (document) => document.storageStatus === "MOVING"
+          )
+        )
+      : false)
   const emailStatusLabel = detail?.passwordSetupCompletedAt
     ? "Đã đặt mật khẩu"
     : detail?.passwordLinkEmailStatus === "SENT"
@@ -413,39 +425,112 @@ export function WhitelistReviewDialog({
                       Chưa có kết quả đối soát được lưu.
                     </p>
                   )}
+                  {verification?.ocrEnabled && (
+                    <div className="mt-4 border-t border-border pt-3">
+                      <h4 className="font-semibold">Đối soát OCR giấy phép</h4>
+                      {verification.documents.length ? (
+                        verification.documents.map((document) => (
+                          <p
+                            key={document.fileName}
+                            className="mt-1 text-muted-foreground"
+                          >
+                            {document.fileName}: {document.status}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="mt-1 text-muted-foreground">
+                          Đang chờ kết quả OCR.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </section>
               </div>
 
               <section aria-label="Tài liệu đính kèm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                  onClick={() => setDetailRevision((value) => value + 1)}
+                >
+                  Làm mới trạng thái
+                </Button>
+                <p className="mb-2 text-muted-foreground">
+                  Đối soát tài liệu:{" "}
+                  {detail.documentVerificationStatus === "PENDING_OCR" ||
+                  detail.documentVerificationStatus === "RUNNING_OCR"
+                    ? "Đang xử lý OCR"
+                    : detail.documentVerificationStatus === "PASSED"
+                      ? "Đã đối soát"
+                      : detail.documentVerificationStatus === "FLAGGED"
+                        ? "Cần quản trị viên kiểm tra"
+                        : "Không yêu cầu OCR"}
+                </p>
                 <h3 className="font-heading text-sm font-bold">
-                  Tài liệu đính kèm ({detail.documents.length})
+                  Tài liệu đính kèm (
+                  {getDocumentGroups(detail).reduce(
+                    (count, group) => count + group.documents.length,
+                    0
+                  )}
+                  )
                 </h3>
-                <ul className="mt-2 space-y-2">
-                  {detail.documents.map((document) => (
-                    <li
-                      key={document.id}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2"
+                <div className="mt-3 space-y-4">
+                  {getDocumentGroups(detail).map((group) => (
+                    <div
+                      key={group.documentType}
+                      className="rounded-xl border border-border bg-muted/20 p-4"
                     >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <FileText size={17} className="shrink-0 text-primary" />
-                        <span className="truncate">{document.fileName}</span>
-                        <span className="hidden text-muted-foreground sm:inline">
-                          ·{" "}
-                          {documentLabels[document.documentType] ||
-                            document.documentType}
-                        </span>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={openingDocument !== null}
-                        onClick={() => openDocument(document)}
-                      >
-                        {openingDocument === document.id ? "Đang mở..." : "Mở"}
-                      </Button>
-                    </li>
+                      <h4 className="border-b border-border pb-2 font-heading text-sm font-semibold">
+                        {documentLabels[group.documentType] ||
+                          group.documentType}{" "}
+                        ({group.documents.length})
+                      </h4>
+                      {group.documents.length === 0 ? (
+                        <p className="mt-2 text-muted-foreground">
+                          Chưa có tài liệu.
+                        </p>
+                      ) : (
+                        <ul className="mt-2 space-y-2">
+                          {group.documents.map((document) => (
+                            <li
+                              key={document.id}
+                              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2"
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                <FileText
+                                  size={17}
+                                  className="shrink-0 text-primary"
+                                />
+                                <span className="truncate">
+                                  {document.fileName}
+                                </span>
+                                {document.storageStatus === "MOVING" && (
+                                  <span className="text-muted-foreground">
+                                    Đang chuẩn bị
+                                  </span>
+                                )}
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={
+                                  openingDocument !== null ||
+                                  document.storageStatus === "MOVING"
+                                }
+                                onClick={() => openDocument(document)}
+                              >
+                                {openingDocument === document.id
+                                  ? "Đang mở..."
+                                  : "Mở"}
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   ))}
-                </ul>
+                </div>
               </section>
 
               {detail.verificationStatus !== "PENDING" && (
@@ -585,7 +670,7 @@ export function WhitelistReviewDialog({
                     {!rejecting && (
                       <Button
                         size="sm"
-                        disabled={saving || !reason.trim()}
+                        disabled={saving || !reason.trim() || approvalWaiting}
                         onClick={() => review("VERIFIED")}
                         className="bg-emerald-600 text-white hover:bg-emerald-700"
                       >
@@ -594,6 +679,11 @@ export function WhitelistReviewDialog({
                       </Button>
                     )}
                   </div>
+                  {approvalWaiting && !rejecting && (
+                    <p className="mt-2 text-muted-foreground">
+                      Chờ tài liệu sẵn sàng và OCR hoàn tất trước khi phê duyệt.
+                    </p>
+                  )}
                 </div>
               )}
               {error && (

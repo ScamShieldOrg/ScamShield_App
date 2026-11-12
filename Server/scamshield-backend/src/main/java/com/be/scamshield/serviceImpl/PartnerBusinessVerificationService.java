@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class PartnerBusinessVerificationService {
+    public boolean isOcrEnabled() { return properties.getOcr().isEnabled(); }
     private static final Set<String> ACTIVE_STATUSES = Set.of(
             "NNT ĐANG HOẠT ĐỘNG", "NNT ĐANG HOẠT ĐỘNG (ĐÃ ĐƯỢC CẤP GCN ĐKT)");
     private static final Set<String> OTHER_KNOWN_STATUSES = Set.of(
@@ -72,7 +73,7 @@ public class PartnerBusinessVerificationService {
         boolean registryPassed = precheck.outcome() == Outcome.MATCHED;
         List<DocumentResult> documentResults = documents.stream()
                 .filter(document -> "BUSINESS_LICENSE".equals(document.getDocumentType()))
-                .map(document -> verifyDocument(document, legalName, taxCode, registry, deadline, registryPassed)).toList();
+                    .map(document -> verifyDocument(document, legalName, taxCode, registry, deadline)).toList();
         boolean documentsMatched = !documentResults.isEmpty()
                 && documentResults.stream().allMatch(document -> document.status() == SourceStatus.SUCCESS
                     && document.formNameVsOcr() == MatchResult.MATCHED && document.formTaxCodeVsOcr() == MatchResult.MATCHED
@@ -86,10 +87,8 @@ public class PartnerBusinessVerificationService {
     }
 
     private DocumentResult verifyDocument(PartnerDocument document, String legalName, String taxCode, RegistryResult registry,
-                                           long deadline, boolean registryPassed) {
-        // Avoid paid OCR calls when registry checks already prevent registration.
+                                           long deadline) {
         BusinessDocumentOcr ocr = !properties.getOcr().isEnabled() ? BusinessDocumentOcr.unavailable(SourceStatus.DISABLED)
-                : !registryPassed ? BusinessDocumentOcr.unavailable(SourceStatus.NOT_CHECKED)
                 : System.nanoTime() < deadline
                 ? ocrClient.extract(document.getContent(), document.getFileName())
                 : BusinessDocumentOcr.unavailable(SourceStatus.UNAVAILABLE);

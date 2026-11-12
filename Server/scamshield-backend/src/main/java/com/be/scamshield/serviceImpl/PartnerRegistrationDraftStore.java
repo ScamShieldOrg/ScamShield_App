@@ -15,8 +15,10 @@ public interface PartnerRegistrationDraftStore {
                        List<PartnerRegistrationPrecheckResponse.Upload> uploads);
 
     Optional<Draft> find(String token);
-    boolean claim(String token);
-    void releaseClaim(String token);
+    LocalDateTime refresh(String token);
+    void replaceUpload(String token, int index, PartnerRegistrationPrecheckResponse.Upload upload);
+    String claim(String token);
+    void releaseClaim(String token, String claimId);
     void delete(String token);
 
     record Draft(RegisterPartnerRequest registration, String verificationToken,

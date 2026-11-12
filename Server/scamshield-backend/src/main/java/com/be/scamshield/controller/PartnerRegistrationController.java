@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -30,9 +32,27 @@ import java.util.List;
 public class PartnerRegistrationController {
     private final IPartnerRegistrationService registrationService;
 
+    @GetMapping("/{draftToken}/status")
+    public ResponseEntity<BaseResponse<com.be.scamshield.dto.response.PartnerRegistrationStatusResponse>> status(
+            @PathVariable String draftToken) {
+        return ResponseEntity.ok(new BaseResponse<>(true, "Trạng thái đăng ký", registrationService.status(draftToken)));
+    }
+
+    @PostMapping("/{draftToken}/refresh")
+    public ResponseEntity<BaseResponse<java.time.LocalDateTime>> refresh(@PathVariable String draftToken) {
+        return ResponseEntity.ok(new BaseResponse<>(true, "Đã gia hạn phiên đăng ký", registrationService.refreshDraft(draftToken)));
+    }
+
+    @PostMapping("/{draftToken}/uploads/{documentIndex}/renew")
+    public ResponseEntity<BaseResponse<PartnerRegistrationPrecheckResponse.Upload>> renewUpload(
+            @PathVariable String draftToken, @PathVariable int documentIndex) {
+        return ResponseEntity.ok(new BaseResponse<>(true, "Đã cấp lại URL tải tệp",
+                registrationService.renewUpload(draftToken, documentIndex)));
+    }
+
     @PostMapping(value = "/precheck", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Đối soát doanh nghiệp và cấp URL tải tài liệu",
-            description = "Đối chiếu tên/MST với XInvoice trước khi cấp presigned URL cho bucket partner-documents")
+            description = "Ghi nhận kết quả XInvoice để quản trị viên đối soát và cấp presigned URL cho bucket partner-documents")
     public ResponseEntity<BaseResponse<PartnerRegistrationPrecheckResponse>> precheck(
             @Valid @RequestBody PartnerRegistrationPrecheckRequest request) {
         return ResponseEntity.ok(new BaseResponse<>(true, "Thông tin doanh nghiệp hợp lệ; có thể tải tài liệu",
@@ -41,7 +61,7 @@ public class PartnerRegistrationController {
 
     @PostMapping(value = "/finalize", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Hoàn tất đăng ký đối tác sau khi tải tài liệu",
-            description = "Xác minh các object đã tải lên, chạy OCR nếu bật và tạo hồ sơ chờ duyệt")
+            description = "Xác minh metadata và chữ ký tệp, tạo hồ sơ chờ duyệt; OCR chạy sau trong nền nếu bật")
     public ResponseEntity<BaseResponse<PartnerRegistrationResponse>> finalizeRegistration(
             @Valid @RequestBody PartnerRegistrationFinalizeRequest request) {
         PartnerRegistrationResponse response = registrationService.finalizeRegistration(request.draftToken());

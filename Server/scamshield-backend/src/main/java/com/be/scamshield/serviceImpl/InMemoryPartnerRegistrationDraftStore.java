@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class InMemoryPartnerRegistrationDraftStore implements PartnerRegistrationDraftStore {
     private final ConcurrentHashMap<String, Draft> drafts = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Boolean> claims = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> claims = new ConcurrentHashMap<>();
     private final Clock applicationClock;
 
     @Override
@@ -27,7 +27,7 @@ public class InMemoryPartnerRegistrationDraftStore implements PartnerRegistratio
                               List<PartnerDocumentUploadRequest> documents,
                               PartnerBusinessVerificationResponse businessVerification,
                               List<PartnerRegistrationPrecheckResponse.Upload> uploads) {
-        LocalDateTime expiresAt = LocalDateTime.now(applicationClock).plus(Duration.ofMinutes(15));
+        LocalDateTime expiresAt = LocalDateTime.now(applicationClock).plus(Duration.ofMinutes(60));
         drafts.put(token, new Draft(request, verificationToken, documents, businessVerification, uploads, expiresAt));
         return expiresAt;
     }
@@ -43,13 +43,32 @@ public class InMemoryPartnerRegistrationDraftStore implements PartnerRegistratio
     }
 
     @Override
-    public boolean claim(String token) {
-        return claims.putIfAbsent(token, Boolean.TRUE) == null;
+    public LocalDateTime refresh(String token) {
+        Draft draft = find(token).orElseThrow(() -> new IllegalArgumentException("Phiên đăng ký đã hết hạn"));
+        LocalDateTime expiresAt = LocalDateTime.now(applicationClock).plus(Duration.ofMinutes(60));
+        drafts.put(token, new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
+                draft.businessVerification(), draft.uploads(), expiresAt));
+        return expiresAt;
     }
 
     @Override
-    public void releaseClaim(String token) {
-        claims.remove(token);
+    public void replaceUpload(String token, int index, PartnerRegistrationPrecheckResponse.Upload upload) {
+        Draft draft = find(token).orElseThrow(() -> new IllegalArgumentException("Phiên đăng ký đã hết hạn"));
+        var uploads = new java.util.ArrayList<>(draft.uploads());
+        uploads.set(index, upload);
+        drafts.put(token, new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
+                draft.businessVerification(), uploads, LocalDateTime.now(applicationClock).plus(Duration.ofMinutes(60))));
+    }
+
+    @Override
+    public String claim(String token) {
+        String claimId = java.util.UUID.randomUUID().toString();
+        return claims.putIfAbsent(token, claimId) == null ? claimId : null;
+    }
+
+    @Override
+    public void releaseClaim(String token, String claimId) {
+        claims.remove(token, claimId);
     }
 
     @Override
