@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   ShieldWarning,
   Broadcast,
@@ -18,7 +18,11 @@ import {
   Bug,
 } from "@phosphor-icons/react"
 import { toast } from "react-toastify"
-import { submitPartnerAlertOrIntel } from "@/features/partner/services/partner-submission.service"
+import {
+  submitPartnerAlertOrIntel,
+  getMySubmissions,
+} from "@/features/partner/services/partner-submission.service"
+import { useAuthStore } from "@/store/auth.store"
 import { cn } from "@/lib/utils"
 
 interface AttachedFile {
@@ -30,56 +34,51 @@ interface AttachedFile {
 }
 
 export function OfficialAlertForm() {
+  const user = useAuthStore((state) => state.user)
+
   // Attack vector
   const [attackVector, setAttackVector] = useState<string>("bts-fake")
   // Severity
   const [severity, setSeverity] = useState<"urgent" | "high" | "medium">("urgent")
 
-  // Indicators
-  const [brandnamePhone, setBrandnamePhone] = useState<string>(
-    "+84 28 7300 xxxx, VIETCOMBANK (Phát tán qua BTS trạm sóng giả hại)"
-  )
-  const [domains, setDomains] = useState<string>(
-    "vcb-digibank-xacthuc.top, vietcombank-secotp.com, vcb-portal-capnhat.online"
-  )
-  const [muleAccounts, setMuleAccounts] = useState<string>(
-    "0704 2292 8192 11 - NGUYEN VAN B - Ngân hàng TMCP X (Chi Nhánh Dong Do)"
-  )
-  const [firstObserved, setFirstObserved] = useState<string>("2025-01-14T00:30")
-  const [lastObserved, setLastObserved] = useState<string>("2025-01-15T14:15")
-  const [affectedScope, setAffectedScope] = useState<string>("Hà Nội & TP.HCM")
+  // Indicators - clean empty initial states
+  const [brandnamePhone, setBrandnamePhone] = useState<string>("")
+  const [domains, setDomains] = useState<string>("")
+  const [muleAccounts, setMuleAccounts] = useState<string>("")
+  const [firstObserved, setFirstObserved] = useState<string>("")
+  const [lastObserved, setLastObserved] = useState<string>("")
+  const [affectedScope, setAffectedScope] = useState<string>("")
 
   // Scenario description
-  const [scenarioDescription, setScenarioDescription] = useState<string>(
-    "SMS Brandname giả mạo Fake BTS điều hướng tới website phishing để đánh cắp thông tin tài khoản và mã OTP của khách hàng."
-  )
+  const [scenarioDescription, setScenarioDescription] = useState<string>("")
 
-  // Files
-  const [files, setFiles] = useState<AttachedFile[]>([
-    {
-      id: "f1",
-      name: "sms_screenshot_victim_01.png",
-      description: "Ảnh chụp tin nhắn nạn nhân nhận được",
-      sizeText: "2.4 MB",
-    },
-    {
-      id: "f2",
-      name: "pcap_fake_bts_log.txt",
-      description: "Log đối soát trạm phát sóng nhà mạng Viettel/VNPT",
-      sizeText: "410 KB",
-    },
-    {
-      id: "f3",
-      name: "phishing_source_inspect.json",
-      description: "Mã nguồn & endpoint C2 nhận OTP",
-      sizeText: "1.2 MB",
-    },
-  ])
+  // Files - empty initial state (no mock files)
+  const [files, setFiles] = useState<AttachedFile[]>([])
   const [uploadedRealFile, setUploadedRealFile] = useState<File | null>(null)
 
   // Agreement
-  const [agreementChecked, setAgreementChecked] = useState<boolean>(true)
+  const [agreementChecked, setAgreementChecked] = useState<boolean>(false)
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+
+  // Dynamic stats
+  const [stats, setStats] = useState({ total: 0, approved: 0, pending: 0 })
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const res = await getMySubmissions("ALL", 0, 100)
+        if (res?.data) {
+          const total = res.totalItems || res.data.length
+          const approved = res.data.filter((i) => i.status === "VERIFIED").length
+          const pending = res.data.filter((i) => i.status === "PENDING").length
+          setStats({ total, approved, pending })
+        }
+      } catch {
+        // Keep initial stats
+      }
+    }
+    loadStats()
+  }, [])
 
   // Handle file drop/upload
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -87,19 +86,39 @@ export function OfficialAlertForm() {
     if (!file) return
 
     setUploadedRealFile(file)
+    const sizeInMB = file.size / (1024 * 1024)
+    const sizeText =
+      sizeInMB >= 1
+        ? `${sizeInMB.toFixed(1)} MB`
+        : `${Math.round(file.size / 1024)} KB`
+
     const newFile: AttachedFile = {
       id: String(Date.now()),
       name: file.name,
-      description: "Tài liệu chứng cứ mới tải lên",
-      sizeText: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      description: "Tệp chứng cứ kỹ thuật tải lên",
+      sizeText,
       file,
     }
-    setFiles((prev) => [newFile, ...prev])
+    setFiles([newFile])
     toast.info(`Đã đính kèm tệp: ${file.name}`)
   }
 
   function handleRemoveFile(id: string) {
-    setFiles((prev) => prev.filter((f) => f.id !== id))
+    setFiles((prev) => {
+      const remaining = prev.filter((f) => f.id !== id)
+      const nextReal = remaining.find((f) => f.file)?.file || null
+      setUploadedRealFile(nextReal)
+      return remaining
+    })
+  }
+
+  function handlePreviewFile(file: AttachedFile) {
+    if (file.file) {
+      const url = URL.createObjectURL(file.file)
+      window.open(url, "_blank")
+    } else {
+      toast.info(`Tệp: ${file.name}`)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -122,19 +141,29 @@ export function OfficialAlertForm() {
 
     setIsSubmitting(true)
 
+    // Snapshot draft values at submission time to preserve edits made while pending
+    const submittedBrandname = brandnamePhone
+    const submittedDomains = domains
+    const submittedMuleAccounts = muleAccounts
+    const submittedScenarioDescription = scenarioDescription
+    const submittedFiles = files
+    const submittedRealFile = uploadedRealFile
+    const submittedAgreement = agreementChecked
+
     try {
       // Pick representative indicator
       const primaryUrl = domains.split(",")[0]?.trim()
       const primaryIndicator = primaryUrl || brandnamePhone.split(",")[0]?.trim() || muleAccounts
 
-      const title = `[CẢNH BÁO KHẨN] Chiến dịch mạo danh VCB qua ${attackVector === "bts-fake"
+      const title = `[CẢNH BÁO KHẨN] Chiến dịch mạo danh qua ${
+        attackVector === "bts-fake"
           ? "SMS Brandname Fake BTS"
           : attackVector === "phishing-web"
             ? "Website Phishing OTP"
             : attackVector === "malware-apk"
               ? "Mã độc APK Ngân Hàng Giả"
               : "Tổng đài mạo danh"
-        }`
+      }`
 
       const safeDesc = scenarioDescription.trim()
       const payload = {
@@ -149,6 +178,28 @@ export function OfficialAlertForm() {
       await submitPartnerAlertOrIntel(payload, uploadedRealFile)
 
       toast.success("Đã gửi phát lệnh cảnh báo khẩn cấp thành công! Hồ sơ đã được đưa vào luồng C1 Fast-Track.")
+
+      // Clear only fields that were actually submitted and whose current values still match the submitted draft.
+      // firstObserved, lastObserved, and affectedScope are retained until the submission contract includes them.
+      setBrandnamePhone((curr) => (curr === submittedBrandname ? "" : curr))
+      setDomains((curr) => (curr === submittedDomains ? "" : curr))
+      setMuleAccounts((curr) => (curr === submittedMuleAccounts ? "" : curr))
+      setScenarioDescription((curr) => (curr === submittedScenarioDescription ? "" : curr))
+      setFiles((curr) => (curr === submittedFiles ? [] : curr))
+      setUploadedRealFile((curr) => (curr === submittedRealFile ? null : curr))
+      setAgreementChecked((curr) => (curr === submittedAgreement ? false : curr))
+
+      // Refresh dynamic stats
+      try {
+        const res = await getMySubmissions("ALL", 0, 100)
+        if (res?.data) {
+          setStats({
+            total: res.totalItems || res.data.length,
+            approved: res.data.filter((i) => i.status === "VERIFIED").length,
+            pending: res.data.filter((i) => i.status === "PENDING").length,
+          })
+        }
+      } catch {}
     } catch (err: any) {
       console.error("Submit error", err)
       toast.error(err?.response?.data?.message || "Không thể gửi cảnh báo, vui lòng thử lại sau.")
@@ -180,15 +231,15 @@ export function OfficialAlertForm() {
           <div className="flex items-center gap-2 shrink-0">
             <div className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs dark:border-slate-800 dark:bg-slate-900 shadow-2xs">
               <span className="text-slate-500">Đã gửi: </span>
-              <span className="font-bold text-slate-900 dark:text-white">12</span>
+              <span className="font-bold text-slate-900 dark:text-white">{stats.total}</span>
             </div>
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 shadow-2xs">
               <span>Đã phê chuẩn: </span>
-              <span className="font-bold">10</span>
+              <span className="font-bold">{stats.approved}</span>
             </div>
             <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300 shadow-2xs">
               <span>Đang thẩm định: </span>
-              <span className="font-bold">02</span>
+              <span className="font-bold">{stats.pending}</span>
             </div>
           </div>
         </div>
@@ -241,7 +292,7 @@ export function OfficialAlertForm() {
                       </span>
                     </div>
                     <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-                      Trạm thu phát sóng di động giả lập chèn Brandname VIETCOMBANK
+                      Trạm thu phát sóng di động giả lập chèn Brandname mạo danh
                     </p>
                   </div>
 
@@ -260,7 +311,7 @@ export function OfficialAlertForm() {
                       <span>Tên Miền / Phishing Portal Thu Thập OTP</span>
                     </div>
                     <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-                      Trang web mạo danh giao diện VCB Digibank đánh cắp mật khẩu & OTP
+                      Trang web mạo danh giao diện ngân hàng/tổ chức đánh cắp thông tin & OTP
                     </p>
                   </div>
 
@@ -386,6 +437,7 @@ export function OfficialAlertForm() {
                     type="text"
                     value={brandnamePhone}
                     onChange={(e) => setBrandnamePhone(e.target.value)}
+                    placeholder="Ví dụ: +84 28 7300 xxxx, VIETCOMBANK (Phát tán qua BTS trạm sóng giả)..."
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
@@ -402,6 +454,7 @@ export function OfficialAlertForm() {
                     type="text"
                     value={domains}
                     onChange={(e) => setDomains(e.target.value)}
+                    placeholder="Ví dụ: vcb-digibank-xacthuc.top, vietcombank-secotp.com..."
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
@@ -415,6 +468,7 @@ export function OfficialAlertForm() {
                     type="text"
                     value={muleAccounts}
                     onChange={(e) => setMuleAccounts(e.target.value)}
+                    placeholder="Ví dụ: 0704 2292 8192 11 - NGUYEN VAN B - Ngân hàng TMCP X..."
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
@@ -451,6 +505,7 @@ export function OfficialAlertForm() {
                       type="text"
                       value={affectedScope}
                       onChange={(e) => setAffectedScope(e.target.value)}
+                      placeholder="Ví dụ: Toàn quốc, Hà Nội & TP.HCM..."
                       className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     />
                   </div>
@@ -474,6 +529,7 @@ export function OfficialAlertForm() {
                   rows={5}
                   value={scenarioDescription}
                   onChange={(e) => setScenarioDescription(e.target.value)}
+                  placeholder="Mô tả tóm tắt kịch bản lừa đảo, phương thức phát tán và cơ chế tấn công..."
                   className={`w-full rounded-lg border p-3 text-xs leading-relaxed focus:bg-white focus:outline-none dark:bg-slate-800 dark:text-white ${
                     scenarioDescription.length > 160
                       ? "border-red-500 bg-red-50/30 focus:border-red-600 dark:border-red-500"
@@ -561,6 +617,7 @@ export function OfficialAlertForm() {
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
+                          onClick={() => handlePreviewFile(file)}
                           className="rounded px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
                         >
                           XEM TRƯỚC
@@ -588,7 +645,7 @@ export function OfficialAlertForm() {
                     className="mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
                   />
                   <span className="text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed">
-                    Tôi xác nhận thông tin cảnh báo trên đã qua kiểm tra sơ bộ từ <strong>Đội Ứng Cứu Sự Cố SOC Vietcombank</strong> và cam kết tính xác thực theo quy chuẩn pháp lý nghiệp vụ an ninh mạng số. Mọi hành vi cố ý báo cáo sai lệch sẽ chịu trách nhiệm theo điều lệ thành viên ScamShield B2B.
+                    Tôi xác nhận thông tin cảnh báo trên đã qua kiểm tra sơ bộ từ <strong>Đội Ứng Cứu Sự Cố SOC {user?.email ? `(${user.email})` : "Đối Tác"}</strong> và cam kết tính xác thực theo quy chuẩn pháp lý nghiệp vụ an ninh mạng số. Mọi hành vi cố ý báo cáo sai lệch sẽ chịu trách nhiệm theo điều lệ thành viên ScamShield B2B.
                   </span>
                 </label>
               </div>
