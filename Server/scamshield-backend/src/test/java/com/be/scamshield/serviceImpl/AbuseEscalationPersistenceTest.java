@@ -1,5 +1,10 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.support.PostgresIntegrationTest;
+
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.constant.AbuseFlagStatus;
 import com.be.scamshield.constant.AbuseFlagType;
 import com.be.scamshield.dto.request.CreateAbuseEscalationRequest;
@@ -51,13 +56,13 @@ import static org.mockito.Mockito.when;
 
 @DataJpaTest(showSql = false, properties = {
         "spring.test.database.replace=none",
-        "spring.datasource.url=jdbc:h2:mem:abuse-escalation-write-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000",
+
         "spring.jpa.properties.hibernate.hbm2ddl.halt_on_error=true"
 })
 @Import(ModeratorAbuseEscalationServiceImpl.class)
 @ActiveProfiles("test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class AbuseEscalationPersistenceTest {
+class AbuseEscalationPersistenceTest extends PostgresIntegrationTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 28, 9, 0);
     private static final AtomicInteger SEQUENCE = new AtomicInteger(10000000);
@@ -216,11 +221,11 @@ class AbuseEscalationPersistenceTest {
     }
 
     private Report report(User reporter) {
-        Indicator indicator = Indicator.builder().type("PHONE").normalizedValue(reporter.getPhoneNumber())
+        Indicator indicator = Indicator.builder().type(IndicatorType.PHONE).normalizedValue(reporter.getPhoneNumber())
                 .createdAt(NOW).updatedAt(NOW).firstSeenAt(NOW).lastSeenAt(NOW).build();
         entityManager.persist(indicator);
-        Report report = Report.builder().reporterUser(reporter).indicator(indicator).status("REJECTED")
-                .reportCountSignal(1).coordinatedReportSuspected(false).moderationLocked(false)
+        Report report = Report.builder().reporterUser(reporter).indicator(indicator).status(ReportStatus.REJECTED)
+
                 .createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(report);
         return report;

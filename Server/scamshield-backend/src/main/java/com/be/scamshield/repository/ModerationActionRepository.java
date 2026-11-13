@@ -2,6 +2,7 @@ package com.be.scamshield.repository;
 
 import com.be.scamshield.entity.ModerationAction;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.stereotype.Repository;
 
@@ -10,6 +11,13 @@ import java.util.List;
 
 @Repository
 public interface ModerationActionRepository extends JpaRepository<ModerationAction, Long> {
+    @Query("""
+            select count(distinct action.report.id) from ModerationAction action
+            where action.moderatorUser.id = :userId and action.action = :verdict
+            """)
+    long countDecidedReports(Long userId, String verdict);
+
+    boolean existsByReportIdAndAction(Long reportId, String action);
 
     List<ModerationAction> findByReportIdOrderByCreatedAtDesc(Long reportId);
 

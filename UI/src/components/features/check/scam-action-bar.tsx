@@ -33,7 +33,7 @@ export function ScamActionBar({ scanId }: ScamActionBarProps) {
         <button
           type="button"
           onClick={handleShare}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#00875A] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#00704A] active:scale-95 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#006644] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#004d33] active:scale-95 dark:bg-emerald-700 dark:hover:bg-emerald-800"
         >
           {copied ? (
             <Check size={16} weight="bold" />

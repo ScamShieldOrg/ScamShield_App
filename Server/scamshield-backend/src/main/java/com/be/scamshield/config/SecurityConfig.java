@@ -28,6 +28,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
+import jakarta.servlet.DispatcherType;
 
 @Configuration
 @EnableWebSecurity
@@ -85,9 +86,15 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/firebase-otp-test.html", "/firebase-otp-test.js")
                             .access((authentication, context) -> new AuthorizationDecision(testUiEnabled))
                         .requestMatchers(HttpMethod.POST, "/api/partners/registrations").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/partners/registrations/precheck",
+                                "/api/partners/registrations/finalize").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/partners/registrations/*/status").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/partners/registrations/*/refresh",
+                                "/api/partners/registrations/*/uploads/*/renew").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/guest/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/scam-checks").permitAll()
@@ -104,6 +111,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMINISTRATOR")
                         .requestMatchers("/api/moderator/**").hasRole("MODERATOR")
+                        .requestMatchers("/api/partner/**").hasRole("BUSINESS_PARTNER")
                         .anyRequest().authenticated()
                 );
 

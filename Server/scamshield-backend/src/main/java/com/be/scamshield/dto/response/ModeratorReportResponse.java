@@ -1,10 +1,10 @@
 package com.be.scamshield.dto.response;
 
-import com.be.scamshield.constant.ReportPriority;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import java.time.LocalDateTime;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
@@ -28,6 +28,9 @@ public class ModeratorReportResponse {
     @Schema(description = "Loại đối tượng (PHONE, WEBSITE, BANK_ACCOUNT...)", example = "PHONE")
     private String targetType;
 
+    private String description;
+    private String reportedMessage;
+
     @Schema(description = "Tên danh mục thủ đoạn chính", example = "Lừa đảo ngân hàng / OTP Phishing")
     private String category;
 
@@ -37,17 +40,38 @@ public class ModeratorReportResponse {
     @Schema(description = "Tổng số lượng báo cáo gộp cho đối tượng này", example = "47")
     private Integer reportCount;
 
-    @Schema(description = "Người gửi báo cáo", example = "nguyenthanh_vn")
+    @Schema(description = "Họ tên đầy đủ của người gửi báo cáo", example = "Nguyễn Thành")
     private String reportedBy;
 
-    @Schema(description = "Thời gian gửi báo cáo định dạng", example = "15/01 14:32")
+    @Schema(description = "Thời gian gửi báo cáo định dạng", example = "15/01/2024 14:32")
     private String reportedAt;
+    private String processedAt;
 
-    @Schema(description = "Mức độ ưu tiên", example = "URGENT")
-    private ReportPriority priority;
-
-    @Schema(description = "Trạng thái hiển thị (Pending, In Review, Locked, Approved, Rejected)", example = "Pending")
+    @Schema(description = "Trạng thái hiển thị (Pending, Approved, Rejected)", example = "Pending")
     private String status;
+
+    @Schema(description = "Tài khoản hiện tại có quyền nhận duyệt báo cáo")
+    private boolean canReview;
+    private boolean assignedToMe;
+
+    @Schema(description = "Indicator thuộc whitelist đang có hiệu lực; cảnh báo hỗ trợ quyết định")
+    private boolean whitelisted;
+    private List<WhitelistMatch> whitelistMatches;
+
+    private IndicatorContext indicatorContext;
+    private ReporterContext reporterContext;
+
+    public record IndicatorContext(String blacklistStatus, long reports, long approvedReports, long rejectedReports, long disputes,
+                                   LocalDateTime firstSeenAt, LocalDateTime lastSeenAt) { }
+
+    public record ReporterContext(String email, String phoneNumber, Integer reputationPoints,
+                                  LocalDateTime joinedAt, long reports, long approvedReports, long decidedReports,
+                                  long disputes, long approvedDisputes, long decidedDisputes,
+                                  long abuseFlags, long openFlags) { }
+
+    public record WhitelistMatch(Long whitelistEntryId, Long partnerId, String legalName,
+                                 LocalDateTime verifiedAt) { }
+
 
     @Schema(description = "Điểm đánh giá AI (0 - 100). Hiện tại để trống theo yêu cầu", example = "null")
     private Integer aiScore;
@@ -58,11 +82,9 @@ public class ModeratorReportResponse {
     @Schema(description = "Độ tin cậy của AI. Hiện tại để trống theo yêu cầu", example = "null")
     private String aiConfidence;
 
-    @Schema(description = "Điểm phần trăm độ đầy đủ bằng chứng (0 - 100)", example = "85")
-    private Integer evidenceCompleteness;
+    @Schema(description = "Số lượng minh chứng được cung cấp trong báo cáo", example = "3")
+    private Integer evidenceCount;
 
-    @Schema(description = "Đề xuất hành động từ người báo cáo", example = "Đề xuất chặn DNS khẩn cấp")
-    private String reporterProposal;
 
     @Schema(description = "Danh sách bằng chứng đính kèm")
     private List<ModeratorEvidenceResponse> evidences;
@@ -70,6 +92,4 @@ public class ModeratorReportResponse {
     @Schema(description = "Danh sách nhãn phân loại (Taxonomies) - hiện lấy từ danh mục duy nhất của báo cáo")
     private List<String> taxonomies;
 
-    @Schema(description = "Cờ đánh dấu hồ sơ đang bị khóa kiểm duyệt", example = "false")
-    private Boolean isLocked;
 }

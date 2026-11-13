@@ -1,5 +1,6 @@
 package com.be.scamshield.entity;
 
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -28,8 +29,9 @@ public class ConfirmedIndicator {
     @JoinColumn(name = "impersonated_partner_id")
     private PartnerProfile impersonatedPartner;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private String status;
+    private ConfirmedIndicatorStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "confirmed_by", nullable = false)

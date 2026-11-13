@@ -128,11 +128,10 @@ public class ScamCheckInputProcessor {
                 aliases.add(scheme + "://" + key + "/");
             }
             add(candidates, "URL", key, List.copyOf(aliases), start, end);
-            // Legacy data stores some domain-wide entries as URL rather than DOMAIN.
+            // Match domain-wide URL entries as well as the full path.
             if (defaultPort) {
                 add(candidates, "URL", host, List.of(host, "https://" + host, "http://" + host,
                         host + "/", "https://" + host + "/", "http://" + host + "/"), start, end);
-                add(candidates, "DOMAIN", host, List.of(host), start, end);
             }
             return domainOnly ? host : key;
         } catch (IllegalArgumentException ex) {

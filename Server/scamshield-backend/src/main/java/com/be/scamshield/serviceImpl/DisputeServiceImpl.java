@@ -110,7 +110,7 @@ public class DisputeServiceImpl implements IDisputeService {
                 dispute.getReason(), dispute.getLegalRelationship(), dispute.getDeclarationAcceptedAt(),
                 dispute.getProgressMessage(), dispute.getEstimatedResolutionAt(), dispute.getSupplementReason(),
                 dispute.getSupplementDeadline(), dispute.getResolutionReason(), dispute.getResolutionDocumentUrl(), dispute.getCreatedAt(),
-                dispute.getUpdatedAt(), dispute.getResolvedAt(), new IndicatorSummary(indicator.getId(), indicator.getType(), value,
+                dispute.getUpdatedAt(), dispute.getResolvedAt(), new IndicatorSummary(indicator.getId(), indicator.getType().name(), value,
                 confirmed.getStatus(), confirmed.getRetractedAt()), files.size(), List.copyOf(files));
     }
 

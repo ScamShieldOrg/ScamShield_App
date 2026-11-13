@@ -22,6 +22,4 @@ public class ModeratorQueueCountsResponse {
     @Schema(description = "Số hồ sơ đang xem xét (In Review)", example = "1")
     private long inReview;
 
-    @Schema(description = "Số hồ sơ đã khóa (Locked)", example = "2")
-    private long locked;
 }

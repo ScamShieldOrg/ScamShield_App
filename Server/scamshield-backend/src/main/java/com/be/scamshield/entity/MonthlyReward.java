@@ -1,5 +1,7 @@
 package com.be.scamshield.entity;
 
+import com.be.scamshield.constant.MonthlyRewardStatus;
+import com.be.scamshield.constant.MonthlyRewardType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,14 +28,16 @@ public class MonthlyReward {
     @Column(name = "total_points", nullable = false)
     private Integer totalPoints;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "reward_type")
-    private String rewardType;
+    private MonthlyRewardType rewardType;
 
     @Column(name = "reward_value")
     private String rewardValue;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private String status;
+    private MonthlyRewardStatus status;
 
     @Column(name = "granted_at")
     private java.time.LocalDateTime grantedAt;

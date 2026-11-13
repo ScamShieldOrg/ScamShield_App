@@ -1,5 +1,15 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
+import com.be.scamshield.constant.VietnamProvince;
+import com.be.scamshield.external.ScamCheckAiClient;
+
+import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.constant.ScamDashboardPeriod;
 import com.be.scamshield.dto.request.ScamDashboardFilterRequest;
 import com.be.scamshield.dto.response.ScamDashboardSummaryResponse.ConfirmedCategory;
@@ -31,11 +41,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-class ScamDashboardPersistenceTest {
+class ScamDashboardPersistenceTest extends PostgresIntegrationTest {
     private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final LocalDateTime NOW = LocalDateTime.parse("2026-10-09T01:00:00");
     @Autowired
@@ -48,6 +58,8 @@ class ScamDashboardPersistenceTest {
     private MockMvc mvc;
     @MockitoBean
     private Clock clock;
+    @MockitoBean
+    private ScamCheckAiClient scamCheckAiClient;
     private User reporter;
     private ScamCategory jobs;
     private ScamCategory prize;
@@ -191,8 +203,8 @@ class ScamDashboardPersistenceTest {
     }
 
     @Test
-    void flagsMissingAndUnknownRegionCodesWithoutClaimingProvinceCoverage() {
-        jdbc.update("UPDATE reports SET region_code = '99'");
+    void flagsMissingRegionCodesWithoutClaimingProvinceCoverage() {
+        jdbc.update("UPDATE reports SET region_code = NULL");
         var summary = service.getSummary(new ScamDashboardFilterRequest());
         assertThat(summary.reports().total()).isEqualTo(8);
         assertThat(summary.coverage().reportedProvinces()).isZero();
@@ -241,19 +253,19 @@ class ScamDashboardPersistenceTest {
     }
 
     private Indicator indicator(String type, String value) {
-        Indicator indicator = Indicator.builder().type(type).normalizedValue(value).createdAt(NOW).updatedAt(NOW).build();
+        Indicator indicator = Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue(value).createdAt(NOW).updatedAt(NOW).build();
         entityManager.persist(indicator);
         return indicator;
     }
 
     private void confirm(Indicator indicator, ScamCategory category, String status, LocalDateTime confirmedAt, LocalDateTime retractedAt) {
-        entityManager.persist(ConfirmedIndicator.builder().indicator(indicator).category(category).status(status)
+        entityManager.persist(ConfirmedIndicator.builder().indicator(indicator).category(category).status(ConfirmedIndicatorStatus.valueOf(status))
                 .confirmedByUser(reporter).confirmedAt(confirmedAt).retractedAt(retractedAt).build());
     }
 
     private void report(Indicator indicator, ScamCategory category, String regionCode, String createdAt) {
-        entityManager.persist(Report.builder().reporterUser(reporter).indicator(indicator).status("PENDING")
-                .category(category).regionCode(regionCode).reportCountSignal(1).coordinatedReportSuspected(false)
-                .moderationLocked(false).createdAt(LocalDateTime.parse(createdAt)).updatedAt(NOW).build());
+        entityManager.persist(Report.builder().reporterUser(reporter).indicator(indicator).status(ReportStatus.PENDING)
+                .category(category).regionCode(regionCode == null ? null : VietnamProvince.fromCode(regionCode).orElseThrow())
+                .createdAt(LocalDateTime.parse(createdAt)).updatedAt(NOW).build());
     }
 }

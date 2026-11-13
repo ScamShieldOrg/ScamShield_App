@@ -1,4 +1,4 @@
-import { publicApi } from "@/lib/api/instance";
+import { authorizeApi, publicApi } from "@/lib/api/instance";
 import { decodeJwt } from "@/lib/utils/jwtUtil";
 import { useAuthStore } from "@/store/auth.store";
 import { User, UserRole } from "@/types/user";
@@ -56,15 +56,117 @@ export interface RegisterPartnerResponseData {
     submittedAt: string;
 }
 
-function extractErrorMessage(error: unknown, fallback: string): string {
-    if (axios.isAxiosError(error)) {
-        const data = error.response?.data
-        return data?.message || data?.error || fallback
+export class PartnerRegistrationOutcomeUnknownError extends Error {
+    constructor(message: string, public readonly draftToken: string) {
+        super(message);
     }
-    return error instanceof Error ? error.message : fallback
+}
+
+export interface PartnerRegistrationStatus {
+    status: "PROCESSING" | "COMPLETED" | "EXPIRED";
+    registration: RegisterPartnerResponseData | null;
+}
+
+export type PartnerUploadProgress = {
+    stage: "precheck" | "upload" | "finalize";
+    completedFiles: number;
+    totalFiles: number;
+    fileProgress: number[];
+    fileNames: string[];
+    totalPercent: number;
+};
+
+function uploadPartnerFile(
+    url: string,
+    file: File,
+    onProgress: (loaded: number) => void
+): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open("PUT", url);
+        request.timeout = 60_000;
+        request.setRequestHeader("Content-Type", file.type);
+        request.upload.onprogress = (event) => onProgress(event.loaded);
+        request.onload = () =>
+            request.status >= 200 && request.status < 300
+                ? resolve()
+                : reject(new Error(`Không tải được tài liệu ${file.name}.`));
+        request.onerror = () =>
+            reject(new Error(`Không tải được tài liệu ${file.name}.`));
+        request.ontimeout = () =>
+            reject(new Error(`Tải tài liệu ${file.name} quá thời gian cho phép.`));
+        request.send(file);
+    });
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+    const vietnameseMessage = (value: unknown): string | undefined => {
+        if (typeof value !== "string") return undefined
+        const message = value.trim()
+        // Keep useful Vietnamese API messages, without exposing raw HTTP errors.
+        return /[À-ÖØ-öø-ÿĂăĐđĨĩŨũƠơƯư\u1ea0-\u1ef9]/.test(message) && !/<[^>]+>/.test(message)
+            ? message
+            : undefined
+    }
+
+    if (axios.isAxiosError(error)) {
+        if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+            return "Máy chủ phản hồi quá lâu. Vui lòng thử lại sau."
+        }
+        if (!error.response) {
+            return "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại."
+        }
+
+        const data = error.response?.data
+        const details = data?.data
+        if (error.response.status === 400 && details && typeof details === "object" && !Array.isArray(details)) {
+            for (const value of Object.values(details)) {
+                const message = vietnameseMessage(value)
+                if (message) return message
+            }
+        }
+
+        const message = vietnameseMessage(data?.message) || vietnameseMessage(data?.error)
+        if (message) return message
+
+        const statusMessages: Record<number, string> = {
+            400: "Thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
+            401: "Phiên xác thực đã hết hạn hoặc không hợp lệ. Vui lòng xác thực lại.",
+            403: "Yêu cầu không được phép thực hiện. Vui lòng thử lại hoặc liên hệ hỗ trợ.",
+            404: "Không tìm thấy dịch vụ được yêu cầu. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.",
+            409: "Thông tin đăng ký đã được sử dụng. Vui lòng kiểm tra email và số điện thoại.",
+            429: "Bạn đã gửi quá nhiều yêu cầu. Vui lòng chờ một lúc rồi thử lại.",
+        }
+        if (error.response.status >= 500) {
+            return "Dịch vụ đang gặp sự cố. Vui lòng thử lại sau."
+        }
+        return statusMessages[error.response.status] || fallback
+    }
+    return error instanceof Error ? vietnameseMessage(error.message) || fallback : fallback
 }
 
 export const authServices = {
+    setupPartnerPassword: async function (token: string, newPassword: string) {
+        try {
+            const response = await publicApi.post("/auth/partner-password/setup", { token, newPassword })
+            if (response.data?.isSuccess !== true) {
+                throw new Error(response.data?.message || "Không thể đặt mật khẩu.")
+            }
+        } catch (cause) {
+            throw new Error(extractErrorMessage(cause, "Không thể đặt mật khẩu. Vui lòng thử lại."))
+        }
+    },
+    async getCurrentProfile(signal?: AbortSignal) {
+        const { data } = await authorizeApi.get<{
+            isSuccess?: boolean
+            success?: boolean
+            data?: { id: number; fullName?: string; username: string; email?: string; role: UserRole }
+        }>("/auth/me", { signal })
+        if (!(data.isSuccess ?? data.success) || !data.data) {
+            throw new Error("Không thể tải thông tin tài khoản")
+        }
+        return data.data
+    },
     loginByForm: async function (identifier: string, password: string) {
         try {
             const response = await publicApi.post("/auth/login", {
@@ -82,7 +184,7 @@ export const authServices = {
     
             const decoded = decodeJwt(accessToken)
             return { role: (decoded?.role || "") }
-        } catch (error: unknown) {
+        } catch {
             throw new Error("Tài khoản/mật khẩu không chính xác")
         }
     },
@@ -152,6 +254,11 @@ export const authServices = {
             const response = await publicApi.post("/auth/send-phone-otp", body, {
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
             })
+            if (response.data?.isSuccess !== true) {
+                throw new Error(
+                    response.data?.message || "Không thể gửi mã OTP. Vui lòng thử lại."
+                )
+            }
             return { message: response.data?.message as string }
         } catch (error) {
             throw new Error(extractErrorMessage(error, "Không thể gửi mã OTP."))
@@ -166,7 +273,21 @@ export const authServices = {
                 phoneNumber,
                 phoneOtp,
             })
-            return response.data.data as VerifyContactsResult
+            const result = response.data?.data
+            if (response.data?.isSuccess !== true) {
+                throw new Error(
+                    response.data?.message || "Xác thực OTP thất bại. Vui lòng kiểm tra mã và thử lại."
+                )
+            }
+            if (
+                typeof result?.verificationToken !== "string" ||
+                !/^[A-Za-z0-9_-]{43}$/.test(result.verificationToken) ||
+                typeof result?.expiresAt !== "string" ||
+                !result.expiresAt
+            ) {
+                throw new Error("Không nhận được mã xác nhận điện thoại hợp lệ. Vui lòng gửi mã OTP mới.")
+            }
+            return result as VerifyContactsResult
         } catch (error) {
             throw new Error(extractErrorMessage(error, "Xác thực OTP thất bại."))
         }
@@ -181,31 +302,215 @@ export const authServices = {
     },
     registerPartner: async function (
         requestData: RegisterPartnerPayload,
-        files: RegisterPartnerFiles
+        files: RegisterPartnerFiles,
+        onProgress?: (progress: PartnerUploadProgress) => void
     ) {
+        let finalizing = false;
+        let draftToken: string | undefined;
         try {
-            const formData = new FormData()
-            formData.append(
-                "request",
-                new Blob([JSON.stringify(requestData)], { type: "application/json" })
-            )
-            files.businessLicenseFiles.forEach((file) => {
-                formData.append("businessLicenseFiles", file)
-            })
-            files.ownershipProofFiles.forEach((file) => {
-                formData.append("ownershipProofFiles", file)
-            })
-            files.authorizationFiles.forEach((file) => {
-                formData.append("authorizationFiles", file)
-            })
-
-            const response = await publicApi.post("/partners/registrations", formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            })
-            return response.data
+            const documents = [
+                ...files.businessLicenseFiles.map((file) => ({
+                    file,
+                    documentType: "BUSINESS_LICENSE",
+                })),
+                ...files.ownershipProofFiles.map((file) => ({
+                    file,
+                    documentType: "OWNERSHIP_PROOF",
+                })),
+                ...files.authorizationFiles.map((file) => ({
+                    file,
+                    documentType: "AUTHORIZATION",
+                })),
+            ];
+            onProgress?.({
+                stage: "precheck",
+                completedFiles: 0,
+                totalFiles: documents.length,
+                fileProgress: documents.map(() => 0),
+                fileNames: documents.map(({ file }) => file.name),
+                totalPercent: 0,
+            });
+            const precheck = await publicApi.post(
+                "/partners/registrations/precheck",
+                {
+                    registration: requestData,
+                    documents: documents.map(({ file, documentType }) => ({
+                        documentType,
+                        fileName: file.name,
+                        contentType: file.type,
+                        fileSize: file.size,
+                    })),
+                }
+            );
+            const precheckData = precheck.data?.data;
+            if (
+                !precheck.data?.isSuccess ||
+                !precheckData?.draftToken ||
+                !Array.isArray(precheckData.uploads)
+            ) {
+                throw new Error(
+                    precheck.data?.message || "Không thể bắt đầu tải tài liệu."
+                );
+            }
+            draftToken = precheckData.draftToken as string;
+            const loaded = documents.map(() => 0);
+            let completed = 0;
+            let next = 0;
+            const report = () =>
+                onProgress?.({
+                    stage: "upload",
+                    completedFiles: completed,
+                    totalFiles: documents.length,
+                    fileProgress: documents.map(({ file }, index) =>
+                        Math.round((loaded[index] / file.size) * 100)
+                    ),
+                    fileNames: documents.map(({ file }) => file.name),
+                    totalPercent: Math.round(
+                        (loaded.reduce((sum, bytes) => sum + bytes, 0) /
+                            documents.reduce(
+                                (sum, { file }) => sum + file.size,
+                                0
+                            )) *
+                            100
+                    ),
+                });
+            report();
+            const heartbeat = window.setInterval(
+                () => {
+                    void publicApi
+                        .post(`/partners/registrations/${draftToken}/refresh`)
+                        .catch(() => {});
+                },
+                5 * 60 * 1000
+            );
+            try {
+                await Promise.all(
+                    Array.from(
+                        { length: Math.min(3, documents.length) },
+                        async () => {
+                            while (next < documents.length) {
+                                const index = next++;
+                                const file = documents[index].file;
+                                let target = precheckData.uploads.find(
+                                    (item: { documentIndex: number }) =>
+                                        item.documentIndex === index
+                                );
+                                if (!target)
+                                    throw new Error(
+                                        "Thông tin tài liệu tải lên không khớp."
+                                    );
+                                for (let attempt = 0; attempt < 3; attempt++) {
+                                    try {
+                                        await uploadPartnerFile(
+                                            target.uploadUrl,
+                                            file,
+                                            (bytes) => {
+                                                loaded[index] = bytes;
+                                                report();
+                                            }
+                                        );
+                                        loaded[index] = file.size;
+                                        completed++;
+                                        report();
+                                        break;
+                                    } catch (uploadError) {
+                                        if (attempt === 2) throw uploadError;
+                                        await new Promise((resolve) =>
+                                            window.setTimeout(
+                                                resolve,
+                                                500 * 2 ** attempt
+                                            )
+                                        );
+                                        const renewed = await publicApi.post(
+                                            `/partners/registrations/${draftToken}/uploads/${index}/renew`
+                                        );
+                                        target = renewed.data.data;
+                                        loaded[index] = 0;
+                                    }
+                                }
+                            }
+                        }
+                    )
+                );
+            } finally {
+                window.clearInterval(heartbeat);
+            }
+            finalizing = true;
+            onProgress?.({
+                stage: "finalize",
+                completedFiles: completed,
+                totalFiles: documents.length,
+                fileProgress: documents.map(() => 100),
+                fileNames: documents.map(({ file }) => file.name),
+                totalPercent: 100,
+            });
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const finalized = await publicApi.post(
+                        "/partners/registrations/finalize",
+                        { draftToken },
+                        { timeout: 30_000 }
+                    );
+                    return finalized.data?.data;
+                } catch (error) {
+                    if (
+                        attempt === 2 ||
+                        !axios.isAxiosError(error) ||
+                        (error.response &&
+                            error.response.status < 500 &&
+                            error.response.status !== 409)
+                    )
+                        throw error;
+                    await new Promise((resolve) =>
+                        window.setTimeout(resolve, 1000 * 2 ** attempt)
+                    );
+                }
+            }
         } catch (error) {
-            throw new Error(extractErrorMessage(error, "Đăng ký đối tác thất bại."))
+            if (
+                finalizing &&
+                draftToken &&
+                axios.isAxiosError(error) &&
+                (!error.response ||
+                    error.response.status >= 500 ||
+                    (error.response.status === 409 &&
+                        String(error.response.data?.message).includes(
+                            "đang được xử lý"
+                        )))
+            ) {
+                let expired = false;
+                for (let attempt = 0; attempt < 6; attempt++) {
+                    await new Promise((resolve) =>
+                        window.setTimeout(resolve, 2000)
+                    );
+                    try {
+                        const status = await authServices.getPartnerRegistrationStatus(draftToken);
+                        if (status.status === "COMPLETED")
+                            return status.registration;
+                        if (status.status === "EXPIRED") {
+                            expired = true;
+                            break;
+                        }
+                    } catch {
+                        /* Keep checking while the backend may still be committing. */
+                    }
+                }
+                if (expired) {
+                    throw new Error("Phiên đăng ký đã hết hạn. Vui lòng gửi lại hồ sơ.");
+                }
+                throw new PartnerRegistrationOutcomeUnknownError(
+                    "Chưa thể xác nhận kết quả đăng ký. Hồ sơ có thể đã được gửi; vui lòng kiểm tra trạng thái trước khi đăng ký lại.",
+                    draftToken
+                );
+            }
+            throw new Error(
+                extractErrorMessage(error, "Đăng ký đối tác thất bại.")
+            );
         }
+    },
+    getPartnerRegistrationStatus: async function (draftToken: string): Promise<PartnerRegistrationStatus> {
+        const response = await publicApi.get(`/partners/registrations/${draftToken}/status`);
+        return response.data.data;
     },
     loginGoogle: async function (idToken: string) {
         try {
@@ -242,24 +547,33 @@ export const authServices = {
     },
     registerGoogle: async function (payload: RegisterGoogleRequest) {
         try {
+            if (!/^[A-Za-z0-9_-]{43}$/.test(payload.verificationToken)) {
+                throw new Error("Vui lòng xác thực số điện thoại trước khi đăng ký.")
+            }
             const response = await publicApi.post("/auth/register/google", payload)
             const data = response.data
-            const accessToken = data?.data?.accessToken || data?.accessToken
-            if (accessToken) {
-                useAuthStore.getState().setToken(accessToken)
+            if (data?.isSuccess !== true) {
+                throw new Error(data?.message || "Đăng ký tài khoản qua Google thất bại.")
             }
+            const accessToken = data?.data?.accessToken
+            const decoded = typeof accessToken === "string"
+                ? decodeJwt(accessToken)
+                : null
+            if (!decoded?.id || !decoded.email || decoded.role !== "REGISTERED_USER") {
+                throw new Error("Không nhận được phiên đăng nhập hợp lệ sau khi đăng ký. Vui lòng thử đăng nhập bằng Google.")
+            }
+            useAuthStore.getState().setUser({
+                userId: String(decoded.id),
+                email: decoded.email,
+                role: decoded.role,
+            })
+            useAuthStore.getState().setToken(accessToken)
             return {
                 message: data?.message || "Đăng ký tài khoản qua Google thành công",
                 accessToken,
             }
         } catch (error: unknown) {
-            if (axios.isAxiosError(error)) {
-                const msg = error.response?.data?.message || error.response?.data?.error
-                if (msg) {
-                    throw new Error(msg)
-                }
-            }
-            throw new Error(error instanceof Error ? error.message : "Đăng ký tài khoản qua Google thất bại.")
+            throw new Error(extractErrorMessage(error, "Đăng ký tài khoản qua Google thất bại. Vui lòng thử lại."))
         }
     },
 }

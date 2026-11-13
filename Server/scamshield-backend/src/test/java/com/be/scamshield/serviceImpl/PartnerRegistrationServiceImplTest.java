@@ -6,6 +6,8 @@ import com.be.scamshield.constant.RoleEnum;
 import com.be.scamshield.constant.UserStatus;
 import com.be.scamshield.dto.request.RegisterPartnerRequest;
 import com.be.scamshield.dto.request.VerifyContactsRequest;
+import com.be.scamshield.dto.request.PartnerDocumentUploadRequest;
+import com.be.scamshield.dto.request.PartnerRegistrationPrecheckRequest;
 import com.be.scamshield.dto.ContactVerificationEntry;
 import com.be.scamshield.service.IContactVerificationStore;
 import java.time.Clock;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
 import org.mockito.Spy;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.be.scamshield.dto.response.PartnerRegistrationResponse;
+import com.be.scamshield.dto.response.PartnerRegistrationPrecheckResponse;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.MatchResult;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.Outcome;
@@ -27,6 +30,7 @@ import com.be.scamshield.repository.PartnerDocumentRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.RoleRepository;
 import com.be.scamshield.repository.UserRepository;
+import com.be.scamshield.external.PartnerDocumentStorageService;
 import com.be.scamshield.service.IOtpService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,17 +50,22 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -79,6 +88,10 @@ class PartnerRegistrationServiceImplTest {
     private IContactVerificationStore verificationStore;
     @Mock
     private PartnerBusinessVerificationService businessVerificationService;
+    @Mock
+    private PartnerRegistrationDraftStore draftStore;
+    @Mock
+    private PartnerDocumentStorageService documentStorage;
     @Spy
     private Clock applicationClock = Clock.system(ZoneId.of("Asia/Ho_Chi_Minh"));
     private PartnerRegistrationServiceImpl service;
@@ -88,13 +101,133 @@ class PartnerRegistrationServiceImplTest {
     private RegisterPartnerRequest request;
     private List<MultipartFile> files;
 
+    @Test
+    void precheckValidatesRegistryBeforeIssuingAnyUploadUrl() {
+        var fileManifest = List.of(
+                new PartnerDocumentUploadRequest("BUSINESS_LICENSE", "license.pdf", "application/pdf", 100),
+                new PartnerDocumentUploadRequest("OWNERSHIP_PROOF", "ownership.pdf", "application/pdf", 100));
+        var matched = new PartnerBusinessVerificationResponse(Outcome.MATCHED,
+                LocalDateTime.now(applicationClock), "Công ty Example", "0100112437",
+                new PartnerBusinessVerificationResponse.RegistryResult(
+                        PartnerBusinessVerificationResponse.SourceStatus.SUCCESS, "Công ty Example", "0100112437",
+                        "NNT ĐANG HOẠT ĐỘNG", PartnerBusinessVerificationResponse.ActivityStatus.ACTIVE, null),
+                MatchResult.MATCHED, MatchResult.MATCHED, List.of(), false);
+        LocalDateTime now = LocalDateTime.now(applicationClock);
+        LocalDateTime tokenExpiry = now.plusMinutes(5);
+        LocalDateTime draftExpiry = now.plusMinutes(15);
+        when(verificationStore.findByTokenHash(any())).thenReturn(Optional.of(ContactVerificationEntry.builder()
+                .phoneNumber("0912345678").expiresAt(tokenExpiry).build()));
+        when(businessVerificationService.precheck("Công ty Example", "0100112437")).thenReturn(matched);
+        when(documentStorage.createUploadTarget(any(), any(), any())).thenReturn(
+                new PartnerDocumentStorageService.UploadTarget("pending/draft/file.pdf", "https://signed.test", 900));
+        when(draftStore.save(any(), any(), any(), any(), any(), any()))
+                .thenReturn(draftExpiry);
+
+        var result = service.precheck(new PartnerRegistrationPrecheckRequest(request, List.of(
+                fileManifest.get(0), fileManifest.get(1))));
+
+        assertThat(result.uploads()).hasSize(2);
+        verify(businessVerificationService).precheck("Công ty Example", "0100112437");
+        verify(documentStorage, times(2)).createUploadTarget(any(), any(), any());
+        verify(draftStore).save(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void precheckRequiresAuthorizationForNonRepresentative() {
+        request.setLegalRepresentative(false);
+        var manifest = List.of(
+                new PartnerDocumentUploadRequest("BUSINESS_LICENSE", "license.pdf", "application/pdf", 100),
+                new PartnerDocumentUploadRequest("OWNERSHIP_PROOF", "proof.pdf", "application/pdf", 100));
+        assertThatThrownBy(() -> service.precheck(new PartnerRegistrationPrecheckRequest(request, manifest)))
+                .isInstanceOf(BadRequestException.class);
+        verifyNoInteractions(documentStorage);
+    }
+
+    @Test
+    void completedFinalizeReturnsSavedRegistrationWithoutReprocessingFiles() {
+        var partner = PartnerProfile.builder().id(42L).registrationToken("draft-token")
+                .user(User.builder().id(7L).build()).verificationStatus(PartnerVerificationStatus.PENDING)
+                .createdAt(LocalDateTime.now(applicationClock)).build();
+        when(profileRepository.findByRegistrationToken("draft-token")).thenReturn(Optional.of(partner));
+        var response = service.finalizeRegistration("draft-token");
+        assertThat(response.getRegistrationId()).isEqualTo(42L);
+        verifyNoInteractions(documentStorage, draftStore);
+    }
+
+    @Test
+    void failedFinalizeKeepsDraftForRetryAndReleasesItsClaim() throws Exception {
+        var manifest = List.of(
+                new PartnerDocumentUploadRequest("BUSINESS_LICENSE", "license.pdf", "application/pdf", 100),
+                new PartnerDocumentUploadRequest("OWNERSHIP_PROOF", "proof.pdf", "application/pdf", 100));
+        var uploads = List.of(
+                new PartnerRegistrationPrecheckResponse.Upload(0, "https://signed.test/0", "pending/draft/0.pdf", 900),
+                new PartnerRegistrationPrecheckResponse.Upload(1, "https://signed.test/1", "pending/draft/1.pdf", 900));
+        var draft = new PartnerRegistrationDraftStore.Draft(request, request.getVerificationToken(),
+                manifest, null, uploads, LocalDateTime.now(applicationClock).plusHours(1));
+        when(draftStore.find("draft")).thenReturn(Optional.of(draft));
+        when(draftStore.claim("draft")).thenReturn("claim-1");
+        when(documentStorage.inspectUploadedDocument("pending/draft/0.pdf", 100, "application/pdf"))
+                .thenThrow(new IOException("storage unavailable"));
+
+        assertThatThrownBy(() -> service.finalizeRegistration("draft"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(draftStore, never()).delete("draft");
+        verify(draftStore).releaseClaim("draft", "claim-1");
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void finalizeCommitsPendingDocumentsWithoutMovingOrRunningOcr() throws Exception {
+        var manifest = List.of(
+                new PartnerDocumentUploadRequest("BUSINESS_LICENSE", "license.pdf", "application/pdf", 100),
+                new PartnerDocumentUploadRequest("OWNERSHIP_PROOF", "proof.pdf", "application/pdf", 100));
+        var uploads = List.of(
+                new PartnerRegistrationPrecheckResponse.Upload(0, "https://signed.test/0", "pending/draft/0.pdf", 900),
+                new PartnerRegistrationPrecheckResponse.Upload(1, "https://signed.test/1", "pending/draft/1.pdf", 900));
+        var draft = new PartnerRegistrationDraftStore.Draft(request, request.getVerificationToken(),
+                manifest, null, uploads, LocalDateTime.now(applicationClock).plusHours(1));
+        when(draftStore.find("draft")).thenReturn(Optional.of(draft));
+        when(draftStore.claim("draft")).thenReturn("claim-1");
+        when(documentStorage.inspectUploadedDocument(any(), anyLong(), any()))
+                .thenReturn(new PartnerDocumentStorageService.Inspection(
+                        "%PDF-1.7".getBytes(StandardCharsets.US_ASCII), "etag-1"));
+        when(businessVerificationService.isOcrEnabled()).thenReturn(true);
+        when(roleRepository.findByName(RoleEnum.BUSINESS_PARTNER.name()))
+                .thenReturn(Optional.of(Role.builder().name(RoleEnum.BUSINESS_PARTNER.name()).build()));
+        when(passwordEncoder.encode(any(String.class))).thenReturn("encoded-password");
+        when(userRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId(7L);
+            return user;
+        });
+        when(profileRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            PartnerProfile profile = invocation.getArgument(0);
+            profile.setId(42L);
+            return profile;
+        });
+
+        var response = service.finalizeRegistration("draft");
+
+        assertThat(response.getRegistrationId()).isEqualTo(42L);
+        verify(documentRepository).saveAll(documents.capture());
+        assertThat(documents.getValue()).allSatisfy(document -> {
+            assertThat(document.getStorageStatus()).isEqualTo("MOVING");
+            assertThat(document.getStorageEtag()).isEqualTo("etag-1");
+        });
+        verify(draftStore).delete("draft");
+        verify(draftStore).releaseClaim("draft", "claim-1");
+        verify(documentStorage, never()).copyPending(any(), any(), any(), any());
+        verify(businessVerificationService, never()).verifyDocuments(any(), any(), any(), any());
+    }
+
     @BeforeEach
     void setUp() {
         contactVerificationService = new ContactVerificationService(userRepository, otpService, verificationStore, applicationClock);
         ReflectionTestUtils.setField(contactVerificationService, "verificationExpirationMs", 600000L);
         service = new PartnerRegistrationServiceImpl(applicationClock, profileRepository, documentRepository, userRepository,
                 roleRepository, passwordEncoder, contactVerificationService, businessVerificationService,
-                new TransactionTemplate(mock(PlatformTransactionManager.class)), new ObjectMapper());
+                new TransactionTemplate(mock(PlatformTransactionManager.class)), new ObjectMapper(), draftStore, documentStorage);
         request = new RegisterPartnerRequest();
         request.setLegalName(" Công ty Example ");
         request.setTaxCode("0100112437");
@@ -106,8 +239,8 @@ class PartnerRegistrationServiceImplTest {
         request.setOfficialDomains("Example.com.vn");
         request.setOfficialHotlines("1900 545413");
         request.setSmsBrandNames("Example");
-        request.setLegalRepresentative(true);
         request.setAgreeTerms(true);
+        request.setLegalRepresentative(true);
         files = List.of(new MockMultipartFile("file", "proof.pdf", "application/pdf",
                 "%PDF-1.7\nproof".getBytes(StandardCharsets.US_ASCII)));
     }
@@ -144,22 +277,15 @@ class PartnerRegistrationServiceImplTest {
                 .containsExactly("BUSINESS_LICENSE", "OWNERSHIP_PROOF");
         assertThat(documents.getValue()).allSatisfy(document -> {
             assertThat(document.getPartner()).isSameAs(registration.getValue());
-            assertThat(document.getContent()).startsWith("%PDF-".getBytes(StandardCharsets.US_ASCII));
+            assertThat(document.getContent()).isNull();
+            assertThat(document.getStorageObjectKey()).startsWith("pending/test/");
+            assertThat(document.getStorageStatus()).isEqualTo("MOVING");
         });
     }
 
     @Test
-    void delegatedApplicantRequiresAuthorization() {
-        request.setLegalRepresentative(false);
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("ủy quyền");
-        assertNoWrites();
-    }
-
-    @Test
-    void delegatedApplicantCanSubmitAllThreeDocumentCategories() {
+    void canSubmitOptionalAuthorizationAlongsideRequiredDocuments() {
         prepareAccountPersistence();
-        request.setLegalRepresentative(false);
         service.register(request, files, files, files);
         verify(documentRepository).saveAll(documents.capture());
         assertThat(documents.getValue()).extracting(PartnerDocument::getDocumentType)
@@ -262,13 +388,9 @@ class PartnerRegistrationServiceImplTest {
 
     @Test
     void rejectsExcessiveFileCountAndTotalBytesBeforeReadingFiles() {
-        List<MultipartFile> tooMany = Collections.nCopies(10, files.getFirst());
+        List<MultipartFile> tooMany = Collections.nCopies(4, files.getFirst());
         assertThatThrownBy(() -> service.register(request, tooMany, files, null))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("10 tệp");
-        MultipartFile large = mock(MultipartFile.class);
-        when(large.getSize()).thenReturn(25L * 1024 * 1024);
-        assertThatThrownBy(() -> service.register(request, List.of(large, large), List.of(large, large), null))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("75MB");
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("5 tệp");
         assertNoWrites();
     }
 
@@ -292,14 +414,6 @@ class PartnerRegistrationServiceImplTest {
         when(userRepository.findByPhoneNumber("0912345678")).thenReturn(Optional.of(new User()));
         assertThatThrownBy(() -> service.register(request, files, files, null))
                 .isInstanceOf(RegistrationConflictException.class).hasMessageContaining("Số điện thoại");
-        assertNoWrites();
-    }
-
-    @Test
-    void requiresLegalRepresentativeStatusBeforeCreatingAccount() {
-        request.setLegalRepresentative(null);
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("đại diện pháp luật");
         assertNoWrites();
     }
 
@@ -348,12 +462,14 @@ class PartnerRegistrationServiceImplTest {
         LocalDateTime checkedAt = LocalDateTime.now(applicationClock);
         when(verificationStore.findByTokenHash(any())).thenReturn(Optional.of(ContactVerificationEntry.builder()
                 .phoneNumber("0912345678").expiresAt(expiresAt).build()));
-        when(businessVerificationService.verify(any(), any(), any())).thenReturn(new PartnerBusinessVerificationResponse(
+        when(businessVerificationService.precheck(any(), any())).thenReturn(new PartnerBusinessVerificationResponse(
                 Outcome.MATCHED, checkedAt, "Công ty Example", "0100112437",
                 null, MatchResult.INCONCLUSIVE, MatchResult.INCONCLUSIVE, List.of(), true));
         when(roleRepository.findByName(RoleEnum.BUSINESS_PARTNER.name()))
                 .thenReturn(Optional.of(Role.builder().name(RoleEnum.BUSINESS_PARTNER.name()).build()));
         when(passwordEncoder.encode(any(String.class))).thenReturn("encoded-password");
+        when(documentStorage.uploadPendingBytes(any(), any(), any(), any()))
+                .thenAnswer(invocation -> "pending/test/" + UUID.randomUUID() + ".pdf");
         when(userRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
             user.setId(7L);

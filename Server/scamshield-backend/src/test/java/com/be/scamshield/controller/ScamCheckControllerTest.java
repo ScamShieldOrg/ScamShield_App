@@ -1,5 +1,16 @@
 package com.be.scamshield.controller;
 
+import com.be.scamshield.constant.WhitelistVerificationStatus;
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+import com.be.scamshield.external.ScamCheckAiClient;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.entity.CheckRequest;
 import com.be.scamshield.entity.ConfirmedIndicator;
@@ -37,11 +48,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:scamshield-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
+@SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
-class ScamCheckControllerTest {
+class ScamCheckControllerTest extends PostgresIntegrationTest {
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
     private static final LocalDateTime NOW = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
     @Autowired private MockMvc mvc;
@@ -50,11 +61,14 @@ class ScamCheckControllerTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private CheckRequestRepository checks;
     @Autowired private IGuestSessionService sessions;
+    @MockitoBean private ScamCheckAiClient scamCheckAiClient;
     private User owner;
     private String guest;
 
     @BeforeEach
     void setUp() {
+        when(scamCheckAiClient.scan(any(), any(), any()))
+                .thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
         owner = account();
         guest = sessions.createOrGetSession(null, null).getSessionToken();
     }
@@ -205,6 +219,16 @@ class ScamCheckControllerTest {
         return json.readTree(result.andReturn().getResponse().getContentAsString()).path("data");
     }
 
+    @Test
+    void urlOrDomainCandidateMatchesUrlIndicatorWithoutThrowing() throws Exception {
+        var indicator = indicator("URL", "phishing-bank-fake.xyz");
+        confirm(indicator, NOW.minusMinutes(5));
+        JsonNode result = data(submit("URL", "https://phishing-bank-fake.xyz/login", null, owner)
+                .andExpect(status().isOk()));
+        assertThat(result.path("verdict").asText()).isEqualTo("SCAM_RISK");
+        assertThat(result.path("decidedByStage").asText()).isEqualTo("BLACKLIST");
+    }
+
     private User account() {
         int id = SEQUENCE.incrementAndGet();
         User account = User.builder().fullName("Check test user").email("check-" + id + "@example.test")
@@ -215,7 +239,7 @@ class ScamCheckControllerTest {
     }
 
     private Indicator indicator(String type, String value) {
-        Indicator indicator = Indicator.builder().type(type).normalizedValue(value)
+        Indicator indicator = Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue(value)
                 .createdAt(NOW).updatedAt(NOW).build();
         em.persist(indicator);
         return indicator;
@@ -223,7 +247,7 @@ class ScamCheckControllerTest {
 
     private ConfirmedIndicator confirm(Indicator indicator, LocalDateTime confirmedAt) {
         ConfirmedIndicator confirmation = ConfirmedIndicator.builder().indicator(indicator)
-                .confirmedByUser(owner).status("ACTIVE").confirmedAt(confirmedAt).build();
+                .confirmedByUser(owner).status(ConfirmedIndicatorStatus.ACTIVE).confirmedAt(confirmedAt).build();
         em.persist(confirmation);
         em.flush();
         return confirmation;
@@ -231,10 +255,10 @@ class ScamCheckControllerTest {
 
     private void whitelist(Indicator indicator) {
         PartnerProfile partner = PartnerProfile.builder().user(owner).legalName("Test partner")
-                .brandName("Test partner").partnerType("BUSINESS").verificationStatus(PartnerVerificationStatus.VERIFIED)
+                .brandName("Test partner").verificationStatus(PartnerVerificationStatus.VERIFIED)
                 .createdAt(NOW).build();
         em.persist(partner);
-        em.persist(WhitelistEntry.builder().partner(partner).indicator(indicator).verificationStatus("VERIFIED")
+        em.persist(WhitelistEntry.builder().partner(partner).indicator(indicator).verificationStatus(WhitelistVerificationStatus.VERIFIED)
                 .autoLockModeration(true).createdAt(NOW).build());
         em.flush();
     }

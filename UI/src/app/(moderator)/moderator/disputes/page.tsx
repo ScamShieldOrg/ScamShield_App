@@ -1,5 +1,7 @@
 "use client"
 
+import { ModeratorDashboard } from "@/components/features/moderator/moderator-dashboard"
+
 import { useState, useEffect } from "react"
 import { toast } from "react-toastify"
 import { CaretLeft, CaretRight } from "@phosphor-icons/react"
@@ -44,15 +46,7 @@ export default function ModeratorDisputesPage() {
           setHasNext(Boolean(data.hasNext))
           setHasPrevious(Boolean(data.hasPrevious))
 
-          if (disputeList.length > 0) {
-            setSelectedId((prev) => {
-              const exists = disputeList.some((d) => d.id === prev)
-              return exists ? prev : disputeList[0].id
-            })
-          } else {
-            setSelectedId("")
-            setSelectedDetail(null)
-          }
+          setSelectedId(previous => disputeList.some(item => item.id === previous) ? previous : "")
         }
       } catch (err: unknown) {
         if (!isCancelled) {
@@ -185,10 +179,10 @@ export default function ModeratorDisputesPage() {
 
       {/* Right Column: Dispute Workspace Detail */}
       <section className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950">
-        <DisputeDetailView
+        {!selectedId ? <ModeratorDashboard /> : <DisputeDetailView
           item={selectedDetail}
           onVerdictSubmitted={handleVerdictSubmitted}
-        />
+        />}
       </section>
     </div>
   )

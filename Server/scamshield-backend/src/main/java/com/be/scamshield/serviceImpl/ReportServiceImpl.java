@@ -1,11 +1,16 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ReportEvidenceType;
+import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.constant.PartnerVerificationStatus;
+import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.external.SupabaseStorageService;
+import org.springframework.context.ApplicationEventPublisher;
+import com.be.scamshield.constant.EvidenceAnalysisStatus;
+import com.be.scamshield.constant.VietnamProvince;
+import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.dto.request.CreateReportRequest;
-import com.be.scamshield.dto.request.EvidenceItemDto;
-import com.be.scamshield.dto.request.PresignedUrlRequest;
-import com.be.scamshield.dto.response.PresignedUrlResponse;
 import com.be.scamshield.dto.response.ReportEvidenceResponse;
 import com.be.scamshield.dto.response.ReportResponse;
 import com.be.scamshield.entity.Indicator;
@@ -13,12 +18,15 @@ import com.be.scamshield.entity.Report;
 import com.be.scamshield.entity.ReportEvidence;
 import com.be.scamshield.entity.ScamCategory;
 import com.be.scamshield.entity.User;
+import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.exception.ResourceNotFoundException;
 import com.be.scamshield.exception.UnauthorizedException;
 import com.be.scamshield.repository.IndicatorRepository;
 import com.be.scamshield.repository.ReportEvidenceRepository;
 import com.be.scamshield.repository.ReportRepository;
 import com.be.scamshield.repository.ScamCategorieRepository;
 import com.be.scamshield.repository.UserRepository;
+import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IReportService;
 import lombok.RequiredArgsConstructor;
@@ -30,33 +38,93 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import com.be.scamshield.config.ReportPrivacyProperties;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.GeneralSecurityException;
+import java.util.HexFormat;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ReportServiceImpl implements IReportService {
+    private final ReportPrivacyProperties reportPrivacyProperties;
 
+
+    private final ApplicationEventPublisher events;
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final IndicatorRepository indicatorRepository;
+    private final WhitelistEntryRepository whitelistEntries;
     private final ScamCategorieRepository scamCategorieRepository;
     private final UserRepository userRepository;
     private final SupabaseStorageService supabaseStorageService;
+    private final ReportAssignmentService reviewAssignments;
+    private final EvidenceAnalysisQueueService evidenceAnalysis;
 
     @Override
     @Transactional
     public ReportResponse createReport(CreateReportRequest request, List<MultipartFile> files, UserPrincipal currentUser) {
+        // Check ownership before creating indicators/reports, uploading files, or awarding points.
+        User reporterUser = resolveReporterUser(currentUser);
+        String regionCode = StringUtils.hasText(request.getRegionCode()) ? request.getRegionCode().strip() : null;
+        if (regionCode == null || VietnamProvince.fromCode(regionCode).isEmpty()) {
+            throw new BadRequestException("Mã tỉnh/thành không hợp lệ; vui lòng chọn từ danh sách tỉnh/thành");
+        }
+        IndicatorType reportType = IndicatorType.fromStoredValue(request.getThreatType())
+                .orElseThrow(() -> new BadRequestException("Loại đối tượng báo cáo không được hỗ trợ"));
+        if (reportType == IndicatorType.PHONE
+                && StringUtils.hasText(reporterUser.getPhoneNumber())
+                && normalizePhoneForOwnershipCheck(reporterUser.getPhoneNumber())
+                        .equals(normalizePhoneForOwnershipCheck(request.getTargetIdentifier()))) {
+            throw new BadRequestException("Không thể tự báo cáo chính mình.");
+        }
+
+        if (files == null || files.isEmpty()) {
+            throw new BadRequestException("Vui lòng tải lên ít nhất một tệp bằng chứng");
+        }
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) {
+                throw new BadRequestException("Tệp bằng chứng không được rỗng");
+            }
+            resolveEvidenceType(null, file.getOriginalFilename(), null);
+        }
+
         // 1. Resolve & normalize target indicator
-        String normalizedValue = normalizeIdentifier(request.getTargetIdentifier());
+        String target = request.getTargetIdentifier();
+        String legacyValue = target.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        String normalizedValue = switch (reportType) {
+            case PHONE -> normalizePhoneForOwnershipCheck(target);
+            case URL -> normalizeReportUrl(target);
+            case BANK_ACCOUNT -> target.replaceAll("[\\s\\p{Z}]+", "").toUpperCase(Locale.ROOT);
+        };
+        if (!StringUtils.hasText(normalizedValue)) {
+            throw new BadRequestException("Đối tượng báo cáo không hợp lệ");
+        }
+        List<String> targetValues = legacyIndicatorValues(reportType, normalizedValue, legacyValue);
+        targetValues.add(normalizedValue);
+        List<Long> matchingIds = indicatorRepository
+                .findByTypeAndNormalizedValueInOrderByIdAsc(reportType, targetValues)
+                .stream().map(Indicator::getId).toList();
+        if (!matchingIds.isEmpty() && !whitelistEntries.findVerifiedForCheck(
+                matchingIds, PartnerVerificationStatus.VERIFIED, LocalDateTime.now()).isEmpty()) {
+            throw new BadRequestException("Đối tượng này thuộc danh sách tin cậy (whitelist) đang có hiệu lực. Hiện tại bạn không thể gửi báo cáo về đối tượng này.");
+        }
+
         Indicator indicator = indicatorRepository
-                .findByTypeAndNormalizedValue(request.getThreatType(), normalizedValue)
+                .findFirstByTypeAndNormalizedValueOrderByIdAsc(reportType, normalizedValue)
+                .or(() -> indicatorRepository.findFirstByTypeAndNormalizedValueInOrderByIdAsc(
+                        reportType, legacyIndicatorValues(reportType, normalizedValue, legacyValue)))
                 .orElseGet(() -> {
                     Indicator newIndicator = Indicator.builder()
-                            .type(request.getThreatType())
+                            .type(reportType)
                             .normalizedValue(normalizedValue)
                             .displayValue(request.getTargetIdentifier())
                             .firstSeenAt(LocalDateTime.now())
@@ -70,21 +138,20 @@ public class ReportServiceImpl implements IReportService {
         // 2. Resolve Scam Category
         ScamCategory category = resolveCategory(request.getCategory());
 
-        // 3. Resolve Reporter User
-        User reporterUser = resolveReporterUser(currentUser);
-
         // 4. Create & Save Report Entity
+        ServletRequestAttributes attributes = RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes servletAttributes
+                ? servletAttributes : null;
+        String clientIp = attributes != null ? attributes.getRequest().getRemoteAddr() : null;
         Report report = Report.builder()
+                .ipHash(hashClientSignal(clientIp))
                 .reporterUser(reporterUser)
                 .indicator(indicator)
                 .category(category)
+                .regionCode(VietnamProvince.fromCode(regionCode).orElseThrow())
                 .description(request.getDescription())
-                .reportedMessage(request.getDescription())
-                .status("PENDING")
-                .priorityScore(BigDecimal.valueOf(1.0))
-                .reportCountSignal(1)
-                .coordinatedReportSuspected(false)
-                .moderationLocked(false)
+                .reportedMessage(StringUtils.hasText(request.getReportedMessage()) ? request.getReportedMessage() : null)
+                .status(ReportStatus.PENDING)
+
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -116,17 +183,22 @@ public class ReportServiceImpl implements IReportService {
             if (files != null && !files.isEmpty()) {
                 for (MultipartFile file : files) {
                     if (!file.isEmpty()) {
+                        ReportEvidenceType evidenceType = resolveEvidenceType(null, file.getOriginalFilename(), null);
                         SupabaseStorageService.UploadResult uploadResult = supabaseStorageService.uploadFile(file, "evidences");
                         uploadedKeys.add(uploadResult.objectKey());
                         ReportEvidence evidence = ReportEvidence.builder()
                                 .report(savedReport)
-                                .evidenceType(getEvidenceType(file.getOriginalFilename()))
+                                .evidenceType(evidenceType)
+                                .fileName(file.getOriginalFilename())
                                 .fileUrl(uploadResult.fileUrl())
                                 .fileHash(uploadResult.fileHash())
-                                .verificationStatus("PENDING")
                                 .createdAt(LocalDateTime.now())
                                 .build();
+                        evidenceAnalysis.prepare(evidence, uploadResult.objectKey());
                         evidenceList.add(reportEvidenceRepository.save(evidence));
+                        if (evidence.getAnalysisStatus() == EvidenceAnalysisStatus.PENDING) {
+                            events.publishEvent(new EvidenceAnalysisRequested(evidence.getId()));
+                        }
                     }
                 }
             }
@@ -143,60 +215,18 @@ public class ReportServiceImpl implements IReportService {
             throw e;
         }
 
-        // 6. Process Evidence Items (Pre-uploaded Supabase Storage URLs)
-        if (request.getEvidences() != null && !request.getEvidences().isEmpty()) {
-            for (EvidenceItemDto dto : request.getEvidences()) {
-                if (StringUtils.hasText(dto.getFileUrl())) {
-                    ReportEvidence evidence = ReportEvidence.builder()
-                            .report(savedReport)
-                            .evidenceType(StringUtils.hasText(dto.getEvidenceType()) ? dto.getEvidenceType() : "IMAGE")
-                            .fileUrl(dto.getFileUrl())
-                            .fileHash(dto.getFileHash())
-                            .verificationStatus("PENDING")
-                            .createdAt(LocalDateTime.now())
-                            .build();
-                    evidenceList.add(reportEvidenceRepository.save(evidence));
-                }
-            }
-        }
-
-        // Process simple string attachment URLs
-        if (request.getAttachmentUrls() != null && !request.getAttachmentUrls().isEmpty()) {
-            for (String url : request.getAttachmentUrls()) {
-                if (StringUtils.hasText(url)) {
-                    ReportEvidence evidence = ReportEvidence.builder()
-                            .report(savedReport)
-                            .evidenceType("IMAGE")
-                            .fileUrl(url)
-                            .verificationStatus("PENDING")
-                            .createdAt(LocalDateTime.now())
-                            .build();
-                    evidenceList.add(reportEvidenceRepository.save(evidence));
-                }
-            }
-        }
-
-        // 7. Award Reputation Points (+50 points for submitting a report)
-        int rewardPoints = 50;
-        if (reporterUser != null) {
-            int currentPoints = reporterUser.getReputationPoints() != null ? reporterUser.getReputationPoints() : 0;
-            reporterUser.setReputationPoints(currentPoints + rewardPoints);
-            userRepository.save(reporterUser);
-        }
-
-        return mapToResponse(savedReport, evidenceList, rewardPoints);
-    }
-
-    @Override
-    public PresignedUrlResponse generatePresignedUrl(PresignedUrlRequest request) {
-        return supabaseStorageService.generatePresignedUploadUrl(request.getFileName(), request.getContentType());
+        // Reputation is awarded only after a moderator approves the report.
+        reviewAssignments.assignPendingReports();
+        return mapToResponse(savedReport, evidenceList, 0);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ReportResponse getReportById(Long id) {
-        Report report = reportRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy báo cáo lừa đảo với ID: " + id));
+    public ReportResponse getReportById(Long id, UserPrincipal currentUser) {
+        if (currentUser == null || currentUser.getId() == null) throw new UnauthorizedException("Vui lòng đăng nhập để xem báo cáo");
+        if (id == null || id <= 0) throw new BadRequestException("ID báo cáo phải là số nguyên dương");
+        Report report = reportRepository.findByIdAndReporterUserId(id, currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo hoặc bạn không có quyền truy cập"));
         List<ReportEvidence> evidences = reportEvidenceRepository.findByReportId(id);
         return mapToResponse(report, evidences, 0);
     }
@@ -212,9 +242,46 @@ public class ReportServiceImpl implements IReportService {
         }).toList();
     }
 
-    private String normalizeIdentifier(String identifier) {
-        if (!StringUtils.hasText(identifier)) return "";
-        return identifier.replaceAll("\\s+", "").toLowerCase();
+    private List<String> legacyIndicatorValues(IndicatorType type, String normalized, String submitted) {
+        List<String> values = new ArrayList<>();
+        if (type == IndicatorType.URL) {
+            for (String prefix : List.of("", "http://", "https://")) {
+                values.add(prefix + normalized);
+                if (!normalized.matches(".*[/#?].*")) {
+                    values.add(prefix + normalized + "/");
+                }
+            }
+            return values;
+        }
+        values.add(submitted);
+        if (type == IndicatorType.PHONE && normalized.matches("0[0-9]{9}")) {
+            String nationalNumber = normalized.substring(1);
+            values.addAll(List.of("+84" + nationalNumber, "0084" + nationalNumber, "84" + nationalNumber));
+        }
+        return values;
+    }
+
+    private String normalizeReportUrl(String target) {
+        String url = target.strip().replaceFirst("(?i)^https?://", "");
+        String[] parts = url.split("(?=[/#?])", 2);
+        String authority = parts[0].toLowerCase(Locale.ROOT);
+        return parts.length == 1 || parts[1].equals("/") ? authority : authority + parts[1];
+    }
+
+    private String normalizePhoneForOwnershipCheck(String phone) {
+        if (!StringUtils.hasText(phone)) return "";
+        String normalized = phone.replaceAll("[\\s\\p{Z}().-]", "");
+        if (normalized.startsWith("+84")) {
+            normalized = normalized.substring(3);
+        } else if (normalized.startsWith("0084")) {
+            normalized = normalized.substring(4);
+        } else if (normalized.startsWith("84") && (normalized.length() == 11
+                || (normalized.length() == 12 && normalized.charAt(2) == '0'))) {
+            normalized = normalized.substring(2);
+        } else {
+            return normalized;
+        }
+        return normalized.startsWith("0") ? normalized : "0" + normalized;
     }
 
     private ScamCategory resolveCategory(String categoryInput) {
@@ -248,23 +315,14 @@ public class ReportServiceImpl implements IReportService {
                 .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin tài khoản người dùng đăng nhập."));
     }
 
-    private String getEvidenceType(String filename) {
-        if (filename == null) return "IMAGE";
-        String lower = filename.toLowerCase();
-        if (lower.endsWith(".pdf")) return "PDF";
-        if (lower.endsWith(".doc") || lower.endsWith(".docx")) return "DOCUMENT";
-        return "IMAGE";
-    }
-
     private ReportResponse mapToResponse(Report report, List<ReportEvidence> evidences, int rewardPoints) {
         String reportCode = String.format("#RPT-%04d", report.getId());
         List<ReportEvidenceResponse> evidenceResponses = evidences.stream().map(e ->
                 ReportEvidenceResponse.builder()
                         .id(e.getId())
-                        .evidenceType(e.getEvidenceType())
+                        .evidenceType(e.getEvidenceType() == null ? null : e.getEvidenceType().name())
                         .fileUrl(e.getFileUrl())
                         .fileHash(e.getFileHash())
-                        .verificationStatus(e.getVerificationStatus())
                         .createdAt(e.getCreatedAt())
                         .build()
         ).toList();
@@ -273,14 +331,27 @@ public class ReportServiceImpl implements IReportService {
                 .id(report.getId())
                 .reportCode(reportCode)
                 .targetIdentifier(report.getIndicator() != null ? report.getIndicator().getDisplayValue() : "")
-                .threatType(report.getIndicator() != null ? report.getIndicator().getType() : "")
+                .threatType(report.getIndicator() != null ? report.getIndicator().getType().name() : "")
                 .categoryName(report.getCategory() != null ? report.getCategory().getName() : "")
                 .description(report.getDescription())
-                .status(report.getStatus())
+                .reportedMessage(report.getReportedMessage())
+                .regionCode(report.getRegionCode() == null ? null : report.getRegionCode().getCode())
+                .status(report.getStatus() == null ? null : report.getStatus().name())
                 .rewardPoints(rewardPoints)
                 .evidenceCount(evidenceResponses.size())
                 .evidences(evidenceResponses)
                 .createdAt(report.getCreatedAt())
                 .build();
     }
-}
+    private String hashClientSignal(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(reportPrivacyProperties.getIpHashSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(("report-ip:" + value.trim()).getBytes(StandardCharsets.UTF_8)));
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Cannot hash client signal", e);
+        }
+    }}

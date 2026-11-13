@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -62,7 +63,7 @@ public class GlobalExceptionHandler {
                 .body(new BaseResponse<>(false, "Tệp không được vượt quá 25MB và request không được vượt quá 80MB", null));
     }
 
-    @ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class, HttpMessageNotReadableException.class})
+    @ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class, MissingRequestHeaderException.class, HttpMessageNotReadableException.class})
     public ResponseEntity<BaseResponse<Void>> handleMalformedRequest(Exception ex) {
         return ResponseEntity.badRequest().body(new BaseResponse<>(false, "Thiếu dữ liệu bắt buộc hoặc JSON không hợp lệ", null));
     }
@@ -97,8 +98,8 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<BaseResponse<Map<String, String>>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+    @ExceptionHandler({MethodArgumentNotValidException.class, org.springframework.validation.BindException.class})
+    public ResponseEntity<BaseResponse<Map<String, String>>> handleBindExceptions(org.springframework.validation.BindException ex) {
         Map<String, String> errors = new HashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             errors.put(error.getField(), error.getDefaultMessage());
@@ -106,6 +107,8 @@ public class GlobalExceptionHandler {
         BaseResponse<Map<String, String>> response = new BaseResponse<>(false, "Validation Error", errors);
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
+
+    
 
     @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
     public ResponseEntity<BaseResponse<Map<String, String>>> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex) {

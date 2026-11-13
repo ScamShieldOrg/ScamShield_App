@@ -1,6 +1,5 @@
 package com.be.scamshield.dto.admin;
 
-import com.be.scamshield.constant.EvidenceVerificationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -94,11 +93,8 @@ public class AdminAbuseEscalationDetailResponse {
         private String evidenceType;
         private String fileName;
         private String fileUrl;
-        private String sourceUrl;
-        private String extractedText;
         private String ocrText;
-        @Schema(description = "Trạng thái xác minh bằng chứng; null nếu giá trị dữ liệu cũ không được hỗ trợ")
-        private EvidenceVerificationStatus verificationStatus;
+
         private LocalDateTime createdAt;
     }
 

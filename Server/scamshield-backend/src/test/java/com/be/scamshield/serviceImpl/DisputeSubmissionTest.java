@@ -1,6 +1,13 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
+
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.external.SupabaseStorageService;
+import com.be.scamshield.external.ScamCheckAiClient;
 
 import com.be.scamshield.constant.DisputeStatus;
 import com.be.scamshield.entity.ConfirmedIndicator;
@@ -65,7 +72,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class DisputeSubmissionTest {
+class DisputeSubmissionTest extends PostgresIntegrationTest {
     private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final LocalDateTime NOW = LocalDateTime.parse("2026-10-14T10:00:00");
     private static final String SUBMIT = "/api/disputes";
@@ -78,6 +85,7 @@ class DisputeSubmissionTest {
     @Autowired private ObjectMapper objectMapper;
     @MockitoBean private Clock clock;
     @MockitoBean private SupabaseStorageService storage;
+    @MockitoBean private ScamCheckAiClient scamCheckAiClient;
 
     private TransactionTemplate transactions;
     private User owner;
@@ -159,7 +167,7 @@ class DisputeSubmissionTest {
             assertThat(row.getStatus()).isEqualTo(DisputeStatus.PENDING);
             assertThat(row.getDeclarationAcceptedAt()).isEqualTo(NOW);
             assertThat(row.getResolvedAt()).isNull();
-            assertThat(entityManager.find(ConfirmedIndicator.class, active.getId()).getStatus()).isEqualTo("ACTIVE");
+            assertThat(entityManager.find(ConfirmedIndicator.class, active.getId()).getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
         });
         assertThat(result.getResponse().getContentAsString())
                 .doesNotContain("private-file-hash", "objectKey", "s3://", "passwordHash");
@@ -176,7 +184,7 @@ class DisputeSubmissionTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"BANK_ACCOUNT,123456789,123 456 789", "URL,shop.example.test,https://SHOP.example.test/", "BRANDNAME,SCAMSHIELD,scamshield"})
+    @CsvSource({"BANK_ACCOUNT,123456789,123 456 789", "URL,shop.example.test,https://SHOP.example.test/"})
     void otherIndicatorTypesResolveToTheExistingNormalizedTarget(String type, String normalizedValue, String input) throws Exception {
         transactions.executeWithoutResult(ignored -> confirmed(type, normalizedValue, "ACTIVE"));
         String request = validRequest(input).replace("\"PHONE\"", "\"" + type + "\"");
@@ -184,6 +192,16 @@ class DisputeSubmissionTest {
                         .with(user(UserPrincipal.create(owner))))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.indicatorType").value(type))
                 .andExpect(jsonPath("$.data.indicatorValue").value(normalizedValue));
+    }
+
+    @Test
+    void brandnameIsRejectedAsUnsupportedIndicatorType() throws Exception {
+        String request = validRequest("scamshield").replace("\"PHONE\"", "\"BRANDNAME\"");
+        mvc.perform(multipart(SUBMIT).file(json(request)).file(pdf("proof.pdf"))
+                        .with(user(UserPrincipal.create(owner))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false))
+                .andExpect(jsonPath("$.message").value("Loại đối tượng phải là PHONE, BANK_ACCOUNT hoặc URL"));
     }
 
     @Test
@@ -229,7 +247,7 @@ class DisputeSubmissionTest {
     void retractedTargetAndUnknownTargetCannotBeSubmitted() throws Exception {
         transactions.executeWithoutResult(ignored -> {
             ConfirmedIndicator row = entityManager.find(ConfirmedIndicator.class, active.getId());
-            row.setStatus("RETRACTED");
+            row.setStatus(ConfirmedIndicatorStatus.RETRACTED);
             row.setRetractedAt(NOW.minusHours(1));
         });
         mvc.perform(multipart(SUBMIT).file(json(validRequest("0912348899"))).file(pdf("proof.pdf"))
@@ -403,7 +421,7 @@ class DisputeSubmissionTest {
         Long draftId = responseId(createDraft(owner, validRequest("0912348899"), pdf("proof.pdf")));
         transactions.executeWithoutResult(ignored -> {
             ConfirmedIndicator row = entityManager.find(ConfirmedIndicator.class, active.getId());
-            row.setStatus("RETRACTED");
+            row.setStatus(ConfirmedIndicatorStatus.RETRACTED);
             row.setRetractedAt(NOW);
         });
         mvc.perform(multipart(DRAFTS + "/" + draftId + "/submit").file(json(validRequest("0912348899")))
@@ -631,11 +649,11 @@ class DisputeSubmissionTest {
     }
 
     private ConfirmedIndicator confirmed(String type, String value, String confirmationStatus) {
-        Indicator indicator = Indicator.builder().type(type).normalizedValue(value).displayValue(value)
+        Indicator indicator = Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue(value).displayValue(value)
                 .createdAt(NOW.minusDays(10)).updatedAt(NOW.minusDays(10)).build();
         entityManager.persist(indicator);
         indicatorIds.add(indicator.getId());
-        ConfirmedIndicator row = ConfirmedIndicator.builder().indicator(indicator).status(confirmationStatus)
+        ConfirmedIndicator row = ConfirmedIndicator.builder().indicator(indicator).status(ConfirmedIndicatorStatus.valueOf(confirmationStatus))
                 .confirmedByUser(other).confirmedAt(NOW.minusDays(10)).publicReason("Đã xác thực nguy cơ.").build();
         entityManager.persist(row);
         confirmedIds.add(row.getId());

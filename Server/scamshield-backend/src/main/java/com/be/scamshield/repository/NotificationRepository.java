@@ -1,5 +1,7 @@
 package com.be.scamshield.repository;
 
+import com.be.scamshield.constant.NotificationType;
+
 import com.be.scamshield.entity.Notification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,11 +22,11 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     long countByUserId(Long userId);
 
-    long countByUserIdAndTypeIgnoreCase(Long userId, String type);
+    long countByUserIdAndType(Long userId, NotificationType type);
 
     long countByUserIdAndIsReadFalse(Long userId);
 
-    long countByUserIdAndTypeIgnoreCaseAndIsReadFalse(Long userId, String type);
+    long countByUserIdAndTypeAndIsReadFalse(Long userId, NotificationType type);
 
     Optional<Notification> findByIdAndUserId(Long id, Long userId);
 

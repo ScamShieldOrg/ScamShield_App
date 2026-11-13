@@ -1,5 +1,6 @@
 package com.be.scamshield.entity;
 
+import com.be.scamshield.constant.IndicatorType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,8 +17,9 @@ public class Indicator {
     @Column(name = "id")
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
-    private String type;
+    private IndicatorType type;
 
     @Column(name = "normalized_value", nullable = false)
     private String normalizedValue;

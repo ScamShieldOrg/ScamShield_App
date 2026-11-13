@@ -1,5 +1,7 @@
 package com.be.scamshield.repository;
 
+import com.be.scamshield.support.PostgresIntegrationTest;
+
 import com.be.scamshield.entity.AbuseFlag;
 import com.be.scamshield.entity.User;
 import jakarta.persistence.EntityManager;
@@ -17,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @ActiveProfiles("test")
-class AbuseFlagRepositoryTest {
+class AbuseFlagRepositoryTest extends PostgresIntegrationTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 28, 9, 0);
     private static final List<String> STATUSES = List.of("PENDING", "DISMISSED", "OPEN");

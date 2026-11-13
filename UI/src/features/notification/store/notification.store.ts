@@ -2,6 +2,8 @@
 import { getUnreadNotificationCount } from "../services/notification.service"
 
 interface NotificationState {
+  revision: number
+  invalidate: () => void
   unreadCount: number
   isLoading: boolean
   setUnreadCount: (count: number) => void
@@ -10,6 +12,8 @@ interface NotificationState {
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
+  revision: 0,
+  invalidate: () => set((state) => ({ revision: state.revision + 1 })),
   unreadCount: 0,
   isLoading: false,
   setUnreadCount: (count) => set({ unreadCount: Math.max(0, count) }),

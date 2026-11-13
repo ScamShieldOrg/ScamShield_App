@@ -16,9 +16,9 @@ public class WhitelistResourceResponse {
     private Long id;
     private String name;
     private String brandName;
-    private String partnerType;
     private String taxId;
-    private String legalRepresentative;
+    private String verificationReason;
+    private String representativeNameAndTitle;
     private List<String> officialHotlines;
     private List<String> officialDomains;
     private List<String> smsBrandNames;

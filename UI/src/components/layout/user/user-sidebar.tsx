@@ -184,7 +184,7 @@ export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
           className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-[#BA1A1A] transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
         >
           <SignOut size={16} weight="bold" />
-          <span>Đăng xuất an toàn</span>
+          <span>Đăng xuất</span>
         </button>
       </div>
     </aside>

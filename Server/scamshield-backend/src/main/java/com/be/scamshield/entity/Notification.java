@@ -1,10 +1,14 @@
 package com.be.scamshield.entity;
 
+import com.be.scamshield.constant.NotificationType;
+import com.be.scamshield.serviceImpl.NotificationRealtimeListener;
+
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table(name = "notifications")
+@EntityListeners(NotificationRealtimeListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,8 +24,9 @@ public class Notification {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
-    private String type;
+    private NotificationType type;
 
     @Column(name = "title", nullable = false)
     private String title;
@@ -29,8 +34,6 @@ public class Notification {
     @Column(name = "message", nullable = false)
     private String message;
 
-    @Column(name = "reference_type")
-    private String referenceType;
 
     @Column(name = "reference_id")
     private Long referenceId;

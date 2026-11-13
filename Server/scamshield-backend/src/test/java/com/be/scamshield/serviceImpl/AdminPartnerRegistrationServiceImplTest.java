@@ -1,5 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.WhitelistVerificationStatus;
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.UserStatus;
 import com.be.scamshield.dto.request.AdminPartnerReviewRequest;
@@ -17,6 +20,9 @@ import com.be.scamshield.repository.PartnerDocumentRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
+import com.be.scamshield.service.PartnerPasswordSetupService;
+import com.be.scamshield.service.PartnerEmailService;
+import com.be.scamshield.external.PartnerDocumentStorageService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -31,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,6 +57,9 @@ class AdminPartnerRegistrationServiceImplTest {
     @Mock private IndicatorRepository indicators;
     @Mock private WhitelistEntryRepository whitelistEntries;
     @Mock private AuditLogRepository auditLogs;
+    @Mock private PartnerPasswordSetupService passwordSetupService;
+    @Mock private PartnerEmailService emailService;
+    @Mock private PartnerDocumentStorageService documentStorage;
 
     private AdminPartnerRegistrationServiceImpl service;
     private PartnerProfile profile;
@@ -59,7 +69,8 @@ class AdminPartnerRegistrationServiceImplTest {
     void setUp() {
         service = new AdminPartnerRegistrationServiceImpl(profiles, documents, users, indicators,
                 whitelistEntries, auditLogs, new ObjectMapper(),
-                Clock.fixed(Instant.parse("2026-10-28T08:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")));
+                Clock.fixed(Instant.parse("2026-10-28T08:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")), passwordSetupService,
+                emailService, documentStorage);
         User partnerUser = User.builder().id(20L).fullName("Người đăng ký").status(UserStatus.INACTIVE.name()).build();
         reviewer = User.builder().id(1L).fullName("Quản trị viên").build();
         profile = PartnerProfile.builder().id(10L).user(partnerUser).legalName("Công ty A")
@@ -76,7 +87,7 @@ class AdminPartnerRegistrationServiceImplTest {
     }
 
     @Test
-    void approvalActivatesPartnerAndCreatesThreeVerifiedIdentifiers() {
+    void approvalActivatesPartnerAndCreatesTwoVerifiedIdentifiers() {
         when(users.findById(1L)).thenReturn(Optional.of(reviewer));
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
         AtomicLong nextId = new AtomicLong(100);
@@ -86,22 +97,46 @@ class AdminPartnerRegistrationServiceImplTest {
             return indicator;
         });
 
-        var result = service.review(10L, request(PartnerVerificationStatus.VERIFIED, null), 1L);
+        var result = service.review(10L, request(PartnerVerificationStatus.VERIFIED, "Đã đối soát giấy phép và kênh chính thức"), 1L);
 
         assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.VERIFIED);
         assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.ACTIVE.name());
+        assertThat(profile.getVerificationReason()).isEqualTo("Đã đối soát giấy phép và kênh chính thức");
+        assertThat(result.reviewReason()).isEqualTo(profile.getVerificationReason());
+        verify(passwordSetupService).issue(10L);
+        assertThat(profile.getSmsBrandName()).isEqualTo("EXAMPLE");
         ArgumentCaptor<WhitelistEntry> entry = ArgumentCaptor.forClass(WhitelistEntry.class);
-        verify(whitelistEntries, org.mockito.Mockito.times(3)).save(entry.capture());
+        verify(whitelistEntries, org.mockito.Mockito.times(2)).save(entry.capture());
         assertThat(entry.getAllValues()).extracting(value -> value.getIndicator().getType())
-                .containsExactly("DOMAIN", "PHONE", "SMS_BRAND_NAME");
+                .containsExactly(IndicatorType.URL, IndicatorType.PHONE);
         assertThat(entry.getAllValues()).extracting(value -> value.getIndicator().getNormalizedValue())
-                .containsExactly("example.com.vn", "0912345678", "EXAMPLE");
+                .containsExactly("example.com.vn", "0912345678");
         assertThat(entry.getAllValues()).allSatisfy(value ->
-                assertThat(value.getVerificationStatus()).isEqualTo("VERIFIED"));
+                assertThat(value.getVerificationStatus()).isEqualTo(WhitelistVerificationStatus.VERIFIED));
         ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
         verify(auditLogs).save(audit.capture());
         assertThat(audit.getValue().getActorUser()).isSameAs(reviewer);
         assertThat(audit.getValue().getNewValue()).isEqualTo("VERIFIED");
+        assertThat(audit.getValue().getReason()).isEqualTo(profile.getVerificationReason());
+    }
+
+    @Test
+    void approvalRequiresAdministratorReason() {
+        assertThatThrownBy(() -> service.review(10L,
+                request(PartnerVerificationStatus.VERIFIED, "  "), 1L))
+                .isInstanceOf(com.be.scamshield.exception.BadRequestException.class);
+        verifyNoInteractions(profiles, indicators, whitelistEntries, auditLogs);
+    }
+
+    @Test
+    void approvalWaitsForOcrAndReadyDocuments() {
+        when(users.findById(1L)).thenReturn(Optional.of(reviewer));
+        when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
+        profile.setDocumentVerificationStatus("PENDING_OCR");
+        assertThatThrownBy(() -> service.review(10L,
+                request(PartnerVerificationStatus.VERIFIED, "Đã kiểm tra"), 1L))
+                .isInstanceOf(com.be.scamshield.exception.PartnerReviewConflictException.class);
+        verifyNoInteractions(indicators, whitelistEntries, auditLogs);
     }
 
     @Test
@@ -114,13 +149,36 @@ class AdminPartnerRegistrationServiceImplTest {
         when(users.findById(1L)).thenReturn(Optional.of(reviewer));
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
         profile.getUser().setStatus(UserStatus.ACTIVE.name());
-        var result = service.review(10L, request(PartnerVerificationStatus.REJECTED, "Không đủ bằng chứng"), 1L);
-        assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.REJECTED);
-        assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.INACTIVE.name());
-        verifyNoInteractions(indicators, whitelistEntries);
-        ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogs).save(audit.capture());
-        assertThat(audit.getValue().getReason()).isEqualTo("Không đủ bằng chứng");
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            var result = service.review(10L, request(PartnerVerificationStatus.REJECTED, "  Không đủ bằng chứng  "), 1L);
+            assertThat(result.verificationStatus()).isEqualTo(PartnerVerificationStatus.REJECTED);
+            assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.INACTIVE.name());
+            assertThat(profile.getVerificationReason()).isEqualTo("Không đủ bằng chứng");
+            assertThat(result.reviewReason()).isEqualTo(profile.getVerificationReason());
+            verify(auditLogs, never()).findByEntityTypeAndEntityIdOrderByCreatedAtDesc(any(), any());
+            verifyNoInteractions(indicators, whitelistEntries, emailService);
+            ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
+            verify(auditLogs).save(audit.capture());
+            assertThat(audit.getValue().getReason()).isEqualTo("Không đủ bằng chứng");
+            TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+            verify(emailService).sendRejection(10L, "a@example.com", "Công ty A", "Không đủ bằng chứng");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void detailReadsAuditReasonForPreviouslyRejectedProfile() {
+        profile.setVerificationStatus(PartnerVerificationStatus.REJECTED);
+        when(profiles.findById(10L)).thenReturn(Optional.of(profile));
+        when(auditLogs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("PARTNER_PROFILE", 10L))
+                .thenReturn(java.util.List.of(AuditLog.builder()
+                        .action("REVIEW_PARTNER_REGISTRATION").reason("Thiếu giấy phép").build()));
+
+        var result = service.detail(10L);
+
+        assertThat(result.reviewReason()).isEqualTo("Thiếu giấy phép");
     }
 
     @Test
@@ -152,13 +210,13 @@ class AdminPartnerRegistrationServiceImplTest {
     void identifierAlreadyVerifiedForAnotherPartnerIsConflict() {
         when(users.findById(1L)).thenReturn(Optional.of(reviewer));
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
-        Indicator existing = Indicator.builder().id(5L).type("DOMAIN").normalizedValue("example.com.vn").build();
-        when(indicators.findByTypeAndNormalizedValue("DOMAIN", "example.com.vn"))
+        Indicator existing = Indicator.builder().id(5L).type(IndicatorType.URL).normalizedValue("example.com.vn").build();
+        when(indicators.findByTypeAndNormalizedValue(IndicatorType.URL, "example.com.vn"))
                 .thenReturn(Optional.of(existing));
-        when(whitelistEntries.existsByIndicatorIdAndVerificationStatusAndPartnerIdNot(5L, "VERIFIED", 10L))
+        when(whitelistEntries.existsByIndicatorIdAndVerificationStatusAndPartnerIdNot(5L, WhitelistVerificationStatus.VERIFIED, 10L))
                 .thenReturn(true);
         assertThatThrownBy(() -> service.review(10L,
-                request(PartnerVerificationStatus.VERIFIED, null), 1L))
+                request(PartnerVerificationStatus.VERIFIED, "Đã xác minh hồ sơ"), 1L))
                 .isInstanceOf(PartnerReviewConflictException.class);
         assertThat(profile.getUser().getStatus()).isEqualTo(UserStatus.INACTIVE.name());
         verify(auditLogs, never()).save(any());

@@ -16,19 +16,19 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
     @Query(value = """
             SELECT ci.id AS id,
                    i.id AS indicatorId,
-                   i.type AS resourceType,
+                   cast(i.type as string) AS resourceType,
                    COALESCE(i.displayValue, i.normalizedValue) AS title,
                    ci.publicReason AS description,
-                   (SELECT COALESCE(SUM(COALESCE(r.reportCountSignal, 1)), 0L)
+                   (SELECT COUNT(r)
                       FROM Report r
                      WHERE r.indicator = i
-                       AND r.status IN ('APPROVED', 'MERGED')) AS warningCount,
+                       AND r.status = com.be.scamshield.constant.ReportStatus.APPROVED) AS warningCount,
                    ci.confirmedAt AS confirmedAt,
                    COALESCE(i.updatedAt, ci.confirmedAt) AS updatedAt
             FROM ConfirmedIndicator ci
             JOIN ci.indicator i
-            WHERE ci.status = 'ACTIVE'
-              AND (:resourceType IS NULL OR i.type = :resourceType)
+            WHERE ci.status = com.be.scamshield.constant.ConfirmedIndicatorStatus.ACTIVE
+              AND (:resourceType IS NULL OR cast(i.type as string) = :resourceType)
               AND (:keyword IS NULL
                    OR LOWER(COALESCE(i.displayValue, '')) LIKE :keyword
                    OR LOWER(i.normalizedValue) LIKE :keyword
@@ -39,8 +39,8 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
                     SELECT COUNT(ci)
                     FROM ConfirmedIndicator ci
                     JOIN ci.indicator i
-                    WHERE ci.status = 'ACTIVE'
-                      AND (:resourceType IS NULL OR i.type = :resourceType)
+                    WHERE ci.status = com.be.scamshield.constant.ConfirmedIndicatorStatus.ACTIVE
+                      AND (:resourceType IS NULL OR cast(i.type as string) = :resourceType)
                       AND (:keyword IS NULL
                            OR LOWER(COALESCE(i.displayValue, '')) LIKE :keyword
                            OR LOWER(i.normalizedValue) LIKE :keyword

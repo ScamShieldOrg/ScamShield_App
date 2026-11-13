@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.dto.request.BlacklistResourceFilterRequest;
 import com.be.scamshield.dto.request.WhitelistResourceFilterRequest;
@@ -73,6 +75,7 @@ class ResourceServiceImplTest {
         filter.setKeyword("  VIETTEL  ");
         filter.setSortBy("name");
         var first = partner(10L, "Viettel");
+        first.setVerificationReason("Đã đối soát pháp nhân và tên miền");
         var second = partner(20L, "Vietcombank");
         second.setOfficialHotline(null);
         second.setOfficialDomain(null);
@@ -83,8 +86,7 @@ class ResourceServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(first, second), pageRequest, 5));
         when(whitelistRepository.findVerifiedEntries(List.of(10L, 20L)))
                 .thenReturn(List.of(entry(1L, first, "PHONE", "18008098", null),
-                        entry(2L, first, "URL", "viettel.vn", "viettel.vn"),
-                        entry(3L, first, "SMS", "VIETTEL", null)));
+                        entry(2L, first, "URL", "viettel.vn", "viettel.vn")));
 
         var result = service.getWhiteListResources(filter);
 
@@ -95,10 +97,12 @@ class ResourceServiceImplTest {
         assertThat(result.getData().get(0).getOfficialHotlines()).containsExactly("18008098");
         assertThat(result.getData().get(0).getOfficialDomains()).containsExactly("viettel.vn");
         assertThat(result.getData().get(0).getSmsBrandNames()).containsExactly("VIETTEL");
+        assertThat(result.getData().get(0).getVerificationReason()).isEqualTo("Đã đối soát pháp nhân và tên miền");
         assertThat(result.getData().get(0).getVerifiedIndicators()).extracting("value")
-                .containsExactly("18008098", "viettel.vn", "VIETTEL");
+                .containsExactly("18008098", "viettel.vn");
         assertThat(result.getData().get(1).getVerifiedIndicators()).isEmpty();
         assertThat(result.getData().get(1).getOfficialHotlines()).isEmpty();
+        assertThat(result.getData().get(1).getVerificationReason()).isNull();
         verifyNoInteractions(resourceRepository);
     }
 
@@ -121,7 +125,7 @@ class ResourceServiceImplTest {
 
     private PartnerProfile partner(Long id, String name) {
         return PartnerProfile.builder()
-                .id(id).legalName(name).brandName(name).partnerType("BUSINESS")
+                .id(id).legalName(name).brandName(name)
                 .contactPhone("0912345678")
                 .corporateEmail("contact@viettel.vn")
                 .officialHotline("18008098")
@@ -134,7 +138,7 @@ class ResourceServiceImplTest {
     private WhitelistEntry entry(Long id, PartnerProfile partner, String type, String normalized, String display) {
         return WhitelistEntry.builder()
                 .id(id).partner(partner)
-                .indicator(Indicator.builder().type(type).normalizedValue(normalized).displayValue(display).build())
+                .indicator(Indicator.builder().type(IndicatorType.valueOf(type)).normalizedValue(normalized).displayValue(display).build())
                 .verifiedAt(LocalDateTime.parse("2026-01-15T10:00:00"))
                 .build();
     }

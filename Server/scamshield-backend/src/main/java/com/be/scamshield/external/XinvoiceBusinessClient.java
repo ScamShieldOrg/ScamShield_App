@@ -11,15 +11,41 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.beans.factory.annotation.Qualifier;
+import java.time.Instant;
+import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
-@RequiredArgsConstructor
 public class XinvoiceBusinessClient {
     private final RestClient businessVerificationRestClient;
     private final PartnerBusinessVerificationProperties properties;
+    private final ConcurrentHashMap<String, CachedLookup> cache = new ConcurrentHashMap<>();
+
+    public XinvoiceBusinessClient(@Qualifier("xinvoiceRestClient") RestClient businessVerificationRestClient,
+                                  PartnerBusinessVerificationProperties properties) {
+        this.businessVerificationRestClient = businessVerificationRestClient;
+        this.properties = properties;
+    }
+
+    private record CachedLookup(BusinessRegistryLookup result, Instant expiresAt) { }
 
     public BusinessRegistryLookup lookup(String normalizedTaxCode) {
+        CachedLookup cached = cache.get(normalizedTaxCode);
+        if (cached != null && cached.expiresAt().isAfter(Instant.now())) return cached.result();
+        BusinessRegistryLookup result = lookupOnce(normalizedTaxCode);
+        if (result.status() == SourceStatus.UNAVAILABLE) {
+            try { Thread.sleep(200); } catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+            result = lookupOnce(normalizedTaxCode);
+        }
+        if (result.status() == SourceStatus.SUCCESS) {
+            cache.put(normalizedTaxCode, new CachedLookup(result, Instant.now().plus(Duration.ofMinutes(10))));
+        }
+        return result;
+    }
+
+    private BusinessRegistryLookup lookupOnce(String normalizedTaxCode) {
         var config = properties.getXinvoice();
         boolean hasClientId = !config.getClientId().isBlank();
         boolean hasApiKey = !config.getApiKey().isBlank();

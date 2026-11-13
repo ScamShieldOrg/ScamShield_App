@@ -16,8 +16,13 @@ public class ReportStatusCountsResponse {
     @Schema(description = "Tất cả báo cáo", example = "18")
     private Long all;
 
+    @Schema(description = "Đã thu hồi trước kiểm duyệt")
+    private Long withdrawn;
+
     @Schema(description = "Đang chờ duyệt", example = "3")
     private Long pending;
+
+    private Long inReview;
 
     @Schema(description = "Đã vào Blacklist", example = "14")
     private Long approvedBlacklist;

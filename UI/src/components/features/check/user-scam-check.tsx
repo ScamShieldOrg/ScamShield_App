@@ -1,60 +1,102 @@
 "use client"
 
-import { useUserScamCheck } from "@/features/check/hooks/use-user-scam-check"
+import { useState } from "react"
 import { ScamCheckInput } from "./scam-check-input"
-import { ScamCheckVerdict } from "./scam-check-verdict"
+import { ScamVerdictBanner } from "./scam-verdict-banner"
+import { ScamEvidenceCard } from "./scam-evidence-card"
+import { ScamActionBar } from "./scam-action-bar"
+import { checkScamContent } from "@/features/check/services/check.service"
+import type {
+  CheckScanResponse,
+  CheckType,
+} from "@/features/check/types/check.types"
+import { ShieldCheck, WarningCircle } from "@phosphor-icons/react"
 
 export function UserScamCheck() {
-  const {
-    inputType,
-    content,
-    result,
-    error,
-    isLoading,
-    changeType,
-    changeContent,
-    analyze,
-  } = useUserScamCheck()
+  const [result, setResult] = useState<CheckScanResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleAnalyze = async (content: string, type: CheckType) => {
+    if (!content.trim()) return
+    setIsLoading(true)
+    setError(null)
+    try {
+      const data = await checkScamContent({
+        content: content.trim(),
+        check_type: type,
+      })
+      setResult(data)
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Không thể hoàn tất phân tích. Vui lòng kiểm tra lại kết nối mạng."
+      setError(message)
+      setResult(null)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
-        Kiểm Tra Lừa Đảo Chuyên Sâu
-      </h1>
-      <ScamCheckInput
-        inputType={inputType}
-        content={content}
-        onTypeChange={changeType}
-        onContentChange={changeContent}
-        onAnalyze={() => void analyze()}
-        isLoading={isLoading}
-        error={error}
-      />
-      <div
-        role="status"
-        aria-live="polite"
-        className={isLoading ? "text-sm text-muted-foreground" : "sr-only"}
-      >
-        {isLoading
-          ? "Đang phân tích nội dung. Vui lòng chờ kết quả…"
-          : result
-            ? `Đã có kết quả kiểm tra số ${result.checkId}. ${result.verdict === "LOW_RISK" ? "Mức độ rủi ro thấp." : result.verdict === "SCAM_RISK" ? "Mức độ rủi ro cao." : result.verdict === "SUSPICIOUS" ? "Có dấu hiệu đáng ngờ." : "Chưa đủ cơ sở kết luận."}`
-            : ""}
-      </div>
-      {isLoading && (
-        <div
-          aria-hidden="true"
-          className="space-y-4 rounded-3xl border border-border bg-card p-6 motion-safe:animate-pulse"
-        >
-          <div className="h-7 w-1/2 rounded bg-muted" />
-          <div className="h-24 rounded-2xl bg-muted" />
-          <div className="h-16 rounded-2xl bg-muted" />
+      {/* Input Section */}
+      <ScamCheckInput onAnalyze={handleAnalyze} isLoading={isLoading} />
+
+      {/* Error Alert (Shown when connection/API fails) */}
+      {error && (
+        <div role="alert" className="animate-in flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50/80 p-4 text-xs text-rose-800 duration-200 fade-in-50 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
+          <WarningCircle
+            size={20}
+            weight="fill"
+            className="shrink-0 text-rose-600 dark:text-rose-400"
+          />
+          <div className="flex-1 space-y-1">
+            <p className="font-bold">Lỗi phân tích nội dung:</p>
+            <p className="leading-relaxed">{error}</p>
+          </div>
         </div>
       )}
-      {result && <ScamCheckVerdict result={result} />}
+
+      {/* Initial Empty State (When no check has been performed yet and not loading) */}
       {!result && !isLoading && !error && (
-        <p className="text-center text-sm text-muted-foreground">
-          Nhập nội dung và chọn Phân tích để xem kết quả.
-        </p>
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-12 text-center dark:border-border dark:bg-card/40">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-sky-100 text-[#008CC7] dark:bg-primary/20 dark:text-primary">
+            <ShieldCheck size={26} weight="duotone" />
+          </div>
+          <h3 className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">
+            Sẵn sàng kiểm tra tin nhắn
+          </h3>
+          <p className="mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400">
+            Nhập nội dung tin nhắn SMS, tin nhắn Zalo, đường dẫn website hoặc số điện thoại đáng ngờ rồi bấm &ldquo;Phân tích&rdquo; để bắt đầu.
+          </p>
+        </div>
+      )}
+
+      {/* Result Section (Shown when analysis exists) */}
+      {result && (
+        <div aria-live="polite" className="animate-in space-y-6 pt-2 duration-300 fade-in-50">
+          {/* High-Risk / Safe / Suspicious / Unknown Verdict Banner with Provenance */}
+          <ScamVerdictBanner
+            verdict={result.verdict}
+            provenance={result.execution_provenance}
+            executionTimeMs={result.execution_time_ms}
+            cloudCostUsd={result.cloud_cost_usd}
+            modelName={result.engine_details?.model_name}
+            features={result.deterministic_features}
+            targetBank={result.target_bank}
+            inputType={result.input_type}
+            matchedIndicator={result.matched_indicator}
+            decidedByStage={result.decided_by_stage}
+          />
+
+          {/* Evidence Card: Deterministic Features (Tier 1) / Forensic Council (Tier 2) / Epistemic Caution */}
+          <ScamEvidenceCard data={result} />
+
+          {/* Bottom Action Buttons */}
+          <ScamActionBar scanId={result.scan_id} />
+        </div>
       )}
     </div>
   )

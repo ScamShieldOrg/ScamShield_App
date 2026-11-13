@@ -13,10 +13,12 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,8 +26,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.URI;
+import java.time.Duration;
 import java.util.Set;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/moderator/disputes")
 @RequiredArgsConstructor
@@ -69,6 +74,40 @@ public class ModeratorDisputeController {
     ) {
         ModeratorDisputeResponse response = moderatorDisputeService.getDisputeById(id);
         return ResponseEntity.ok(new BaseResponse<>(true, "Lấy chi tiết hồ sơ khiếu nại thành công", response));
+    }
+
+    @GetMapping("/{id}/evidence/{evidenceId}/download")
+    @Operation(summary = "Tải bằng chứng khiếu nại", description = "Tải bằng chứng khiếu nại qua backend để bảo toàn chính sách CORS đối với dữ liệu cũ.")
+    public ResponseEntity<byte[]> downloadEvidence(
+            @PathVariable String id,
+            @PathVariable Long evidenceId
+    ) {
+        String downloadUrl = moderatorDisputeService.getEvidenceDownloadUrl(id, evidenceId);
+        try {
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .followRedirects(java.net.http.HttpClient.Redirect.NEVER)
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(URI.create(downloadUrl))
+                    .timeout(Duration.ofSeconds(30))
+                    .GET()
+                    .build();
+            java.net.http.HttpResponse<byte[]> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() >= 200 && response.statusCode() < 300
+                    && "https".equalsIgnoreCase(response.uri().getScheme())) {
+                HttpHeaders headers = new HttpHeaders();
+                response.headers().firstValue("Content-Type").ifPresent(ct -> headers.set(HttpHeaders.CONTENT_TYPE, ct));
+                response.headers().firstValue("Content-Disposition").ifPresent(cd -> headers.set(HttpHeaders.CONTENT_DISPOSITION, cd));
+                if (headers.get(HttpHeaders.CONTENT_DISPOSITION) == null) {
+                    headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment");
+                }
+                return new ResponseEntity<>(response.body(), headers, HttpStatus.OK);
+            }
+        } catch (Exception ex) {
+            log.warn("Không thể proxy tải tệp bằng chứng cho hồ sơ {} evidence {}", id, evidenceId, ex);
+        }
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
     }
 
     @PutMapping(value = {"/{id}/decision", "/{id}"})

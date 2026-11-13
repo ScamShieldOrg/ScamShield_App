@@ -1,5 +1,11 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
+import com.be.scamshield.constant.VietnamProvince;
+
+import com.be.scamshield.constant.ReportEvidenceType;
+import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.response.ReportStatusCountsResponse;
 import com.be.scamshield.dto.response.ReportSummaryMetricsResponse;
@@ -66,12 +72,47 @@ class UserReportTrackingServiceImplTest {
     }
 
     @Test
+    void reportHistoryUsesGenericReviewerLabelWithoutDisclosingName() {
+        Report report = Report.builder().id(41L).status(ReportStatus.IN_REVIEW)
+                .createdAt(fixedNow).updatedAt(fixedNow).build();
+        when(reportRepository.findByIdAndReporterUserId(41L, 1L)).thenReturn(Optional.of(report));
+        when(moderationActionRepository.findByReportIdOrderByCreatedAtDesc(41L)).thenReturn(List.of(
+                ModerationAction.builder().id(8L).action("IN_REVIEW").createdAt(fixedNow)
+                        .moderatorUser(User.builder().id(99L).fullName("Private reviewer name").build()).build()));
+        var detail = service.getReportDetail(1L, 41L);
+        assertThat(detail.getModerationHistory()).hasSize(1);
+        assertThat(detail.getSlaStatus()).isEqualTo("processing");
+        assertThat(detail.getModerationHistory().getFirst().getModeratorName()).isEqualTo("Kiểm duyệt viên");
+    }
+
+    @Test
+    void detailIncludesCategoryIdAndRegionForEditingWithoutDataLoss() {
+        ScamCategory category = ScamCategory.builder().id(2L).name("Trúng thưởng").build();
+        Indicator indicator = Indicator.builder().id(3L).type(IndicatorType.PHONE).normalizedValue("0912345678").build();
+        Report report = Report.builder().id(41L).indicator(indicator).category(category).regionCode(VietnamProvince.HA_NOI)
+                .status(ReportStatus.PENDING).createdAt(fixedNow).updatedAt(fixedNow).build();
+        when(reportRepository.findByIdAndReporterUserId(41L, 1L)).thenReturn(Optional.of(report));
+        var detail = service.getReportDetail(1L, 41L);
+        assertThat(detail.getCategoryId()).isEqualTo(2L);
+        assertThat(detail.getRegionCode()).isEqualTo("01");
+    }
+
+    @Test
+    void withdrawalsDoNotLowerAccuracy() {
+        when(reportRepository.countByReporterUserId(1L)).thenReturn(5L);
+        when(reportRepository.countByReporterUserIdAndStatus(1L, ReportStatus.PENDING)).thenReturn(1L);
+        when(reportRepository.countByReporterUserIdAndStatus(1L, ReportStatus.WITHDRAWN)).thenReturn(2L);
+        when(reportRepository.countByReporterUserIdAndStatus(1L, ReportStatus.APPROVED)).thenReturn(2L);
+        assertThat(service.getSummaryMetrics(1L).getAccuracyRate()).isEqualTo(100.0);
+    }
+
+    @Test
     void getSummaryMetricsCalculatesCorrectly() {
         Long userId = 1L;
         when(reportRepository.countByReporterUserId(userId)).thenReturn(18L);
         when(reportRepository.countByReporterUserIdAndCreatedAtAfter(eq(userId), any())).thenReturn(4L);
-        when(reportRepository.countByReporterUserIdAndStatus(userId, "APPROVED_BLACKLIST")).thenReturn(14L);
-        when(reportRepository.countByReporterUserIdAndStatus(userId, "PENDING")).thenReturn(3L);
+        when(reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.APPROVED)).thenReturn(14L);
+        when(reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.PENDING)).thenReturn(3L);
 
         ReputationRank rank = ReputationRank.builder()
                 .name("A+ Chuyên Gia")
@@ -103,17 +144,16 @@ class UserReportTrackingServiceImplTest {
     void getStatusCountsReturnsAccurateNumbers() {
         Long userId = 1L;
         when(reportRepository.countByReporterUserId(userId)).thenReturn(18L);
-        when(reportRepository.countByReporterUserIdAndStatus(userId, "PENDING")).thenReturn(3L);
-        when(reportRepository.countByReporterUserIdAndStatus(userId, "APPROVED_BLACKLIST")).thenReturn(14L);
-        when(reportRepository.countByReporterUserIdAndStatus(userId, "MERGED_DUPLICATE")).thenReturn(1L);
-        when(reportRepository.countByReporterUserIdAndStatus(userId, "REJECTED")).thenReturn(0L);
+        when(reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.PENDING)).thenReturn(3L);
+        when(reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.APPROVED)).thenReturn(14L);
+        when(reportRepository.countByReporterUserIdAndStatus(userId, ReportStatus.REJECTED)).thenReturn(0L);
 
         ReportStatusCountsResponse counts = service.getStatusCounts(userId);
 
         assertThat(counts.getAll()).isEqualTo(18L);
         assertThat(counts.getPending()).isEqualTo(3L);
         assertThat(counts.getApprovedBlacklist()).isEqualTo(14L);
-        assertThat(counts.getMergedDuplicate()).isEqualTo(1L);
+        assertThat(counts.getMergedDuplicate()).isEqualTo(0L);
         assertThat(counts.getRejected()).isEqualTo(0L);
     }
 
@@ -121,7 +161,7 @@ class UserReportTrackingServiceImplTest {
     void getTrackingReportsMapsColumnsCorrectly() {
         Long userId = 1L;
         Indicator indicator = Indicator.builder()
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .normalizedValue("0898421234")
                 .displayValue("089.842.xxxx")
                 .build();
@@ -135,7 +175,7 @@ class UserReportTrackingServiceImplTest {
                 .id(8492L)
                 .indicator(indicator)
                 .category(category)
-                .status("APPROVED_BLACKLIST")
+                .status(ReportStatus.APPROVED)
                 .description("Đầu số MobiFone phát tán")
                 .createdAt(fixedNow.minusMinutes(14))
                 .updatedAt(fixedNow)
@@ -144,8 +184,7 @@ class UserReportTrackingServiceImplTest {
         ReportEvidence evidence = ReportEvidence.builder()
                 .id(1L)
                 .report(report)
-                .evidenceType("IMAGE")
-                .verificationStatus("OCR_PASS")
+                .evidenceType(ReportEvidenceType.PNG).ocrText("Nội dung OCR")
                 .build();
 
         when(reportRepository.findAll(any(Specification.class), any(Pageable.class)))
@@ -169,21 +208,21 @@ class UserReportTrackingServiceImplTest {
         assertThat(item.getSlaTime()).isEqualTo("Xong trong 14 phút");
         assertThat(item.getSlaStatus()).isEqualTo("completed");
         assertThat(item.getEvidenceBadge()).isEqualTo("1 ảnh • OCR Pass");
-        assertThat(item.getStatus()).isEqualTo("APPROVED_BLACKLIST");
+        assertThat(item.getStatus()).isEqualTo("APPROVED");
     }
 
     @Test
     void exportCsvProducesValidCsvContentWithBom() {
         Long userId = 1L;
         Indicator indicator = Indicator.builder()
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .displayValue("089.842.xxxx")
                 .build();
 
         Report report = Report.builder()
                 .id(8492L)
                 .indicator(indicator)
-                .status("APPROVED_BLACKLIST")
+                .status(ReportStatus.APPROVED)
                 .createdAt(fixedNow.minusMinutes(14))
                 .build();
 
@@ -202,14 +241,14 @@ class UserReportTrackingServiceImplTest {
     void exportCsvNeutralizesFormulaCharacters() {
         Long userId = 1L;
         Indicator indicator = Indicator.builder()
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .displayValue("=1+1")
                 .build();
 
         Report report = Report.builder()
                 .id(8493L)
                 .indicator(indicator)
-                .status("PENDING")
+                .status(ReportStatus.PENDING)
                 .description("@SUM(A1:A5)")
                 .createdAt(fixedNow.minusMinutes(10))
                 .build();
@@ -228,7 +267,7 @@ class UserReportTrackingServiceImplTest {
     void getTrackingReportsDerivesDeterministicHashIgnoringIpAndDeviceHash() {
         Long userId = 1L;
         Indicator indicator = Indicator.builder()
-                .type("PHONE")
+                .type(IndicatorType.PHONE)
                 .normalizedValue("0898421234")
                 .displayValue("089.842.xxxx")
                 .build();
@@ -236,9 +275,8 @@ class UserReportTrackingServiceImplTest {
         Report report = Report.builder()
                 .id(8492L)
                 .indicator(indicator)
-                .status("PENDING")
+                .status(ReportStatus.PENDING)
                 .ipHash("IP_HASH_SHOULD_BE_IGNORED")
-                .deviceFingerprintHash("DEVICE_HASH_SHOULD_BE_IGNORED")
                 .createdAt(fixedNow.minusMinutes(14))
                 .updatedAt(fixedNow)
                 .build();

@@ -2,6 +2,8 @@ package com.be.scamshield.controller;
 
 import com.be.scamshield.dto.*;
 import com.be.scamshield.dto.request.LoginGoogleRequest;
+import com.be.scamshield.dto.request.PartnerPasswordSetupRequest;
+import com.be.scamshield.service.PartnerPasswordSetupService;
 import com.be.scamshield.dto.request.RegisterGoogleRequest;
 import com.be.scamshield.dto.request.RegisterPersonalRequest;
 import com.be.scamshield.dto.request.VerifyContactsRequest;
@@ -39,6 +41,7 @@ public class AuthController {
     private final IAuthService authService;
     private final IOtpService otpService;
     private final ContactVerificationService contactVerificationService;
+    private final PartnerPasswordSetupService partnerPasswordSetupService;
 
     @PostMapping("/verify-contacts")
     @Operation(summary = "Xác thực OTP điện thoại trước khi đăng ký",
@@ -89,6 +92,13 @@ public class AuthController {
                                                                @AuthenticationPrincipal UserPrincipal userPrincipal) {
         authService.changePassword(userPrincipal.getUsername(), request);
         return ResponseEntity.ok(new BaseResponse<>(true, "Password changed successfully"));
+    }
+
+    @PostMapping("/partner-password/setup")
+    @Operation(summary = "Đặt mật khẩu lần đầu cho đối tác bằng link email")
+    public ResponseEntity<BaseResponse<Void>> setupPartnerPassword(@Valid @RequestBody PartnerPasswordSetupRequest request) {
+        partnerPasswordSetupService.setup(request.token(), request.newPassword());
+        return ResponseEntity.ok(new BaseResponse<>(true, "Đã đặt mật khẩu. Vui lòng đăng nhập", null));
     }
 
     @PostMapping("/logout")

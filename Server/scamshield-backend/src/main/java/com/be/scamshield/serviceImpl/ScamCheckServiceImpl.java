@@ -101,7 +101,7 @@ public class ScamCheckServiceImpl implements IScamCheckService {
                 CheckRequest managedCheck = checks.findById(check.getId()).orElseThrow(this::notFound);
                 // Link known catalog indicators; checking unverified text must not populate the curated catalog.
                 for (var indicator : decision.knownIndicators()) {
-                    var candidate = input.candidates().stream().filter(c -> c.type().equals(indicator.getType())
+                    var candidate = input.candidates().stream().filter(c -> c.type().equals(indicator.getType().name())
                             && c.aliases().contains(indicator.getNormalizedValue())).findFirst().orElseThrow();
                     extractedIocs.save(ExtractedIoc.builder().checkRequest(managedCheck).indicator(indicator)
                             .extractionMethod("REGEX").startPosition(candidate.start()).endPosition(candidate.end())
@@ -163,7 +163,7 @@ public class ScamCheckServiceImpl implements IScamCheckService {
                 verdict.getPrimaryCategory() == null ? null : verdict.getPrimaryCategory().getCode(),
                 verdict.getConfidence(), verdict.getExplanation(), verdict.getSafetyGuidance(), verdict.getUnknownReason(),
                 indicator == null ? null : new ScamCheckResponse.MatchedIndicator(
-                        indicator.getId(), indicator.getType(), indicator.getNormalizedValue()),
+                        indicator.getId(), indicator.getType().name(), indicator.getNormalizedValue()),
                 verdict.getReasons().stream().map(r -> new ScamCheckResponse.Reason(
                         r.getReasonCode(), r.getSourceStage(), r.getDetail())).toList(),
                 check.getCreatedAt(), check.getCompletedAt(), check.getRetentionExpiresAt(),

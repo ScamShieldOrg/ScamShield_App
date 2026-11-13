@@ -1,8 +1,9 @@
--- Dữ liệu mẫu tiếng Việt. Chỉ chứa INSERT; schema phải được tạo sẵn trước khi chạy.
--- Không migration bảng hoặc xóa/cập nhật dữ liệu trong file này.
--- Mỗi bảng một nhóm; thứ tự nhóm bảo đảm các dữ liệu được tham chiếu đã được tạo.
+-- Dữ liệu mẫu tiếng Việt; mỗi bảng một INSERT INTO ... VALUES.
+-- Chạy trên database đã có schema và chưa có dữ liệu seed này; không tự bỏ qua bản ghi trùng.
+-- Không chứa migration hoặc thao tác xóa/cập nhật dữ liệu.
+-- Mật khẩu tài khoản mẫu: 123456 (BCrypt). URL tệp evidence là dữ liệu mẫu.
 
--- 01. roles
+-- 01. roles (5 bản ghi)
 INSERT INTO roles (name, description) VALUES
 ('GUEST', 'Khách vãng lai, chưa đăng ký'),
 ('REGISTERED_USER', 'Người dùng thông thường đã đăng ký'),
@@ -10,1077 +11,394 @@ INSERT INTO roles (name, description) VALUES
 ('ADMINISTRATOR', 'Quản trị viên hệ thống'),
 ('BUSINESS_PARTNER', 'Đối tác doanh nghiệp (Ngân hàng, Sàn TMĐT)');
 
--- 02. reputation_ranks
+-- 02. reputation_ranks (3 bản ghi)
 INSERT INTO reputation_ranks (name, min_points, max_points, description) VALUES
 ('Tân Binh', 0, 99, 'Người dùng mới tham gia, cần thêm uy tín'),
 ('Hiệp Sĩ', 100, 499, 'Thành viên đóng góp tích cực'),
 ('Thủ Lĩnh', 500, 9999, 'Chuyên gia diệt lừa đảo đáng tin cậy');
 
--- 03. scam_categories
+-- 03. scam_categories (5 bản ghi)
 INSERT INTO scam_categories (code, name, description, version, is_active, created_at, updated_at) VALUES
-('VIEC_LAM', 'Lừa đảo việc làm, CTV', 'Tuyển CTV làm nhiệm vụ ảo, chốt đơn hàng', 1, true, NOW(), NOW()),
-('TRUNG_THUONG', 'Lừa đảo trúng thưởng', 'Yêu cầu nộp phí nhận quà', 1, true, NOW(), NOW()),
-('GIA_DANH_CQCN', 'Giả danh cơ quan chức năng', 'Giả công an, tòa án dọa bắt giam', 1, true, NOW(), NOW()),
-('VIEN_THONG', 'Giả Mạo Viễn Thông', 'Giả mạo nhà mạng khóa chiều thuê bao', 1, true, NOW(), NOW()),
-('MALWARE', 'Giả Mạo VNeID / Malware', 'Mã độc đánh cắp tài khoản và OTP', 1, true, NOW(), NOW()),
-('CSGT', 'Giả Mạo Cảnh Sát Giao Thông', 'Thông báo phạt nguội phương tiện giả mạo', 1, true, NOW(), NOW()),
-('FOREX', 'Sàn Forex / Tiền Ảo', 'Cam kết lợi nhuận 3.5%/ngày bảo hiểm vốn ảo', 1, true, NOW(), NOW());
+('VIEC_LAM', 'Lừa đảo việc làm, CTV', 'Tuyển CTV làm nhiệm vụ ảo, chốt đơn hàng', 1, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('TRUNG_THUONG', 'Lừa đảo trúng thưởng', 'Yêu cầu nộp phí nhận quà', 1, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('GIA_DANH_CQCN', 'Giả danh cơ quan chức năng', 'Giả công an, tòa án dọa bắt giam', 1, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('VIEN_THONG', 'Giả Mạo Viễn Thông', 'Giả mạo nhà mạng khóa chiều thuê bao', 1, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('GIA_DANH_NGAN_HANG', 'Mạo danh ngân hàng', 'Giả danh ngân hàng qua SMS Brandname và đường dẫn giả', 1, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP));
 
--- Education Hub: 4 ca giải phẫu và 3 thẻ gia đình theo giao diện mẫu.
--- Mục này chỉ INSERT, có kiểm tra tồn tại để chạy lại không thêm trùng.
--- image_url/pdf_url để NULL vì chưa có file ảnh/PDF thực tế, không tạo URL tải giả.
-INSERT INTO scam_categories (code, name, description, version, is_active, created_at, updated_at)
-SELECT v.code, v.name, v.description, 1, true,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('GIA_DANH_NGAN_HANG', 'Mạo danh ngân hàng', 'Giả danh ngân hàng qua SMS Brandname và đường dẫn giả'),
-    ('DANH_CAP_OTP', 'Đánh cắp mã OTP', 'Lừa cung cấp mã xác thực OTP và mã PIN'),
-    ('VE_MAY_BAY_DU_LICH', 'Vé máy bay & Du lịch', 'Giả hoàn vé, hủy chuyến và đền bù qua liên kết độc hại')
-) AS v(code, name, description)
-WHERE NOT EXISTS (SELECT 1 FROM scam_categories c WHERE c.code = v.code);
-
--- Dashboard: dữ liệu cho GET /api/dashboard/summary và GET /api/dashboard/filters.
-INSERT INTO scam_categories (code, name, description, version, is_active, created_at, updated_at)
-SELECT v.code, v.name, v.description, 1, true,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('GIA_DANH_NGAN_HANG', 'Mạo danh ngân hàng', 'Giả nhân viên ngân hàng, dụ chuyển tiền vào tài khoản giả'),
-    ('DANH_CAP_OTP', 'Đánh cắp mã OTP', 'Giả nhân viên nhà mạng hoặc hỗ trợ để lấy mã xác thực')
-) AS v(code, name, description)
-WHERE NOT EXISTS (SELECT 1 FROM scam_categories c WHERE c.code = v.code);
-
--- Khiếu nại: dữ liệu cho GET /api/disputes/me và GET /api/disputes/me/summary.
-INSERT INTO scam_categories (code, name, description, version, is_active, created_at, updated_at)
-SELECT 'GIA_DANH_NGAN_HANG', 'Mạo danh ngân hàng', 'Giả danh ngân hàng và lừa đảo tài khoản', 1, true,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-WHERE NOT EXISTS (SELECT 1 FROM scam_categories WHERE code = 'GIA_DANH_NGAN_HANG');
-
--- 04. users
--- LƯU Ý: Mật khẩu của tất cả user dưới đây đều là: 123456 (đã được băm bằng BCrypt)
+-- 04. users (19 bản ghi)
 INSERT INTO users (full_name, phone_number, email, password_hash, role_id, reputation_rank_id, status, reputation_points, is_phone_verified, created_at, updated_at) VALUES
-('Nguyễn Văn A', '0987654321', 'nguyenvana@gmail.com', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name='REGISTERED_USER'), (SELECT id FROM reputation_ranks WHERE name='Hiệp Sĩ'), 'ACTIVE', 150, true, NOW(), NOW()),
-('Admin ScamShield', '0988888888', 'admin@scamshield.vn', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name='ADMINISTRATOR'), (SELECT id FROM reputation_ranks WHERE name='Thủ Lĩnh'), 'ACTIVE', 9999, false, NOW(), NOW()),
-('Moderator ScamShield', '0901234567', 'moderator@scamshield.vn', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name='MODERATOR'), (SELECT id FROM reputation_ranks WHERE name='Thủ Lĩnh'), 'ACTIVE', 5000, false, NOW(), NOW()),
-('Shopee Partner', '19001234', 'partner@shopee.vn', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name='BUSINESS_PARTNER'), null, 'ACTIVE', 0, false, NOW(), NOW());
+('Nguyễn Văn A', '0987654321', 'nguyenvana@gmail.com', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'REGISTERED_USER'), (SELECT id FROM reputation_ranks WHERE name = 'Tân Binh'), 'ACTIVE', 0, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('Admin ScamShield', '0988888888', 'admin@scamshield.vn', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'ADMINISTRATOR'), (SELECT id FROM reputation_ranks WHERE name = 'Thủ Lĩnh'), 'ACTIVE', 9999, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('Kiểm duyệt viên 1', '0901234567', 'moderator@scamshield.vn', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'MODERATOR'), (SELECT id FROM reputation_ranks WHERE name = 'Thủ Lĩnh'), 'ACTIVE', 5000, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('Shopee Partner', '19001234', 'partner@shopee.vn', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('Trần Minh Khôi', '0912345601', 'khoi.tran@gmail.com', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'REGISTERED_USER'), (SELECT id FROM reputation_ranks WHERE name = 'Tân Binh'), 'ACTIVE', 0, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('90 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Lê Thanh Hà', '0912345602', 'ha.le@gmail.com', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'REGISTERED_USER'), (SELECT id FROM reputation_ranks WHERE name = 'Tân Binh'), 'ACTIVE', 50, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('45 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Nguyễn Gia Bảo', '0912345603', 'bao.nguyen@gmail.com', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'REGISTERED_USER'), (SELECT id FROM reputation_ranks WHERE name = 'Tân Binh'), 'ACTIVE', 0, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('120 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Phạm Ngọc Linh', '0912345604', 'linh.pham@gmail.com', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'REGISTERED_USER'), (SELECT id FROM reputation_ranks WHERE name = 'Hiệp Sĩ'), 'ACTIVE', 100, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('30 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Mai Phương', '0912345605', 'moderator.phuong@scamshield.vn', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'MODERATOR'), (SELECT id FROM reputation_ranks WHERE name = 'Thủ Lĩnh'), 'ACTIVE', 1500, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('180 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('VMOS', '0900000105', 'partner+vmos.cn@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('고려기프트', '0900000109', 'partner+koreagift.com@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Hauser Global Law School Program', '0900000102', 'partner+nyulawglobal.org@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Овиленд', '0900000101', 'partner+oviland.ru@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Brooklyn Fabric Company', '0900000103', 'partner+brooklynfabric.com@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Assorted Internet', '0900000108', 'partner+assortedinternet.com@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Douglas Crockford', '0900000106', 'partner+crockford.com@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('אושי אושי', '0900000110', 'partner+oshioshi.co.il@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Port Aransas Chamber of Commerce & Tourist Bureau', '0900000107', 'partner+portaransas.org@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+('Nar', '0900000104', 'partner+nar.az@scamshield.test', '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2', (SELECT id FROM roles WHERE name = 'BUSINESS_PARTNER'), NULL, 'ACTIVE', 0, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP));
 
--- Tài khoản và báo cáo đa dạng cho kiểm thử hàng đợi và chuyển hồ sơ lạm dụng.
--- Các mục bổ sung chỉ INSERT, kiểm tra tồn tại để chạy lại không thêm trùng.
--- 5 tài khoản mới đều ACTIVE, mật khẩu 123456 (BCrypt), gồm 4 người dùng và 1 Moderator.
-INSERT INTO users (full_name, phone_number, email, password_hash, role_id, reputation_rank_id,
-                   status, reputation_points, is_phone_verified, created_at, updated_at)
-SELECT v.full_name, v.phone_number, v.email,
-       '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2',
-       role.id, rank.id, 'ACTIVE', v.points, true,
-       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - v.joined_days_ago * INTERVAL '1 day',
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('Trần Minh Khôi', '0912345601', 'khoi.tran@gmail.com', 'REGISTERED_USER', 'Hiệp Sĩ', 120, 90),
-    ('Lê Thanh Hà', '0912345602', 'ha.le@gmail.com', 'REGISTERED_USER', 'Tân Binh', 35, 45),
-    ('Nguyễn Gia Bảo', '0912345603', 'bao.nguyen@gmail.com', 'REGISTERED_USER', 'Hiệp Sĩ', 420, 120),
-    ('Phạm Ngọc Linh', '0912345604', 'linh.pham@gmail.com', 'REGISTERED_USER', 'Tân Binh', 80, 30),
-    ('Mai Phương', '0912345605', 'moderator.phuong@scamshield.vn', 'MODERATOR', 'Thủ Lĩnh', 1500, 180)
-) AS v(full_name, phone_number, email, role_name, rank_name, points, joined_days_ago)
-JOIN roles role ON role.name = v.role_name
-JOIN reputation_ranks rank ON rank.name = v.rank_name
-WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.email = v.email OR u.phone_number = v.phone_number);
-
--- 05. refresh_tokens
+-- 05. refresh_tokens (1 bản ghi)
 INSERT INTO refresh_tokens (user_id, token_hash, created_at, expires_at) VALUES
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'hash256_mock_token_123', NOW(), NOW() + INTERVAL '7 days');
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'hash256_mock_token_123', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('161 hours' AS interval));
 
--- 06. reputation_transactions
-INSERT INTO reputation_transactions (user_id, points_delta, reason_code, created_at) VALUES
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 10, 'REPORT_APPROVED', NOW());
-
--- 07. monthly_rewards
+-- 07. monthly_rewards (1 bản ghi)
 INSERT INTO monthly_rewards (user_id, reward_month, total_points, status) VALUES
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), CURRENT_DATE, 150, 'PENDING');
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), CURRENT_DATE, 0, 'PENDING');
 
--- 08. guest_sessions
+-- 08. guest_sessions (1 bản ghi)
 INSERT INTO guest_sessions (session_token_hash, created_at) VALUES
-('guest_token_abc123', NOW());
+('guest_token_abc123', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 09. quota_policies
+-- 09. quota_policies (2 bản ghi)
 INSERT INTO quota_policies (name, rank_id, max_checks_per_day, max_reports_per_day, created_at, updated_at) VALUES
-('GUEST', NULL, 5, 0, NOW(), NOW()),
-('Tân Binh Quota', (SELECT id FROM reputation_ranks WHERE name='Tân Binh'), 10, 5, NOW(), NOW());
+('GUEST', NULL, 5, 0, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+('Tân Binh Quota', (SELECT id FROM reputation_ranks WHERE name = 'Tân Binh'), 10, 5, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 10. rate_limit_policies
+-- 10. rate_limit_policies (1 bản ghi)
 INSERT INTO rate_limit_policies (name, scope, max_requests, window_seconds, enabled, created_at, updated_at) VALUES
-('Global API Limit', 'USER', 100, 60, true, NOW(), NOW());
+('Global API Limit', 'USER', 100, 60, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 11. indicators
-INSERT INTO indicators (type, normalized_value, display_value, created_at, updated_at) VALUES
-('PHONE', '0987654321', '0987.654.321', NOW(), NOW()),
-('URL', 'nhanqua-shopee.vip', 'http://nhanqua-shopee.vip', NOW(), NOW()),
-('URL', 'shopee.vn', 'https://shopee.vn', NOW(), NOW()),
-('PHONE', '0912443882', '+84 912.443.882', NOW(), NOW()),
-('URL', 'dichvucong-vneid-capnhat.gov-vn.info/apk', 'https://dichvucong-vneid-capnhat.gov-vn.info/ap...', NOW(), NOW()),
-('SMS_BANK', 'vietcombank', 'SMS Brandname: Vietcombank', NOW(), NOW()),
-('TELEGRAM', '@tuyendungshopeemall_hr', 'Zalo/Telegram: @TuyenDungShopeeMall_HR', NOW(), NOW()),
-('BANK_ACCOUNT', '104889201992', 'STK: 104889201992 - VPBank (VU HOANG ANH)', NOW(), NOW()),
-('TRAFFIC_FINE', 'tra-cuu-phatnguoi-c08.top/bienban', 'http://tra-cuu-phatnguoi-c08.top/bienban', NOW(), NOW()),
-('CRYPTO', 'binance-vip-asia-trade.cc', 'https://binance-vip-asia-trade.cc', NOW(), NOW());
+-- 11. indicators (100 bản ghi)
+INSERT INTO indicators (type, normalized_value, display_value, created_at, updated_at, first_seen_at, last_seen_at) VALUES
+('PHONE', '0987654321', '0987.654.321', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL),
+('URL', 'nhanqua-shopee.vip', 'http://nhanqua-shopee.vip', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL),
+('URL', 'shopee.vn', 'https://shopee.vn', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL),
+('PHONE', '0912443882', '+84 912.443.882', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL),
+('URL', 'dichvucong-vneid-capnhat.gov-vn.info/apk', 'https://dichvucong-vneid-capnhat.gov-vn.info/ap...', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL),
+('BANK_ACCOUNT', '104889201992', 'STK: 104889201992 - VPBank (VU HOANG ANH)', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL),
+('URL', 'dashboard-q3-2026.example', 'Hồ sơ việc làm quý 3/2026', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dashboard-july-2026.example', 'Hồ sơ tháng 7/2026 để so sánh', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dashboard-pending.example', 'Đối tượng chưa được xác thực', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', 'MOCK-DASH-STK-OLD', 'Tài khoản đã xác thực từ kỳ trước', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dashboard-q4-2026.example', 'Hồ sơ trúng thưởng quý 4/2026', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', 'MOCK-DASH-STK-001', 'Tài khoản giả mạo ngân hàng 001', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dashboard-viec-lam.example', 'https://dashboard-viec-lam.example', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dashboard-trung-thuong.example', 'https://dashboard-trung-thuong.example', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '0919000001', 'Số điện thoại giả danh cơ quan chức năng', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dashboard-retracted.example', 'Đối tượng đã thu hồi khỏi blacklist', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '0919000002', 'Số điện thoại dụ cung cấp OTP', CAST('2026-07-01T00:00:00' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '0919000091', '091.900.0091 (Hotline doanh nghiệp mẫu)', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dispute-partner.example', 'dispute-partner.example', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dispute-pending.example', 'dispute-pending.example', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '0919000092', '091.900.0092 (Hotline đã được giải tỏa)', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dispute-rejected.example', 'dispute-rejected.example', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', 'MOCK-DSP-BANK-003', '1902999.xxxx', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', 'MOCK-DSP-LINH-VERIFIED', 'Tài khoản chính chủ của Phạm Ngọc Linh', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dispute-approved-active.example', 'dispute-approved-active.example', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dispute-supplement-overdue.example', 'dispute-supplement-overdue.example', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', 'MOCK-DSP-BANK-001', 'STK Techcombank 1029999.xxxx (mẫu)', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dispute-techcorp.example', 'dispute-techcorp.example', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '0919000094', '091.900.0094', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', 'MOCK-DSP-BANK-002', '1029999.xxxx', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dispute-khoi-verified.example', 'Tên miền chính chủ của Trần Minh Khôi', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'dispute-review-shop.example', 'dispute-review-shop.example', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '0917896904', '0917.896.904', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '0889050231', '0889.050.231', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '02488860469', '0248.886.0469', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', '19040027069013', 'STK ngân hàng Techcombank 19040027069013', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', '061810876', 'STK ngân hàng VIB 061810876', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', '0375588149', 'STK ngân hàng MB 0375588149', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('PHONE', '0236.688.8766', '0236.688.8766', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('BANK_ACCOUNT', '10981888886', 'STK ngân hàng TPBank 10981888886', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, NULL),
+('URL', 'formulary-hype-squad-event.com', 'http://formulary-hype-squad-event.com', CAST('2026-10-30T12:36:04.616208' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T12:36:04.616208' AS timestamp), CAST('2026-10-30T12:36:04.616208' AS timestamp)),
+('URL', '23.94.136.170', 'https://23.94.136.170', CAST('2026-10-30T12:36:24.728818' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T12:36:24.728818' AS timestamp), CAST('2026-10-30T12:36:24.728818' AS timestamp)),
+('URL', 'id9828.shop', 'https://id9828.shop', CAST('2026-10-30T06:04:20.056137' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T06:04:20.056137' AS timestamp), CAST('2026-10-30T06:04:20.056137' AS timestamp)),
+('URL', 'biuvca.top', 'http://biuvca.top', CAST('2026-10-30T09:02:50.500653' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T09:02:50.500653' AS timestamp), CAST('2026-10-30T09:02:50.500653' AS timestamp)),
+('URL', '1.20.150.71', 'https://1.20.150.71', CAST('2026-10-30T12:43:01.478159' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T12:43:01.478159' AS timestamp), CAST('2026-10-30T12:43:01.478159' AS timestamp)),
+('URL', 'fq8bgcyp3t.suijidaohxl.top', 'https://fq8bgcyp3t.suijidaohxl.top', CAST('2026-10-30T17:36:28.00716' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T17:36:28.00716' AS timestamp), CAST('2026-10-30T17:36:28.00716' AS timestamp)),
+('URL', 'juzhen202601.com', 'https://juzhen202601.com', CAST('2026-10-30T00:54:15.483993' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T00:54:15.483993' AS timestamp), CAST('2026-10-30T00:54:15.483993' AS timestamp)),
+('URL', '327012.xyz', 'https://327012.xyz', CAST('2026-10-30T07:57:45.182729' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T07:57:45.182729' AS timestamp), CAST('2026-10-30T07:57:45.182729' AS timestamp)),
+('URL', 'ka7edrsxzm.suijidaohxl.top', 'https://ka7edrsxzm.suijidaohxl.top', CAST('2026-10-30T05:41:11.956587' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T05:41:11.956587' AS timestamp), CAST('2026-10-30T05:41:11.956587' AS timestamp)),
+('URL', 'ggptt.biz', 'https://ggptt.biz', CAST('2026-10-30T08:32:36.786801' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T08:32:36.786801' AS timestamp), CAST('2026-10-30T08:32:36.786801' AS timestamp)),
+('URL', '777t87u8.weebly.com', 'http://777t87u8.weebly.com', CAST('2026-10-30T04:24:34.86965' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T04:24:34.86965' AS timestamp), CAST('2026-10-30T04:24:34.86965' AS timestamp)),
+('URL', 'yhhld.gpjfuh.info', 'http://yhhld.gpjfuh.info', CAST('2026-10-30T13:12:28.172399' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T13:12:28.172399' AS timestamp), CAST('2026-10-30T13:12:28.172399' AS timestamp)),
+('URL', 'mail.calvarylight.com', 'https://mail.calvarylight.com', CAST('2026-10-30T15:43:15.220558' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T15:43:15.220558' AS timestamp), CAST('2026-10-30T15:43:15.220558' AS timestamp)),
+('URL', 'xgtnkehtzn.suijidaohxl.top', 'https://xgtnkehtzn.suijidaohxl.top', CAST('2026-10-30T09:15:13.334365' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T09:15:13.334365' AS timestamp), CAST('2026-10-30T09:15:13.334365' AS timestamp)),
+('URL', '15.181.16.225', 'http://15.181.16.225', CAST('2026-10-30T15:40:09.711871' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T15:40:09.711871' AS timestamp), CAST('2026-10-30T15:40:09.711871' AS timestamp)),
+('URL', 'dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev', 'http://dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev', CAST('2026-10-30T16:22:19.486451' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T16:22:19.486451' AS timestamp), CAST('2026-10-30T16:22:19.486451' AS timestamp)),
+('URL', 'padgnwtnm4.suijidaohxl.top', 'http://padgnwtnm4.suijidaohxl.top', CAST('2026-10-30T09:13:25.490353' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T09:13:25.490353' AS timestamp), CAST('2026-10-30T09:13:25.490353' AS timestamp)),
+('URL', 'netflixnet.webmailsegurancasempreltda.store', 'https://netflixnet.webmailsegurancasempreltda.store', CAST('2026-10-30T11:48:40.414509' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T11:48:40.414509' AS timestamp), CAST('2026-10-30T11:48:40.414509' AS timestamp)),
+('URL', 'ntdy8m8yac.3355799com-dh.top', 'http://ntdy8m8yac.3355799com-dh.top', CAST('2026-10-30T11:21:03.31534' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T11:21:03.31534' AS timestamp), CAST('2026-10-30T11:21:03.31534' AS timestamp)),
+('URL', 'kcdxh8n5hd.suijidaohxl.top', 'https://kcdxh8n5hd.suijidaohxl.top', CAST('2026-10-30T06:04:27.276699' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T06:04:27.276699' AS timestamp), CAST('2026-10-30T06:04:27.276699' AS timestamp)),
+('URL', 'mebh4hbwyy.suijidaohxl.top', 'http://mebh4hbwyy.suijidaohxl.top', CAST('2026-10-30T12:04:08.474174' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T12:04:08.474174' AS timestamp), CAST('2026-10-30T12:04:08.474174' AS timestamp)),
+('URL', 'revollutbonus.cfd', 'http://revollutbonus.cfd', CAST('2026-10-30T13:13:08.300768' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T13:13:08.300768' AS timestamp), CAST('2026-10-30T13:13:08.300768' AS timestamp)),
+('URL', 'uhsvdcnvvvd.cfd', 'http://uhsvdcnvvvd.cfd', CAST('2026-10-30T17:23:27.421381' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T17:23:27.421381' AS timestamp), CAST('2026-10-30T17:23:27.421381' AS timestamp)),
+('URL', 'rtryfx.blogspot.gr', 'http://rtryfx.blogspot.gr', CAST('2026-10-30T03:33:33.370457' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T03:33:33.370457' AS timestamp), CAST('2026-10-30T03:33:33.370457' AS timestamp)),
+('URL', '24onlinetradecity.live', 'https://24onlinetradecity.live', CAST('2026-10-30T02:57:21.192455' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T02:57:21.192455' AS timestamp), CAST('2026-10-30T02:57:21.192455' AS timestamp)),
+('URL', 't3w8yf5ji2.suijidaohxl.top', 'https://t3w8yf5ji2.suijidaohxl.top', CAST('2026-10-30T11:54:13.211672' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T11:54:13.211672' AS timestamp), CAST('2026-10-30T11:54:13.211672' AS timestamp)),
+('URL', 'sso-ledgr-com-strt.square.site', 'https://sso-ledgr-com-strt.square.site', CAST('2026-10-30T02:54:02.813645' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T02:54:02.813645' AS timestamp), CAST('2026-10-30T02:54:02.813645' AS timestamp)),
+('URL', 'atualizacao-mais-seguro-cliente-empresa.000webhostapp.com', 'https://atualizacao-mais-seguro-cliente-empresa.000webhostapp.com', CAST('2026-10-30T04:00:34.218689' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T04:00:34.218689' AS timestamp), CAST('2026-10-30T04:00:34.218689' AS timestamp)),
+('URL', 'mailsyncsss.weebly.com', 'https://mailsyncsss.weebly.com', CAST('2026-10-30T11:44:25.232083' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T11:44:25.232083' AS timestamp), CAST('2026-10-30T11:44:25.232083' AS timestamp)),
+('URL', 'authorityphire.weebly.com', 'https://authorityphire.weebly.com', CAST('2026-10-30T01:41:05.350659' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T01:41:05.350659' AS timestamp), CAST('2026-10-30T01:41:05.350659' AS timestamp)),
+('URL', 'jhophiqnkjbbntyjvwn.com', 'http://jhophiqnkjbbntyjvwn.com', CAST('2026-10-30T01:32:32.343148' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T01:32:32.343148' AS timestamp), CAST('2026-10-30T01:32:32.343148' AS timestamp)),
+('URL', 'com-trackesven.top', 'http://com-trackesven.top', CAST('2026-10-30T08:42:22.357694' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T08:42:22.357694' AS timestamp), CAST('2026-10-30T08:42:22.357694' AS timestamp)),
+('URL', 'sk3ecncejy.suijidaohxl.top', 'https://sk3ecncejy.suijidaohxl.top', CAST('2026-10-30T06:06:40.659054' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T06:06:40.659054' AS timestamp), CAST('2026-10-30T06:06:40.659054' AS timestamp)),
+('URL', '8fbwgu.dzwiekuje.pl', 'http://8fbwgu.dzwiekuje.pl', CAST('2026-10-30T10:50:08.499923' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T10:50:08.499923' AS timestamp), CAST('2026-10-30T10:50:08.499923' AS timestamp)),
+('URL', 't-mobile.ztrskf.top', 'http://t-mobile.ztrskf.top', CAST('2026-10-30T08:36:32.095723' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T08:36:32.095723' AS timestamp), CAST('2026-10-30T08:36:32.095723' AS timestamp)),
+('URL', 'myhammockvacations.worldofpowerfulyouth.org', 'http://myhammockvacations.worldofpowerfulyouth.org', CAST('2026-10-30T13:12:54.871059' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T13:12:54.871059' AS timestamp), CAST('2026-10-30T13:12:54.871059' AS timestamp)),
+('URL', 'wwuwwwiki2.aomngbr.cc', 'https://wwuwwwiki2.aomngbr.cc', CAST('2026-10-30T08:33:15.150952' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T08:33:15.150952' AS timestamp), CAST('2026-10-30T08:33:15.150952' AS timestamp)),
+('URL', '6g1adz4wfw.622629dhxl.top', 'https://6g1adz4wfw.622629dhxl.top', CAST('2026-10-30T18:15:10.662594' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T18:15:10.662594' AS timestamp), CAST('2026-10-30T18:15:10.662594' AS timestamp)),
+('URL', 'teaezorapp.webflow.io', 'http://teaezorapp.webflow.io', CAST('2026-10-30T21:29:18.025024' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T21:29:18.025024' AS timestamp), CAST('2026-10-30T21:29:18.025024' AS timestamp)),
+('URL', 'officialpostship.top', 'http://officialpostship.top', CAST('2026-10-30T03:27:09.211588' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T03:27:09.211588' AS timestamp), CAST('2026-10-30T03:27:09.211588' AS timestamp)),
+('URL', 'haodage.cc', 'http://haodage.cc', CAST('2026-10-30T09:27:09.187602' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T09:27:09.187602' AS timestamp), CAST('2026-10-30T09:27:09.187602' AS timestamp)),
+('URL', '222.149.49.160', 'http://222.149.49.160', CAST('2026-10-30T02:22:14.907119' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T02:22:14.907119' AS timestamp), CAST('2026-10-30T02:22:14.907119' AS timestamp)),
+('URL', 'thebergsignal-gpt.com', 'http://thebergsignal-gpt.com', CAST('2026-10-30T01:53:17.47252' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T01:53:17.47252' AS timestamp), CAST('2026-10-30T01:53:17.47252' AS timestamp)),
+('URL', 'tseswfz.blogspot.am', 'http://tseswfz.blogspot.am', CAST('2026-10-30T11:21:29.063229' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T11:21:29.063229' AS timestamp), CAST('2026-10-30T11:21:29.063229' AS timestamp)),
+('URL', 'mentyxrx4y.3355799com-dh.top', 'https://mentyxrx4y.3355799com-dh.top', CAST('2026-10-30T10:34:00.929465' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T10:34:00.929465' AS timestamp), CAST('2026-10-30T10:34:00.929465' AS timestamp)),
+('URL', 'iph5sayjxx.suijidaohxl.top', 'http://iph5sayjxx.suijidaohxl.top', CAST('2026-10-30T06:42:54.364857' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T06:42:54.364857' AS timestamp), CAST('2026-10-30T06:42:54.364857' AS timestamp)),
+('URL', '1kxykd5bga.622629dhxl.top', 'http://1kxykd5bga.622629dhxl.top', CAST('2026-10-30T01:32:08.402252' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T01:32:08.402252' AS timestamp), CAST('2026-10-30T01:32:08.402252' AS timestamp)),
+('URL', 'bakermeekins.com', 'https://bakermeekins.com', CAST('2026-10-30T16:08:15.103403' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T16:08:15.103403' AS timestamp), CAST('2026-10-30T16:08:15.103403' AS timestamp)),
+('URL', 'rpkfxtr7jk.suijidaohxl.top', 'http://rpkfxtr7jk.suijidaohxl.top', CAST('2026-10-30T07:51:08.090586' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T07:51:08.090586' AS timestamp), CAST('2026-10-30T07:51:08.090586' AS timestamp)),
+('URL', 'ww17.uhdmovies.foo', 'https://ww17.uhdmovies.foo', CAST('2026-10-30T16:05:11.721363' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-10-30T16:05:11.721363' AS timestamp), CAST('2026-10-30T16:05:11.721363' AS timestamp)),
+('URL', 'oviland.ru', 'https://oviland.ru', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'nyulawglobal.org', 'https://nyulawglobal.org', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'brooklynfabric.com', 'https://brooklynfabric.com', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'nar.az', 'https://nar.az', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'vmos.cn', 'https://vmos.cn', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'crockford.com', 'https://crockford.com', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'portaransas.org', 'https://portaransas.org', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'assortedinternet.com', 'https://assortedinternet.com', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'koreagift.com', 'https://koreagift.com', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp)),
+('URL', 'oshioshi.co.il', 'https://oshioshi.co.il', CAST('2026-08-27T08:40:15.088962' AS timestamp), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), CAST('2026-08-27T08:40:15.088962' AS timestamp), CAST('2026-08-27T08:40:15.088962' AS timestamp));
 
-INSERT INTO indicators (type, normalized_value, display_value, created_at, updated_at)
-SELECT v.type, v.value, v.display_value, TIMESTAMP '2026-07-01 00:00:00',
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('URL', 'dashboard-viec-lam.example', 'https://dashboard-viec-lam.example'),
-    ('BANK_ACCOUNT', 'MOCK-DASH-STK-001', 'Tài khoản giả mạo ngân hàng 001'),
-    ('PHONE', '0919000001', 'Số điện thoại giả danh cơ quan chức năng'),
-    ('PHONE', '0919000002', 'Số điện thoại dụ cung cấp OTP'),
-    ('URL', 'dashboard-trung-thuong.example', 'https://dashboard-trung-thuong.example'),
-    ('URL', 'dashboard-pending.example', 'Đối tượng chưa được xác thực'),
-    ('URL', 'dashboard-retracted.example', 'Đối tượng đã thu hồi khỏi blacklist'),
-    ('BANK_ACCOUNT', 'MOCK-DASH-STK-OLD', 'Tài khoản đã xác thực từ kỳ trước'),
-    ('URL', 'dashboard-q3-2026.example', 'Hồ sơ việc làm quý 3/2026'),
-    ('URL', 'dashboard-q4-2026.example', 'Hồ sơ trúng thưởng quý 4/2026'),
-    ('URL', 'dashboard-july-2026.example', 'Hồ sơ tháng 7/2026 để so sánh')
-) AS v(type, value, display_value)
-WHERE NOT EXISTS (SELECT 1 FROM indicators i WHERE i.normalized_value = v.value AND i.type = v.type);
+-- 12. partner_profiles (11 bản ghi)
+INSERT INTO partner_profiles (user_id, legal_name, brand_name, verification_status, verified_by, verified_at, official_domain, created_at, updated_at) VALUES
+((SELECT id FROM users WHERE email = 'partner@shopee.vn'), 'Công ty TNHH Shopee', 'Shopee', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'shopee.vn', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+vmos.cn@scamshield.test'), 'VMOS', 'VMOS', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'vmos.cn', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+koreagift.com@scamshield.test'), '고려기프트(주)', '고려기프트', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'koreagift.com', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+nyulawglobal.org@scamshield.test'), 'New York University School of Law', 'Hauser Global Law School Program', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'nyulawglobal.org', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+oviland.ru@scamshield.test'), 'ИП Текунов И.С.', 'Овиленд', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'oviland.ru', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+brooklynfabric.com@scamshield.test'), 'Brooklyn Fabric Company', 'Brooklyn Fabric Company', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'brooklynfabric.com', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+assortedinternet.com@scamshield.test'), 'Assorted Internet', 'Assorted Internet', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'assortedinternet.com', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+crockford.com@scamshield.test'), 'Douglas Crockford', 'Douglas Crockford', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'crockford.com', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+oshioshi.co.il@scamshield.test'), 'אושי אושי', 'אושי אושי', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'oshioshi.co.il', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+portaransas.org@scamshield.test'), 'Port Aransas Chamber of Commerce & Tourist Bureau', 'Visit Port Aransas', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'portaransas.org', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM users WHERE email = 'partner+nar.az@scamshield.test'), 'Azerfon LLC', 'Nar', 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), 'nar.az', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP));
 
-INSERT INTO indicators (type, normalized_value, display_value, created_at, updated_at)
-SELECT v.type, v.value, v.display_value,
-       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '10 days',
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('PHONE', '0236.688.8766', '0236.688.8766'),
-    ('BANK_ACCOUNT', '061810876', 'STK ngân hàng VIB 061810876'),
-    ('PHONE', '02488860469', '0248.886.0469'),
-    ('BANK_ACCOUNT', '19040027069013', 'STK ngân hàng Techcombank 19040027069013'),
-    ('PHONE', '0889050231', '0889.050.231'),
-    ('PHONE', '0917896904', '0917.896.904'),
-    ('BANK_ACCOUNT', '10981888886', 'STK ngân hàng TPBank 10981888886'),
-    ('BANK_ACCOUNT', '0375588149', 'STK ngân hàng MB 0375588149')
-) AS v(type, value, display_value)
-WHERE NOT EXISTS (SELECT 1 FROM indicators i WHERE i.type = v.type AND i.normalized_value = v.value);
+-- 13. whitelist_entries (11 bản ghi)
+INSERT INTO whitelist_entries (partner_id, indicator_id, verification_status, verified_by, verified_at, auto_lock_moderation, created_at, updated_at) VALUES
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner@shopee.vn')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'shopee.vn'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+vmos.cn@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'vmos.cn'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+koreagift.com@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'koreagift.com'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+nyulawglobal.org@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nyulawglobal.org'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+oviland.ru@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'oviland.ru'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+brooklynfabric.com@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'brooklynfabric.com'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+assortedinternet.com@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'assortedinternet.com'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+crockford.com@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'crockford.com'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+oshioshi.co.il@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'oshioshi.co.il'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+portaransas.org@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'portaransas.org'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP)),
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner+nar.az@scamshield.test')), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nar.az'), 'VERIFIED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP));
 
--- URL blacklist từ dữ liệu đầu vào ngày 30/10/2026.
-WITH source_data (normalized_value, display_value, source_created_at) AS (
-    VALUES
-    ('formulary-hype-squad-event.com', 'http://formulary-hype-squad-event.com', '2026-10-30T12:36:04.616208'),
-    ('23.94.136.170', 'https://23.94.136.170', '2026-10-30T12:36:24.728818'),
-    ('id9828.shop', 'https://id9828.shop', '2026-10-30T06:04:20.056137'),
-    ('biuvca.top', 'http://biuvca.top', '2026-10-30T09:02:50.500653'),
-    ('1.20.150.71', 'https://1.20.150.71', '2026-10-30T12:43:01.478159'),
-    ('fq8bgcyp3t.suijidaohxl.top', 'https://fq8bgcyp3t.suijidaohxl.top', '2026-10-30T17:36:28.007160'),
-    ('juzhen202601.com', 'https://juzhen202601.com', '2026-10-30T00:54:15.483993'),
-    ('327012.xyz', 'https://327012.xyz', '2026-10-30T07:57:45.182729'),
-    ('ka7edrsxzm.suijidaohxl.top', 'https://ka7edrsxzm.suijidaohxl.top', '2026-10-30T05:41:11.956587'),
-    ('ggptt.biz', 'https://ggptt.biz', '2026-10-30T08:32:36.786801'),
-    ('777t87u8.weebly.com', 'http://777t87u8.weebly.com', '2026-10-30T04:24:34.869650'),
-    ('yhhld.gpjfuh.info', 'http://yhhld.gpjfuh.info', '2026-10-30T13:12:28.172399'),
-    ('mail.calvarylight.com', 'https://mail.calvarylight.com', '2026-10-30T15:43:15.220558'),
-    ('xgtnkehtzn.suijidaohxl.top', 'https://xgtnkehtzn.suijidaohxl.top', '2026-10-30T09:15:13.334365'),
-    ('15.181.16.225', 'http://15.181.16.225', '2026-10-30T15:40:09.711871'),
-    ('dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev', 'http://dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev', '2026-10-30T16:22:19.486451'),
-    ('padgnwtnm4.suijidaohxl.top', 'http://padgnwtnm4.suijidaohxl.top', '2026-10-30T09:13:25.490353'),
-    ('netflixnet.webmailsegurancasempreltda.store', 'https://netflixnet.webmailsegurancasempreltda.store', '2026-10-30T11:48:40.414509'),
-    ('ntdy8m8yac.3355799com-dh.top', 'http://ntdy8m8yac.3355799com-dh.top', '2026-10-30T11:21:03.315340'),
-    ('kcdxh8n5hd.suijidaohxl.top', 'https://kcdxh8n5hd.suijidaohxl.top', '2026-10-30T06:04:27.276699'),
-    ('mebh4hbwyy.suijidaohxl.top', 'http://mebh4hbwyy.suijidaohxl.top', '2026-10-30T12:04:08.474174'),
-    ('revollutbonus.cfd', 'http://revollutbonus.cfd', '2026-10-30T13:13:08.300768'),
-    ('uhsvdcnvvvd.cfd', 'http://uhsvdcnvvvd.cfd', '2026-10-30T17:23:27.421381'),
-    ('rtryfx.blogspot.gr', 'http://rtryfx.blogspot.gr', '2026-10-30T03:33:33.370457'),
-    ('24onlinetradecity.live', 'https://24onlinetradecity.live', '2026-10-30T02:57:21.192455'),
-    ('t3w8yf5ji2.suijidaohxl.top', 'https://t3w8yf5ji2.suijidaohxl.top', '2026-10-30T11:54:13.211672'),
-    ('sso-ledgr-com-strt.square.site', 'https://sso-ledgr-com-strt.square.site', '2026-10-30T02:54:02.813645'),
-    ('atualizacao-mais-seguro-cliente-empresa.000webhostapp.com', 'https://atualizacao-mais-seguro-cliente-empresa.000webhostapp.com', '2026-10-30T04:00:34.218689'),
-    ('mailsyncsss.weebly.com', 'https://mailsyncsss.weebly.com', '2026-10-30T11:44:25.232083'),
-    ('authorityphire.weebly.com', 'https://authorityphire.weebly.com', '2026-10-30T01:41:05.350659'),
-    ('jhophiqnkjbbntyjvwn.com', 'http://jhophiqnkjbbntyjvwn.com', '2026-10-30T01:32:32.343148'),
-    ('com-trackesven.top', 'http://com-trackesven.top', '2026-10-30T08:42:22.357694'),
-    ('sk3ecncejy.suijidaohxl.top', 'https://sk3ecncejy.suijidaohxl.top', '2026-10-30T06:06:40.659054'),
-    ('8fbwgu.dzwiekuje.pl', 'http://8fbwgu.dzwiekuje.pl', '2026-10-30T10:50:08.499923'),
-    ('t-mobile.ztrskf.top', 'http://t-mobile.ztrskf.top', '2026-10-30T08:36:32.095723'),
-    ('myhammockvacations.worldofpowerfulyouth.org', 'http://myhammockvacations.worldofpowerfulyouth.org', '2026-10-30T13:12:54.871059'),
-    ('wwuwwwiki2.aomngbr.cc', 'https://wwuwwwiki2.aomngbr.cc', '2026-10-30T08:33:15.150952'),
-    ('6g1adz4wfw.622629dhxl.top', 'https://6g1adz4wfw.622629dhxl.top', '2026-10-30T18:15:10.662594'),
-    ('teaezorapp.webflow.io', 'http://teaezorapp.webflow.io', '2026-10-30T21:29:18.025024'),
-    ('officialpostship.top', 'http://officialpostship.top', '2026-10-30T03:27:09.211588'),
-    ('haodage.cc', 'http://haodage.cc', '2026-10-30T09:27:09.187602'),
-    ('222.149.49.160', 'http://222.149.49.160', '2026-10-30T02:22:14.907119'),
-    ('thebergsignal-gpt.com', 'http://thebergsignal-gpt.com', '2026-10-30T01:53:17.472520'),
-    ('tseswfz.blogspot.am', 'http://tseswfz.blogspot.am', '2026-10-30T11:21:29.063229'),
-    ('mentyxrx4y.3355799com-dh.top', 'https://mentyxrx4y.3355799com-dh.top', '2026-10-30T10:34:00.929465'),
-    ('iph5sayjxx.suijidaohxl.top', 'http://iph5sayjxx.suijidaohxl.top', '2026-10-30T06:42:54.364857'),
-    ('1kxykd5bga.622629dhxl.top', 'http://1kxykd5bga.622629dhxl.top', '2026-10-30T01:32:08.402252'),
-    ('bakermeekins.com', 'https://bakermeekins.com', '2026-10-30T16:08:15.103403'),
-    ('rpkfxtr7jk.suijidaohxl.top', 'http://rpkfxtr7jk.suijidaohxl.top', '2026-10-30T07:51:08.090586'),
-    ('ww17.uhdmovies.foo', 'https://ww17.uhdmovies.foo', '2026-10-30T16:05:11.721363')
-)
-INSERT INTO indicators
-    (type, normalized_value, display_value, first_seen_at, last_seen_at, created_at, updated_at)
-SELECT
-    'URL', source_data.normalized_value, source_data.display_value,
-    source_data.source_created_at::timestamp,
-    source_data.source_created_at::timestamp,
-    source_data.source_created_at::timestamp,
-    CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM source_data
-WHERE NOT EXISTS (
-    SELECT 1 FROM indicators existing
-    WHERE existing.type = 'URL'
-      AND existing.normalized_value = source_data.normalized_value
-);
-
--- 10 URL whitelist: lưu indicator trước khi gắn xác minh bên dưới.
-INSERT INTO indicators (type, normalized_value, display_value, first_seen_at, last_seen_at, created_at, updated_at)
-SELECT 'URL', v.domain, v.url, v.source_created_at::timestamp,
-       v.source_created_at::timestamp, v.source_created_at::timestamp,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('oviland.ru', 'https://oviland.ru', '2026-08-27T08:40:15.088962'),
-    ('nyulawglobal.org', 'https://nyulawglobal.org', '2026-08-27T08:40:15.088962'),
-    ('brooklynfabric.com', 'https://brooklynfabric.com', '2026-08-27T08:40:15.088962'),
-    ('nar.az', 'https://nar.az', '2026-08-27T08:40:15.088962'),
-    ('vmos.cn', 'https://vmos.cn', '2026-08-27T08:40:15.088962'),
-    ('crockford.com', 'https://crockford.com', '2026-08-27T08:40:15.088962'),
-    ('portaransas.org', 'https://portaransas.org', '2026-08-27T08:40:15.088962'),
-    ('assortedinternet.com', 'https://assortedinternet.com', '2026-08-27T08:40:15.088962'),
-    ('koreagift.com', 'https://koreagift.com', '2026-08-27T08:40:15.088962'),
-    ('oshioshi.co.il', 'https://oshioshi.co.il', '2026-08-27T08:40:15.088962')
-) AS v(domain, url, source_created_at)
-WHERE NOT EXISTS (
-    SELECT 1 FROM indicators i
-    WHERE i.type = 'URL' AND i.normalized_value = v.domain
-);
-
--- 12. partner_profiles
--- Tài khoản mẫu riêng cho từng website; email miền .test không đại diện chủ sở hữu thật.
-INSERT INTO users (full_name, phone_number, email, password_hash, role_id, status, reputation_points,
-                   is_phone_verified, created_at, updated_at)
-SELECT v.brand_name, v.phone_number, 'partner+' || v.domain || '@scamshield.test',
-       '$2a$10$KjgQ5SG4mGFr37olOMAkxu4F4ekYORUUEleshwHskaOakgnZ.edu2',
-       r.id, 'ACTIVE', 0, false,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('oviland.ru', 'Овиленд', '0900000101'),
-    ('nyulawglobal.org', 'Hauser Global Law School Program', '0900000102'),
-    ('brooklynfabric.com', 'Brooklyn Fabric Company', '0900000103'),
-    ('nar.az', 'Nar', '0900000104'),
-    ('vmos.cn', 'VMOS', '0900000105'),
-    ('crockford.com', 'Douglas Crockford', '0900000106'),
-    ('portaransas.org', 'Port Aransas Chamber of Commerce & Tourist Bureau', '0900000107'),
-    ('assortedinternet.com', 'Assorted Internet', '0900000108'),
-    ('koreagift.com', '고려기프트', '0900000109'),
-    ('oshioshi.co.il', 'אושי אושי', '0900000110')
-) AS v(domain, brand_name, phone_number)
-JOIN roles r ON r.name = 'BUSINESS_PARTNER'
-WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.email = 'partner+' || v.domain || '@scamshield.test');
-
--- Tên pháp lý dùng theo nguồn công khai khi có; nếu chưa rõ, dùng nhãn website làm dữ liệu mẫu.
--- VERIFIED ở đây là trạng thái mock của whitelist, không xác nhận quan hệ đối tác thật.
-INSERT INTO partner_profiles (user_id, legal_name, brand_name, partner_type,
-                              verification_status, verified_by, verified_at,
-                              official_domain, created_at, updated_at)
-SELECT u.id, v.legal_name, v.brand_name, 'BUSINESS', 'VERIFIED', admin.id,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
-       v.domain, CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('shopee.vn', 'Công ty TNHH Shopee', 'Shopee'),
-    ('oviland.ru', 'ИП Текунов И.С.', 'Овиленд'),
-    ('nyulawglobal.org', 'New York University School of Law', 'Hauser Global Law School Program'),
-    ('brooklynfabric.com', 'Brooklyn Fabric Company', 'Brooklyn Fabric Company'),
-    ('nar.az', 'Azerfon LLC', 'Nar'),
-    ('vmos.cn', 'VMOS', 'VMOS'),
-    ('crockford.com', 'Douglas Crockford', 'Douglas Crockford'),
-    ('portaransas.org', 'Port Aransas Chamber of Commerce & Tourist Bureau', 'Visit Port Aransas'),
-    ('assortedinternet.com', 'Assorted Internet', 'Assorted Internet'),
-    ('koreagift.com', '고려기프트(주)', '고려기프트'),
-    ('oshioshi.co.il', 'אושי אושי', 'אושי אושי')
-) AS v(domain, legal_name, brand_name)
-JOIN users u ON u.email = CASE
-    WHEN v.domain = 'shopee.vn' THEN 'partner@shopee.vn'
-    ELSE 'partner+' || v.domain || '@scamshield.test'
-END
-JOIN users admin ON admin.email = 'admin@scamshield.vn'
-WHERE NOT EXISTS (SELECT 1 FROM partner_profiles p WHERE p.user_id = u.id);
-
--- 13. whitelist_entries
-INSERT INTO whitelist_entries (partner_id, indicator_id, verification_status,
-                               verified_by, verified_at, auto_lock_moderation, created_at, updated_at)
-SELECT p.id, i.id, 'VERIFIED', u.id,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh', true,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('Shopee', 'URL', 'shopee.vn'),
-    ('oviland.ru', 'URL', 'oviland.ru'),
-    ('nyulawglobal.org', 'URL', 'nyulawglobal.org'),
-    ('brooklynfabric.com', 'URL', 'brooklynfabric.com'),
-    ('nar.az', 'URL', 'nar.az'),
-    ('vmos.cn', 'URL', 'vmos.cn'),
-    ('crockford.com', 'URL', 'crockford.com'),
-    ('portaransas.org', 'URL', 'portaransas.org'),
-    ('assortedinternet.com', 'URL', 'assortedinternet.com'),
-    ('koreagift.com', 'URL', 'koreagift.com'),
-    ('oshioshi.co.il', 'URL', 'oshioshi.co.il')
-) AS v(partner_key, indicator_type, indicator_value)
-JOIN users u ON u.email = 'admin@scamshield.vn'
-JOIN partner_profiles p ON p.partner_type = 'BUSINESS'
-    AND (p.official_domain = v.partner_key OR (v.partner_key = 'Shopee' AND p.brand_name = 'Shopee'))
-JOIN LATERAL (
-    SELECT id FROM indicators
-    WHERE type = v.indicator_type AND normalized_value = v.indicator_value
-    ORDER BY id LIMIT 1
-) i ON true
-WHERE NOT EXISTS (
-    SELECT 1 FROM whitelist_entries w
-    WHERE w.partner_id = p.id AND w.indicator_id = i.id
-      AND w.verification_status = 'VERIFIED'
-);
-
--- 14. check_requests
+-- 14. check_requests (3 bản ghi)
 INSERT INTO check_requests (user_id, input_type, raw_input, normalized_input, masked_input, status, created_at) VALUES
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'PHONE', 'Thông báo thuê bao sẽ bị khóa chiều sau 2 giờ do vi phạm quy định viễn thông...', '0912443882', '+84 912.443.882', 'COMPLETED', NOW() - INTERVAL '1 hour'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'URL', 'Link yêu cầu tải file APK "Dịch vụ công Bộ Công An v2.8" giả mạo đánh cắp mã OTP.', 'dichvucong-vneid-capnhat.gov-vn.info/apk', 'https://dichvucong-vneid-capnhat.gov-vn.info/ap...', 'COMPLETED', NOW() - INTERVAL '3 hours'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'SMS_BANK', '"VCB Digibank: QK dang thuc hien giao dich 2,500,000 VND tai he thong POS..."', 'vietcombank', 'SMS Brandname: Vietcombank', 'COMPLETED', NOW() - INTERVAL '6 hours'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'TELEGRAM', '"Việc nhẹ làm tại nhà 400k-800k/ngày, duyệt đơn hàng nhận hoa hồng ngay lập tức..."', '@tuyendungshopeemall_hr', 'Zalo/Telegram: @TuyenDungShopeeMall_HR', 'COMPLETED', NOW() - INTERVAL '12 hours'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'BANK_ACCOUNT', 'Tài khoản cá nhân giao dịch mua bán đồ gia dụng online trên hội nhóm mạng xã hội.', '104889201992', 'STK: 104889201992 - VPBank (VU HOANG ANH)', 'COMPLETED', NOW() - INTERVAL '1 day'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'TRAFFIC_FINE', '"Cục Cảnh sát giao thông thông báo phương tiện 29A-883.xx có biên bản phạt nguội..."', 'tra-cuu-phatnguoi-c08.top/bienban', 'http://tra-cuu-phatnguoi-c08.top/bienban', 'COMPLETED', NOW() - INTERVAL '2 days'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'CRYPTO', '"Nạp USDT cam kết lợi nhuận 3.5%/ngày, bảo hiểm vốn 100% bởi quỹ ủy thác..."', 'binance-vip-asia-trade.cc', 'https://binance-vip-asia-trade.cc', 'COMPLETED', NOW() - INTERVAL '3 days');
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'PHONE', 'Thông báo thuê bao sẽ bị khóa chiều sau 2 giờ do vi phạm quy định viễn thông...', '0912443882', '+84 912.443.882', 'COMPLETED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('8 hours' AS interval)),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'URL', 'Link yêu cầu tải file APK "Dịch vụ công Bộ Công An v2.8" giả mạo đánh cắp mã OTP.', 'dichvucong-vneid-capnhat.gov-vn.info/apk', 'https://dichvucong-vneid-capnhat.gov-vn.info/ap...', 'COMPLETED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 hours' AS interval)),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'BANK_ACCOUNT', 'Tài khoản cá nhân giao dịch mua bán đồ gia dụng online trên hội nhóm mạng xã hội.', '104889201992', 'STK: 104889201992 - VPBank (VU HOANG ANH)', 'COMPLETED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('31 hours' AS interval));
 
--- 15. extracted_iocs
+-- 15. extracted_iocs (3 bản ghi)
 INSERT INTO extracted_iocs (check_request_id, indicator_id, extraction_method, created_at) VALUES
-((SELECT id FROM check_requests WHERE normalized_input='0912443882' LIMIT 1), (SELECT id FROM indicators WHERE normalized_value='0912443882'), 'REGEX', NOW()),
-((SELECT id FROM check_requests WHERE normalized_input='dichvucong-vneid-capnhat.gov-vn.info/apk' LIMIT 1), (SELECT id FROM indicators WHERE normalized_value='dichvucong-vneid-capnhat.gov-vn.info/apk'), 'REGEX', NOW()),
-((SELECT id FROM check_requests WHERE normalized_input='vietcombank' LIMIT 1), (SELECT id FROM indicators WHERE normalized_value='vietcombank'), 'REGEX', NOW()),
-((SELECT id FROM check_requests WHERE normalized_input='@tuyendungshopeemall_hr' LIMIT 1), (SELECT id FROM indicators WHERE normalized_value='@tuyendungshopeemall_hr'), 'REGEX', NOW()),
-((SELECT id FROM check_requests WHERE normalized_input='104889201992' LIMIT 1), (SELECT id FROM indicators WHERE normalized_value='104889201992'), 'REGEX', NOW()),
-((SELECT id FROM check_requests WHERE normalized_input='tra-cuu-phatnguoi-c08.top/bienban' LIMIT 1), (SELECT id FROM indicators WHERE normalized_value='tra-cuu-phatnguoi-c08.top/bienban'), 'REGEX', NOW()),
-((SELECT id FROM check_requests WHERE normalized_input='binance-vip-asia-trade.cc' LIMIT 1), (SELECT id FROM indicators WHERE normalized_value='binance-vip-asia-trade.cc'), 'REGEX', NOW());
+((SELECT id FROM check_requests WHERE normalized_input = '0912443882'), (SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0912443882'), 'REGEX', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+((SELECT id FROM check_requests WHERE normalized_input = 'dichvucong-vneid-capnhat.gov-vn.info/apk'), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dichvucong-vneid-capnhat.gov-vn.info/apk'), 'REGEX', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
+((SELECT id FROM check_requests WHERE normalized_input = '104889201992'), (SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = '104889201992'), 'REGEX', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 16. rule_definitions
+-- 16. rule_definitions (1 bản ghi)
 INSERT INTO rule_definitions (code, name, rule_type, version, is_active, is_frozen, created_at, updated_at) VALUES
-('R001', 'Phát hiện tên miền trúng thưởng ảo', 'URL_PATTERN', 1, true, false, NOW(), NOW());
+('R001', 'Phát hiện tên miền trúng thưởng ảo', 'URL_PATTERN', 1, TRUE, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 17. reports
--- Một INSERT cho báo cáo cơ bản, dashboard, hàng đợi kiểm duyệt và blacklist.
--- Các nhánh blacklist chỉ thêm báo cáo đã duyệt nếu indicator chưa có báo cáo được tính.
-INSERT INTO reports (reporter_user_id, indicator_id, status, category_id, region_code,
-                     description, reported_message, priority, priority_score, report_count_signal,
-                     coordinated_report_suspected, moderation_locked, locked_by_user_id, locked_at,
-                     created_at, updated_at)
-SELECT u.id, i.id, 'APPROVED', c.id, NULL::varchar, NULL::text, NULL::text,
-       NULL::varchar, NULL::numeric, 1, false, false,
-       NULL::bigint, NULL::timestamp, NOW()::timestamp, NOW()::timestamp
-FROM users u
-JOIN indicators i ON i.normalized_value = '0987654321'
-JOIN scam_categories c ON c.code = 'TRUNG_THUONG'
-WHERE u.email = 'nguyenvana@gmail.com'
-  AND NOT EXISTS (
-      SELECT 1 FROM reports r
-      WHERE r.reporter_user_id = u.id AND r.indicator_id = i.id
-        AND r.status = 'APPROVED'
-  )
-UNION ALL
-SELECT u.id, i.id, v.status, c.id, v.region_code, 'DASHBOARD-MOCK:' || v.key,
-       NULL::text, NULL::varchar, NULL::numeric, 1, false, false,
-       NULL::bigint, NULL::timestamp,
-       COALESCE(v.fixed_at, DATE_TRUNC('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.day_offset * INTERVAL '1 day'),
-       COALESCE(v.fixed_at, DATE_TRUNC('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.day_offset * INTERVAL '1 day')
-FROM (VALUES
-    ('today-job-hn-1', 'dashboard-viec-lam.example', 'VIEC_LAM', '01', 'APPROVED', 0, NULL::timestamp),
-    ('today-job-hn-2', 'dashboard-viec-lam.example', 'VIEC_LAM', '01', 'APPROVED', 0, NULL::timestamp),
-    ('today-bank-hcm', 'MOCK-DASH-STK-001', 'GIA_DANH_NGAN_HANG', '79', 'APPROVED', 0, NULL::timestamp),
-    ('today-otp-hn', '0919000002', 'DANH_CAP_OTP', '01', 'APPROVED', 0, NULL::timestamp),
-    ('today-prize-hcm', 'dashboard-trung-thuong.example', 'TRUNG_THUONG', '79', 'APPROVED', 0, NULL::timestamp),
-    ('today-pending-dn', 'dashboard-pending.example', 'VIEC_LAM', '48', 'PENDING', 0, NULL::timestamp),
-    ('day-1-job-hcm', 'dashboard-viec-lam.example', 'VIEC_LAM', '79', 'APPROVED', -1, NULL::timestamp),
-    ('day-2-authority-hn', '0919000001', 'GIA_DANH_CQCN', '01', 'APPROVED', -2, NULL::timestamp),
-    ('day-4-bank-hp', 'MOCK-DASH-STK-001', 'GIA_DANH_NGAN_HANG', '31', 'APPROVED', -4, NULL::timestamp),
-    ('day-5-prize-dn', 'dashboard-trung-thuong.example', 'TRUNG_THUONG', '48', 'APPROVED', -5, NULL::timestamp),
-    ('day-6-otp-ct', '0919000002', 'DANH_CAP_OTP', '92', 'APPROVED', -6, NULL::timestamp),
-    ('day-8-job-hn', 'dashboard-viec-lam.example', 'VIEC_LAM', '01', 'APPROVED', -8, NULL::timestamp),
-    ('day-10-bank-hcm', 'MOCK-DASH-STK-001', 'GIA_DANH_NGAN_HANG', '79', 'APPROVED', -10, NULL::timestamp),
-    ('day-13-prize-bn', 'dashboard-trung-thuong.example', 'TRUNG_THUONG', '24', 'APPROVED', -13, NULL::timestamp),
-    ('day-9-retracted-hn', 'dashboard-retracted.example', 'TRUNG_THUONG', '01', 'REJECTED', -9, NULL::timestamp),
-    ('day-12-authority-hcm', '0919000001', 'GIA_DANH_CQCN', '79', 'APPROVED', -12, NULL::timestamp),
-    ('day-15-otp-hn', '0919000002', 'DANH_CAP_OTP', '01', 'APPROVED', -15, NULL::timestamp),
-    ('day-20-job-hcm', 'dashboard-viec-lam.example', 'VIEC_LAM', '79', 'APPROVED', -20, NULL::timestamp),
-    ('day-25-old-bank-hcm', 'MOCK-DASH-STK-OLD', 'GIA_DANH_NGAN_HANG', '79', 'APPROVED', -25, NULL::timestamp),
-    ('day-29-job-hn', 'dashboard-viec-lam.example', 'VIEC_LAM', '01', 'APPROVED', -29, NULL::timestamp),
-    ('day-3-unlocated', 'dashboard-pending.example', 'VIEC_LAM', NULL, 'PENDING', -3, NULL::timestamp),
-    ('previous-30-job', 'dashboard-viec-lam.example', 'VIEC_LAM', '01', 'APPROVED', -30, NULL::timestamp),
-    ('previous-35-bank', 'MOCK-DASH-STK-OLD', 'GIA_DANH_NGAN_HANG', '79', 'APPROVED', -35, NULL::timestamp),
-    ('previous-45-bank', 'MOCK-DASH-STK-OLD', 'GIA_DANH_NGAN_HANG', '79', 'APPROVED', -45, NULL::timestamp),
-    ('previous-59-pending', 'dashboard-pending.example', 'VIEC_LAM', '48', 'PENDING', -59, NULL::timestamp),
-    ('q3-2026-jul', 'dashboard-q3-2026.example', 'VIEC_LAM', '01', 'APPROVED', NULL, TIMESTAMP '2026-07-02 10:00:00'),
-    ('q3-2026-aug', 'dashboard-q3-2026.example', 'VIEC_LAM', '79', 'APPROVED', NULL, TIMESTAMP '2026-08-12 15:00:00'),
-    ('q3-2026-sep', 'dashboard-q3-2026.example', 'VIEC_LAM', '31', 'APPROVED', NULL, TIMESTAMP '2026-09-30 23:59:59'),
-    ('q4-2026-oct-01', 'dashboard-q4-2026.example', 'TRUNG_THUONG', '48', 'APPROVED', NULL, TIMESTAMP '2026-10-01 09:00:00'),
-    ('q4-2026-oct-05', 'dashboard-q4-2026.example', 'TRUNG_THUONG', '92', 'APPROVED', NULL, TIMESTAMP '2026-10-05 14:00:00'),
-    ('q4-2026-oct-10', 'dashboard-q4-2026.example', 'TRUNG_THUONG', '24', 'APPROVED', NULL, TIMESTAMP '2026-10-10 23:59:59'),
-    ('july-2026-15', 'dashboard-july-2026.example', 'VIEC_LAM', '01', 'APPROVED', NULL, TIMESTAMP '2026-07-15 10:00:00')
-) AS v(key, value, category_code, region_code, status, day_offset, fixed_at)
-JOIN users u ON u.email = 'nguyenvana@gmail.com'
-JOIN indicators i ON i.normalized_value = v.value
-JOIN scam_categories c ON c.code = v.category_code
-WHERE NOT EXISTS (SELECT 1 FROM reports r WHERE r.description = 'DASHBOARD-MOCK:' || v.key)
-UNION ALL
-SELECT u.id, i.id, v.status, c.id, v.region_code,
-       'REPORT-MOCK:' || v.key || ' — ' || v.description, v.description,
-       v.priority, v.priority_score, 1, v.coordinated, v.locked,
-       CASE WHEN v.locked THEN moderator.id ELSE NULL END,
-       CASE WHEN v.locked THEN CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh' - v.hours_ago * INTERVAL '1 hour' + INTERVAL '15 minutes' ELSE NULL END,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh' - v.hours_ago * INTERVAL '1 hour',
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh' - v.hours_ago * INTERVAL '1 hour'
-            + CASE WHEN v.status IN ('APPROVED', 'REJECTED') THEN INTERVAL '30 minutes' ELSE INTERVAL '15 minutes' END
-FROM (VALUES
-    ('khoi-01', 'khoi.tran@gmail.com', 'shopee.vn', 'VIEC_LAM', '01', 'REJECTED', 'HIGH', 65, true, false, 24, 'Báo cáo website chính thức nhưng chưa cung cấp căn cứ chứng minh hành vi giả mạo.'),
-    ('khoi-02', 'khoi.tran@gmail.com', 'nhanqua-shopee.vip', 'TRUNG_THUONG', '01', 'REJECTED', 'NORMAL', 30, true, false, 20, 'Gửi lại nội dung tố cáo trùng lặp, chưa bổ sung tình tiết mới để thẩm định.'),
-    ('khoi-03', 'khoi.tran@gmail.com', '104889201992', 'VIEC_LAM', '79', 'PENDING', 'URGENT', 90, true, false, 12, 'Tài khoản yêu cầu chuyển tiền đặt cọc để nhận việc cộng tác viên.'),
-    ('khoi-04', 'khoi.tran@gmail.com', '@tuyendungshopeemall_hr', 'VIEC_LAM', '79', 'IN_REVIEW', 'HIGH', 65, false, true, 8, 'Nhóm Telegram tuyển cộng tác viên có dấu hiệu ép nạp tiền làm nhiệm vụ.'),
-    ('khoi-05', 'khoi.tran@gmail.com', 'dichvucong-vneid-capnhat.gov-vn.info/apk', 'MALWARE', '01', 'APPROVED', 'URGENT', 95, false, false, 240, 'Liên kết giả VNeID yêu cầu tải ứng dụng ngoài kho chính thức.'),
-    ('khoi-06', 'khoi.tran@gmail.com', '0912443882', 'VIEN_THONG', '01', 'APPROVED', 'HIGH', 70, false, false, 288, 'Cuộc gọi giả nhà mạng yêu cầu cung cấp mã OTP để tránh khóa thuê bao.'),
-    ('ha-01', 'ha.le@gmail.com', 'shopee.vn', 'VIEC_LAM', '48', 'REJECTED', 'NORMAL', 25, true, false, 36, 'Nhầm trang thương mại điện tử chính thức với trang tuyển dụng giả mạo.'),
-    ('ha-02', 'ha.le@gmail.com', 'vietcombank', 'TRUNG_THUONG', '48', 'REJECTED', 'NORMAL', 35, true, false, 30, 'Nội dung tố cáo SMS Brandname chưa phân biệt thông báo thật và tin nhắn giả.'),
-    ('ha-03', 'ha.le@gmail.com', 'tra-cuu-phatnguoi-c08.top/bienban', 'CSGT', '48', 'PENDING', 'HIGH', 75, false, true, 6, 'Trang thông báo phạt nguội yêu cầu nhập thông tin thẻ ngân hàng.'),
-    ('ha-04', 'ha.le@gmail.com', 'binance-vip-asia-trade.cc', 'FOREX', '48', 'IN_REVIEW', 'URGENT', 92, false, false, 4, 'Sàn đầu tư cam kết lợi nhuận mỗi ngày và yêu cầu nạp thêm để rút tiền.'),
-    ('ha-05', 'ha.le@gmail.com', 'shopee.vn', 'TRUNG_THUONG', '48', 'REJECTED', 'HIGH', 60, true, false, 192, 'Lặp lại cáo buộc với website chính thức dù chưa có bằng chứng mới.'),
-    ('ha-06', 'ha.le@gmail.com', 'nhanqua-shopee.vip', 'TRUNG_THUONG', '48', 'APPROVED', 'HIGH', 70, false, false, 216, 'Trang nhận quà yêu cầu trả phí vận chuyển vào tài khoản cá nhân.'),
-    ('bao-01', 'bao.nguyen@gmail.com', '0987654321', 'GIA_DANH_CQCN', '31', 'PENDING', 'URGENT', 88, false, false, 72, 'Người gọi tự xưng công an và yêu cầu chuyển tiền sang tài khoản an toàn.'),
-    ('bao-02', 'bao.nguyen@gmail.com', '104889201992', 'VIEC_LAM', '31', 'IN_REVIEW', 'HIGH', 68, false, false, 48, 'Người tuyển dụng yêu cầu đặt cọc trước khi cấp tài khoản làm việc.'),
-    ('bao-03', 'bao.nguyen@gmail.com', 'dichvucong-vneid-capnhat.gov-vn.info/apk', 'MALWARE', '31', 'APPROVED', 'URGENT', 96, false, false, 240, 'Ứng dụng giả yêu cầu quyền trợ năng và đọc tin nhắn xác thực.'),
-    ('bao-04', 'bao.nguyen@gmail.com', 'tra-cuu-phatnguoi-c08.top/bienban', 'CSGT', '31', 'APPROVED', 'HIGH', 76, false, false, 168, 'Tên miền phạt nguội giả dẫn đến biểu mẫu thu thập thông tin thẻ.'),
-    ('bao-05', 'bao.nguyen@gmail.com', 'vietcombank', 'TRUNG_THUONG', '31', 'REJECTED', 'NORMAL', 20, false, false, 336, 'Chỉ có tên người gửi SMS, chưa cung cấp nội dung hay đường dẫn khả nghi.'),
-    ('bao-06', 'bao.nguyen@gmail.com', '@tuyendungshopeemall_hr', 'VIEC_LAM', '31', 'REJECTED', 'NORMAL', 35, false, false, 312, 'Thông tin chuyển tiếp không đủ để đối chiếu với tài khoản bị tố cáo.'),
-    ('linh-01', 'linh.pham@gmail.com', '0912443882', 'VIEN_THONG', '92', 'PENDING', 'HIGH', 64, false, false, 24, 'Cuộc gọi thông báo thuê bao sắp bị khóa và yêu cầu xác minh danh tính.'),
-    ('linh-02', 'linh.pham@gmail.com', 'binance-vip-asia-trade.cc', 'FOREX', '92', 'IN_REVIEW', 'URGENT', 91, false, true, 16, 'Sàn yêu cầu đóng thuế vào tài khoản cá nhân trước khi cho rút lợi nhuận.'),
-    ('linh-03', 'linh.pham@gmail.com', 'nhanqua-shopee.vip', 'TRUNG_THUONG', '92', 'APPROVED', 'HIGH', 72, false, false, 96, 'Tin nhắn trúng thưởng dẫn đến trang yêu cầu thanh toán phí nhận quà.'),
-    ('linh-04', 'linh.pham@gmail.com', 'dichvucong-vneid-capnhat.gov-vn.info/apk', 'MALWARE', '92', 'APPROVED', 'URGENT', 94, false, false, 120, 'Đường dẫn cập nhật giấy tờ yêu cầu cài tệp APK không rõ nguồn gốc.'),
-    ('linh-05', 'linh.pham@gmail.com', 'shopee.vn', 'VIEC_LAM', '92', 'REJECTED', 'NORMAL', 28, true, false, 216, 'Gửi cáo buộc nhắm vào website chính thức mà không nêu giao dịch liên quan.'),
-    ('linh-06', 'linh.pham@gmail.com', 'vietcombank', 'TRUNG_THUONG', '92', 'REJECTED', 'NORMAL', 32, true, false, 192, 'Lặp lại báo cáo thiếu nội dung SMS và chưa có căn cứ xác minh giả mạo.'),
-    ('vana-01', 'nguyenvana@gmail.com', 'binance-vip-asia-trade.cc', 'FOREX', '79', 'APPROVED', 'URGENT', 93, false, false, 240, 'Đối tượng hứa bảo hiểm vốn nhưng giữ tiền và yêu cầu nạp thêm phí.'),
-    ('vana-02', 'nguyenvana@gmail.com', 'shopee.vn', 'VIEC_LAM', '79', 'REJECTED', 'NORMAL', 30, true, false, 216, 'Báo cáo trùng lặp về tên miền chính thức, không có bằng chứng bổ sung.'),
-    ('vana-03', 'nguyenvana@gmail.com', '104889201992', 'VIEC_LAM', '79', 'PENDING', 'HIGH', 66, false, false, 48, 'Tài khoản nhận tiền đặt cọc để mở nhiệm vụ mua hàng hoàn tiền.'),
-    ('vana-04', 'nguyenvana@gmail.com', '0987654321', 'GIA_DANH_CQCN', '79', 'IN_REVIEW', 'HIGH', 78, false, false, 36, 'Cuộc gọi giả cán bộ điều tra đe dọa phong tỏa tài khoản ngân hàng.')
-) AS v(key, email, indicator_value, category_code, region_code, status, priority, priority_score,
-       coordinated, locked, hours_ago, description)
-JOIN users u ON u.email = v.email
-JOIN indicators i ON i.normalized_value = v.indicator_value
-JOIN scam_categories c ON c.code = v.category_code
-JOIN users moderator ON moderator.email = 'moderator.phuong@scamshield.vn'
-WHERE NOT EXISTS (SELECT 1 FROM reports r WHERE r.description = 'REPORT-MOCK:' || v.key || ' — ' || v.description)
-UNION ALL
-SELECT u.id, i.id, 'APPROVED', NULL, NULL, 'BLACKLIST-MOCK:' || v.domain,
-       'URL nằm trong danh sách cảnh báo được cung cấp cho admin xác nhận',
-       NULL, NULL, 1, false, false, NULL, NULL, i.created_at, i.created_at
-FROM (VALUES
-    ('formulary-hype-squad-event.com'),
-    ('23.94.136.170'),
-    ('id9828.shop'),
-    ('biuvca.top'),
-    ('1.20.150.71'),
-    ('fq8bgcyp3t.suijidaohxl.top'),
-    ('juzhen202601.com'),
-    ('327012.xyz'),
-    ('ka7edrsxzm.suijidaohxl.top'),
-    ('ggptt.biz'),
-    ('777t87u8.weebly.com'),
-    ('yhhld.gpjfuh.info'),
-    ('mail.calvarylight.com'),
-    ('xgtnkehtzn.suijidaohxl.top'),
-    ('15.181.16.225'),
-    ('dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev'),
-    ('padgnwtnm4.suijidaohxl.top'),
-    ('netflixnet.webmailsegurancasempreltda.store'),
-    ('ntdy8m8yac.3355799com-dh.top'),
-    ('kcdxh8n5hd.suijidaohxl.top'),
-    ('mebh4hbwyy.suijidaohxl.top'),
-    ('revollutbonus.cfd'),
-    ('uhsvdcnvvvd.cfd'),
-    ('rtryfx.blogspot.gr'),
-    ('24onlinetradecity.live'),
-    ('t3w8yf5ji2.suijidaohxl.top'),
-    ('sso-ledgr-com-strt.square.site'),
-    ('atualizacao-mais-seguro-cliente-empresa.000webhostapp.com'),
-    ('mailsyncsss.weebly.com'),
-    ('authorityphire.weebly.com'),
-    ('jhophiqnkjbbntyjvwn.com'),
-    ('com-trackesven.top'),
-    ('sk3ecncejy.suijidaohxl.top'),
-    ('8fbwgu.dzwiekuje.pl'),
-    ('t-mobile.ztrskf.top'),
-    ('myhammockvacations.worldofpowerfulyouth.org'),
-    ('wwuwwwiki2.aomngbr.cc'),
-    ('6g1adz4wfw.622629dhxl.top'),
-    ('teaezorapp.webflow.io'),
-    ('officialpostship.top'),
-    ('haodage.cc'),
-    ('222.149.49.160'),
-    ('thebergsignal-gpt.com'),
-    ('tseswfz.blogspot.am'),
-    ('mentyxrx4y.3355799com-dh.top'),
-    ('iph5sayjxx.suijidaohxl.top'),
-    ('1kxykd5bga.622629dhxl.top'),
-    ('bakermeekins.com'),
-    ('rpkfxtr7jk.suijidaohxl.top'),
-    ('ww17.uhdmovies.foo')
-) AS v(domain)
-JOIN indicators i ON i.type = 'URL' AND i.normalized_value = v.domain
-JOIN users u ON u.email = 'nguyenvana@gmail.com'
-WHERE NOT EXISTS (
-    SELECT 1 FROM reports r
-    WHERE r.indicator_id = i.id AND r.status IN ('APPROVED', 'MERGED')
-)
-UNION ALL
-SELECT u.id, i.id, 'APPROVED', c.id, NULL, 'BLACKLIST-MOCK:' || v.value,
-       'Báo cáo mẫu cho mục blacklist đã được admin xác nhận',
-       NULL, NULL, 1, false, false, NULL, NULL, CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-FROM (VALUES
-    ('dispute-pending.example', 'VIEC_LAM'),
-    ('0919000091', 'GIA_DANH_CQCN'),
-    ('MOCK-DSP-BANK-001', 'GIA_DANH_NGAN_HANG'),
-    ('dispute-rejected.example', 'VIEC_LAM'),
-    ('dispute-partner.example', 'VIEC_LAM'),
-    ('MOCK-DSP-BANK-002', 'GIA_DANH_NGAN_HANG'),
-    ('0919000094', 'GIA_DANH_CQCN'),
-    ('dispute-review-shop.example', 'VIEC_LAM'),
-    ('dispute-supplement-overdue.example', 'VIEC_LAM'),
-    ('MOCK-DSP-BANK-003', 'GIA_DANH_NGAN_HANG')
-) AS v(value, category_code)
-JOIN users u ON u.email = 'nguyenvana@gmail.com'
-JOIN indicators i ON i.normalized_value = v.value
-JOIN scam_categories c ON c.code = v.category_code
-WHERE NOT EXISTS (
-    SELECT 1 FROM reports r
-    WHERE r.indicator_id = i.id AND r.status IN ('APPROVED', 'MERGED')
-)
-UNION ALL
-SELECT u.id, i.id, 'APPROVED', NULL, NULL, 'BLACKLIST-MOCK:' || v.value,
-       'Chỉ báo mẫu được đưa vào danh sách cảnh báo',
-       NULL, NULL, 1, false, false, NULL, NULL, i.created_at, i.created_at
-FROM (VALUES
-    ('PHONE', '0236.688.8766'),
-    ('BANK_ACCOUNT', '061810876'),
-    ('PHONE', '02488860469'),
-    ('BANK_ACCOUNT', '19040027069013'),
-    ('PHONE', '0889050231'),
-    ('PHONE', '0917896904'),
-    ('BANK_ACCOUNT', '10981888886'),
-    ('BANK_ACCOUNT', '0375588149')
-) AS v(type, value)
-JOIN indicators i ON i.type = v.type AND i.normalized_value = v.value
-JOIN users u ON u.email = 'nguyenvana@gmail.com'
-WHERE NOT EXISTS (
-    SELECT 1 FROM reports r
-    WHERE r.indicator_id = i.id AND r.status IN ('APPROVED', 'MERGED')
-);
+-- 17. reports (8 bản ghi)
+INSERT INTO reports (reporter_user_id, indicator_id, status, category_id, region_code, description, reported_message, created_at, updated_at) VALUES
+((SELECT id FROM users WHERE email = 'bao.nguyen@gmail.com'), (SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0987654321'), 'PENDING', (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), '31', 'Tôi nhận cuộc gọi từ số 0987654321 tự xưng cán bộ điều tra, nói tôi liên quan đến một vụ án và yêu cầu chuyển tiền vào tài khoản an toàn. Tôi chưa chuyển tiền, đã lưu tin nhắn và lịch sử cuộc gọi.', 'Tài khoản của bạn liên quan vụ án. Chuyển tiền vào tài khoản an toàn để xác minh.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('4305 minutes' AS interval)),
+((SELECT id FROM users WHERE email = 'ha.le@gmail.com'), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nhanqua-shopee.vip'), 'APPROVED', (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), '48', 'Tôi thấy bài tuyển cộng tác viên mạo danh Shopee dẫn tới nhanqua-shopee.vip. Người đăng yêu cầu liên hệ qua tài khoản riêng để chốt đơn. Tôi gửi ảnh bài đăng và nội dung trao đổi.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('36 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2130 minutes' AS interval)),
+((SELECT id FROM users WHERE email = 'khoi.tran@gmail.com'), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nhanqua-shopee.vip'), 'PENDING', (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), '01', 'Một tài khoản mời tôi làm việc tại nhà và gửi nhanqua-shopee.vip. Tôi chưa giao dịch và gửi ảnh hội thoại cùng bài tuyển người để nhờ kiểm tra.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1410 minutes' AS interval)),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nhanqua-shopee.vip'), 'WITHDRAWN', (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), '79', 'Tôi nhận thêm lời mời làm cộng tác viên qua nhanqua-shopee.vip. Tôi gửi lại ảnh hội thoại từ lần trước, sau đó thu hồi vì chưa có minh chứng mới.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('9 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12930 minutes' AS interval)),
+((SELECT id FROM users WHERE email = 'ha.le@gmail.com'), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nhanqua-shopee.vip'), 'REJECTED', (SELECT id FROM scam_categories WHERE code = 'TRUNG_THUONG'), '48', 'Tôi nhận tin nhắn báo trúng quà Shopee và yêu cầu trả phí giao hàng. Tôi nghi tin nhắn liên quan đến nhanqua-shopee.vip, nhưng ảnh đính kèm chưa thể hiện đường dẫn này.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('8 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('11490 minutes' AS interval)),
+((SELECT id FROM users WHERE email = 'linh.pham@gmail.com'), (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nhanqua-shopee.vip'), 'APPROVED', (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), '92', 'Tôi thấy quảng cáo mạo danh Shopee, hứa trả hoa hồng khi đặt đơn và dẫn tới nhanqua-shopee.vip. Tôi gửi ảnh quảng cáo có hiển thị đường dẫn để nhờ kiểm tra.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('9 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12930 minutes' AS interval)),
+((SELECT id FROM users WHERE email = 'linh.pham@gmail.com'), (SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0912443882'), 'APPROVED', (SELECT id FROM scam_categories WHERE code = 'VIEN_THONG'), '92', 'Số 0912443882 gọi thông báo thuê bao của tôi sẽ bị khóa trong hai giờ và yêu cầu đọc mã OTP để xác minh. Tôi không cung cấp mã và lưu lại tin nhắn hướng dẫn để báo cáo.', 'Thuê bao sẽ bị khóa trong 2 giờ. Vui lòng cung cấp mã OTP để tiếp tục sử dụng.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1425 minutes' AS interval)),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), (SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = '104889201992'), 'PENDING', (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), '79', 'Tôi chuyển 500.000 đồng vào tài khoản VPBank 104889201992 để làm nhiệm vụ mua hàng nhận hoa hồng. Sau đó người hướng dẫn yêu cầu nạp thêm mới được rút vốn. Tôi gửi ảnh hội thoại có thông tin nhận tiền và yêu cầu nạp thêm.', 'Chuyển khoản đặt cọc để mở tài khoản làm nhiệm vụ và nhận hoa hồng.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2865 minutes' AS interval));
 
--- 18. confirmed_indicators
-INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, confirmed_at) VALUES
-((SELECT id FROM indicators WHERE normalized_value='nhanqua-shopee.vip'), (SELECT id FROM scam_categories WHERE code='VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email='admin@scamshield.vn'), NOW()),
-((SELECT id FROM indicators WHERE normalized_value='0912443882'), (SELECT id FROM scam_categories WHERE code='VIEN_THONG'), 'ACTIVE', (SELECT id FROM users WHERE email='admin@scamshield.vn'), NOW() + INTERVAL '1 hour'),
-((SELECT id FROM indicators WHERE normalized_value='dichvucong-vneid-capnhat.gov-vn.info/apk'), (SELECT id FROM scam_categories WHERE code='MALWARE'), 'ACTIVE', (SELECT id FROM users WHERE email='admin@scamshield.vn'), NOW()),
-((SELECT id FROM indicators WHERE normalized_value='tra-cuu-phatnguoi-c08.top/bienban'), (SELECT id FROM scam_categories WHERE code='CSGT'), 'ACTIVE', (SELECT id FROM users WHERE email='admin@scamshield.vn'), NOW()),
-((SELECT id FROM indicators WHERE normalized_value='binance-vip-asia-trade.cc'), (SELECT id FROM scam_categories WHERE code='FOREX'), 'ACTIVE', (SELECT id FROM users WHERE email='admin@scamshield.vn'), NOW());
+-- 18. confirmed_indicators (26 bản ghi)
+INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, confirmed_at, retracted_at, retraction_reason, public_reason) VALUES
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nhanqua-shopee.vip'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL, 'Trang tuyển cộng tác viên mạo danh sàn thương mại điện tử, yêu cầu nạp tiền làm nhiệm vụ trước khi cho rút hoa hồng.'),
+((SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0912443882'), (SELECT id FROM scam_categories WHERE code = 'VIEN_THONG'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('6 hours' AS interval), NULL, NULL, 'Cuộc gọi mạo danh nhân viên nhà mạng, dọa khóa thuê bao và yêu cầu cung cấp mã OTP để cập nhật thông tin.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dashboard-q3-2026.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), CAST('2026-09-30T23:59:59' AS timestamp), NULL, NULL, 'Trang tuyển việc trực tuyến yêu cầu đóng phí giữ chỗ; người ứng tuyển không được bố trí công việc sau khi chuyển tiền.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dashboard-july-2026.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), CAST('2026-07-16T08:00:00' AS timestamp), NULL, NULL, 'Tin tuyển cộng tác viên nhập liệu hứa thu nhập cao, yêu cầu chuyển phí kích hoạt tài khoản trước khi nhận việc.'),
+((SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DASH-STK-OLD'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_NGAN_HANG'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3974124.728656 seconds' AS interval), NULL, NULL, 'Tài khoản nhận tiền từ kịch bản mạo danh nhân viên ngân hàng, yêu cầu chuyển phí để giải ngân khoản vay.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dashboard-q4-2026.example'), (SELECT id FROM scam_categories WHERE code = 'TRUNG_THUONG'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), CAST('2026-10-06T08:00:00' AS timestamp), NULL, NULL, 'Trang thông báo trúng điện thoại yêu cầu thanh toán phí vận chuyển và nhập thông tin thẻ để nhận thưởng.'),
+((SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DASH-STK-001'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_NGAN_HANG'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('431724.728656 seconds' AS interval), NULL, NULL, 'Tài khoản được dùng để nhận phí xác minh khoản vay; sau giao dịch, bên tư vấn tiếp tục yêu cầu nộp thêm tiền.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dashboard-viec-lam.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('172524.728656 seconds' AS interval), NULL, NULL, 'Trang tuyển cộng tác viên chốt đơn yêu cầu ứng tiền đơn hàng, sau đó chặn rút tiền với lý do chưa đủ nhiệm vụ.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dashboard-trung-thuong.example'), (SELECT id FROM scam_categories WHERE code = 'TRUNG_THUONG'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('518124.728656 seconds' AS interval), NULL, NULL, 'Website thông báo trúng quà yêu cầu chuyển thuế nhận thưởng vào tài khoản cá nhân trước khi giao quà.'),
+((SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0919000001'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('258924.728656 seconds' AS interval), NULL, NULL, 'Cuộc gọi tự xưng cán bộ công an, yêu cầu chuyển tiền vào tài khoản an toàn để phục vụ xác minh hồ sơ.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dashboard-retracted.example'), (SELECT id FROM scam_categories WHERE code = 'TRUNG_THUONG'), 'RETRACTED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('863724.728656 seconds' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('258924.728656 seconds' AS interval), 'Ảnh minh chứng dẫn đến một tên miền khác; không đủ căn cứ quy kết đường dẫn này. Thu hồi cảnh báo sau khi đối chiếu lại nguồn tin.', 'Đường dẫn từng bị báo cáo phát tán thông báo trúng thưởng và yêu cầu đóng phí nhận quà.'),
+((SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0919000091'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Số điện thoại bị phản ánh tự xưng cơ quan chức năng, yêu cầu người nghe cung cấp thông tin định danh để xử lý hồ sơ.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-partner.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Trang tuyển dụng bị báo cáo sử dụng tên doanh nghiệp để mời cộng tác viên nộp phí đào tạo trước khi nhận việc.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-pending.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Website đăng tin việc làm tại nhà, yêu cầu ứng viên đóng phí hồ sơ và cung cấp thông tin tài khoản ngân hàng.'),
+((SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0919000092'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), 'RETRACTED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('54 hours' AS interval), 'Hợp đồng thuê bao và thời điểm cấp lại số cho thấy chủ thuê bao hiện tại không liên quan đến cuộc gọi bị phản ánh. Chấp nhận khiếu nại và thu hồi cảnh báo.', 'Số điện thoại từng bị phản ánh tự xưng cán bộ điều tra, yêu cầu người nghe chuyển tiền để chứng minh tài chính.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-rejected.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Trang tuyển cộng tác viên yêu cầu nạp tiền làm nhiệm vụ; ảnh trao đổi và biên lai cho thấy người dùng không rút được số dư.'),
+((SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-BANK-003'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_NGAN_HANG'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Tài khoản nhận khoản chuyển được giới thiệu là phí mở khóa dịch vụ ngân hàng; người chuyển không nhận được dịch vụ đã cam kết.'),
+((SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-LINH-VERIFIED'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_NGAN_HANG'), 'RETRACTED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12 hours' AS interval), 'Sao kê và chứng từ giao dịch xác nhận khoản chuyển là thanh toán hợp lệ; minh chứng ban đầu gắn nhầm tài khoản nhận tiền. Thu hồi cảnh báo.', 'Tài khoản từng bị báo cáo nhận tiền từ người tự xưng nhân viên ngân hàng hỗ trợ xử lý giao dịch bị treo.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-approved-active.example'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), 'RETRACTED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 hours' AS interval), 'Đã đối chiếu quyền quản trị tên miền và thông tin đơn vị vận hành; đường dẫn trong minh chứng thuộc trang giả mạo khác. Thu hồi kết luận ban đầu.', 'Website từng bị phản ánh sử dụng thông tin cơ quan nhà nước để yêu cầu người truy cập thanh toán phí xử lý hồ sơ.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-supplement-overdue.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Trang tuyển việc yêu cầu đóng phí kích hoạt; sau khi nộp tiền, ứng viên tiếp tục bị yêu cầu mua gói nhiệm vụ.'),
+((SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-BANK-001'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_NGAN_HANG'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Tài khoản nhận tiền đặt cọc giải ngân khoản vay, sau đó bên tư vấn yêu cầu chuyển thêm phí bảo hiểm tín dụng.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-techcorp.example'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), 'RETRACTED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('84 hours' AS interval), 'Hồ sơ quyền sở hữu tên miền và thông tin doanh nghiệp trùng khớp; báo cáo ban đầu nhầm website chính thức với tên miền giả mạo. Chấp nhận khiếu nại.', 'Website từng bị báo cáo sử dụng tên và biểu trưng tổ chức để dẫn người dùng đến biểu mẫu thu thập thông tin cá nhân.'),
+((SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0919000094'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Cuộc gọi tự xưng nhân viên cơ quan hành chính, yêu cầu thanh toán phí cập nhật hồ sơ qua đường dẫn gửi riêng.'),
+((SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-BANK-002'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_NGAN_HANG'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Tài khoản bị phản ánh nhận phí xử lý khoản vay từ người tự xưng nhân viên ngân hàng; hồ sơ giao dịch đang được đối chiếu.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-khoi-verified.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'RETRACTED', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval), 'Đã xác minh đây là trang tuyển dụng nội bộ; không có yêu cầu thu phí nhận việc như nội dung phản ánh. Thu hồi cảnh báo sau khi chấp nhận khiếu nại.', 'Website tuyển dụng từng bị báo cáo yêu cầu ứng viên đóng phí nhận việc và cung cấp thông tin tài khoản.'),
+((SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-review-shop.example'), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), 'ACTIVE', (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 days' AS interval), NULL, NULL, 'Website bị báo cáo đăng tin tuyển cộng tác viên bán hàng và yêu cầu ứng tiền xử lý đơn hàng.');
 
--- Đủ 5 danh mục ACTIVE trong 30 ngày qua. PHONE thuộc danh mục xác thực nhưng không cộng vào STK & URL.
--- Blacklist cũ vẫn giúp xác định nguy cơ cao, nhưng không tính là vừa thêm vào blacklist trong 30 ngày.
--- Hồ sơ RETRACTED có retracted_at; API phải loại khỏi số đã xác thực và số danh mục hiện hành.
-INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, source_report_id,
-                                  confirmed_at, retracted_at, retraction_reason, public_reason)
-SELECT i.id, c.id, v.status, u.id, r.id,
-       COALESCE(v.fixed_at, DATE_TRUNC('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.day_offset * INTERVAL '1 day'),
-       CASE WHEN v.status = 'RETRACTED' THEN DATE_TRUNC('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '2 days' ELSE NULL END,
-       CASE WHEN v.status = 'RETRACTED' THEN 'Dữ liệu mẫu: bằng chứng không hợp lệ, đã thu hồi xác thực' ELSE NULL END,
-       'Dữ liệu mẫu phục vụ kiểm thử dashboard'
-FROM (VALUES
-    ('dashboard-viec-lam.example', 'VIEC_LAM', 'ACTIVE', -1, NULL::timestamp, 'day-29-job-hn'),
-    ('MOCK-DASH-STK-001', 'GIA_DANH_NGAN_HANG', 'ACTIVE', -4, NULL::timestamp, 'day-10-bank-hcm'),
-    ('0919000001', 'GIA_DANH_CQCN', 'ACTIVE', -2, NULL::timestamp, 'day-2-authority-hn'),
-    ('0919000002', 'DANH_CAP_OTP', 'ACTIVE', 0, NULL::timestamp, 'today-otp-hn'),
-    ('dashboard-trung-thuong.example', 'TRUNG_THUONG', 'ACTIVE', -5, NULL::timestamp, 'day-13-prize-bn'),
-    ('dashboard-retracted.example', 'TRUNG_THUONG', 'RETRACTED', -9, NULL::timestamp, 'day-9-retracted-hn'),
-    ('MOCK-DASH-STK-OLD', 'GIA_DANH_NGAN_HANG', 'ACTIVE', -45, NULL::timestamp, 'previous-45-bank'),
-    ('dashboard-q3-2026.example', 'VIEC_LAM', 'ACTIVE', NULL, TIMESTAMP '2026-09-30 23:59:59', 'q3-2026-jul'),
-    ('dashboard-q4-2026.example', 'TRUNG_THUONG', 'ACTIVE', NULL, TIMESTAMP '2026-10-06 08:00:00', 'q4-2026-oct-01'),
-    ('dashboard-july-2026.example', 'VIEC_LAM', 'ACTIVE', NULL, TIMESTAMP '2026-07-16 08:00:00', 'july-2026-15')
-) AS v(value, category_code, status, day_offset, fixed_at, report_key)
-JOIN indicators i ON i.normalized_value = v.value
-JOIN scam_categories c ON c.code = v.category_code
-JOIN users u ON u.email = 'admin@scamshield.vn'
-JOIN reports r ON r.description = 'DASHBOARD-MOCK:' || v.report_key
-WHERE NOT EXISTS (SELECT 1 FROM confirmed_indicators ci WHERE ci.indicator_id = i.id);
+-- 19. report_evidence (12 bản ghi)
+INSERT INTO report_evidence (report_id, evidence_type, file_name, file_url, created_at) VALUES
+((SELECT id FROM reports WHERE description = 'Tôi nhận cuộc gọi từ số 0987654321 tự xưng cán bộ điều tra, nói tôi liên quan đến một vụ án và yêu cầu chuyển tiền vào tài khoản an toàn. Tôi chưa chuyển tiền, đã lưu tin nhắn và lịch sử cuộc gọi.'), 'PNG', 'tin-nhan-yeu-cau-chuyen-tien.png', 'https://files.example/reports/tin-nhan-yeu-cau-chuyen-tien/tin-nhan-yeu-cau-chuyen-tien.png', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi nhận cuộc gọi từ số 0987654321 tự xưng cán bộ điều tra, nói tôi liên quan đến một vụ án và yêu cầu chuyển tiền vào tài khoản an toàn. Tôi chưa chuyển tiền, đã lưu tin nhắn và lịch sử cuộc gọi.'), 'PDF', 'lich-su-cuoc-goi.pdf', 'https://files.example/reports/tin-nhan-yeu-cau-chuyen-tien/lich-su-cuoc-goi.pdf', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi thấy bài tuyển cộng tác viên mạo danh Shopee dẫn tới nhanqua-shopee.vip. Người đăng yêu cầu liên hệ qua tài khoản riêng để chốt đơn. Tôi gửi ảnh bài đăng và nội dung trao đổi.'), 'PNG', 'bai-dang-tuyen-cong-tac-vien.png', 'https://files.example/reports/bai-dang-tuyen-cong-tac-vien/bai-dang-tuyen-cong-tac-vien.png', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('36 hours' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi thấy bài tuyển cộng tác viên mạo danh Shopee dẫn tới nhanqua-shopee.vip. Người đăng yêu cầu liên hệ qua tài khoản riêng để chốt đơn. Tôi gửi ảnh bài đăng và nội dung trao đổi.'), 'PDF', 'noi-dung-trao-doi-tuyen-dung.pdf', 'https://files.example/reports/bai-dang-tuyen-cong-tac-vien/noi-dung-trao-doi-tuyen-dung.pdf', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('36 hours' AS interval)),
+((SELECT id FROM reports WHERE description = 'Một tài khoản mời tôi làm việc tại nhà và gửi nhanqua-shopee.vip. Tôi chưa giao dịch và gửi ảnh hội thoại cùng bài tuyển người để nhờ kiểm tra.'), 'PNG', 'hoi-thoai-moi-lam-viec.png', 'https://files.example/reports/hoi-thoai-moi-lam-viec/hoi-thoai-moi-lam-viec.png', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Một tài khoản mời tôi làm việc tại nhà và gửi nhanqua-shopee.vip. Tôi chưa giao dịch và gửi ảnh hội thoại cùng bài tuyển người để nhờ kiểm tra.'), 'PDF', 'bai-tuyen-nhan-vien-online.pdf', 'https://files.example/reports/hoi-thoai-moi-lam-viec/bai-tuyen-nhan-vien-online.pdf', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi nhận thêm lời mời làm cộng tác viên qua nhanqua-shopee.vip. Tôi gửi lại ảnh hội thoại từ lần trước, sau đó thu hồi vì chưa có minh chứng mới.'), 'PNG', 'hoi-thoai-moi-lam-cong-tac-vien.png', 'https://files.example/reports/hoi-thoai-moi-lam-cong-tac-vien/hoi-thoai-moi-lam-cong-tac-vien.png', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('9 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi nhận tin nhắn báo trúng quà Shopee và yêu cầu trả phí giao hàng. Tôi nghi tin nhắn liên quan đến nhanqua-shopee.vip, nhưng ảnh đính kèm chưa thể hiện đường dẫn này.'), 'PNG', 'tin-nhan-thong-bao-trung-qua.png', 'https://files.example/reports/tin-nhan-thong-bao-trung-qua/tin-nhan-thong-bao-trung-qua.png', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('8 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi nhận tin nhắn báo trúng quà Shopee và yêu cầu trả phí giao hàng. Tôi nghi tin nhắn liên quan đến nhanqua-shopee.vip, nhưng ảnh đính kèm chưa thể hiện đường dẫn này.'), 'PDF', 'huong-dan-thanh-toan-phi-giao-hang.pdf', 'https://files.example/reports/tin-nhan-thong-bao-trung-qua/huong-dan-thanh-toan-phi-giao-hang.pdf', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('8 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi thấy quảng cáo mạo danh Shopee, hứa trả hoa hồng khi đặt đơn và dẫn tới nhanqua-shopee.vip. Tôi gửi ảnh quảng cáo có hiển thị đường dẫn để nhờ kiểm tra.'), 'PNG', 'quang-cao-hoa-hong-don-hang.png', 'https://files.example/reports/quang-cao-hoa-hong-don-hang/quang-cao-hoa-hong-don-hang.png', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('9 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Số 0912443882 gọi thông báo thuê bao của tôi sẽ bị khóa trong hai giờ và yêu cầu đọc mã OTP để xác minh. Tôi không cung cấp mã và lưu lại tin nhắn hướng dẫn để báo cáo.'), 'PNG', 'tin-nhan-yeu-cau-cung-cap-otp.png', 'https://files.example/reports/tin-nhan-yeu-cau-cung-cap-otp/tin-nhan-yeu-cau-cung-cap-otp.png', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi chuyển 500.000 đồng vào tài khoản VPBank 104889201992 để làm nhiệm vụ mua hàng nhận hoa hồng. Sau đó người hướng dẫn yêu cầu nạp thêm mới được rút vốn. Tôi gửi ảnh hội thoại có thông tin nhận tiền và yêu cầu nạp thêm.'), 'JPG', 'hoi-thoai-nap-tien-lam-nhiem-vu.jpg', 'https://files.example/reports/hoi-thoai-nap-tien-lam-nhiem-vu/hoi-thoai-nap-tien-lam-nhiem-vu.jpg', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 days' AS interval));
 
-INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, confirmed_at,
-                                  retracted_at, retraction_reason, public_reason)
-SELECT i.id, c.id, v.status, u.id,
-       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '10 days',
-       CASE WHEN v.status = 'RETRACTED' THEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.retracted_offset ELSE NULL END,
-       CASE WHEN v.status = 'RETRACTED' THEN 'Dữ liệu mẫu: khiếu nại được chấp nhận, thu hồi xác thực sai' ELSE NULL END,
-       'Dữ liệu mẫu phục vụ kiểm thử danh sách khiếu nại'
-FROM (VALUES
-    ('dispute-pending.example', 'VIEC_LAM', 'ACTIVE', NULL::interval),
-    ('0919000091', 'GIA_DANH_CQCN', 'ACTIVE', NULL::interval),
-    ('MOCK-DSP-BANK-001', 'GIA_DANH_NGAN_HANG', 'ACTIVE', NULL::interval),
-    ('dispute-techcorp.example', 'GIA_DANH_CQCN', 'RETRACTED', -INTERVAL '84 hours'),
-    ('0919000092', 'GIA_DANH_CQCN', 'RETRACTED', -INTERVAL '54 hours'),
-    ('dispute-rejected.example', 'VIEC_LAM', 'ACTIVE', NULL::interval),
-    ('dispute-partner.example', 'VIEC_LAM', 'ACTIVE', NULL::interval),
-    ('MOCK-DSP-BANK-002', 'GIA_DANH_NGAN_HANG', 'ACTIVE', NULL::interval),
-    ('0919000094', 'GIA_DANH_CQCN', 'ACTIVE', NULL::interval),
-    ('dispute-review-shop.example', 'VIEC_LAM', 'ACTIVE', NULL::interval),
-    ('dispute-supplement-overdue.example', 'VIEC_LAM', 'ACTIVE', NULL::interval),
-    ('dispute-approved-active.example', 'GIA_DANH_CQCN', 'RETRACTED', -INTERVAL '3 hours'),
-    ('MOCK-DSP-BANK-003', 'GIA_DANH_NGAN_HANG', 'ACTIVE', NULL::interval),
-    ('dispute-khoi-verified.example', 'VIEC_LAM', 'RETRACTED', -INTERVAL '24 hours'),
-    ('MOCK-DSP-LINH-VERIFIED', 'GIA_DANH_NGAN_HANG', 'RETRACTED', -INTERVAL '12 hours')
-) AS v(value, category_code, status, retracted_offset)
-JOIN indicators i ON i.normalized_value = v.value
-JOIN scam_categories c ON c.code = v.category_code
-JOIN users u ON u.email = 'admin@scamshield.vn'
-WHERE NOT EXISTS (SELECT 1 FROM confirmed_indicators ci WHERE ci.indicator_id = i.id);
+-- 20. moderation_actions (4 bản ghi)
+INSERT INTO moderation_actions (report_id, moderator_user_id, action, reason, previous_status, new_status, created_at) VALUES
+((SELECT id FROM reports WHERE description = 'Tôi thấy bài tuyển cộng tác viên mạo danh Shopee dẫn tới nhanqua-shopee.vip. Người đăng yêu cầu liên hệ qua tài khoản riêng để chốt đơn. Tôi gửi ảnh bài đăng và nội dung trao đổi.'), (SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'APPROVE', 'Minh chứng đủ căn cứ xác nhận hành vi mạo danh tuyển cộng tác viên.', 'IN_REVIEW', 'APPROVED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2130 minutes' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi nhận tin nhắn báo trúng quà Shopee và yêu cầu trả phí giao hàng. Tôi nghi tin nhắn liên quan đến nhanqua-shopee.vip, nhưng ảnh đính kèm chưa thể hiện đường dẫn này.'), (SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'REJECT', 'Từ chối báo cáo do trùng lặp, nhầm đối tượng hoặc chưa đủ căn cứ xác minh.', 'IN_REVIEW', 'REJECTED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('11490 minutes' AS interval)),
+((SELECT id FROM reports WHERE description = 'Tôi thấy quảng cáo mạo danh Shopee, hứa trả hoa hồng khi đặt đơn và dẫn tới nhanqua-shopee.vip. Tôi gửi ảnh quảng cáo có hiển thị đường dẫn để nhờ kiểm tra.'), (SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'APPROVE', 'Minh chứng đủ căn cứ xác nhận hành vi mạo danh tuyển cộng tác viên.', 'IN_REVIEW', 'APPROVED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12930 minutes' AS interval)),
+((SELECT id FROM reports WHERE description = 'Số 0912443882 gọi thông báo thuê bao của tôi sẽ bị khóa trong hai giờ và yêu cầu đọc mã OTP để xác minh. Tôi không cung cấp mã và lưu lại tin nhắn hướng dẫn để báo cáo.'), (SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'APPROVE', 'Đối chiếu tin nhắn yêu cầu cung cấp OTP và thông tin cuộc gọi; xác nhận dấu hiệu giả danh nhà mạng.', 'IN_REVIEW', 'APPROVED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1425 minutes' AS interval));
 
--- 8 số điện thoại và tài khoản ngân hàng mẫu được xác nhận vào blacklist.
-INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, source_report_id,
-                                  confirmed_at, public_reason)
-SELECT i.id, NULL, 'ACTIVE', admin.id, r.id,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
-       'Chỉ báo mẫu được đưa vào danh sách cảnh báo'
-FROM (VALUES
-    ('PHONE', '0236.688.8766'),
-    ('BANK_ACCOUNT', '061810876'),
-    ('PHONE', '02488860469'),
-    ('BANK_ACCOUNT', '19040027069013'),
-    ('PHONE', '0889050231'),
-    ('PHONE', '0917896904'),
-    ('BANK_ACCOUNT', '10981888886'),
-    ('BANK_ACCOUNT', '0375588149')
-) AS v(type, value)
-JOIN indicators i ON i.type = v.type AND i.normalized_value = v.value
-JOIN users admin ON admin.email = 'admin@scamshield.vn'
-JOIN LATERAL (
-    SELECT id FROM reports
-    WHERE indicator_id = i.id AND status IN ('APPROVED', 'MERGED')
-    ORDER BY id LIMIT 1
-) r ON true
-WHERE NOT EXISTS (
-    SELECT 1 FROM confirmed_indicators ci WHERE ci.indicator_id = i.id
-);
+-- Giao dịch điểm theo quyết định phê duyệt (3 bản ghi)
+INSERT INTO reputation_transactions (user_id, points_delta, reason_code, reference_type, reference_id, created_at) VALUES
+((SELECT reporter_user_id FROM reports WHERE description = 'Tôi thấy bài tuyển cộng tác viên mạo danh Shopee dẫn tới nhanqua-shopee.vip. Người đăng yêu cầu liên hệ qua tài khoản riêng để chốt đơn. Tôi gửi ảnh bài đăng và nội dung trao đổi.'), 50, 'REPORT_APPROVED', 'REPORT', (SELECT id FROM reports WHERE description = 'Tôi thấy bài tuyển cộng tác viên mạo danh Shopee dẫn tới nhanqua-shopee.vip. Người đăng yêu cầu liên hệ qua tài khoản riêng để chốt đơn. Tôi gửi ảnh bài đăng và nội dung trao đổi.'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2130 minutes' AS interval)),
+((SELECT reporter_user_id FROM reports WHERE description = 'Tôi thấy quảng cáo mạo danh Shopee, hứa trả hoa hồng khi đặt đơn và dẫn tới nhanqua-shopee.vip. Tôi gửi ảnh quảng cáo có hiển thị đường dẫn để nhờ kiểm tra.'), 50, 'REPORT_APPROVED', 'REPORT', (SELECT id FROM reports WHERE description = 'Tôi thấy quảng cáo mạo danh Shopee, hứa trả hoa hồng khi đặt đơn và dẫn tới nhanqua-shopee.vip. Tôi gửi ảnh quảng cáo có hiển thị đường dẫn để nhờ kiểm tra.'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12930 minutes' AS interval)),
+((SELECT reporter_user_id FROM reports WHERE description = 'Số 0912443882 gọi thông báo thuê bao của tôi sẽ bị khóa trong hai giờ và yêu cầu đọc mã OTP để xác minh. Tôi không cung cấp mã và lưu lại tin nhắn hướng dẫn để báo cáo.'), 50, 'REPORT_APPROVED', 'REPORT', (SELECT id FROM reports WHERE description = 'Số 0912443882 gọi thông báo thuê bao của tôi sẽ bị khóa trong hai giờ và yêu cầu đọc mã OTP để xác minh. Tôi không cung cấp mã và lưu lại tin nhắn hướng dẫn để báo cáo.'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1425 minutes' AS interval));
 
--- 50 URL blacklist từ dữ liệu đầu vào: không suy đoán danh mục lừa đảo.
-INSERT INTO confirmed_indicators (indicator_id, category_id, status, confirmed_by, source_report_id,
-                                  confirmed_at, public_reason)
-SELECT i.id, NULL, 'ACTIVE', u.id, r.id,
-       CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh',
-       'URL nằm trong danh sách cảnh báo được cung cấp cho admin xác nhận'
-FROM (VALUES
-    ('formulary-hype-squad-event.com'),
-    ('23.94.136.170'),
-    ('id9828.shop'),
-    ('biuvca.top'),
-    ('1.20.150.71'),
-    ('fq8bgcyp3t.suijidaohxl.top'),
-    ('juzhen202601.com'),
-    ('327012.xyz'),
-    ('ka7edrsxzm.suijidaohxl.top'),
-    ('ggptt.biz'),
-    ('777t87u8.weebly.com'),
-    ('yhhld.gpjfuh.info'),
-    ('mail.calvarylight.com'),
-    ('xgtnkehtzn.suijidaohxl.top'),
-    ('15.181.16.225'),
-    ('dros-spaz-vlin-145-krum-zlantex-vub-680.pages.dev'),
-    ('padgnwtnm4.suijidaohxl.top'),
-    ('netflixnet.webmailsegurancasempreltda.store'),
-    ('ntdy8m8yac.3355799com-dh.top'),
-    ('kcdxh8n5hd.suijidaohxl.top'),
-    ('mebh4hbwyy.suijidaohxl.top'),
-    ('revollutbonus.cfd'),
-    ('uhsvdcnvvvd.cfd'),
-    ('rtryfx.blogspot.gr'),
-    ('24onlinetradecity.live'),
-    ('t3w8yf5ji2.suijidaohxl.top'),
-    ('sso-ledgr-com-strt.square.site'),
-    ('atualizacao-mais-seguro-cliente-empresa.000webhostapp.com'),
-    ('mailsyncsss.weebly.com'),
-    ('authorityphire.weebly.com'),
-    ('jhophiqnkjbbntyjvwn.com'),
-    ('com-trackesven.top'),
-    ('sk3ecncejy.suijidaohxl.top'),
-    ('8fbwgu.dzwiekuje.pl'),
-    ('t-mobile.ztrskf.top'),
-    ('myhammockvacations.worldofpowerfulyouth.org'),
-    ('wwuwwwiki2.aomngbr.cc'),
-    ('6g1adz4wfw.622629dhxl.top'),
-    ('teaezorapp.webflow.io'),
-    ('officialpostship.top'),
-    ('haodage.cc'),
-    ('222.149.49.160'),
-    ('thebergsignal-gpt.com'),
-    ('tseswfz.blogspot.am'),
-    ('mentyxrx4y.3355799com-dh.top'),
-    ('iph5sayjxx.suijidaohxl.top'),
-    ('1kxykd5bga.622629dhxl.top'),
-    ('bakermeekins.com'),
-    ('rpkfxtr7jk.suijidaohxl.top'),
-    ('ww17.uhdmovies.foo')
-) AS v(domain)
-JOIN indicators i ON i.type = 'URL' AND i.normalized_value = v.domain
-JOIN users u ON u.email = 'admin@scamshield.vn'
-JOIN LATERAL (
-    SELECT id FROM reports
-    WHERE indicator_id = i.id AND status IN ('APPROVED', 'MERGED')
-    ORDER BY id LIMIT 1
-) r ON true
-WHERE NOT EXISTS (
-    SELECT 1 FROM confirmed_indicators ci WHERE ci.indicator_id = i.id
-);
+-- 21. disputes (23 bản ghi)
+INSERT INTO disputes (confirmed_indicator_id, submitted_by_user_id, reason, status, created_at, submitter_name, submitter_contact, priority, progress_message, estimated_resolution_at, supplement_reason, supplement_deadline, assigned_to, resolved_by, resolution_reason, resolution_document_url, updated_at, resolved_at) VALUES
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'nhanqua-shopee.vip')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'Trang này là web nội bộ của tôi, không lừa đảo', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL, 'NORMAL', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0912443882')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:extra-vana-overdue-phone — Đề nghị xem xét lại cảnh báo giả mạo nhà mạng trên số điện thoại.', 'NEEDS_MORE_INFO', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'HIGH', 'Chưa nhận được chứng từ thuê bao và nội dung cuộc gọi, đã quá hạn bổ sung.', NULL, 'Cung cấp hợp đồng thuê bao và nội dung cuộc gọi cần đối chiếu.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12 hours' AS interval), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0919000091')), (SELECT id FROM users WHERE email = 'ha.le@gmail.com'), 'DISPUTE-MOCK:extra-ha-review-phone — Hotline chăm sóc khách hàng bị báo cáo là số mạo danh.', 'IN_REVIEW', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('6 hours' AS interval), 'Lê Thanh Hà', 'ha.le@gmail.com', 'HIGH', 'Đang đối chiếu hợp đồng đầu số và gọi xác minh đơn vị cung cấp dịch vụ.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('1 days' AS interval), NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0919000091')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:review-hotline — Hotline doanh nghiệp bị nhầm với số mạo danh.', 'IN_REVIEW', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('6 hours' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'HIGH', 'Đang đối chiếu giấy phép kinh doanh và chứng từ sở hữu đầu số.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('22 hours' AS interval), NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-partner.example')), (SELECT id FROM users WHERE email = 'partner@shopee.vn'), 'DISPUTE-MOCK:partner-private — Hồ sơ riêng của tài khoản đối tác để kiểm tra phân quyền.', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 hours' AS interval), 'Shopee Partner', 'partner@shopee.vn', 'NORMAL', 'Đã tiếp nhận hồ sơ của đối tác.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('47 hours' AS interval), NULL, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-pending.example')), (SELECT id FROM users WHERE email = 'linh.pham@gmail.com'), 'DISPUTE-MOCK:extra-linh-review-domain — Đề nghị xác minh website chính chủ đang bị gắn cảnh báo sai.', 'IN_REVIEW', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('18 hours' AS interval), 'Phạm Ngọc Linh', 'linh.pham@gmail.com', 'HIGH', 'Đã xác nhận người gửi, đang rà soát giao dịch và cấu hình tên miền.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('6 hours' AS interval), NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-pending.example')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:pending-domain — Tên miền chính chủ bị gắn nhãn nhầm.', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 hours' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'NORMAL', 'Đã tiếp nhận hồ sơ, đang chờ phân công người thẩm định.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('47 hours' AS interval), NULL, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0919000092')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:restored-phone — Số điện thoại chính chủ bị gắn nhãn sai.', 'APPROVED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'NORMAL', 'Đã hoàn tất thẩm định và giải tỏa chỉ số trong ScamShield.', NULL, NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'Chứng từ thuê đầu số hợp lệ; chấp nhận khiếu nại và thu hồi xác thực blacklist.', 'https://files.example/disputes/restored-phone/bien-ban-giai-toa.pdf', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('54 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('54 hours' AS interval)),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-rejected.example')), (SELECT id FROM users WHERE email = 'bao.nguyen@gmail.com'), 'DISPUTE-MOCK:extra-bao-rejected-domain — Yêu cầu gỡ cảnh báo trên tên miền do tôi quản lý.', 'REJECTED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('4 days' AS interval), 'Nguyễn Gia Bảo', 'bao.nguyen@gmail.com', 'NORMAL', 'Đã hoàn tất thẩm định, giữ nguyên cảnh báo vì chưa xác minh được quyền sở hữu.', NULL, NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'Tài liệu cung cấp không khớp tên miền và thông tin nhà đăng ký; từ chối khiếu nại.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval)),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-rejected.example')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:rejected-domain — Đề nghị xem xét lại kết quả xác thực tên miền.', 'REJECTED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 days' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'NORMAL', 'Đã hoàn tất thẩm định, giữ nguyên xác thực blacklist.', NULL, NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'Bằng chứng chưa chứng minh quyền sở hữu hợp lệ; khiếu nại bị từ chối, xác thực blacklist vẫn còn hiệu lực.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1368 minutes' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1368 minutes' AS interval)),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-BANK-003')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:rejected-bank — Đề nghị giải tỏa tài khoản ngân hàng đang bị cảnh báo.', 'REJECTED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('36 hours' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'NORMAL', 'Đã hoàn tất kiểm tra hồ sơ; giữ nguyên xác thực blacklist.', NULL, NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'Tài liệu không khớp thông tin chủ tài khoản; từ chối khiếu nại.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('26 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('26 hours' AS interval)),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-LINH-VERIFIED')), (SELECT id FROM users WHERE email = 'linh.pham@gmail.com'), 'DISPUTE-MOCK:extra-linh-approved-bank — Tài khoản ngân hàng chính chủ bị gắn cảnh báo do nhầm số tài khoản.', 'APPROVED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('36 hours' AS interval), 'Phạm Ngọc Linh', 'linh.pham@gmail.com', 'HIGH', 'Ngân hàng đã xác nhận thông tin chính chủ; xác thực blacklist được thu hồi.', NULL, NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'Đã đối chiếu xác nhận ngân hàng và sao kê, chấp nhận khiếu nại do nhầm đối tượng.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12 hours' AS interval)),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-approved-active.example')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:approved-awaiting-retraction — Đã cung cấp bằng chứng quyền sở hữu tên miền hợp lệ.', 'APPROVED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('9 hours' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'HIGH', 'Đã chấp nhận khiếu nại và thu hồi xác thực blacklist.', NULL, NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'Chấp nhận khiếu nại và thu hồi xác thực blacklist sai sau khi xác minh quyền sở hữu tên miền.', 'https://files.example/disputes/approved-awaiting-retraction/quyet-dinh.pdf', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 hours' AS interval)),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-supplement-overdue.example')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:supplement-overdue — Yêu cầu xác minh lại tên miền bị gắn nhãn sai.', 'NEEDS_MORE_INFO', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'NORMAL', 'Chưa nhận được tài liệu bổ sung; hạn bổ sung đã hết.', NULL, 'Bổ sung chứng nhận sở hữu tên miền và hóa đơn của nhà đăng ký.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-BANK-001')), (SELECT id FROM users WHERE email = 'khoi.tran@gmail.com'), 'DISPUTE-MOCK:extra-khoi-pending-bank — Tài khoản nhận tiền bán hàng của tôi bị gắn cảnh báo nhầm.', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 hours' AS interval), 'Trần Minh Khôi', 'khoi.tran@gmail.com', 'HIGH', 'Đã tiếp nhận hồ sơ ngân hàng, đang chờ phân công người đối chiếu.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('46 hours' AS interval), NULL, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-BANK-001')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:supplement-bank — Tài khoản ngân hàng của tôi bị báo cáo sai.', 'NEEDS_MORE_INFO', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'NORMAL', 'Hồ sơ cần bổ sung bằng chứng trước khi tiếp tục thẩm định.', NULL, 'Vui lòng bổ sung sao kê giao dịch và giấy xác nhận chủ tài khoản.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('2 days' AS interval), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-techcorp.example')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:restored-domain — Tên miền doanh nghiệp bị giả mạo dẫn đến gắn nhãn sai.', 'APPROVED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('4 days' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'HIGH', 'Đã hoàn tất thẩm định và thu hồi xác thực blacklist sai.', NULL, NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'Đã xác minh quyền sở hữu tên miền và chấp nhận khiếu nại. Xác thực blacklist trong ScamShield đã được thu hồi.', 'https://files.example/disputes/restored-domain/quyet-dinh-giai-toa.pdf', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('84 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('84 hours' AS interval)),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'PHONE' AND normalized_value = '0919000094')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:pending-phone-empty — Số điện thoại cá nhân bị nhầm là số mạo danh.', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('30 minutes' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'NORMAL', 'Đã tiếp nhận hồ sơ; chưa có tệp đính kèm.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('47 hours' AS interval), NULL, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-BANK-002')), (SELECT id FROM users WHERE email = 'ha.le@gmail.com'), 'DISPUTE-MOCK:extra-ha-needs-more-bank — Đề nghị kiểm tra lại cảnh báo trên tài khoản ngân hàng cá nhân.', 'NEEDS_MORE_INFO', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 days' AS interval), 'Lê Thanh Hà', 'ha.le@gmail.com', 'NORMAL', 'Cần sao kê và giấy xác nhận ngân hàng để tiếp tục xử lý.', NULL, 'Bổ sung sao kê giao dịch và xác nhận chủ tài khoản trong 48 giờ.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('2 days' AS interval), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'BANK_ACCOUNT' AND normalized_value = 'MOCK-DSP-BANK-002')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:pending-bank — Đề nghị xác minh lại tài khoản ngân hàng bị báo cáo nhầm.', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 hours' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'NORMAL', 'Đã tiếp nhận hồ sơ tài khoản ngân hàng, chờ phân công thẩm định.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('46 hours' AS interval), NULL, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-khoi-verified.example')), (SELECT id FROM users WHERE email = 'khoi.tran@gmail.com'), 'DISPUTE-MOCK:extra-khoi-approved-domain — Tên miền tuyển dụng nội bộ bị nhầm với trang tuyển cộng tác viên giả.', 'APPROVED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 days' AS interval), 'Trần Minh Khôi', 'khoi.tran@gmail.com', 'HIGH', 'Đã xác minh quyền sở hữu tên miền và thu hồi xác thực blacklist sai.', NULL, NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'Chứng nhận tên miền và thông tin doanh nghiệp trùng khớp; chấp nhận khiếu nại.', NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval)),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-review-shop.example')), (SELECT id FROM users WHERE email = 'bao.nguyen@gmail.com'), 'DISPUTE-MOCK:extra-bao-pending-store — Cửa hàng trực tuyến bị nhầm với website thu thập thông tin thẻ.', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('30 minutes' AS interval), 'Nguyễn Gia Bảo', 'bao.nguyen@gmail.com', 'NORMAL', 'Hồ sơ mới tiếp nhận, người gửi chưa đính kèm tài liệu.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('47 hours' AS interval), NULL, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL),
+((SELECT id FROM confirmed_indicators WHERE indicator_id = (SELECT id FROM indicators WHERE type = 'URL' AND normalized_value = 'dispute-review-shop.example')), (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'DISPUTE-MOCK:review-shop — Website cửa hàng chính chủ bị gắn nhãn lừa đảo.', 'IN_REVIEW', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12 hours' AS interval), 'Nguyễn Văn A', 'nguyenvana@gmail.com', 'HIGH', 'Đang kiểm tra quyền quản trị tên miền và đối chiếu chứng từ giao dịch của cửa hàng.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) + CAST('4 hours' AS interval), NULL, NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn'), NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL);
 
--- 19. report_evidence
--- Report được duyệt chỉ sau khi toàn bộ bằng chứng đã VERIFIED.
-INSERT INTO report_evidence (report_id, evidence_type, verification_status, created_at)
-SELECT r.id, 'SCREENSHOT', 'VERIFIED', r.created_at
-FROM reports r
-JOIN users u ON u.id = r.reporter_user_id
-JOIN indicators i ON i.id = r.indicator_id
-WHERE u.email = 'nguyenvana@gmail.com' AND i.normalized_value = '0987654321'
-  AND r.description IS NULL AND r.status = 'APPROVED'
-  AND NOT EXISTS (SELECT 1 FROM report_evidence e WHERE e.report_id = r.id);
+-- 22. dispute_evidence (24 bản ghi)
+INSERT INTO dispute_evidence (dispute_id, evidence_type, verification_status, created_at, file_name, file_url, description) VALUES
+((SELECT id FROM disputes WHERE reason = 'Trang này là web nội bộ của tôi, không lừa đảo'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL, NULL),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:pending-domain — Tên miền chính chủ bị gắn nhãn nhầm.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('55 minutes' AS interval), 'xac-nhan-ten-mien.pdf', 'https://files.example/disputes/pending-domain/xac-nhan-ten-mien.pdf', 'Giấy xác nhận đăng ký tên miền.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:review-hotline — Hotline doanh nghiệp bị nhầm với số mạo danh.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('355 minutes' AS interval), 'giay-phep-kinh-doanh.pdf', 'https://files.example/disputes/review-hotline/giay-phep-kinh-doanh.pdf', 'Giấy phép đăng ký kinh doanh của doanh nghiệp mẫu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:review-hotline — Hotline doanh nghiệp bị nhầm với số mạo danh.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('355 minutes' AS interval), 'hop-dong-thue-dau-so.pdf', 'https://files.example/disputes/review-hotline/hop-dong-thue-dau-so.pdf', 'Hợp đồng thuê đầu số hotline.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:supplement-bank — Tài khoản ngân hàng của tôi bị báo cáo sai.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1435 minutes' AS interval), 'xac-nhan-chu-tai-khoan.pdf', 'https://files.example/disputes/supplement-bank/xac-nhan-chu-tai-khoan.pdf', 'Bản xác nhận tài khoản cần đối chiếu thêm sao kê.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:restored-domain — Tên miền doanh nghiệp bị giả mạo dẫn đến gắn nhãn sai.'), 'DOCUMENT', 'VERIFIED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('5755 minutes' AS interval), 'chung-nhan-so-huu-domain.pdf', 'https://files.example/disputes/restored-domain/chung-nhan-so-huu-domain.pdf', 'Chứng nhận quyền sở hữu tên miền đã được đối chiếu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:restored-phone — Số điện thoại chính chủ bị gắn nhãn sai.'), 'DOCUMENT', 'VERIFIED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('4315 minutes' AS interval), 'hop-dong-vien-thong.pdf', 'https://files.example/disputes/restored-phone/hop-dong-vien-thong.pdf', 'Hợp đồng thuê đầu số chính chủ đã được đối chiếu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:rejected-domain — Đề nghị xem xét lại kết quả xác thực tên miền.'), 'DOCUMENT', 'REJECTED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2875 minutes' AS interval), 'minh-chung-khieu-nai.pdf', 'https://files.example/disputes/rejected-domain/minh-chung-khieu-nai.pdf', 'Tài liệu không đủ cơ sở xác minh quyền sở hữu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:partner-private — Hồ sơ riêng của tài khoản đối tác để kiểm tra phân quyền.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('115 minutes' AS interval), 'tai-lieu-doi-tac.pdf', 'https://files.example/disputes/partner-private/tai-lieu-doi-tac.pdf', 'Tài liệu riêng của tài khoản đối tác.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:pending-bank — Đề nghị xác minh lại tài khoản ngân hàng bị báo cáo nhầm.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('115 minutes' AS interval), 'xac-nhan-tai-khoan.pdf', 'https://files.example/disputes/pending-bank/xac-nhan-tai-khoan.pdf', 'Thông tin tài khoản chờ đối chiếu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:review-shop — Website cửa hàng chính chủ bị gắn nhãn lừa đảo.'), 'DOCUMENT', 'VERIFIED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('715 minutes' AS interval), 'chung-nhan-ten-mien.pdf', 'https://files.example/disputes/review-shop/chung-nhan-ten-mien.pdf', 'Chứng nhận tên miền cửa hàng.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:review-shop — Website cửa hàng chính chủ bị gắn nhãn lừa đảo.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('715 minutes' AS interval), 'hoa-don-giao-dich.pdf', 'https://files.example/disputes/review-shop/hoa-don-giao-dich.pdf', 'Hóa đơn đang được đối chiếu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:supplement-overdue — Yêu cầu xác minh lại tên miền bị gắn nhãn sai.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('4315 minutes' AS interval), 'anh-website.png', 'https://files.example/disputes/supplement-overdue/anh-website.png', 'Ảnh website chưa đủ xác nhận quyền sở hữu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:approved-awaiting-retraction — Đã cung cấp bằng chứng quyền sở hữu tên miền hợp lệ.'), 'DOCUMENT', 'VERIFIED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('535 minutes' AS interval), 'chung-nhan-so-huu.pdf', 'https://files.example/disputes/approved-awaiting-retraction/chung-nhan-so-huu.pdf', 'Chứng nhận quyền sở hữu đã được xác minh.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:rejected-bank — Đề nghị giải tỏa tài khoản ngân hàng đang bị cảnh báo.'), 'DOCUMENT', 'REJECTED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2155 minutes' AS interval), 'giay-xac-nhan.pdf', 'https://files.example/disputes/rejected-bank/giay-xac-nhan.pdf', 'Tài liệu không khớp chủ tài khoản.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-khoi-pending-bank — Tài khoản nhận tiền bán hàng của tôi bị gắn cảnh báo nhầm.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('115 minutes' AS interval), 'giao-dich-ban-hang.pdf', 'https://files.example/disputes/extra-khoi-pending-bank/giao-dich-ban-hang.pdf', 'Giao dịch cần được đối chiếu với ngân hàng.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-khoi-approved-domain — Tên miền tuyển dụng nội bộ bị nhầm với trang tuyển cộng tác viên giả.'), 'DOCUMENT', 'VERIFIED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('4315 minutes' AS interval), 'chung-nhan-ten-mien.pdf', 'https://files.example/disputes/extra-khoi-approved-domain/chung-nhan-ten-mien.pdf', 'Quyền sở hữu tên miền đã được xác minh.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-ha-review-phone — Hotline chăm sóc khách hàng bị báo cáo là số mạo danh.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('355 minutes' AS interval), 'hop-dong-dau-so.pdf', 'https://files.example/disputes/extra-ha-review-phone/hop-dong-dau-so.pdf', 'Hợp đồng thuê đầu số đang được đối chiếu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-ha-review-phone — Hotline chăm sóc khách hàng bị báo cáo là số mạo danh.'), 'DOCUMENT', 'VERIFIED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('355 minutes' AS interval), 'giay-phep-doanh-nghiep.pdf', 'https://files.example/disputes/extra-ha-review-phone/giay-phep-doanh-nghiep.pdf', 'Thông tin doanh nghiệp đã được đối chiếu.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-ha-needs-more-bank — Đề nghị kiểm tra lại cảnh báo trên tài khoản ngân hàng cá nhân.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2875 minutes' AS interval), 'anh-tai-khoan.png', 'https://files.example/disputes/extra-ha-needs-more-bank/anh-tai-khoan.png', 'Ảnh tài khoản chưa thay thế được giấy xác nhận ngân hàng.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-bao-rejected-domain — Yêu cầu gỡ cảnh báo trên tên miền do tôi quản lý.'), 'DOCUMENT', 'REJECTED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('5755 minutes' AS interval), 'xac-nhan-ten-mien.pdf', 'https://files.example/disputes/extra-bao-rejected-domain/xac-nhan-ten-mien.pdf', 'Tên miền trong tài liệu không khớp hồ sơ.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-linh-review-domain — Đề nghị xác minh website chính chủ đang bị gắn cảnh báo sai.'), 'DOCUMENT', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1075 minutes' AS interval), 'hoa-don-giao-dich.pdf', 'https://files.example/disputes/extra-linh-review-domain/hoa-don-giao-dich.pdf', 'Hóa đơn đang được kiểm tra tính hợp lệ.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-linh-approved-bank — Tài khoản ngân hàng chính chủ bị gắn cảnh báo do nhầm số tài khoản.'), 'DOCUMENT', 'VERIFIED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2155 minutes' AS interval), 'xac-nhan-ngan-hang.pdf', 'https://files.example/disputes/extra-linh-approved-bank/xac-nhan-ngan-hang.pdf', 'Ngân hàng xác nhận tài khoản chính chủ.'),
+((SELECT id FROM disputes WHERE reason = 'DISPUTE-MOCK:extra-linh-approved-bank — Tài khoản ngân hàng chính chủ bị gắn cảnh báo do nhầm số tài khoản.'), 'DOCUMENT', 'VERIFIED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2155 minutes' AS interval), 'sao-ke.pdf', 'https://files.example/disputes/extra-linh-approved-bank/sao-ke.pdf', 'Sao kê phù hợp với thông tin khiếu nại.');
 
-INSERT INTO report_evidence (report_id, evidence_type, verification_status, created_at)
-SELECT r.id, 'SCREENSHOT', CASE WHEN r.status = 'APPROVED' THEN 'VERIFIED' ELSE 'PENDING' END, r.created_at
-FROM reports r
-WHERE r.description LIKE 'REPORT-MOCK:%'
-  AND NOT EXISTS (SELECT 1 FROM report_evidence e WHERE e.report_id = r.id);
+-- 23. abuse_flags (8 bản ghi)
+INSERT INTO abuse_flags (user_id, flag_type, severity, status, created_at, report_id, created_by_user_id, reason, evidence) VALUES
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'SPAM', 'LOW', 'OPEN', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL, NULL, NULL),
+((SELECT id FROM users WHERE email = 'ha.le@gmail.com'), 'BULK_REPORTING', 'HIGH', 'OPEN', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 days' AS interval), (SELECT id FROM reports WHERE description = 'Tôi nhận tin nhắn báo trúng quà Shopee và yêu cầu trả phí giao hàng. Tôi nghi tin nhắn liên quan đến nhanqua-shopee.vip, nhưng ảnh đính kèm chưa thể hiện đường dẫn này.'), (SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'ABUSE-MOCK:ha-open — Đã xác nhận lặp lại cáo buộc thiếu căn cứ sau khi được hướng dẫn bổ sung.', 'Hồ sơ cũ ghi nhận report ha-05; gắn cờ theo dõi, tài khoản vẫn hoạt động.'),
+((SELECT id FROM users WHERE email = 'bao.nguyen@gmail.com'), 'OTHER', 'MEDIUM', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 hours' AS interval), (SELECT id FROM reports WHERE description = 'Tôi nhận cuộc gọi từ số 0987654321 tự xưng cán bộ điều tra, nói tôi liên quan đến một vụ án và yêu cầu chuyển tiền vào tài khoản an toàn. Tôi chưa chuyển tiền, đã lưu tin nhắn và lịch sử cuộc gọi.'), (SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'ABUSE-MOCK:bao-pending — Cần đối chiếu nguồn thông tin của các báo cáo đang chờ xử lý trước khi đánh giá.', 'Kiểm tra report bao-01; đây là nghi vấn, chưa xác nhận vi phạm.'),
+((SELECT id FROM users WHERE email = 'khoi.tran@gmail.com'), 'BULK_REPORTING', 'MEDIUM', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 hours' AS interval), (SELECT id FROM reports WHERE description = 'Một tài khoản mời tôi làm việc tại nhà và gửi nhanqua-shopee.vip. Tôi chưa giao dịch và gửi ảnh hội thoại cùng bài tuyển người để nhờ kiểm tra.'), (SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'ABUSE-MOCK:khoi-pending — Nhiều báo cáo trong ngày nhắm vào các đối tượng khác nhau, có nội dung lặp lại.', 'Đối chiếu report khoi-01 và lịch sử hoạt động trước khi kết luận.'),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'BULK_REPORTING', 'MEDIUM', 'OPEN', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('8 days' AS interval), (SELECT id FROM reports WHERE description = 'Tôi nhận thêm lời mời làm cộng tác viên qua nhanqua-shopee.vip. Tôi gửi lại ảnh hội thoại từ lần trước, sau đó thu hồi vì chưa có minh chứng mới.'), (SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'ABUSE-MOCK:vana-open — Hồ sơ cũ xác nhận lặp lại báo cáo không có bằng chứng bổ sung về cùng đối tượng.', 'Đối chiếu report vana-02; cờ này độc lập với các hồ sơ khác của tài khoản.'),
+((SELECT id FROM users WHERE email = 'ha.le@gmail.com'), 'REPEATED_UNFOUNDED_REPORTING', 'MEDIUM', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 hours' AS interval), (SELECT id FROM reports WHERE description = 'Tôi nhận tin nhắn báo trúng quà Shopee và yêu cầu trả phí giao hàng. Tôi nghi tin nhắn liên quan đến nhanqua-shopee.vip, nhưng ảnh đính kèm chưa thể hiện đường dẫn này.'), (SELECT id FROM users WHERE email = 'moderator@scamshield.vn'), 'ABUSE-MOCK:ha-pending — Cần xem xét báo cáo trúng thưởng chưa đủ căn cứ liên hệ với tên miền.', 'Báo cáo trúng thưởng đã bị từ chối vì minh chứng chưa liên hệ được với tên miền. Admin đang xem xét bối cảnh.'),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'OTHER', 'LOW', 'DISMISSED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval), (SELECT id FROM reports WHERE description = 'Tôi chuyển 500.000 đồng vào tài khoản VPBank 104889201992 để làm nhiệm vụ mua hàng nhận hoa hồng. Sau đó người hướng dẫn yêu cầu nạp thêm mới được rút vốn. Tôi gửi ảnh hội thoại có thông tin nhận tiền và yêu cầu nạp thêm.'), (SELECT id FROM users WHERE email = 'moderator@scamshield.vn'), 'ABUSE-MOCK:vana-dismissed — Đã xem xét nghi vấn và không xác nhận hành vi lạm dụng khi gửi báo cáo mới.', 'Report vana-03 vẫn được thẩm định theo luồng báo cáo thông thường.'),
+((SELECT id FROM users WHERE email = 'linh.pham@gmail.com'), 'BULK_REPORTING', 'MEDIUM', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('4 hours' AS interval), (SELECT id FROM reports WHERE description = 'Số 0912443882 gọi thông báo thuê bao của tôi sẽ bị khóa trong hai giờ và yêu cầu đọc mã OTP để xác minh. Tôi không cung cấp mã và lưu lại tin nhắn hướng dẫn để báo cáo.'), (SELECT id FROM users WHERE email = 'moderator@scamshield.vn'), 'ABUSE-MOCK:linh-pending — Gửi nhiều báo cáo mới trong thời gian ngắn, cần kiểm tra tính độc lập của nội dung.', 'Report linh-01 đang chờ thẩm định; chưa hạn chế tài khoản.');
 
--- 20. moderation_actions
-INSERT INTO moderation_actions (report_id, moderator_user_id, action, reason, previous_status, new_status, created_at)
-SELECT r.id, moderator.id, 'APPROVE', 'Đã xét toàn bộ bằng chứng và xác minh hợp lệ.', 'IN_REVIEW', 'APPROVED', r.updated_at
-FROM reports r
-JOIN users reporter ON reporter.id = r.reporter_user_id
-JOIN indicators i ON i.id = r.indicator_id
-JOIN users moderator ON moderator.email = 'admin@scamshield.vn'
-WHERE reporter.email = 'nguyenvana@gmail.com' AND i.normalized_value = '0987654321'
-  AND r.description IS NULL AND r.status = 'APPROVED'
-  AND NOT EXISTS (SELECT 1 FROM moderation_actions a WHERE a.report_id = r.id);
+-- 24. abuse_flag_reports (7 bản ghi)
+INSERT INTO abuse_flag_reports (abuse_flag_id, report_id) VALUES
+((SELECT id FROM abuse_flags WHERE user_id = (SELECT id FROM users WHERE email = 'ha.le@gmail.com') AND flag_type = 'BULK_REPORTING' AND status = 'OPEN' AND reason = 'ABUSE-MOCK:ha-open — Đã xác nhận lặp lại cáo buộc thiếu căn cứ sau khi được hướng dẫn bổ sung.'), (SELECT id FROM reports WHERE description = 'Tôi nhận tin nhắn báo trúng quà Shopee và yêu cầu trả phí giao hàng. Tôi nghi tin nhắn liên quan đến nhanqua-shopee.vip, nhưng ảnh đính kèm chưa thể hiện đường dẫn này.')),
+((SELECT id FROM abuse_flags WHERE user_id = (SELECT id FROM users WHERE email = 'bao.nguyen@gmail.com') AND flag_type = 'OTHER' AND status = 'PENDING' AND reason = 'ABUSE-MOCK:bao-pending — Cần đối chiếu nguồn thông tin của các báo cáo đang chờ xử lý trước khi đánh giá.'), (SELECT id FROM reports WHERE description = 'Tôi nhận cuộc gọi từ số 0987654321 tự xưng cán bộ điều tra, nói tôi liên quan đến một vụ án và yêu cầu chuyển tiền vào tài khoản an toàn. Tôi chưa chuyển tiền, đã lưu tin nhắn và lịch sử cuộc gọi.')),
+((SELECT id FROM abuse_flags WHERE user_id = (SELECT id FROM users WHERE email = 'khoi.tran@gmail.com') AND flag_type = 'BULK_REPORTING' AND status = 'PENDING' AND reason = 'ABUSE-MOCK:khoi-pending — Nhiều báo cáo trong ngày nhắm vào các đối tượng khác nhau, có nội dung lặp lại.'), (SELECT id FROM reports WHERE description = 'Một tài khoản mời tôi làm việc tại nhà và gửi nhanqua-shopee.vip. Tôi chưa giao dịch và gửi ảnh hội thoại cùng bài tuyển người để nhờ kiểm tra.')),
+((SELECT id FROM abuse_flags WHERE user_id = (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com') AND flag_type = 'BULK_REPORTING' AND status = 'OPEN' AND reason = 'ABUSE-MOCK:vana-open — Hồ sơ cũ xác nhận lặp lại báo cáo không có bằng chứng bổ sung về cùng đối tượng.'), (SELECT id FROM reports WHERE description = 'Tôi nhận thêm lời mời làm cộng tác viên qua nhanqua-shopee.vip. Tôi gửi lại ảnh hội thoại từ lần trước, sau đó thu hồi vì chưa có minh chứng mới.')),
+((SELECT id FROM abuse_flags WHERE user_id = (SELECT id FROM users WHERE email = 'ha.le@gmail.com') AND flag_type = 'REPEATED_UNFOUNDED_REPORTING' AND status = 'PENDING' AND reason = 'ABUSE-MOCK:ha-pending — Cần xem xét báo cáo trúng thưởng chưa đủ căn cứ liên hệ với tên miền.'), (SELECT id FROM reports WHERE description = 'Tôi nhận tin nhắn báo trúng quà Shopee và yêu cầu trả phí giao hàng. Tôi nghi tin nhắn liên quan đến nhanqua-shopee.vip, nhưng ảnh đính kèm chưa thể hiện đường dẫn này.')),
+((SELECT id FROM abuse_flags WHERE user_id = (SELECT id FROM users WHERE email = 'nguyenvana@gmail.com') AND flag_type = 'OTHER' AND status = 'DISMISSED' AND reason = 'ABUSE-MOCK:vana-dismissed — Đã xem xét nghi vấn và không xác nhận hành vi lạm dụng khi gửi báo cáo mới.'), (SELECT id FROM reports WHERE description = 'Tôi chuyển 500.000 đồng vào tài khoản VPBank 104889201992 để làm nhiệm vụ mua hàng nhận hoa hồng. Sau đó người hướng dẫn yêu cầu nạp thêm mới được rút vốn. Tôi gửi ảnh hội thoại có thông tin nhận tiền và yêu cầu nạp thêm.')),
+((SELECT id FROM abuse_flags WHERE user_id = (SELECT id FROM users WHERE email = 'linh.pham@gmail.com') AND flag_type = 'BULK_REPORTING' AND status = 'PENDING' AND reason = 'ABUSE-MOCK:linh-pending — Gửi nhiều báo cáo mới trong thời gian ngắn, cần kiểm tra tính độc lập của nội dung.'), (SELECT id FROM reports WHERE description = 'Số 0912443882 gọi thông báo thuê bao của tôi sẽ bị khóa trong hai giờ và yêu cầu đọc mã OTP để xác minh. Tôi không cung cấp mã và lưu lại tin nhắn hướng dẫn để báo cáo.'));
 
--- Chỉ các báo cáo đã APPROVED/REJECTED mới có quyết định; giữ lý do phù hợp với kết quả.
-INSERT INTO moderation_actions (report_id, moderator_user_id, action, reason, previous_status, new_status, created_at)
-SELECT r.id, moderator.id,
-       CASE WHEN r.status = 'APPROVED' THEN 'APPROVE' ELSE 'REJECT' END,
-       CASE WHEN r.status = 'APPROVED'
-            THEN 'Đã đối chiếu nội dung báo cáo với đối tượng và xác nhận dấu hiệu lừa đảo.'
-            ELSE 'Từ chối báo cáo do trùng lặp, nhầm đối tượng hoặc chưa đủ căn cứ xác minh.' END,
-       'IN_REVIEW', r.status, r.updated_at
-FROM reports r
-JOIN users moderator ON moderator.email = 'moderator.phuong@scamshield.vn'
-WHERE r.description LIKE 'REPORT-MOCK:%' AND r.status IN ('APPROVED', 'REJECTED')
-  AND NOT EXISTS (SELECT 1 FROM moderation_actions a WHERE a.report_id = r.id);
-
--- 21. disputes
--- Các hồ sơ extra-* bổ sung 10 trường hợp từ 6 người gửi, đủ 5 trạng thái xử lý.
-INSERT INTO disputes (confirmed_indicator_id, submitted_by_user_id, reason, status, created_at) VALUES
-((SELECT id FROM confirmed_indicators LIMIT 1), (SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'Trang này là web nội bộ của tôi, không lừa đảo', 'PENDING', NOW());
-
-INSERT INTO disputes (confirmed_indicator_id, submitted_by_user_id, submitter_name, submitter_contact,
-                      reason, status, priority, progress_message, estimated_resolution_at,
-                      supplement_reason, supplement_deadline, assigned_to, resolved_by,
-                      resolution_reason, resolution_document_url, created_at, updated_at, resolved_at)
-SELECT ci.id, u.id, u.full_name, u.email, 'DISPUTE-MOCK:' || v.key || ' — ' || v.reason, v.status, v.priority,
-       v.progress_message,
-       CASE WHEN v.estimated_offset IS NOT NULL THEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.estimated_offset ELSE NULL END,
-       v.supplement_reason,
-       CASE WHEN v.supplement_offset IS NOT NULL THEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.supplement_offset ELSE NULL END,
-       CASE WHEN v.status <> 'PENDING' THEN reviewer.id ELSE NULL END,
-       CASE WHEN v.status IN ('APPROVED', 'REJECTED') THEN reviewer.id ELSE NULL END,
-       v.resolution_reason, v.resolution_document_url,
-       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.created_offset,
-       CASE WHEN v.resolved_offset IS NOT NULL THEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.resolved_offset
-            ELSE CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh' END,
-       CASE WHEN v.resolved_offset IS NOT NULL THEN (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') + v.resolved_offset ELSE NULL END
-FROM (VALUES
-    ('pending-domain', 'dispute-pending.example', 'nguyenvana@gmail.com', 'Tên miền chính chủ bị gắn nhãn nhầm.', 'PENDING', 'NORMAL',
-     'Đã tiếp nhận hồ sơ, đang chờ phân công người thẩm định.', INTERVAL '47 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '1 hour', NULL::interval),
-    ('review-hotline', '0919000091', 'nguyenvana@gmail.com', 'Hotline doanh nghiệp bị nhầm với số mạo danh.', 'IN_REVIEW', 'HIGH',
-     'Đang đối chiếu giấy phép kinh doanh và chứng từ sở hữu đầu số.', INTERVAL '22 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '6 hours', NULL::interval),
-    ('supplement-bank', 'MOCK-DSP-BANK-001', 'nguyenvana@gmail.com', 'Tài khoản ngân hàng của tôi bị báo cáo sai.', 'NEEDS_MORE_INFO', 'NORMAL',
-     'Hồ sơ cần bổ sung bằng chứng trước khi tiếp tục thẩm định.', NULL::interval,
-     'Vui lòng bổ sung sao kê giao dịch và giấy xác nhận chủ tài khoản.', INTERVAL '2 days',
-     NULL::text, NULL::text, -INTERVAL '1 day', NULL::interval),
-    ('restored-domain', 'dispute-techcorp.example', 'nguyenvana@gmail.com', 'Tên miền doanh nghiệp bị giả mạo dẫn đến gắn nhãn sai.', 'APPROVED', 'HIGH',
-     'Đã hoàn tất thẩm định và thu hồi xác thực blacklist sai.', NULL::interval, NULL::text, NULL::interval,
-     'Đã xác minh quyền sở hữu tên miền và chấp nhận khiếu nại. Xác thực blacklist trong ScamShield đã được thu hồi.',
-     'https://files.example/disputes/restored-domain/quyet-dinh-giai-toa.pdf', -INTERVAL '96 hours', -INTERVAL '84 hours'),
-    ('restored-phone', '0919000092', 'nguyenvana@gmail.com', 'Số điện thoại chính chủ bị gắn nhãn sai.', 'APPROVED', 'NORMAL',
-     'Đã hoàn tất thẩm định và giải tỏa chỉ số trong ScamShield.', NULL::interval, NULL::text, NULL::interval,
-     'Chứng từ thuê đầu số hợp lệ; chấp nhận khiếu nại và thu hồi xác thực blacklist.',
-     'https://files.example/disputes/restored-phone/bien-ban-giai-toa.pdf', -INTERVAL '72 hours', -INTERVAL '54 hours'),
-    ('rejected-domain', 'dispute-rejected.example', 'nguyenvana@gmail.com', 'Đề nghị xem xét lại kết quả xác thực tên miền.', 'REJECTED', 'NORMAL',
-     'Đã hoàn tất thẩm định, giữ nguyên xác thực blacklist.', NULL::interval, NULL::text, NULL::interval,
-     'Bằng chứng chưa chứng minh quyền sở hữu hợp lệ; khiếu nại bị từ chối, xác thực blacklist vẫn còn hiệu lực.',
-     NULL::text, -INTERVAL '48 hours', -INTERVAL '1368 minutes'),
-    ('partner-private', 'dispute-partner.example', 'partner@shopee.vn', 'Hồ sơ riêng của tài khoản đối tác để kiểm tra phân quyền.', 'PENDING', 'NORMAL',
-     'Đã tiếp nhận hồ sơ của đối tác.', INTERVAL '47 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '2 hours', NULL::interval),
-    ('pending-bank', 'MOCK-DSP-BANK-002', 'nguyenvana@gmail.com', 'Đề nghị xác minh lại tài khoản ngân hàng bị báo cáo nhầm.', 'PENDING', 'NORMAL',
-     'Đã tiếp nhận hồ sơ tài khoản ngân hàng, chờ phân công thẩm định.', INTERVAL '46 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '2 hours', NULL::interval),
-    ('pending-phone-empty', '0919000094', 'nguyenvana@gmail.com', 'Số điện thoại cá nhân bị nhầm là số mạo danh.', 'PENDING', 'NORMAL',
-     'Đã tiếp nhận hồ sơ; chưa có tệp đính kèm.', INTERVAL '47 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '30 minutes', NULL::interval),
-    ('review-shop', 'dispute-review-shop.example', 'nguyenvana@gmail.com', 'Website cửa hàng chính chủ bị gắn nhãn lừa đảo.', 'IN_REVIEW', 'HIGH',
-     'Đang kiểm tra quyền quản trị tên miền và đối chiếu chứng từ giao dịch của cửa hàng.', INTERVAL '4 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '12 hours', NULL::interval),
-    ('supplement-overdue', 'dispute-supplement-overdue.example', 'nguyenvana@gmail.com', 'Yêu cầu xác minh lại tên miền bị gắn nhãn sai.', 'NEEDS_MORE_INFO', 'NORMAL',
-     'Chưa nhận được tài liệu bổ sung; hạn bổ sung đã hết.', NULL::interval,
-     'Bổ sung chứng nhận sở hữu tên miền và hóa đơn của nhà đăng ký.', -INTERVAL '1 day',
-     NULL::text, NULL::text, -INTERVAL '3 days', NULL::interval),
-    ('approved-awaiting-retraction', 'dispute-approved-active.example', 'nguyenvana@gmail.com', 'Đã cung cấp bằng chứng quyền sở hữu tên miền hợp lệ.', 'APPROVED', 'HIGH',
-     'Đã chấp nhận khiếu nại và thu hồi xác thực blacklist.', NULL::interval, NULL::text, NULL::interval,
-     'Chấp nhận khiếu nại và thu hồi xác thực blacklist sai sau khi xác minh quyền sở hữu tên miền.',
-     'https://files.example/disputes/approved-awaiting-retraction/quyet-dinh.pdf', -INTERVAL '9 hours', -INTERVAL '3 hours'),
-    ('rejected-bank', 'MOCK-DSP-BANK-003', 'nguyenvana@gmail.com', 'Đề nghị giải tỏa tài khoản ngân hàng đang bị cảnh báo.', 'REJECTED', 'NORMAL',
-     'Đã hoàn tất kiểm tra hồ sơ; giữ nguyên xác thực blacklist.', NULL::interval, NULL::text, NULL::interval,
-     'Tài liệu không khớp thông tin chủ tài khoản; từ chối khiếu nại.',
-     NULL::text, -INTERVAL '36 hours', -INTERVAL '26 hours'),
-    ('extra-khoi-pending-bank', 'MOCK-DSP-BANK-001', 'khoi.tran@gmail.com', 'Tài khoản nhận tiền bán hàng của tôi bị gắn cảnh báo nhầm.', 'PENDING', 'HIGH',
-     'Đã tiếp nhận hồ sơ ngân hàng, đang chờ phân công người đối chiếu.', INTERVAL '46 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '2 hours', NULL::interval),
-    ('extra-khoi-approved-domain', 'dispute-khoi-verified.example', 'khoi.tran@gmail.com', 'Tên miền tuyển dụng nội bộ bị nhầm với trang tuyển cộng tác viên giả.', 'APPROVED', 'HIGH',
-     'Đã xác minh quyền sở hữu tên miền và thu hồi xác thực blacklist sai.', NULL::interval, NULL::text, NULL::interval,
-     'Chứng nhận tên miền và thông tin doanh nghiệp trùng khớp; chấp nhận khiếu nại.',
-     NULL::text, -INTERVAL '72 hours', -INTERVAL '24 hours'),
-    ('extra-ha-review-phone', '0919000091', 'ha.le@gmail.com', 'Hotline chăm sóc khách hàng bị báo cáo là số mạo danh.', 'IN_REVIEW', 'HIGH',
-     'Đang đối chiếu hợp đồng đầu số và gọi xác minh đơn vị cung cấp dịch vụ.', INTERVAL '24 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '6 hours', NULL::interval),
-    ('extra-ha-needs-more-bank', 'MOCK-DSP-BANK-002', 'ha.le@gmail.com', 'Đề nghị kiểm tra lại cảnh báo trên tài khoản ngân hàng cá nhân.', 'NEEDS_MORE_INFO', 'NORMAL',
-     'Cần sao kê và giấy xác nhận ngân hàng để tiếp tục xử lý.', NULL::interval,
-     'Bổ sung sao kê giao dịch và xác nhận chủ tài khoản trong 48 giờ.', INTERVAL '2 days',
-     NULL::text, NULL::text, -INTERVAL '48 hours', NULL::interval),
-    ('extra-bao-rejected-domain', 'dispute-rejected.example', 'bao.nguyen@gmail.com', 'Yêu cầu gỡ cảnh báo trên tên miền do tôi quản lý.', 'REJECTED', 'NORMAL',
-     'Đã hoàn tất thẩm định, giữ nguyên cảnh báo vì chưa xác minh được quyền sở hữu.', NULL::interval, NULL::text, NULL::interval,
-     'Tài liệu cung cấp không khớp tên miền và thông tin nhà đăng ký; từ chối khiếu nại.',
-     NULL::text, -INTERVAL '96 hours', -INTERVAL '72 hours'),
-    ('extra-bao-pending-store', 'dispute-review-shop.example', 'bao.nguyen@gmail.com', 'Cửa hàng trực tuyến bị nhầm với website thu thập thông tin thẻ.', 'PENDING', 'NORMAL',
-     'Hồ sơ mới tiếp nhận, người gửi chưa đính kèm tài liệu.', INTERVAL '47 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '30 minutes', NULL::interval),
-    ('extra-linh-review-domain', 'dispute-pending.example', 'linh.pham@gmail.com', 'Đề nghị xác minh website chính chủ đang bị gắn cảnh báo sai.', 'IN_REVIEW', 'HIGH',
-     'Đã xác nhận người gửi, đang rà soát giao dịch và cấu hình tên miền.', INTERVAL '6 hours', NULL::text, NULL::interval,
-     NULL::text, NULL::text, -INTERVAL '18 hours', NULL::interval),
-    ('extra-linh-approved-bank', 'MOCK-DSP-LINH-VERIFIED', 'linh.pham@gmail.com', 'Tài khoản ngân hàng chính chủ bị gắn cảnh báo do nhầm số tài khoản.', 'APPROVED', 'HIGH',
-     'Ngân hàng đã xác nhận thông tin chính chủ; xác thực blacklist được thu hồi.', NULL::interval, NULL::text, NULL::interval,
-     'Đã đối chiếu xác nhận ngân hàng và sao kê, chấp nhận khiếu nại do nhầm đối tượng.',
-     NULL::text, -INTERVAL '36 hours', -INTERVAL '12 hours'),
-    ('extra-vana-overdue-phone', '0912443882', 'nguyenvana@gmail.com', 'Đề nghị xem xét lại cảnh báo giả mạo nhà mạng trên số điện thoại.', 'NEEDS_MORE_INFO', 'HIGH',
-     'Chưa nhận được chứng từ thuê bao và nội dung cuộc gọi, đã quá hạn bổ sung.', NULL::interval,
-     'Cung cấp hợp đồng thuê bao và nội dung cuộc gọi cần đối chiếu.', -INTERVAL '12 hours',
-     NULL::text, NULL::text, -INTERVAL '72 hours', NULL::interval),
-    ('extra-partner-rejected-forex', 'binance-vip-asia-trade.cc', 'partner@shopee.vn', 'Đối tác đề nghị kiểm tra lại cảnh báo trên tên miền dịch vụ đầu tư.', 'REJECTED', 'NORMAL',
-     'Đã thẩm định hồ sơ của đối tác, giữ nguyên cảnh báo rủi ro.', NULL::interval, NULL::text, NULL::interval,
-     'Không có tài liệu chứng minh quyền sở hữu tên miền và giấy phép dịch vụ phù hợp.',
-     NULL::text, -INTERVAL '120 hours', -INTERVAL '96 hours')
-) AS v(key, value, email, reason, status, priority, progress_message, estimated_offset,
-       supplement_reason, supplement_offset, resolution_reason, resolution_document_url, created_offset, resolved_offset)
-JOIN indicators i ON i.normalized_value = v.value
-JOIN confirmed_indicators ci ON ci.indicator_id = i.id
-JOIN users u ON u.email = v.email
-JOIN users reviewer ON reviewer.email = 'admin@scamshield.vn'
-WHERE NOT EXISTS (SELECT 1 FROM disputes d WHERE d.reason LIKE 'DISPUTE-MOCK:' || v.key || ' — %');
-
--- 22. dispute_evidence
-INSERT INTO dispute_evidence (dispute_id, evidence_type, verification_status, created_at) VALUES
-((SELECT id FROM disputes LIMIT 1), 'DOCUMENT', 'PENDING', NOW());
-
-INSERT INTO dispute_evidence (dispute_id, evidence_type, file_name, file_url, description, verification_status, created_at)
-SELECT d.id, 'DOCUMENT', v.file_name, v.file_url, v.description, v.verification_status, d.created_at + INTERVAL '5 minutes'
-FROM (VALUES
-    ('pending-domain', 'xac-nhan-ten-mien.pdf', 'https://files.example/disputes/pending-domain/xac-nhan-ten-mien.pdf', 'Giấy xác nhận đăng ký tên miền.', 'PENDING'),
-    ('review-hotline', 'giay-phep-kinh-doanh.pdf', 'https://files.example/disputes/review-hotline/giay-phep-kinh-doanh.pdf', 'Giấy phép đăng ký kinh doanh của doanh nghiệp mẫu.', 'PENDING'),
-    ('review-hotline', 'hop-dong-thue-dau-so.pdf', 'https://files.example/disputes/review-hotline/hop-dong-thue-dau-so.pdf', 'Hợp đồng thuê đầu số hotline.', 'PENDING'),
-    ('supplement-bank', 'xac-nhan-chu-tai-khoan.pdf', 'https://files.example/disputes/supplement-bank/xac-nhan-chu-tai-khoan.pdf', 'Bản xác nhận tài khoản cần đối chiếu thêm sao kê.', 'PENDING'),
-    ('restored-domain', 'chung-nhan-so-huu-domain.pdf', 'https://files.example/disputes/restored-domain/chung-nhan-so-huu-domain.pdf', 'Chứng nhận quyền sở hữu tên miền đã được đối chiếu.', 'VERIFIED'),
-    ('restored-phone', 'hop-dong-vien-thong.pdf', 'https://files.example/disputes/restored-phone/hop-dong-vien-thong.pdf', 'Hợp đồng thuê đầu số chính chủ đã được đối chiếu.', 'VERIFIED'),
-    ('rejected-domain', 'minh-chung-khieu-nai.pdf', 'https://files.example/disputes/rejected-domain/minh-chung-khieu-nai.pdf', 'Tài liệu không đủ cơ sở xác minh quyền sở hữu.', 'REJECTED'),
-    ('partner-private', 'tai-lieu-doi-tac.pdf', 'https://files.example/disputes/partner-private/tai-lieu-doi-tac.pdf', 'Tài liệu riêng của tài khoản đối tác.', 'PENDING'),
-    ('pending-bank', 'xac-nhan-tai-khoan.pdf', 'https://files.example/disputes/pending-bank/xac-nhan-tai-khoan.pdf', 'Thông tin tài khoản chờ đối chiếu.', 'PENDING'),
-    ('review-shop', 'chung-nhan-ten-mien.pdf', 'https://files.example/disputes/review-shop/chung-nhan-ten-mien.pdf', 'Chứng nhận tên miền cửa hàng.', 'VERIFIED'),
-    ('review-shop', 'hoa-don-giao-dich.pdf', 'https://files.example/disputes/review-shop/hoa-don-giao-dich.pdf', 'Hóa đơn đang được đối chiếu.', 'PENDING'),
-    ('supplement-overdue', 'anh-website.png', 'https://files.example/disputes/supplement-overdue/anh-website.png', 'Ảnh website chưa đủ xác nhận quyền sở hữu.', 'PENDING'),
-    ('approved-awaiting-retraction', 'chung-nhan-so-huu.pdf', 'https://files.example/disputes/approved-awaiting-retraction/chung-nhan-so-huu.pdf', 'Chứng nhận quyền sở hữu đã được xác minh.', 'VERIFIED'),
-    ('rejected-bank', 'giay-xac-nhan.pdf', 'https://files.example/disputes/rejected-bank/giay-xac-nhan.pdf', 'Tài liệu không khớp chủ tài khoản.', 'REJECTED'),
-    ('extra-khoi-pending-bank', 'giao-dich-ban-hang.pdf', 'https://files.example/disputes/extra-khoi-pending-bank/giao-dich-ban-hang.pdf', 'Giao dịch cần được đối chiếu với ngân hàng.', 'PENDING'),
-    ('extra-khoi-approved-domain', 'chung-nhan-ten-mien.pdf', 'https://files.example/disputes/extra-khoi-approved-domain/chung-nhan-ten-mien.pdf', 'Quyền sở hữu tên miền đã được xác minh.', 'VERIFIED'),
-    ('extra-ha-review-phone', 'hop-dong-dau-so.pdf', 'https://files.example/disputes/extra-ha-review-phone/hop-dong-dau-so.pdf', 'Hợp đồng thuê đầu số đang được đối chiếu.', 'PENDING'),
-    ('extra-ha-review-phone', 'giay-phep-doanh-nghiep.pdf', 'https://files.example/disputes/extra-ha-review-phone/giay-phep-doanh-nghiep.pdf', 'Thông tin doanh nghiệp đã được đối chiếu.', 'VERIFIED'),
-    ('extra-ha-needs-more-bank', 'anh-tai-khoan.png', 'https://files.example/disputes/extra-ha-needs-more-bank/anh-tai-khoan.png', 'Ảnh tài khoản chưa thay thế được giấy xác nhận ngân hàng.', 'PENDING'),
-    ('extra-bao-rejected-domain', 'xac-nhan-ten-mien.pdf', 'https://files.example/disputes/extra-bao-rejected-domain/xac-nhan-ten-mien.pdf', 'Tên miền trong tài liệu không khớp hồ sơ.', 'REJECTED'),
-    ('extra-linh-review-domain', 'hoa-don-giao-dich.pdf', 'https://files.example/disputes/extra-linh-review-domain/hoa-don-giao-dich.pdf', 'Hóa đơn đang được kiểm tra tính hợp lệ.', 'PENDING'),
-    ('extra-linh-approved-bank', 'xac-nhan-ngan-hang.pdf', 'https://files.example/disputes/extra-linh-approved-bank/xac-nhan-ngan-hang.pdf', 'Ngân hàng xác nhận tài khoản chính chủ.', 'VERIFIED'),
-    ('extra-linh-approved-bank', 'sao-ke.pdf', 'https://files.example/disputes/extra-linh-approved-bank/sao-ke.pdf', 'Sao kê phù hợp với thông tin khiếu nại.', 'VERIFIED'),
-    ('extra-partner-rejected-forex', 'tai-lieu-doi-tac.pdf', 'https://files.example/disputes/extra-partner-rejected-forex/tai-lieu-doi-tac.pdf', 'Tài liệu chưa chứng minh quyền sở hữu tên miền đầu tư.', 'REJECTED')
-) AS v(dispute_key, file_name, file_url, description, verification_status)
-JOIN disputes d ON d.reason LIKE 'DISPUTE-MOCK:' || v.dispute_key || ' — %'
-WHERE NOT EXISTS (SELECT 1 FROM dispute_evidence e WHERE e.dispute_id = d.id AND e.file_url = v.file_url);
-
--- 23. abuse_flags
-INSERT INTO abuse_flags (user_id, flag_type, severity, status, created_at) VALUES
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'SPAM', 'LOW', 'OPEN', NOW());
-
--- Thêm đúng 10 hồ sơ lạm dụng: 4 PENDING, 3 OPEN, 3 DISMISSED.
--- Chạy API phiên bản POST mới trước để Hibernate tạo created_by_user_id và abuse_flag_reports.
--- Mỗi tài khoản tối đa một hồ sơ PENDING; cờ OPEN/DISMISSED là các lần xem xét trước đó.
--- Tài khoản vẫn ACTIVE: hồ sơ nghi vấn/gắn cờ không đồng nghĩa với khóa tài khoản.
-INSERT INTO abuse_flags (user_id, report_id, created_by_user_id, flag_type, severity, reason, evidence, status, created_at)
-SELECT u.id, r.id, moderator.id, v.flag_type, v.severity,
-       'ABUSE-MOCK:' || v.key || ' — ' || v.reason, v.evidence, v.status,
-       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - v.hours_ago * INTERVAL '1 hour'
-FROM (VALUES
-    ('khoi-pending', 'khoi.tran@gmail.com', 'khoi-01', 'moderator.phuong@scamshield.vn', 'BULK_REPORTING', 'MEDIUM', 'PENDING', 1,
-     'Nhiều báo cáo trong ngày nhắm vào các đối tượng khác nhau, có nội dung lặp lại.', 'Đối chiếu các report khoi-01, khoi-02 và khoi-03 trước khi kết luận.'),
-    ('khoi-dismissed', 'khoi.tran@gmail.com', 'khoi-05', 'moderator@scamshield.vn', 'OTHER', 'LOW', 'DISMISSED', 216,
-     'Từng nghi ngờ gửi báo cáo bất thường, sau kiểm tra thấy nội dung có giá trị xác minh.', 'Báo cáo cũ được duyệt, không đủ căn cứ kết luận tài khoản lạm dụng.'),
-    ('ha-pending', 'ha.le@gmail.com', 'ha-01', 'moderator@scamshield.vn', 'REPEATED_UNFOUNDED_REPORTING', 'MEDIUM', 'PENDING', 2,
-     'Liên tiếp gửi các cáo buộc chưa đủ căn cứ về website và SMS Brandname.', 'Hai báo cáo ha-01 và ha-02 đã bị từ chối; cần Admin đánh giá hành vi.'),
-    ('ha-open', 'ha.le@gmail.com', 'ha-05', 'moderator.phuong@scamshield.vn', 'BULK_REPORTING', 'HIGH', 'OPEN', 168,
-     'Đã xác nhận lặp lại cáo buộc thiếu căn cứ sau khi được hướng dẫn bổ sung.', 'Hồ sơ cũ ghi nhận report ha-05; gắn cờ theo dõi, tài khoản vẫn hoạt động.'),
-    ('bao-pending', 'bao.nguyen@gmail.com', 'bao-01', 'moderator.phuong@scamshield.vn', 'OTHER', 'MEDIUM', 'PENDING', 3,
-     'Cần đối chiếu nguồn thông tin của các báo cáo đang chờ xử lý trước khi đánh giá.', 'Kiểm tra report bao-01 và bao-02; đây là nghi vấn, chưa xác nhận vi phạm.'),
-    ('bao-dismissed', 'bao.nguyen@gmail.com', 'bao-05', 'moderator@scamshield.vn', 'REPEATED_UNFOUNDED_REPORTING', 'LOW', 'DISMISSED', 288,
-     'Báo cáo thiếu bằng chứng nhưng chưa đủ cơ sở xác định cố tình lạm dụng.', 'Report bao-05 và bao-06 bị từ chối không tự động chứng minh người gửi vi phạm.'),
-    ('linh-pending', 'linh.pham@gmail.com', 'linh-01', 'moderator@scamshield.vn', 'BULK_REPORTING', 'MEDIUM', 'PENDING', 4,
-     'Gửi nhiều báo cáo mới trong thời gian ngắn, cần kiểm tra tính độc lập của nội dung.', 'Các report linh-01 và linh-02 đang được thẩm định; chưa hạn chế tài khoản.'),
-    ('linh-open', 'linh.pham@gmail.com', 'linh-05', 'moderator.phuong@scamshield.vn', 'REPEATED_UNFOUNDED_REPORTING', 'HIGH', 'OPEN', 168,
-     'Đã xác nhận gửi lặp lại cáo buộc nhắm vào đối tượng chính thức mà không bổ sung căn cứ.', 'Theo dõi hành vi dựa trên report linh-05 và linh-06; chưa áp dụng khóa tài khoản.'),
-    ('vana-open', 'nguyenvana@gmail.com', 'vana-02', 'moderator.phuong@scamshield.vn', 'BULK_REPORTING', 'MEDIUM', 'OPEN', 192,
-     'Hồ sơ cũ xác nhận lặp lại báo cáo không có bằng chứng bổ sung về cùng đối tượng.', 'Đối chiếu report vana-02; cờ này độc lập với các hồ sơ khác của tài khoản.'),
-    ('vana-dismissed', 'nguyenvana@gmail.com', 'vana-03', 'moderator@scamshield.vn', 'OTHER', 'LOW', 'DISMISSED', 24,
-     'Đã xem xét nghi vấn và không xác nhận hành vi lạm dụng khi gửi báo cáo mới.', 'Report vana-03 và vana-04 vẫn được thẩm định theo luồng báo cáo thông thường.')
-) AS v(key, email, report_key, moderator_email, flag_type, severity, status, hours_ago, reason, evidence)
-JOIN users u ON u.email = v.email
-JOIN users moderator ON moderator.email = v.moderator_email
-JOIN reports r ON r.reporter_user_id = u.id AND r.description LIKE 'REPORT-MOCK:' || v.report_key || ' — %'
-WHERE NOT EXISTS (SELECT 1 FROM abuse_flags f WHERE f.user_id = u.id AND f.reason = 'ABUSE-MOCK:' || v.key || ' — ' || v.reason)
-  AND (v.status <> 'PENDING' OR NOT EXISTS (
-      SELECT 1 FROM abuse_flags pending WHERE pending.user_id = u.id AND pending.status = 'PENDING'
-  ));
-
--- 24. abuse_flag_reports
--- Liên kết nhiều report với đúng tài khoản; luôn bao gồm report_id chính của hồ sơ.
-INSERT INTO abuse_flag_reports (abuse_flag_id, report_id)
-SELECT f.id, r.id
-FROM (VALUES
-    ('khoi-pending', 'khoi-01'), ('khoi-pending', 'khoi-02'), ('khoi-pending', 'khoi-03'),
-    ('khoi-dismissed', 'khoi-05'), ('khoi-dismissed', 'khoi-06'),
-    ('ha-pending', 'ha-01'), ('ha-pending', 'ha-02'), ('ha-open', 'ha-05'),
-    ('bao-pending', 'bao-01'), ('bao-pending', 'bao-02'),
-    ('bao-dismissed', 'bao-05'), ('bao-dismissed', 'bao-06'),
-    ('linh-pending', 'linh-01'), ('linh-pending', 'linh-02'),
-    ('linh-open', 'linh-05'), ('linh-open', 'linh-06'),
-    ('vana-open', 'vana-02'), ('vana-dismissed', 'vana-03'), ('vana-dismissed', 'vana-04')
-) AS v(flag_key, report_key)
-JOIN abuse_flags f ON f.reason LIKE 'ABUSE-MOCK:' || v.flag_key || ' — %'
-JOIN reports r ON r.reporter_user_id = f.user_id AND r.description LIKE 'REPORT-MOCK:' || v.report_key || ' — %'
-WHERE NOT EXISTS (SELECT 1 FROM abuse_flag_reports link WHERE link.abuse_flag_id = f.id AND link.report_id = r.id);
-
--- 25. user_alert_subscriptions
+-- 25. user_alert_subscriptions (1 bản ghi)
 INSERT INTO user_alert_subscriptions (user_id, category_id, subscribed_at) VALUES
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), (SELECT id FROM scam_categories WHERE code='GIA_DANH_CQCN'), NOW());
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 26. notifications
-INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id, is_read, created_at) VALUES
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'REPORT', 'Báo cáo #RPT-8492 đã được phê duyệt', 'Đã thẩm định và đưa số 089.842.XXXX vào Blacklist quốc gia (+50 điểm Sentinel).', 'REPORT', 8492, false, NOW() - INTERVAL '15 minutes'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'DISPUTE', 'Hồ sơ khiếu nại #DSP-3091 đã được thụ lý', 'Ban Thẩm định đang rà soát giải tỏa hotline 091.234.8899, tạm hạ 70% mức cảnh báo.', 'DISPUTE', 3091, false, NOW() - INTERVAL '1 hour'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'SYSTEM', 'Bạn đã đủ điều kiện nâng cấp Sentinel Lv.3', 'Đã tích lũy đủ 700/700 Điểm Sentinel. Mở rộng hạn mức tra cứu AI lên 100 lượt/ngày.', 'SENTINEL_RANK', 3, false, NOW() - INTERVAL '3 hours'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'REPORT', 'Báo cáo #RPT-8411 được gộp vào hồ sơ Forex', 'Ảnh chứng từ của bạn đã liên kết vào hồ sơ FX-VIETNAM-CRIME-2025 (+25 điểm đối soát).', 'REPORT', 8411, true, NOW() - INTERVAL '1 day'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'DISPUTE', 'Đã gỡ bỏ nhãn cảnh báo tên miền shop-chinhhang.vn', 'Hồ sơ khiếu nại #DSP-2814 giải tỏa thành công sau xác thực giấy phép TMĐT.', 'DISPUTE', 2814, true, NOW() - INTERVAL '3 days'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'SYSTEM', 'Cập nhật cơ sở dữ liệu phòng vệ ScamShield v4.8', 'Đã tự động cập nhật 1.420 chữ ký độc hại và danh sách số điện thoại lừa đảo mới.', 'SYSTEM_UPDATE', NULL, true, NOW() - INTERVAL '5 days'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'REPORT', 'Báo cáo #RPT-8390 đã được xác minh', 'Tài khoản ngân hàng 19036782910 đã được đối soát vào cơ sở dữ liệu cảnh báo.', 'REPORT', 8390, true, NOW() - INTERVAL '7 days'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'REPORT', 'Báo cáo #RPT-8355 được ghi nhận', 'Đã tiếp nhận bằng chứng bổ sung cho thủ đoạn mạo danh công an.', 'REPORT', 8355, true, NOW() - INTERVAL '10 days'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'REPORT', 'Báo cáo #RPT-8299 đã đóng hồ sơ', 'Hoàn tất phân tích rủi ro cho tên miền giả mạo dịch vụ công.', 'REPORT', 8299, true, NOW() - INTERVAL '14 days'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'REPORT', 'Báo cáo #RPT-8210 đã đưa vào giám sát', 'Số điện thoại phát tán tin nhắn mạo danh đang nằm trong danh sách theo dõi đặc biệt.', 'REPORT', 8210, true, NOW() - INTERVAL '20 days'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'SYSTEM', 'Chào mừng bạn đến với ScamShield', 'Hãy chung tay xây dựng không gian mạng an toàn cho cộng đồng!', 'SYSTEM', NULL, true, NOW() - INTERVAL '30 days'),
-((SELECT id FROM users WHERE email='nguyenvana@gmail.com'), 'SYSTEM', 'Hoàn tất thiết lập bảo mật 2 lớp (2FA)', 'Tài khoản của bạn đã được bảo vệ nâng cao bằng mã OTP xác thực.', 'SYSTEM', NULL, true, NOW() - INTERVAL '35 days');
+-- 26. notifications (4 bản ghi)
+INSERT INTO notifications (user_id, type, title, message, reference_id, is_read, created_at) VALUES
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'SYSTEM', 'Bạn đã đủ điều kiện nâng cấp Sentinel Lv.3', 'Đã tích lũy đủ 700/700 Điểm Sentinel. Mở rộng hạn mức tra cứu AI lên 100 lượt/ngày.', 3, FALSE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10 hours' AS interval)),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'SYSTEM', 'Cập nhật cơ sở dữ liệu phòng vệ ScamShield v4.8', 'Đã tự động cập nhật 1.420 chữ ký độc hại và danh sách số điện thoại lừa đảo mới.', NULL, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('127 hours' AS interval)),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'SYSTEM', 'Chào mừng bạn đến với ScamShield', 'Hãy chung tay xây dựng không gian mạng an toàn cho cộng đồng!', NULL, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('727 hours' AS interval)),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'SYSTEM', 'Hoàn tất thiết lập bảo mật 2 lớp (2FA)', 'Tài khoản của bạn đã được bảo vệ nâng cao bằng mã OTP xác thực.', NULL, TRUE, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('847 hours' AS interval));
 
--- 27. partner_official_alerts
+-- 27. partner_official_alerts (1 bản ghi)
 INSERT INTO partner_official_alerts (partner_id, submission_type, title, description, status, created_at) VALUES
-((SELECT id FROM partner_profiles WHERE brand_name='Shopee'), 'OFFICIAL_ALERT', 'Cảnh báo mạo danh Shopee tuyển CTV', 'Hiện nay có nhiều trang web giả mạo Shopee để lừa đảo tuyển CTV.', 'PENDING', NOW());
+((SELECT id FROM partner_profiles WHERE user_id = (SELECT id FROM users WHERE email = 'partner@shopee.vn')), 'OFFICIAL_ALERT', 'Cảnh báo mạo danh Shopee tuyển CTV', 'Hiện nay có nhiều trang web giả mạo Shopee để lừa đảo tuyển CTV.', 'PENDING', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 28. warning_cards
+-- 28. warning_cards (1 bản ghi)
 INSERT INTO warning_cards (created_by_user_id, check_verdict_id, created_at) VALUES
-((SELECT id FROM users WHERE email='admin@scamshield.vn'), 1, NOW());
+(2, 1, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 29. education_articles
--- jsonb_populate_record lấy đúng các cột của bảng hiện tại.
--- Khóa content rỗng chỉ để tương thích database cũ còn cột content NOT NULL.
--- Bảng mới không có cột content thì PostgreSQL bỏ qua khóa đó; entity/API không sử dụng content.
-INSERT INTO education_articles
-SELECT populated.*
-FROM (VALUES
-    ('SMS Brandname trạm phát BTS', 'sms-brandname-tram-phat-bts', 'SCENARIO',
-     'Phát sóng giả mạo chèn thẳng tin nhắn lừa đảo vào luồng tin cậy ngân hàng.', 'GIA_DANH_NGAN_HANG', 'GIẢ MẠO BRANDNAME', 'Cực đại',
-     '{"example":{"channelType":"SMS","senderName":"VCB Digibank","displayTime":"14:32","message":"Tai khoan bi khoa sau 30 phut. Xac minh ngay tai: portal-vcb-digibanks[.]vn de huy.","highlightedText":"portal-vcb-digibanks[.]vn"},"recognitionSigns":["Tên miền giả kèm áp lực thời gian."],"scammerGoal":"Chiếm đoạt mật khẩu và mã OTP.","recommendedActions":["Không bấm link. Mở thẳng App gốc."]}'::jsonb,
-     NULL::text, NULL::integer, NULL::integer, 1),
-    ('Video Zalo giả Cảnh sát điều tra', 'video-zalo-gia-canh-sat-dieu-tra', 'SCENARIO',
-     'Dùng Deepfake khuôn mặt cán bộ trong phòng hỏi cung để hăm dọa chuyển tiền.', 'GIA_DANH_CQCN', 'DEEPFAKE - GIẢ DANH CƠ QUAN', 'Nguy cấp',
-     '{"example":{"channelType":"VIDEO","senderName":"Zalo Video: CQ Điều tra","displayTime":"00:43","message":"Chị liên quan đường dây rửa tiền. Khóa cửa phòng, chuyển số dư vào tài khoản thanh tra ngay."},"recognitionSigns":["Mặt mờ giật, ép bảo mật tuyệt đối."],"scammerGoal":"Thao túng nỗi sợ để tự chuyển tiền.","recommendedActions":["Cúp máy. Công an không làm việc qua mạng."]}'::jsonb,
-     NULL::text, NULL::integer, NULL::integer, 2),
-    ('Tuyển CTV đơn hàng hoa hồng 10–20%', 'tuyen-ctv-don-hang-hoa-hong', 'SCENARIO',
-     'Nạp tiền chốt đơn nhận lãi nhỏ ban đầu trước khi giữ khoản tiền lớn.', 'VIEC_LAM', 'CỘNG TÁC VIÊN ẢO', 'Phổ biến',
-     '{"example":{"channelType":"CHAT","senderName":"Telegram CSKH","displayTime":"10:15","message":"Nhiệm vụ cuối: Nạp 15.000.000đ để nhận về 19.500.000đ. Ưu đãi giữ trong 10 phút!"},"recognitionSigns":["Hoa hồng bất thường, nhóm kín Telegram."],"scammerGoal":"Chiếm đoạt toàn bộ tiền nạp tích lũy.","recommendedActions":["Chặn liên lạc. Sàn TMĐT không tuyển nạp tiền."]}'::jsonb,
-     NULL::text, NULL::integer, NULL::integer, 3),
-    ('Cuộc gọi hoàn vé & hủy chuyến khẩn', 'cuoc-goi-hoan-ve-huy-chuyen-khan', 'SCENARIO',
-     'Gọi thông báo hủy chuyến bay rồi gửi link nhận bồi thường chứa mã độc.', 'VE_MAY_BAY_DU_LICH', 'VÉ MÁY BAY & DU LỊCH', 'Tăng vọt',
-     '{"example":{"channelType":"CALL","senderName":"Tổng đài Hãng không","displayTime":"18:40","message":"Chuyến bay bị hoãn, nhận đền bù 800.000đ qua link xác thực gửi kèm Zalo."},"recognitionSigns":["Yêu cầu cài tệp lạ hoặc truy cập link lạ."],"scammerGoal":"Đánh cắp OTP hoặc chiếm quyền điện thoại.","recommendedActions":["Chỉ tra cứu qua ứng dụng chính hãng."]}'::jsonb,
-     NULL::text, NULL::integer, NULL::integer, 4),
-    ('Quy tắc vàng 3 KHÔNG', 'quy-tac-vang-3-khong', 'POCKET_CARD',
-     'Nguyên tắc cốt lõi trước mọi cuộc gọi và tin nhắn lạ.', NULL, 'THẺ #01', NULL,
-     '{"tips":["1. KHÔNG hoảng sợ, hối thúc","2. KHÔNG bấm link lạ","3. KHÔNG chuyển tiền"]}'::jsonb,
-     'Khổ thẻ A6', 1200, 800, 1),
-    ('Bảo vệ người cao tuổi', 'bao-ve-nguoi-cao-tuoi', 'POCKET_CARD',
-     'Nhận diện khi có số lạ xưng công an hù dọa.', 'GIA_DANH_CQCN', 'THẺ #02', NULL,
-     '{"tips":["Công an chỉ gửi giấy mời trực tiếp.","Không có tài khoản tạm giữ cá nhân.","Cúp máy, gọi ngay đường dây 069.234.3640."]}'::jsonb,
-     'Khổ in dán tường · Khổ dọc', NULL::integer, NULL::integer, 2),
-    ('An toàn OTP & Mã PIN', 'an-toan-otp-ma-pin', 'POCKET_CARD',
-     'Tấm khiên bảo vệ tài khoản ngân hàng và ví số.', 'DANH_CAP_OTP', 'THẺ #03', NULL,
-     '{"tips":["Ngân hàng không bao giờ hỏi OTP.","Luôn đọc kỹ nội dung SMS giao dịch.","Không cấp quyền Trợ năng (Accessibility)."]}'::jsonb,
-     'Hình nền điện thoại', 1080, 1920, 3)
-) AS v(title, slug, content_type, summary, category_code, tag, badge_label, structured_content, format_label, image_width, image_height, display_order)
-JOIN users u ON u.email = 'admin@scamshield.vn'
-LEFT JOIN scam_categories c ON c.code = v.category_code
-CROSS JOIN LATERAL jsonb_populate_record(NULL::education_articles, jsonb_build_object(
-    'id', nextval(pg_get_serial_sequence('education_articles', 'id')),
-    'title', v.title, 'slug', v.slug, 'content', '', 'content_type', v.content_type,
-    'summary', v.summary, 'structured_content', v.structured_content, 'category_id', c.id,
-    'tag', v.tag, 'badge_label', v.badge_label, 'image_url', NULL, 'pdf_url', NULL,
-    'format_label', v.format_label, 'image_width', v.image_width, 'image_height', v.image_height,
-    'display_order', v.display_order, 'status', 'PUBLISHED', 'created_by', u.id,
-    'published_at', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '1 minute',
-    'created_at', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '1 minute',
-    'updated_at', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh'
-)) AS populated
-WHERE NOT EXISTS (SELECT 1 FROM education_articles a WHERE a.slug = v.slug);
+-- 29. education_articles (5 bản ghi)
+INSERT INTO education_articles (badge_label, content_type, created_at, display_order, format_label, image_height, image_url, image_width, pdf_url, published_at, slug, status, structured_content, summary, tag, title, updated_at, category_id, created_by) VALUES
+('Cực đại', 'SCENARIO', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 1, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 'sms-brandname-tram-phat-bts', 'PUBLISHED', CAST('{"example":{"message":"Tai khoan bi khoa sau 30 phut. Xac minh ngay tai: portal-vcb-digibanks[.]vn de huy.","senderName":"VCB Digibank","channelType":"SMS","displayTime":"14:32","highlightedText":"portal-vcb-digibanks[.]vn"},"scammerGoal":"Chiếm đoạt mật khẩu và mã OTP.","recognitionSigns":["Tên miền giả kèm áp lực thời gian."],"recommendedActions":["Không bấm link. Mở thẳng App gốc."]}' AS jsonb), 'Phát sóng giả mạo chèn thẳng tin nhắn lừa đảo vào luồng tin cậy ngân hàng.', 'GIẢ MẠO BRANDNAME', 'SMS Brandname trạm phát BTS', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_NGAN_HANG'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn')),
+(NULL, 'POCKET_CARD', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 1, 'Khổ thẻ A6', 800, NULL, 1200, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 'quy-tac-vang-3-khong', 'PUBLISHED', CAST('{"tips":["1. KHÔNG hoảng sợ, hối thúc","2. KHÔNG bấm link lạ","3. KHÔNG chuyển tiền"]}' AS jsonb), 'Nguyên tắc cốt lõi trước mọi cuộc gọi và tin nhắn lạ.', 'THẺ #01', 'Quy tắc vàng 3 KHÔNG', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), NULL, (SELECT id FROM users WHERE email = 'admin@scamshield.vn')),
+('Nguy cấp', 'SCENARIO', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 2, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 'video-zalo-gia-canh-sat-dieu-tra', 'PUBLISHED', CAST('{"example":{"message":"Chị liên quan đường dây rửa tiền. Khóa cửa phòng, chuyển số dư vào tài khoản thanh tra ngay.","senderName":"Zalo Video: CQ Điều tra","channelType":"VIDEO","displayTime":"00:43"},"scammerGoal":"Thao túng nỗi sợ để tự chuyển tiền.","recognitionSigns":["Mặt mờ giật, ép bảo mật tuyệt đối."],"recommendedActions":["Cúp máy. Công an không làm việc qua mạng."]}' AS jsonb), 'Dùng Deepfake khuôn mặt cán bộ trong phòng hỏi cung để hăm dọa chuyển tiền.', 'DEEPFAKE - GIẢ DANH CƠ QUAN', 'Video Zalo giả Cảnh sát điều tra', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn')),
+('Phổ biến', 'SCENARIO', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 3, NULL, NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 'tuyen-ctv-don-hang-hoa-hong', 'PUBLISHED', CAST('{"example":{"message":"Nhiệm vụ cuối: Nạp 15.000.000đ để nhận về 19.500.000đ. Ưu đãi giữ trong 10 phút!","senderName":"Telegram CSKH","channelType":"CHAT","displayTime":"10:15"},"scammerGoal":"Chiếm đoạt toàn bộ tiền nạp tích lũy.","recognitionSigns":["Hoa hồng bất thường, nhóm kín Telegram."],"recommendedActions":["Chặn liên lạc. Sàn TMĐT không tuyển nạp tiền."]}' AS jsonb), 'Nạp tiền chốt đơn nhận lãi nhỏ ban đầu trước khi giữ khoản tiền lớn.', 'CỘNG TÁC VIÊN ẢO', 'Tuyển CTV đơn hàng hoa hồng 10–20%', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), (SELECT id FROM scam_categories WHERE code = 'VIEC_LAM'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn')),
+(NULL, 'POCKET_CARD', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 2, 'Khổ in dán tường · Khổ dọc', NULL, NULL, NULL, NULL, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 minutes' AS interval), 'bao-ve-nguoi-cao-tuoi', 'PUBLISHED', CAST('{"tips":["Công an chỉ gửi giấy mời trực tiếp.","Không có tài khoản tạm giữ cá nhân.","Cúp máy, gọi ngay đường dây 069.234.3640."]}' AS jsonb), 'Nhận diện khi có số lạ xưng công an hù dọa.', 'THẺ #02', 'Bảo vệ người cao tuổi', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP), (SELECT id FROM scam_categories WHERE code = 'GIA_DANH_CQCN'), (SELECT id FROM users WHERE email = 'admin@scamshield.vn'));
 
--- 30. official_scam_warnings
+-- 30. official_scam_warnings (1 bản ghi)
 INSERT INTO official_scam_warnings (title, content, status, created_at) VALUES
-('Cảnh báo khẩn: Làn sóng lừa đảo mùa Tết', 'Nhiều đối tượng lợi dụng dịp lễ để giả danh tổ chức từ thiện...', 'PUBLISHED', NOW());
+('Cảnh báo khẩn: Làn sóng lừa đảo mùa Tết', 'Nhiều đối tượng lợi dụng dịp lễ để giả danh tổ chức từ thiện...', 'PUBLISHED', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
--- 31. audit_logs
-INSERT INTO audit_logs (actor_user_id, action, entity_type, reason, created_at) VALUES
-((SELECT id FROM users WHERE email='admin@scamshield.vn'), 'CREATE', 'USER', 'Tạo tài khoản quản trị hệ thống', NOW());
-
--- Nhật ký khởi tạo hồ sơ; không thay đổi trạng thái tài khoản.
-INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, new_value, reason, created_at)
-SELECT f.created_by_user_id, 'CREATE_ABUSE_ESCALATION', 'ABUSE_FLAG', f.id, 'PENDING', f.reason, f.created_at
-FROM abuse_flags f
-WHERE f.reason LIKE 'ABUSE-MOCK:%'
-  AND NOT EXISTS (SELECT 1 FROM audit_logs a WHERE a.entity_type = 'ABUSE_FLAG' AND a.entity_id = f.id AND a.action = 'CREATE_ABUSE_ESCALATION');
-
--- Hồ sơ đã được xét duyệt có audit của Admin; hồ sơ PENDING chưa có quyết định.
-INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, previous_value, new_value, reason, created_at)
-SELECT admin.id, 'REVIEW_ABUSE_ESCALATION', 'ABUSE_FLAG', f.id, 'PENDING', f.status,
-       CASE WHEN f.status = 'OPEN' THEN 'Dữ liệu mẫu: xác nhận hành vi lạm dụng và gắn cờ theo dõi; tài khoản vẫn ACTIVE.'
-            ELSE 'Dữ liệu mẫu: bác bỏ nghi vấn vì chưa đủ căn cứ xác định hành vi lạm dụng.' END,
-       f.created_at + INTERVAL '30 minutes'
-FROM abuse_flags f
-JOIN users admin ON admin.email = 'admin@scamshield.vn'
-WHERE f.reason LIKE 'ABUSE-MOCK:%' AND f.status IN ('OPEN', 'DISMISSED')
-  AND NOT EXISTS (SELECT 1 FROM audit_logs a WHERE a.entity_type = 'ABUSE_FLAG' AND a.entity_id = f.id AND a.action = 'REVIEW_ABUSE_ESCALATION');
+-- 31. audit_logs (12 bản ghi)
+INSERT INTO audit_logs (actor_user_id, action, entity_type, reason, created_at, entity_id, new_value, previous_value) VALUES
+((SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'CREATE', 'USER', 'Tạo tài khoản quản trị hệ thống', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), NULL, NULL, NULL),
+((SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'CREATE_ABUSE_ESCALATION', 'ABUSE_FLAG', 'ABUSE-MOCK:ha-open — Đã xác nhận lặp lại cáo buộc thiếu căn cứ sau khi được hướng dẫn bổ sung.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 days' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:ha-open — Đã xác nhận lặp lại cáo buộc thiếu căn cứ sau khi được hướng dẫn bổ sung.'), 'PENDING', NULL),
+((SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'CREATE_ABUSE_ESCALATION', 'ABUSE_FLAG', 'ABUSE-MOCK:bao-pending — Cần đối chiếu nguồn thông tin của các báo cáo đang chờ xử lý trước khi đánh giá.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('3 hours' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:bao-pending — Cần đối chiếu nguồn thông tin của các báo cáo đang chờ xử lý trước khi đánh giá.'), 'PENDING', NULL),
+((SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'CREATE_ABUSE_ESCALATION', 'ABUSE_FLAG', 'ABUSE-MOCK:khoi-pending — Nhiều báo cáo trong ngày nhắm vào các đối tượng khác nhau, có nội dung lặp lại.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 hours' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:khoi-pending — Nhiều báo cáo trong ngày nhắm vào các đối tượng khác nhau, có nội dung lặp lại.'), 'PENDING', NULL),
+((SELECT id FROM users WHERE email = 'moderator.phuong@scamshield.vn'), 'CREATE_ABUSE_ESCALATION', 'ABUSE_FLAG', 'ABUSE-MOCK:vana-open — Hồ sơ cũ xác nhận lặp lại báo cáo không có bằng chứng bổ sung về cùng đối tượng.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('8 days' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:vana-open — Hồ sơ cũ xác nhận lặp lại báo cáo không có bằng chứng bổ sung về cùng đối tượng.'), 'PENDING', NULL),
+((SELECT id FROM users WHERE email = 'moderator@scamshield.vn'), 'CREATE_ABUSE_ESCALATION', 'ABUSE_FLAG', 'ABUSE-MOCK:ha-pending — Cần xem xét báo cáo trúng thưởng chưa đủ căn cứ liên hệ với tên miền.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('2 hours' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:ha-pending — Cần xem xét báo cáo trúng thưởng chưa đủ căn cứ liên hệ với tên miền.'), 'PENDING', NULL),
+((SELECT id FROM users WHERE email = 'moderator@scamshield.vn'), 'CREATE_ABUSE_ESCALATION', 'ABUSE_FLAG', 'ABUSE-MOCK:vana-dismissed — Đã xem xét nghi vấn và không xác nhận hành vi lạm dụng khi gửi báo cáo mới.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1 days' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:vana-dismissed — Đã xem xét nghi vấn và không xác nhận hành vi lạm dụng khi gửi báo cáo mới.'), 'PENDING', NULL),
+((SELECT id FROM users WHERE email = 'moderator@scamshield.vn'), 'CREATE_ABUSE_ESCALATION', 'ABUSE_FLAG', 'ABUSE-MOCK:linh-pending — Gửi nhiều báo cáo mới trong thời gian ngắn, cần kiểm tra tính độc lập của nội dung.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('4 hours' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:linh-pending — Gửi nhiều báo cáo mới trong thời gian ngắn, cần kiểm tra tính độc lập của nội dung.'), 'PENDING', NULL),
+((SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'REVIEW_ABUSE_ESCALATION', 'ABUSE_FLAG', 'Dữ liệu mẫu: xác nhận hành vi lạm dụng và gắn cờ theo dõi; tài khoản vẫn ACTIVE.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('10050 minutes' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:ha-open — Đã xác nhận lặp lại cáo buộc thiếu căn cứ sau khi được hướng dẫn bổ sung.'), 'OPEN', 'PENDING'),
+((SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'REVIEW_ABUSE_ESCALATION', 'ABUSE_FLAG', 'Dữ liệu mẫu: xác nhận hành vi lạm dụng và gắn cờ theo dõi; tài khoản vẫn ACTIVE.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('11490 minutes' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:vana-open — Hồ sơ cũ xác nhận lặp lại báo cáo không có bằng chứng bổ sung về cùng đối tượng.'), 'OPEN', 'PENDING'),
+((SELECT id FROM users WHERE email = 'admin@scamshield.vn'), 'REVIEW_ABUSE_ESCALATION', 'ABUSE_FLAG', 'Dữ liệu mẫu: bác bỏ nghi vấn vì chưa đủ căn cứ xác định hành vi lạm dụng.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('1410 minutes' AS interval), (SELECT id FROM abuse_flags WHERE reason = 'ABUSE-MOCK:vana-dismissed — Đã xem xét nghi vấn và không xác nhận hành vi lạm dụng khi gửi báo cáo mới.'), 'DISMISSED', 'PENDING'),
+((SELECT id FROM users WHERE email = 'nguyenvana@gmail.com'), 'WITHDRAW_OWN_REPORT', 'REPORT', 'Người gửi chủ động rút báo cáo khi chưa có bằng chứng mới.', pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('12930 minutes' AS interval), (SELECT id FROM reports WHERE description = 'Tôi nhận thêm lời mời làm cộng tác viên qua nhanqua-shopee.vip. Tôi gửi lại ảnh hội thoại từ lần trước, sau đó thu hồi vì chưa có minh chứng mới.'), 'WITHDRAWN', 'IN_REVIEW');

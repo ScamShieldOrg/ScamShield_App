@@ -61,17 +61,11 @@ class ScamCheckQuotaServiceTest {
     }
 
     @Test
-    void transactionRollbackReturnsReservedSlot() {
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            service.reserve(null, guest);
-            assertThat(counters.get(KEY)).isEqualTo(1);
-            TransactionSynchronizationManager.getSynchronizations().forEach(
-                    callback -> callback.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-            assertThat(counters.get(KEY)).isZero();
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
+    void explicitReservationReleaseReturnsReservedSlot() {
+        String reservedKey = service.reserve(null, guest);
+        assertThat(counters.get(KEY)).isEqualTo(1);
+        service.releaseReservation(reservedKey);
+        assertThat(counters.get(KEY)).isZero();
     }
 
     @Test

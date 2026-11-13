@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
+
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.entity.CheckRequest;
 import com.be.scamshield.entity.CheckVerdict;
@@ -32,7 +34,11 @@ public class ScamCheckDecisionService {
     public Decision decide(CheckRequest check, List<ScamCheckInputProcessor.Candidate> candidates) {
         Map<Long, Indicator> known = new LinkedHashMap<>();
         for (var candidate : candidates) {
-            indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(candidate.type(), candidate.aliases())
+            IndicatorType type = switch (candidate.type()) {
+                case "DOMAIN" -> IndicatorType.URL;
+                default -> IndicatorType.valueOf(candidate.type());
+            };
+            indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(type, candidate.aliases())
                     .forEach(indicator -> known.putIfAbsent(indicator.getId(), indicator));
         }
         log.info("Scam check catalog lookup: checkId={}, candidateCount={}, knownIndicatorCount={}",
@@ -48,8 +54,15 @@ public class ScamCheckDecisionService {
                 verdict.setPrimaryCategory(match.getCategory());
                 verdict.setExplanation("Nội dung có chỉ số đã được xác nhận trong danh sách cảnh báo lừa đảo."
                         + (match.getPublicReason() == null ? "" : " " + match.getPublicReason()));
-                verdict.setSafetyGuidance("Dừng tương tác, không chuyển tiền và không cung cấp mật khẩu hoặc OTP. "
-                        + "Xác minh lại qua kênh chính thức của tổ chức liên quan.");
+
+                if ("PHONE".equalsIgnoreCase(check.getInputType())) {
+                    verdict.setSafetyGuidance("Dừng nghe máy hoặc chặn số điện thoại này ngay. Tuyệt đối không chuyển tiền, không làm theo hướng dẫn đe dọa và không cung cấp thông tin cá nhân hay mã OTP.");
+                } else if ("URL".equalsIgnoreCase(check.getInputType()) || "DOMAIN".equalsIgnoreCase(check.getInputType())) {
+                    verdict.setSafetyGuidance("Tuyệt đối không truy cập đường dẫn này, không tải tệp lạ và không nhập thông tin tài khoản hay mật khẩu.");
+                } else {
+                    verdict.setSafetyGuidance("Dừng tương tác, không chuyển tiền và không cung cấp mật khẩu hoặc OTP. Xác minh lại qua kênh chính thức của tổ chức liên quan.");
+                }
+
                 addReason(verdict, "CONFIRMED_INDICATOR_MATCH");
                 log.info("Scam check blacklist match: checkId={}, indicatorId={}, matchCount={}",
                         check.getId(), match.getIndicator().getId(), blacklist.size());
@@ -64,11 +77,18 @@ public class ScamCheckDecisionService {
                     verdict.setDecidedByStage("WHITELIST");
                     verdict.setMatchedIndicator(whitelist.getFirst().getIndicator());
                     verdict.setExplanation("Chỉ số khớp với thông tin chính thức đã được xác minh của đối tác.");
-                    verdict.setSafetyGuidance("Kết quả xác minh chỉ áp dụng cho chỉ số này. "
-                            + "Không chia sẻ mật khẩu hoặc OTP; kiểm tra kỹ yêu cầu chuyển tiền và nội dung liên quan.");
+
+                    if ("PHONE".equalsIgnoreCase(check.getInputType())) {
+                        verdict.setSafetyGuidance("Số điện thoại thuộc danh bạ đối tác chính thức đã được xác minh. Luôn cảnh giác nếu đầu số gọi đến yêu cầu chia sẻ mật khẩu hay mã OTP.");
+                    } else if ("URL".equalsIgnoreCase(check.getInputType()) || "DOMAIN".equalsIgnoreCase(check.getInputType())) {
+                        verdict.setSafetyGuidance("Đường dẫn website thuộc danh bạ đối tác chính thức đã được xác minh. Luôn kiểm tra chứng chỉ an toàn (HTTPS) khi giao dịch.");
+                    } else {
+                        verdict.setSafetyGuidance("Kết quả xác minh chỉ áp dụng cho chỉ số này. Không chia sẻ mật khẩu hoặc OTP; kiểm tra kỹ yêu cầu chuyển tiền và nội dung liên quan.");
+                    }
+
                     addReason(verdict, "VERIFIED_INDICATOR_MATCH");
                     log.info("Scam check whitelist match: checkId={}, indicatorId={}, matchCount={}",
-                            check.getId(), whitelist.getFirst().getIndicator().getId(), whitelist.size());
+                        check.getId(), whitelist.getFirst().getIndicator().getId(), whitelist.size());
                     return new Decision(verdict, List.copyOf(known.values()));
                 }
             }
@@ -78,7 +98,11 @@ public class ScamCheckDecisionService {
             verdict.setDecidedByStage("NONE");
             verdict.setUnknownReason("NO_DECISIVE_CURATED_MATCH");
             verdict.setExplanation("Chưa có thông tin xác minh cho chỉ số này.");
-            verdict.setSafetyGuidance("Xác minh số điện thoại hoặc tài khoản qua kênh chính thức trước khi chuyển tiền hay cung cấp thông tin cá nhân.");
+            if ("PHONE".equalsIgnoreCase(check.getInputType())) {
+                verdict.setSafetyGuidance("Số điện thoại chưa có trong danh bạ xác minh. Khuyến nghị kiểm chứng danh tính người gọi qua kênh chính thức trước khi cung cấp thông tin hoặc chuyển tiền.");
+            } else {
+                verdict.setSafetyGuidance("Xác minh số điện thoại hoặc tài khoản qua kênh chính thức trước khi chuyển tiền hay cung cấp thông tin cá nhân.");
+            }
             addReason(verdict, "NO_DECISIVE_CURATED_MATCH");
             return new Decision(verdict, List.copyOf(known.values()));
         }

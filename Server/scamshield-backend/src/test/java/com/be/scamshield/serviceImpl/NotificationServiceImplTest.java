@@ -1,5 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.NotificationType;
+
 import com.be.scamshield.dto.response.NotificationItemResponse;
 import com.be.scamshield.dto.response.NotificationListResponse;
 import com.be.scamshield.dto.response.NotificationTabCountsResponse;
@@ -29,6 +31,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceImplTest {
+    @Mock private NotificationStreamService streams;
 
     @Mock
     private NotificationRepository notificationRepository;
@@ -55,10 +58,9 @@ class NotificationServiceImplTest {
         Notification n1 = Notification.builder()
                 .id(1L)
                 .user(user)
-                .type("REPORT")
+                .type(NotificationType.REPORT)
                 .title("Báo cáo #RPT-8492 đã được phê duyệt")
                 .message("Đã thẩm định và đưa số 089.842.XXXX vào Blacklist quốc gia (+50 điểm Sentinel).")
-                .referenceType("REPORT")
                 .referenceId(8492L)
                 .isRead(false)
                 .createdAt(fixedNow.minusMinutes(15))
@@ -67,10 +69,9 @@ class NotificationServiceImplTest {
         Notification n2 = Notification.builder()
                 .id(2L)
                 .user(user)
-                .type("DISPUTE")
+                .type(NotificationType.DISPUTE)
                 .title("Hồ sơ khiếu nại #DSP-3091 đã được thụ lý")
                 .message("Ban Thẩm định đang rà soát giải tỏa hotline 091.234.8899, tạm hạ 70% mức cảnh báo.")
-                .referenceType("DISPUTE")
                 .referenceId(3091L)
                 .isRead(false)
                 .createdAt(fixedNow.minusHours(1))
@@ -79,10 +80,9 @@ class NotificationServiceImplTest {
         Notification n3 = Notification.builder()
                 .id(3L)
                 .user(user)
-                .type("SYSTEM")
+                .type(NotificationType.SYSTEM)
                 .title("Bạn đã đủ điều kiện nâng cấp Sentinel Lv.3")
                 .message("Đã tích lũy đủ 700/700 Điểm Sentinel. Mở rộng hạn mức tra cứu AI lên 100 lượt/ngày.")
-                .referenceType("SENTINEL_RANK")
                 .referenceId(3L)
                 .isRead(false)
                 .createdAt(fixedNow.minusHours(3))
@@ -91,10 +91,9 @@ class NotificationServiceImplTest {
         Notification n4 = Notification.builder()
                 .id(4L)
                 .user(user)
-                .type("REPORT")
+                .type(NotificationType.REPORT)
                 .title("Báo cáo #RPT-8411 được gộp vào hồ sơ Forex")
                 .message("Ảnh chứng từ của bạn đã liên kết vào hồ sơ FX-VIETNAM-CRIME-2025 (+25 điểm đối soát).")
-                .referenceType("REPORT")
                 .referenceId(8411L)
                 .isRead(true)
                 .createdAt(fixedNow.minusDays(1))
@@ -103,10 +102,9 @@ class NotificationServiceImplTest {
         Notification n5 = Notification.builder()
                 .id(5L)
                 .user(user)
-                .type("DISPUTE")
+                .type(NotificationType.DISPUTE)
                 .title("Đã gỡ bỏ nhãn cảnh báo tên miền shop-chinhhang.vn")
                 .message("Hồ sơ khiếu nại #DSP-2814 giải tỏa thành công sau xác thực giấy phép TMĐT.")
-                .referenceType("DISPUTE")
                 .referenceId(2814L)
                 .isRead(true)
                 .createdAt(fixedNow.minusDays(3))
@@ -115,10 +113,9 @@ class NotificationServiceImplTest {
         Notification n6 = Notification.builder()
                 .id(6L)
                 .user(user)
-                .type("SYSTEM")
+                .type(NotificationType.SYSTEM)
                 .title("Cập nhật cơ sở dữ liệu phòng vệ ScamShield v4.8")
                 .message("Đã tự động cập nhật 1.420 chữ ký độc hại và danh sách số điện thoại lừa đảo mới.")
-                .referenceType("SYSTEM_UPDATE")
                 .isRead(true)
                 .createdAt(fixedNow.minusDays(5))
                 .build();
@@ -127,9 +124,9 @@ class NotificationServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(n1, n2, n3, n4, n5, n6), PageRequest.of(0, 10), 12));
 
         when(notificationRepository.countByUserId(userId)).thenReturn(12L);
-        when(notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "REPORT")).thenReturn(6L);
-        when(notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "DISPUTE")).thenReturn(2L);
-        when(notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "SYSTEM")).thenReturn(4L);
+        when(notificationRepository.countByUserIdAndType(userId, NotificationType.REPORT)).thenReturn(6L);
+        when(notificationRepository.countByUserIdAndType(userId, NotificationType.DISPUTE)).thenReturn(2L);
+        when(notificationRepository.countByUserIdAndType(userId, NotificationType.SYSTEM)).thenReturn(4L);
         when(notificationRepository.countByUserIdAndIsReadFalse(userId)).thenReturn(3L);
 
         NotificationListResponse response = service.getNotifications(userId, "ALL", null, PageRequest.of(0, 10));
@@ -211,9 +208,9 @@ class NotificationServiceImplTest {
     void getTabCountsCallsRepositoryProperly() {
         Long userId = 1L;
         when(notificationRepository.countByUserId(userId)).thenReturn(12L);
-        when(notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "REPORT")).thenReturn(6L);
-        when(notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "DISPUTE")).thenReturn(2L);
-        when(notificationRepository.countByUserIdAndTypeIgnoreCase(userId, "SYSTEM")).thenReturn(4L);
+        when(notificationRepository.countByUserIdAndType(userId, NotificationType.REPORT)).thenReturn(6L);
+        when(notificationRepository.countByUserIdAndType(userId, NotificationType.DISPUTE)).thenReturn(2L);
+        when(notificationRepository.countByUserIdAndType(userId, NotificationType.SYSTEM)).thenReturn(4L);
         when(notificationRepository.countByUserIdAndIsReadFalse(userId)).thenReturn(3L);
 
         NotificationTabCountsResponse counts = service.getTabCounts(userId);

@@ -5,8 +5,7 @@ export interface LoginGoogleRequest {
 export interface RegisterGoogleRequest {
   idToken: string
   phoneNumber: string
-  verificationToken?: string
-  phoneOtp?: string
+  verificationToken: string
   agreeTerms: boolean
   receiveAlerts: boolean
 }

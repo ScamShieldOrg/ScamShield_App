@@ -1,199 +1,294 @@
 "use client"
-
-import { useState, useEffect } from "react"
-import { Flag, ShieldCheck } from "@phosphor-icons/react"
-import { ModeratorReportItem, ModerationDecisionPayload } from "@/features/moderator/types/moderator.types"
+import type {
+  ModeratorReportItem,
+  ModerationDecisionPayload,
+} from "@/features/moderator/types/moderator.types"
+import {
+  reportStatusLabel,
+  reportStatusClass,
+  reportTargetTypeLabel,
+  ownsReportReview,
+} from "@/features/moderator/report-review"
 import { ReportEvidencePreview } from "./report-evidence-preview"
-import { ReportTaxonomySelector } from "./report-taxonomy-selector"
 import { ReportDecisionForm } from "./report-decision-form"
 
-interface ReportQueueDetailViewProps {
-  item: ModeratorReportItem | null
-  onDecisionSubmitted: (payload: ModerationDecisionPayload) => Promise<void>
+function contextDate(value: string | null) {
+  return value ? new Date(value).toLocaleDateString("vi-VN") : "Chưa có dữ liệu"
+}
+
+function approvalRate(approved: number, decided: number) {
+  return decided
+    ? `${Math.round((approved / decided) * 100)}%`
+    : "Chưa có quyết định"
+}
+
+function ReviewContext({ item }: { item: ModeratorReportItem }) {
+  const { indicatorContext: indicator, reporterContext: reporter } = item
+
+  const indicatorFields = indicator && [
+    ["Khiếu nại về đối tượng", indicator.disputes],
+    ["Ghi nhận lần đầu", contextDate(indicator.firstSeenAt)],
+    ["Ghi nhận gần nhất", contextDate(indicator.lastSeenAt)],
+  ]
+  const reporterFields = reporter && [
+    ["Điểm uy tín", reporter.reputationPoints ?? "Chưa có dữ liệu"],
+    ["Tham gia từ", contextDate(reporter.joinedAt)],
+    ["Email", reporter.email || "Chưa cung cấp"],
+    ["Số điện thoại", reporter.phoneNumber || "Chưa cung cấp"],
+    ["Báo cáo đã gửi", reporter.reports],
+    [
+      "Tỷ lệ báo cáo được duyệt",
+      approvalRate(reporter.approvedReports, reporter.decidedReports),
+    ],
+    ["Khiếu nại đã gửi", reporter.disputes],
+    [
+      "Tỷ lệ khiếu nại được duyệt",
+      approvalRate(reporter.approvedDisputes, reporter.decidedDisputes),
+    ],
+    [
+      "Dấu hiệu cần xem xét",
+      reporter.abuseFlags === 0
+        ? "Chưa ghi nhận"
+        : `${reporter.abuseFlags} lượt ghi nhận · ${reporter.openFlags} đang mở`,
+    ],
+  ]
+
+  return (
+    <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      {[
+        {
+          title: "Đối tượng bị báo cáo",
+          name: item.targetIdentifier,
+          fields: indicatorFields,
+        },
+        { title: "Người gửi", name: item.reportedBy, fields: reporterFields },
+      ].map(({ title, name, fields }, index) => (
+        <section
+          key={title}
+          className={`min-w-0 rounded-2xl border p-4 sm:p-5 ${index === 0 ? "border-primary/25 bg-primary/5 ring-1 ring-primary/10" : "border-border bg-muted/30"}`}
+        >
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground">
+            {title}
+          </p>
+          {index === 0 ? (
+            <h1 className="mt-2 font-heading text-2xl font-bold break-words text-primary sm:text-3xl">
+              {name}
+            </h1>
+          ) : (
+            <h2 className="mt-1 text-lg font-bold break-words">{name}</h2>
+          )}
+          {index === 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">
+                {reportTargetTypeLabel(item.targetType)}
+              </span>
+              {indicator && (
+                <span
+                  className={`rounded-full border px-2.5 py-1 font-semibold ${indicator.blacklistStatus === "ACTIVE" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"}`}
+                >
+                  {indicator.blacklistStatus === "ACTIVE"
+                    ? "Đang trong blacklist"
+                    : indicator.blacklistStatus === "RETRACTED"
+                      ? "Đã gỡ khỏi blacklist"
+                      : "Chưa vào blacklist"}
+                </span>
+              )}
+            </div>
+          )}
+          {index === 0 && indicator && (
+            <dl className="mt-4 grid grid-cols-3 gap-2">
+              {[
+                {
+                  label: "Tổng báo cáo",
+                  value: indicator.reports,
+                  color: "text-foreground",
+                },
+                {
+                  label: "Đã duyệt",
+                  value: indicator.approvedReports,
+                  color: "text-emerald-700 dark:text-emerald-300",
+                },
+                {
+                  label: "Bị từ chối",
+                  value: indicator.rejectedReports,
+                  color: "text-destructive",
+                },
+              ].map(({ label, value, color }) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-border bg-card p-2.5"
+                >
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd
+                    className={`mt-1 text-lg font-bold tabular-nums ${color}`}
+                  >
+                    {value ?? "—"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {fields && (
+            <dl className="mt-4 grid gap-x-4 gap-y-3 border-t border-border pt-4 sm:grid-cols-2">
+              {fields.map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="mt-1 text-sm font-semibold break-words tabular-nums">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      ))}
+    </div>
+  )
 }
 
 export function ReportQueueDetailView({
   item,
   onDecisionSubmitted,
-}: ReportQueueDetailViewProps) {
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [flagged, setFlagged] = useState(false)
-
-  useEffect(() => {
-    if (item) {
-      setSelectedTags(item.taxonomies || [])
-      setFlagged(false)
-    }
-  }, [item])
-
-  if (!item) {
+  onStartReview,
+  reviewActive = false,
+  onDirtyChange,
+  busy = false,
+}: {
+  item: ModeratorReportItem | null
+  onDecisionSubmitted: (payload: ModerationDecisionPayload) => Promise<void>
+  onStartReview: () => Promise<void>
+  reviewActive?: boolean
+  onDirtyChange?: (dirty: boolean) => void
+  busy?: boolean
+}) {
+  if (!item)
     return (
-      <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
-          <ShieldCheck size={32} />
-        </div>
-        <div className="mt-3 text-sm font-bold text-slate-900 dark:text-white">
-          Chưa chọn hồ sơ nào
-        </div>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Vui lòng chọn một ca từ danh sách hàng đợi bên trái để thẩm định.
-        </p>
-      </div>
+      <p className="p-8 text-sm text-muted-foreground">
+        Chọn một báo cáo để xem chi tiết.
+      </p>
     )
-  }
-
-  const handleToggleTag = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    )
-  }
-
-  const handleFormSubmit = async (payload: ModerationDecisionPayload) => {
-    setIsSubmitting(true)
-    try {
-      await onDecisionSubmitted(payload)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
+  const pending = item.status === "Pending" || item.status === "In Review"
+  const canReview = ownsReportReview(item)
   return (
-    <div className="flex h-full flex-col">
-      {/* Top Workspace Header */}
-      <div className="border-b border-slate-200 bg-white px-6 py-5 dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            {/* Meta Row: ID & Status Badges */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                {item.id}
-              </span>
-              <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400">
-                {item.status}
-              </span>
-              <span className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400">
-                {item.priority}
-              </span>
-            </div>
-
-            {/* Target Identifier */}
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-              {item.targetIdentifier}
-            </h1>
-
-            {/* Sub-meta details */}
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-              <span className="font-semibold text-slate-700 dark:text-slate-300">
-                {item.category}
-              </span>
-              <span>•</span>
-              <span className="font-semibold text-rose-600 dark:text-rose-400">
-                {item.reportCount} báo cáo
-              </span>
-              <span>•</span>
-              <span>Gửi bởi <strong className="text-slate-700 dark:text-slate-300">{item.reportedBy}</strong></span>
-              <span>•</span>
-              <span>{item.reportedAt}</span>
-            </div>
-          </div>
-
-          {/* Action: Gắn cờ lạm dụng */}
-          <button
-            type="button"
-            onClick={() => setFlagged(!flagged)}
-            className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
-              flagged
-                ? "border-rose-500 bg-rose-500 text-white shadow-xs"
-                : "border-rose-300 bg-rose-50/60 text-rose-700 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50"
-            }`}
+    <div className="space-y-5 p-5">
+      <header className="rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
+            Mã báo cáo
+            <span className="font-semibold text-foreground tabular-nums">
+              {item.rawId ?? Number(item.id.split("-").at(-1))}
+            </span>
+          </span>
+          <span
+            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${reportStatusClass[item.status]}`}
           >
-            <Flag size={14} weight="bold" />
-            <span>{flagged ? "Đã gắn cờ" : "Gắn cờ lạm dụng"}</span>
-          </button>
+            {reportStatusLabel[item.status] ?? item.status}
+          </span>
         </div>
-      </div>
-
-      {/* Main Workspace Scroll Content */}
-      <div className="flex-1 space-y-5 overflow-y-auto p-6">
-        {/* Top 2 Cards: Phán quyết AI & Đề xuất */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Card 1: Phán quyết AI */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              <span className="size-2 rounded-full bg-blue-500" />
-              <span>PHÁN QUYẾT AI</span>
-            </div>
-
-            <div className="mt-3 flex items-baseline gap-1">
-              <span className="text-3xl font-black text-rose-600 dark:text-rose-500">
-                {item.aiScore != null ? item.aiScore : "--"}
-              </span>
-              {item.aiScore != null && (
-                <span className="text-sm font-semibold text-slate-400">
-                  / 100
-                </span>
-              )}
-            </div>
-
-            <div className="mt-1 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
-              {item.aiRiskLevel || "Đang chờ phân tích"}
-            </div>
-
-            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-              Tin cậy: {item.aiConfidence || "--"}
-            </p>
-
-            {/* Progress bar */}
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div
-                className="h-full rounded-full bg-rose-600 transition-all duration-500 dark:bg-rose-500"
-                style={{ width: `${item.aiScore ?? 0}%` }}
-              />
-            </div>
+        <ReviewContext item={item} />
+        <dl className="mt-4 grid gap-4 border-t border-border pt-4 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-muted-foreground">Danh mục</dt>
+            <dd className="mt-1 font-medium text-foreground">
+              {item.category}
+            </dd>
           </div>
-
-          {/* Card 2: Người báo cáo đề xuất */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              <span className="size-2 rounded-full bg-slate-400" />
-              <span>NGƯỜI BÁO CÁO ĐỀ XUẤT</span>
-            </div>
-
-            <div className="mt-3 flex min-h-[72px] items-center text-xs">
-              {item.reporterProposal ? (
-                <p className="font-medium text-slate-700 dark:text-slate-300">
-                  {item.reporterProposal}
-                </p>
-              ) : (
-                <p className="italic text-slate-400 dark:text-slate-500">
-                  Không có đề xuất
-                </p>
-              )}
-            </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Ngày gửi</dt>
+            <dd className="mt-1 font-medium text-foreground tabular-nums">
+              {item.reportedAt}
+            </dd>
           </div>
+          {item.processedAt && (
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                Thời gian đã xử lý
+              </dt>
+              <dd className="mt-1 font-medium text-foreground tabular-nums">
+                {item.processedAt}
+              </dd>
+            </div>
+          )}
+        </dl>
+      </header>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5">
+        <div>
+          <h2 className="text-sm font-bold">Mô tả hành vi</h2>
+          <p
+            className={`mt-2 text-sm break-words whitespace-pre-wrap ${item.description?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
+          >
+            {item.description?.trim() || "Chưa có mô tả."}
+          </p>
         </div>
+        <div>
+          <h2 className="text-sm font-bold">Nội dung tin nhắn bị báo cáo</h2>
+          <p
+            className={`mt-2 text-sm break-words whitespace-pre-wrap ${item.reportedMessage?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
+          >
+            {item.reportedMessage?.trim() ||
+              "Người gửi không cung cấp nội dung tin nhắn."}
+          </p>
+        </div>
+      </section>
+      {pending && item.canReview === true && !reviewActive && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void onStartReview()}
+          className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+        >
+          {busy ? "Đang bắt đầu duyệt..." : "Bắt đầu duyệt"}
+        </button>
+      )}
+      {pending &&
+        !canReview &&
+        !(item.status === "Pending" && item.canReview === true) && (
+          <p className="text-sm text-muted-foreground">
+            Báo cáo này chỉ được xem. Bạn chưa có phiên duyệt hoặc không có
+            quyền duyệt.
+          </p>
+        )}
+      {item.whitelisted && (
+        <section
+          role="status"
+          className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+        >
+          <h2 className="font-bold">Đối tượng đang thuộc danh sách tin cậy</h2>
+          {pending && <p className="mt-1">Báo cáo này không thể được phê duyệt.</p>}
 
-        {/* Evidence Preview Box */}
-        <ReportEvidencePreview
-          evidences={item.evidences}
-          completeness={item.evidenceCompleteness}
-        />
-
-        {/* Taxonomy Tagging Selector */}
-        <ReportTaxonomySelector
-          selectedTags={selectedTags}
-          onToggleTag={handleToggleTag}
-        />
-
-        {/* Final Decision Form */}
-        <ReportDecisionForm
-          reportId={item.id}
-          selectedTaxonomies={selectedTags}
-          onSubmit={handleFormSubmit}
-          isSubmitting={isSubmitting}
-        />
-      </div>
+          <ul className="mt-2 space-y-1">
+            {item.whitelistMatches?.map((match) => (
+              <li key={match.whitelistEntryId}>
+                {match.legalName}
+                {match.verifiedAt
+                  ? ` · Xác minh: ${new Date(match.verifiedAt).toLocaleString("vi-VN")}`
+                  : ""}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <ReportEvidencePreview
+        key={item.id}
+        reportId={item.rawId ?? item.id}
+        evidences={item.evidences ?? []}
+        completeness={item.evidenceCompleteness}
+      />
+      {pending && canReview && reviewActive && (
+        <>
+          <ReportDecisionForm
+            key={item.id}
+            reportId={item.id}
+            currentCategoryId={item.categoryId}
+            currentCategoryName={item.category}
+            selectedTaxonomies={item.taxonomies ?? []}
+            onSubmit={onDecisionSubmitted}
+            onDirtyChange={onDirtyChange}
+            isSubmitting={busy}
+            approvalBlocked={item.whitelisted}
+          />
+        </>
+      )}
     </div>
   )
 }

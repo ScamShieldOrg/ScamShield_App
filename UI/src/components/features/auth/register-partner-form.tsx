@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import {
   Buildings,
@@ -35,6 +35,8 @@ import {
 } from "@/components/features/auth/auth-shared-components"
 import {
   authServices,
+  PartnerRegistrationOutcomeUnknownError,
+  type PartnerUploadProgress,
   RegisterPartnerPayload,
 } from "@/features/auth/services/auth-services"
 
@@ -42,6 +44,7 @@ const RECAPTCHA_CONTAINER_ID = "register-partner-recaptcha"
 const FORM_STORAGE_KEY = "scamshield_partner_register_form"
 const COOLDOWN_STORAGE_KEY = "scamshield_partner_otp_cooldown_until"
 const OTP_OPEN_STORAGE_KEY = "scamshield_partner_otp_open"
+const PENDING_DRAFT_STORAGE_KEY = "scamshield_partner_pending_draft"
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const TAX_CODE_REGEX = /^[0-9]{10}(-?[0-9]{3})?$/
 const MOBILE_PHONE_REGEX =
@@ -50,8 +53,13 @@ const DOMAIN_REGEX =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const SMS_BRAND_REGEX = /^[A-Z0-9][A-Z0-9 _-]*$/
 const MAX_FILE_SIZE = 25 * 1024 * 1024
-const MAX_TOTAL_SIZE = 75 * 1024 * 1024
-const MAX_FILES = 10
+const MAX_TOTAL_SIZE = 125 * 1024 * 1024
+const MAX_FILES = 5
+const FILE_LIMITS = {
+  businessLicenseFiles: 1,
+  ownershipProofFiles: 3,
+  authorizationFiles: 1,
+} as const
 const SUPPORTED_FILE_TYPES: Record<string, string> = {
   pdf: "application/pdf",
   jpg: "image/jpeg",
@@ -100,6 +108,7 @@ interface FileUploadBoxProps {
   required?: boolean
   description: string
   accept?: string
+  maxFiles: number
   files: File[]
   onFilesSelect: (selected: FileList | null) => void
   onRemoveFile: (index: number) => void
@@ -112,12 +121,14 @@ function FileUploadBox({
   required,
   description,
   accept = ".pdf,.jpg,.jpeg,.png",
+  maxFiles,
   files,
   onFilesSelect,
   onRemoveFile,
   error,
 }: FileUploadBoxProps) {
   const [isDragOver, setIsDragOver] = useState(false)
+  const remainingFiles = Math.max(0, maxFiles - files.length)
 
   return (
     <div className="rounded-xl border border-[#D8DEFF] bg-white p-4 shadow-2xs dark:border-border dark:bg-card">
@@ -143,19 +154,21 @@ function FileUploadBox({
       <div
         onDragOver={(e) => {
           e.preventDefault()
-          setIsDragOver(true)
+          if (remainingFiles > 0) setIsDragOver(true)
         }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={(e) => {
           e.preventDefault()
           setIsDragOver(false)
-          onFilesSelect(e.dataTransfer.files)
+          if (remainingFiles > 0) onFilesSelect(e.dataTransfer.files)
         }}
         className={cn(
           "rounded-lg border-2 border-dashed text-center transition-all focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2",
           isDragOver
             ? "border-primary bg-primary/5"
-            : "border-[#C6C6CE] bg-[#F9FAFF] hover:border-[#131A33] hover:bg-[#F2F4FF] dark:border-border dark:bg-muted/30 dark:hover:border-primary dark:hover:bg-muted/50",
+            : remainingFiles === 0
+              ? "border-[#D8DEFF] bg-[#F9FAFF] dark:border-border dark:bg-muted/30"
+              : "border-[#C6C6CE] bg-[#F9FAFF] hover:border-[#131A33] hover:bg-[#F2F4FF] dark:border-border dark:bg-muted/30 dark:hover:border-primary dark:hover:bg-muted/50",
           error && "border-[#BA1A1A] bg-red-50/20"
         )}
       >
@@ -163,25 +176,35 @@ function FileUploadBox({
           type="file"
           id={id}
           multiple
+          disabled={remainingFiles === 0}
           accept={accept}
           aria-required={required}
           aria-invalid={!!error}
-          aria-describedby={`${id}-description${error ? ` ${id}-error` : ""}`}
+          aria-describedby={`${id}-description ${id}-remaining${error ? ` ${id}-error` : ""}`}
           onChange={(e) => {
             onFilesSelect(e.target.files)
             e.target.value = ""
           }}
           className="sr-only"
         />
-        <label htmlFor={id} className="block cursor-pointer p-4">
+        <label
+          htmlFor={id}
+          className={cn("block p-4", remainingFiles > 0 && "cursor-pointer")}
+        >
           <span className="mx-auto mb-1.5 flex size-9 items-center justify-center rounded-full bg-[#EAEDFF] text-[#131A33] dark:bg-muted dark:text-foreground">
             <FileArrowUp size={18} weight="regular" />
           </span>
           <span className="block text-xs font-semibold text-[#131B2E] dark:text-foreground">
-            Kéo thả tệp vào đây hoặc{" "}
-            <span className="text-[#545D7C] underline underline-offset-2 dark:text-primary">
-              chọn từ thiết bị
-            </span>
+            {remainingFiles > 0 ? (
+              <>
+                Kéo thả tệp vào đây hoặc{" "}
+                <span className="text-[#545D7C] underline underline-offset-2 dark:text-primary">
+                  chọn từ thiết bị
+                </span>
+              </>
+            ) : (
+              "Đã đủ số tệp cho mục này. Xóa tệp để tải tệp khác."
+            )}
           </span>
           <span
             id={`${id}-description`}
@@ -191,6 +214,14 @@ function FileUploadBox({
           </span>
         </label>
       </div>
+
+      <p
+        id={`${id}-remaining`}
+        className="mt-2 text-xs text-[#545D7C] dark:text-muted-foreground"
+        aria-live="polite"
+      >
+        Còn {remainingFiles} tệp có thể tải lên (tối đa {maxFiles} tệp).
+      </p>
 
       {files.length > 0 && (
         <div className="mt-2.5 flex flex-col gap-1.5">
@@ -245,7 +276,13 @@ export function RegisterPartnerForm() {
   const [recaptchaToken, setRecaptchaToken] = useState("")
   const [isGettingRecaptcha, setIsGettingRecaptcha] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const submittingRef = useRef(false)
+  const [uploadProgress, setUploadProgress] =
+    useState<PartnerUploadProgress | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
+  const [pendingDraftToken, setPendingDraftToken] = useState<string | null>(null)
+  const [checkingStatus, setCheckingStatus] = useState(false)
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
 
   const [form, setForm] = useState<PartnerFormState>({
@@ -294,8 +331,13 @@ export function RegisterPartnerForm() {
       // ignore
     }
 
-    // 3. Khôi phục pop-up OTP nếu cooldown còn hiệu lực và pop-up đang mở trước đó
+    // 3. Khôi phục hồ sơ đang chờ xác nhận hoặc pop-up OTP.
     try {
+      const pendingDraft = sessionStorage.getItem(PENDING_DRAFT_STORAGE_KEY)
+      if (pendingDraft) {
+        setPendingDraftToken(pendingDraft)
+        return
+      }
       if (
         remaining > 0 &&
         sessionStorage.getItem(OTP_OPEN_STORAGE_KEY) === "true"
@@ -465,6 +507,20 @@ export function RegisterPartnerForm() {
   ) {
     if (!selected || selected.length === 0) return
     const newFiles = Array.from(selected)
+    const slotLimit = FILE_LIMITS[field]
+    const currentCount =
+      field === "businessLicenseFiles"
+        ? businessLicenseFiles.length
+        : field === "ownershipProofFiles"
+          ? ownershipProofFiles.length
+          : authorizationFiles.length
+    if (currentCount + newFiles.length > slotLimit) {
+      setErrors((prev) => ({
+        ...prev,
+        [field]: `Tối đa ${slotLimit} tệp cho mục này.`,
+      }))
+      return
+    }
     const allFiles = [
       ...businessLicenseFiles,
       ...ownershipProofFiles,
@@ -485,10 +541,10 @@ export function RegisterPartnerForm() {
         ? `Tệp ${invalidFile.name} phải là PDF và không vượt quá 25MB.`
         : `Tệp ${invalidFile.name} phải là PDF, JPG hoặc PNG và không vượt quá 25MB.`
       : allFiles.length > MAX_FILES
-        ? "Tối đa 10 tệp cho một hồ sơ."
+        ? "Tối đa 5 tệp cho một hồ sơ."
         : allFiles.reduce((total, file) => total + file.size, 0) >
             MAX_TOTAL_SIZE
-          ? "Tổng dung lượng tài liệu không vượt quá 75MB."
+          ? "Tổng dung lượng tài liệu không vượt quá 125MB."
           : undefined
     if (error) {
       setErrors((prev) => ({ ...prev, [field]: error }))
@@ -595,7 +651,10 @@ export function RegisterPartnerForm() {
   }
 
   async function handleOtpVerify(otp: string) {
+    if (submittingRef.current || pendingDraftToken) return
+    submittingRef.current = true
     setIsSubmitting(true)
+    setUploadProgress(null)
     setOtpError(null)
 
     // Bước 1: Xác thực OTP điện thoại để lấy verificationToken
@@ -611,6 +670,7 @@ export function RegisterPartnerForm() {
           : "Mã xác thực OTP không chính xác hoặc đã hết hạn."
       setOtpError(message)
       setIsSubmitting(false)
+      submittingRef.current = false
       return
     }
 
@@ -630,26 +690,33 @@ export function RegisterPartnerForm() {
         verificationToken,
       }
 
-      const result = await authServices.registerPartner(partnerPayload, {
-        businessLicenseFiles,
-        ownershipProofFiles,
-        authorizationFiles,
-      })
+      const result = await authServices.registerPartner(
+        partnerPayload,
+        {
+          businessLicenseFiles,
+          ownershipProofFiles,
+          authorizationFiles,
+        },
+        setUploadProgress
+      )
 
       toast.success(
         result?.message || "Hồ sơ đối tác đã được gửi và đang chờ xét duyệt!"
       )
-      try {
-        localStorage.removeItem(COOLDOWN_STORAGE_KEY)
-        sessionStorage.removeItem(OTP_OPEN_STORAGE_KEY)
-        sessionStorage.removeItem(FORM_STORAGE_KEY)
-      } catch {
-        // ignore
-      }
-      setIsOtpOpen(false)
-      setIsSubmittedSuccess(true)
-      setCooldown(0)
+      markSubmittedSuccess()
     } catch (partnerErr) {
+      if (partnerErr instanceof PartnerRegistrationOutcomeUnknownError) {
+        toast.warn(partnerErr.message)
+        setPendingDraftToken(partnerErr.draftToken)
+        setPendingMessage(partnerErr.message)
+        try {
+          sessionStorage.setItem(PENDING_DRAFT_STORAGE_KEY, partnerErr.draftToken)
+        } catch {
+          // Keep the pending state for this page session.
+        }
+        setIsOtpOpen(false)
+        return
+      }
       const message =
         partnerErr instanceof Error
           ? partnerErr.message
@@ -659,6 +726,51 @@ export function RegisterPartnerForm() {
       setIsOtpOpen(false)
     } finally {
       setIsSubmitting(false)
+      submittingRef.current = false
+    }
+  }
+
+  function markSubmittedSuccess() {
+    try {
+      localStorage.removeItem(COOLDOWN_STORAGE_KEY)
+      sessionStorage.removeItem(OTP_OPEN_STORAGE_KEY)
+      sessionStorage.removeItem(FORM_STORAGE_KEY)
+      sessionStorage.removeItem(PENDING_DRAFT_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+    setPendingDraftToken(null)
+    setPendingMessage(null)
+    setIsOtpOpen(false)
+    setIsSubmittedSuccess(true)
+    setCooldown(0)
+  }
+
+  async function handleStatusRetry() {
+    if (!pendingDraftToken || checkingStatus) return
+    setCheckingStatus(true)
+    setPendingMessage(null)
+    try {
+      const result = await authServices.getPartnerRegistrationStatus(pendingDraftToken)
+      if (result.status === "COMPLETED") {
+        toast.success("Hồ sơ đối tác đã được gửi và đang chờ xét duyệt!")
+        markSubmittedSuccess()
+      } else if (result.status === "EXPIRED") {
+        try {
+          sessionStorage.removeItem(PENDING_DRAFT_STORAGE_KEY)
+        } catch {
+          // The server response still resolves the pending state.
+        }
+        setPendingDraftToken(null)
+        setPendingMessage(null)
+        toast.error("Phiên đăng ký đã hết hạn. Vui lòng gửi lại hồ sơ.")
+      } else {
+        setPendingMessage("Hồ sơ vẫn đang được xử lý. Vui lòng kiểm tra lại sau.")
+      }
+    } catch {
+      setPendingMessage("Chưa thể kiểm tra trạng thái. Vui lòng thử lại.")
+    } finally {
+      setCheckingStatus(false)
     }
   }
 
@@ -791,7 +903,7 @@ export function RegisterPartnerForm() {
             </div>
           )}
 
-          {!isSubmittedSuccess && (
+          {!isSubmittedSuccess && !pendingDraftToken && (
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
               {/* ── SECTION 1: Legal Enterprise Info (KYB) ── */}
               <div className="rounded-xl border border-[#EAEDFF] bg-[#F2F3FF]/70 p-4 sm:p-5 dark:border-border dark:bg-muted/40">
@@ -1027,6 +1139,7 @@ export function RegisterPartnerForm() {
                     label="1. Giấy phép ĐKKD / Giấy phép hoạt động"
                     required
                     accept=".pdf"
+                    maxFiles={FILE_LIMITS.businessLicenseFiles}
                     description="Bản PDF giấy phép ĐKKD hoặc giấy phép hoạt động ngân hàng"
                     files={businessLicenseFiles}
                     onFilesSelect={(selected) =>
@@ -1043,6 +1156,7 @@ export function RegisterPartnerForm() {
                     id="ownershipProofFiles"
                     label="2. Tài liệu chứng minh sở hữu (Domain / Hotline / SMS Brandname)"
                     required
+                    maxFiles={FILE_LIMITS.ownershipProofFiles}
                     description="Hợp đồng viễn thông, chứng nhận sở hữu domain hoặc giấy cấp Brandname"
                     files={ownershipProofFiles}
                     onFilesSelect={(selected) =>
@@ -1060,6 +1174,7 @@ export function RegisterPartnerForm() {
                       id="authorizationFiles"
                       label="3. Giấy ủy quyền của tổ chức"
                       required
+                      maxFiles={FILE_LIMITS.authorizationFiles}
                       description="Văn bản ủy quyền hợp pháp của tổ chức"
                       files={authorizationFiles}
                       onFilesSelect={(selected) =>
@@ -1084,8 +1199,8 @@ export function RegisterPartnerForm() {
                       JPG, PNG. Dung lượng tối đa: 25MB/tệp.
                     </li>
                     <li>
-                      • Toàn bộ hồ sơ không vượt quá 10 tệp và tổng dung lượng
-                      không quá 75MB.
+                      • Toàn bộ hồ sơ không vượt quá 5 tệp và tổng dung lượng
+                      không quá 125MB.
                     </li>
                     <li>
                       • Thông tin trên hồ sơ phải đồng nhất với mã số thuế và
@@ -1145,7 +1260,7 @@ export function RegisterPartnerForm() {
                   </div>
                 )}
 
-                {/* Invisible reCAPTCHA mounting container */}
+                {/* Fresh reCAPTCHA challenge for each OTP request */}
                 <div id={RECAPTCHA_CONTAINER_ID} />
 
                 {/* Notice Banner */}
@@ -1195,8 +1310,77 @@ export function RegisterPartnerForm() {
         onVerify={handleOtpVerify}
         phoneNumber={form.contactPhone}
         isLoading={isSubmitting}
+        progressContent={
+          uploadProgress && (
+            <div
+              className="w-full space-y-2 text-xs"
+              role="status"
+              aria-live="polite"
+            >
+              <p className="font-semibold">
+                {uploadProgress.stage === "precheck"
+                  ? "Đang kiểm tra thông tin"
+                  : uploadProgress.stage === "finalize"
+                    ? "Đang hoàn tất đăng ký"
+                    : `Đang tải tệp ${Math.min(uploadProgress.completedFiles + 1, uploadProgress.totalFiles)}/${uploadProgress.totalFiles}`}
+              </p>
+              {uploadProgress.stage === "upload" && (
+                <>
+                  <progress
+                    className="w-full"
+                    max={100}
+                    value={uploadProgress.totalPercent}
+                    aria-label="Tiến độ tải tất cả tài liệu"
+                  />
+                  {uploadProgress.fileProgress.map((percent, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span
+                        className="min-w-0 flex-1 truncate"
+                        title={uploadProgress.fileNames[index]}
+                      >
+                        {uploadProgress.fileNames[index]}
+                      </span>
+                      <progress
+                        className="w-32"
+                        max={100}
+                        value={percent}
+                        aria-label={`Tiến độ tệp ${index + 1}`}
+                      />
+                      <span>{percent}%</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )
+        }
         error={otpError}
       />
+      {pendingDraftToken && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="partner-pending-title"
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-2xl"
+          >
+            <h2 id="partner-pending-title" className="text-lg font-bold">
+              Đang xác nhận kết quả đăng ký
+            </h2>
+            <p role="status" className="mt-3 text-sm text-muted-foreground">
+              {pendingMessage || "Hồ sơ có thể đã được gửi. Vui lòng kiểm tra trạng thái trước khi thử lại."}
+            </p>
+            <button
+              type="button"
+              onClick={handleStatusRetry}
+              disabled={checkingStatus}
+              className="mt-5 h-11 w-full rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
+            >
+              {checkingStatus ? "Đang kiểm tra..." : "Kiểm tra trạng thái"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

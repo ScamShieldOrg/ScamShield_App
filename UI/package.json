@@ -4,12 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1 --port 3001",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:google-registration": "node --test tests/google-registration.test.mjs",
+    "test:report-upload": "node --test tests/report-upload.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

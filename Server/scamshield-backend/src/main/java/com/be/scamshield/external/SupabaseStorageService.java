@@ -1,19 +1,18 @@
 package com.be.scamshield.external;
 
+import java.io.IOException;
+
 import com.be.scamshield.dto.response.PresignedUrlResponse;
 import com.be.scamshield.exception.DisputeStorageException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.multipart.MultipartFile;
 
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -23,7 +22,6 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
-import java.net.URI;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
@@ -31,7 +29,10 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class SupabaseStorageService {
+
+    private final SupabaseStorageClientFactory clientFactory;
 
     @Value("${app.aws.s3.region:${app.supabase.storage.region:${AWS_REGION:${SUPABASE_STORAGE_REGION:ap-south-1}}}}")
     private String region;
@@ -261,21 +262,29 @@ public class SupabaseStorageService {
     }
 
     public String createDisputeDownloadUrl(String objectKey) {
+        return createDisputeDownloadUrl(objectKey, null);
+    }
+
+    public String createDisputeDownloadUrl(String objectKey, String contentDisposition) {
         requireDisputeStorageConfigured();
         requireDisputeObjectKey(objectKey);
         if (disputeUrlExpirationSeconds <= 0 || disputeUrlExpirationSeconds > 604800) {
             throw new DisputeStorageException("Thời hạn liên kết tài liệu khiếu nại chưa được cấu hình hợp lệ");
         }
         try (S3Presigner presigner = createS3Presigner(true)) {
-            GetObjectRequest objectRequest = GetObjectRequest.builder()
+            GetObjectRequest.Builder objectRequestBuilder = GetObjectRequest.builder()
                     .bucket(getDisputeBucketName())
-                    .key(objectKey)
-                    .build();
+                    .key(objectKey);
+            if (StringUtils.hasText(contentDisposition)) {
+                objectRequestBuilder.responseContentDisposition(contentDisposition);
+            }
+            GetObjectRequest objectRequest = objectRequestBuilder.build();
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                     .signatureDuration(Duration.ofSeconds(disputeUrlExpirationSeconds))
                     .getObjectRequest(objectRequest)
                     .build();
-            return presigner.presignGetObject(presignRequest).url().toString();
+            String presignedUrl = presigner.presignGetObject(presignRequest).url().toString();
+            return enforceHttps(presignedUrl);
         } catch (Exception ex) {
             throw new DisputeStorageException("Không thể tạo liên kết tải tài liệu khiếu nại lúc này; vui lòng thử lại sau", ex);
         }
@@ -333,7 +342,7 @@ public class SupabaseStorageService {
                     .build();
 
             PresignedPutObjectRequest presignedRequest = presigner.presignPutObject(presignRequest);
-            String uploadUrl = presignedRequest.url().toString();
+            String uploadUrl = enforceHttps(presignedRequest.url().toString());
             String fileUrl = buildPublicUrl(objectKey);
 
             return PresignedUrlResponse.builder()
@@ -353,9 +362,9 @@ public class SupabaseStorageService {
         if (StringUtils.hasText(override)) {
             if (override.contains("supabase.co") || override.contains("/storage/v1/s3")) {
                 String baseUrl = override.replaceAll("/storage/v1/s3/?$", "").replaceAll("/+$", "");
-                return String.format("%s/storage/v1/object/public/%s/%s", baseUrl, getBucketName(), objectKey);
+                return enforceHttps(String.format("%s/storage/v1/object/public/%s/%s", baseUrl, getBucketName(), objectKey));
             }
-            return String.format("%s/%s/%s", override, getBucketName(), objectKey);
+            return enforceHttps(String.format("%s/%s/%s", override, getBucketName(), objectKey));
         }
         return String.format("https://%s.s3.%s.amazonaws.com/%s", getBucketName(), getRegion(), objectKey);
     }
@@ -371,18 +380,32 @@ public class SupabaseStorageService {
         }
     }
 
-    private S3Client createS3Client() {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(getAccessKeyId(), getSecretAccessKey());
-        var builder = S3Client.builder()
-                .region(Region.of(getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials));
-
-        String override = getEndpointOverride();
-        if (StringUtils.hasText(override)) {
-            builder.endpointOverride(URI.create(override))
-                    .forcePathStyle(true);
+    public byte[] readEvidence(String objectKey, int maximumBytes) throws IOException {
+        if (!isStorageConfigured() || objectKey == null || !objectKey.startsWith("evidences/")
+                || objectKey.contains("..") || !objectKey.matches("[A-Za-z0-9._/-]+")) {
+            throw new IllegalArgumentException("Kho lưu trữ minh chứng chưa sẵn sàng");
         }
-        return builder.build();
+        GetObjectRequest request = GetObjectRequest.builder().bucket(getBucketName()).key(objectKey)
+                .range("bytes=0-" + maximumBytes)
+                .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(30))
+                        .apiCallAttemptTimeout(Duration.ofSeconds(20))).build();
+        try (S3Client client = createS3Client(); var stream = client.getObject(request)) {
+            byte[] bytes = stream.readNBytes(maximumBytes + 1);
+            if (bytes.length > maximumBytes) { stream.abort(); throw new IOException("FILE_SIZE_LIMIT"); }
+            return bytes;
+        }
+    }
+
+    public String evidenceKeyFromUrl(String url) {
+        if (url == null) return null;
+        String prefix = buildPublicUrl("evidences/");
+        if (!url.startsWith(prefix)) return null;
+        String key = "evidences/" + url.substring(prefix.length());
+        return key.contains("..") || !key.matches("[A-Za-z0-9._/-]+") ? null : key;
+    }
+
+    private S3Client createS3Client() {
+        return clientFactory.createClient(getRegion(), getAccessKeyId(), getSecretAccessKey(), getEndpointOverride());
     }
 
     private S3Presigner createS3Presigner() {
@@ -390,21 +413,17 @@ public class SupabaseStorageService {
     }
 
     private S3Presigner createS3Presigner(boolean pathStyleAccessEnabled) {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(getAccessKeyId(), getSecretAccessKey());
-        var builder = S3Presigner.builder()
-                .region(Region.of(getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials));
+        return clientFactory.createPresigner(getRegion(), getAccessKeyId(), getSecretAccessKey(),
+                enforceHttps(getEndpointOverride()), pathStyleAccessEnabled);
+    }
 
-        String override = getEndpointOverride();
-        if (StringUtils.hasText(override)) {
-            builder.endpointOverride(URI.create(override));
-            if (pathStyleAccessEnabled) {
-                builder.serviceConfiguration(S3Configuration.builder()
-                        .pathStyleAccessEnabled(true)
-                        .build());
+    private String enforceHttps(String url) {
+        if (url != null && url.startsWith("http://")) {
+            if (!url.contains("://localhost") && !url.contains("://127.0.0.1")) {
+                return "https://" + url.substring("http://".length());
             }
         }
-        return builder.build();
+        return url;
     }
 
     public record UploadResult(String fileUrl, String fileHash, String objectKey, String originalFilename) {}

@@ -1,13 +1,16 @@
 package com.be.scamshield.entity;
 
-import com.be.scamshield.constant.ReportPriority;
+import com.be.scamshield.constant.VietnamProvince;
+import com.be.scamshield.converter.VietnamProvinceConverter;
 import jakarta.persistence.*;
+import com.be.scamshield.constant.ReportStatus;
 import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
+@DynamicUpdate
 @Table(name = "reports")
 @Data
 @NoArgsConstructor
@@ -25,6 +28,10 @@ public class Report {
     private User reporterUser;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_moderator_id")
+    private User assignedModerator;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "indicator_id", nullable = false)
     private Indicator indicator;
 
@@ -32,56 +39,26 @@ public class Report {
     @JoinColumn(name = "source_check_request_id")
     private CheckRequest sourceCheckRequest;
 
-    @Column(name = "reported_message")
+    @Column(name = "reported_message", columnDefinition = "text")
     private String reportedMessage;
 
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "text")
     private String description;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private String status;
+    private ReportStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private ScamCategory category;
 
+    @Convert(converter = VietnamProvinceConverter.class)
     @Column(name = "region_code")
-    private String regionCode;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "priority")
-    private ReportPriority priority;
-
-    @Column(name = "priority_score")
-    private BigDecimal priorityScore;
-
-    @Column(name = "evidence_completeness")
-    private Integer evidenceCompleteness;
-
-    @Column(name = "reporter_proposal")
-    private String reporterProposal;
-
-    @Column(name = "report_count_signal", nullable = false)
-    private Integer reportCountSignal;
+    private VietnamProvince regionCode;
 
     @Column(name = "ip_hash")
     private String ipHash;
-
-    @Column(name = "device_fingerprint_hash")
-    private String deviceFingerprintHash;
-
-    @Column(name = "coordinated_report_suspected", nullable = false)
-    private Boolean coordinatedReportSuspected;
-
-    @Column(name = "moderation_locked", nullable = false)
-    private Boolean moderationLocked;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "locked_by_user_id")
-    private User lockedByUser;
-
-    @Column(name = "locked_at")
-    private LocalDateTime lockedAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -89,20 +66,4 @@ public class Report {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public static final BigDecimal PRIORITY_THRESHOLD_URGENT = new BigDecimal("80");
-    public static final BigDecimal PRIORITY_THRESHOLD_HIGH = new BigDecimal("50");
-
-    public ReportPriority resolvePriority() {
-        if (this.priority != null) {
-            return this.priority;
-        }
-        if (this.priorityScore != null) {
-            if (this.priorityScore.compareTo(PRIORITY_THRESHOLD_URGENT) >= 0) {
-                return ReportPriority.URGENT;
-            } else if (this.priorityScore.compareTo(PRIORITY_THRESHOLD_HIGH) >= 0) {
-                return ReportPriority.HIGH;
-            }
-        }
-        return ReportPriority.NORMAL;
-    }
 }

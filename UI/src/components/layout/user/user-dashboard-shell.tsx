@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { UserSidebar } from "./user-sidebar"
 import { UserHeader } from "./user-header"
+import { NotificationRealtime } from "@/components/features/notification-realtime"
 
 interface UserDashboardShellProps {
   children: React.ReactNode
@@ -13,6 +14,7 @@ export function UserDashboardShell({ children }: UserDashboardShellProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF8FF] text-foreground dark:bg-background">
+      <NotificationRealtime />
       {/* Desktop Sticky Sidebar */}
       <UserSidebar className="hidden md:flex" />
 

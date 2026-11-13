@@ -39,30 +39,29 @@ public class ModeratorReportController {
             "id",
             "createdAt",
             "updatedAt",
-            "priorityScore",
-            "status",
-            "reportCountSignal"
+            "status"
     );
 
     private final IModeratorReportService moderatorReportService;
 
     @GetMapping
     @Operation(summary = "Lấy danh sách hàng đợi xét duyệt báo cáo lừa đảo",
-            description = "Hỗ trợ phân trang, tìm kiếm theo ID (CS-YYYY-XXXX), đối tượng, danh mục, người gửi; lọc theo tab (ALL, PENDING, IN_REVIEW, LOCKED) và độ ưu tiên")
+            description = "Hỗ trợ phân trang, tìm kiếm theo ID (CS-YYYY-XXXX), đối tượng, danh mục, người gửi; lọc theo tab (ALL, PENDING, IN_REVIEW, APPROVED, REJECTED, WITHDRAWN)")
     public ResponseEntity<BaseResponse<PaginatedResponse<ModeratorReportResponse>>> getReportQueue(
-            @Valid @ModelAttribute @ParameterObject ModeratorReportFilterRequest filter) {
+            @Valid @ModelAttribute @ParameterObject ModeratorReportFilterRequest filter,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
 
         Pageable pageable = createPageable(filter);
-        PaginatedResponse<ModeratorReportResponse> reports = moderatorReportService.getReportQueue(filter, pageable);
+        PaginatedResponse<ModeratorReportResponse> reports = moderatorReportService.getReportQueue(filter, pageable, currentUser);
 
         return ResponseEntity.ok(new BaseResponse<>(true, "Lấy danh sách hàng đợi xét duyệt thành công", reports));
     }
 
     @GetMapping("/counts")
     @Operation(summary = "Lấy số lượng hồ sơ theo từng tab trong hàng đợi",
-            description = "Trả về tổng số ca, số ca đang chờ duyệt (Pending), đang xem xét (In Review), và đã khóa (Locked)")
-    public ResponseEntity<BaseResponse<ModeratorQueueCountsResponse>> getQueueCounts() {
-        ModeratorQueueCountsResponse counts = moderatorReportService.getQueueCounts();
+            description = "Trả về tổng số ca, số ca đang chờ duyệt (Pending) và đang xem xét (In Review)")
+    public ResponseEntity<BaseResponse<ModeratorQueueCountsResponse>> getQueueCounts(@AuthenticationPrincipal UserPrincipal currentUser) {
+        ModeratorQueueCountsResponse counts = moderatorReportService.getQueueCounts(currentUser);
         return ResponseEntity.ok(new BaseResponse<>(true, "Lấy số lượng hàng đợi xét duyệt thành công", counts));
     }
 
@@ -71,14 +70,22 @@ public class ModeratorReportController {
             description = "Trả về thông tin chi tiết của một ca báo cáo theo ID bao gồm đối tượng, danh mục, bằng chứng, người báo cáo và mức độ ưu tiên")
     public ResponseEntity<BaseResponse<ModeratorReportResponse>> getReportById(
             @Parameter(description = "ID gốc của hồ sơ báo cáo (ví dụ: 1891)")
-            @PathVariable Long id) {
-        ModeratorReportResponse report = moderatorReportService.getReportById(id);
+            @PathVariable Long id, @AuthenticationPrincipal UserPrincipal currentUser) {
+        ModeratorReportResponse report = moderatorReportService.getReportById(id, currentUser);
         return ResponseEntity.ok(new BaseResponse<>(true, "Lấy chi tiết hồ sơ báo cáo thành công", report));
+    }
+
+    @PostMapping("/{id}/review")
+    @Operation(summary = "Chuyển báo cáo sang IN_REVIEW một lần khi bắt đầu duyệt")
+    public ResponseEntity<BaseResponse<ModeratorReportResponse>> startReview(
+            @PathVariable Long id, @AuthenticationPrincipal UserPrincipal currentUser) {
+        return ResponseEntity.ok(new BaseResponse<>(true, "Báo cáo đang được kiểm duyệt",
+                moderatorReportService.startReview(id, currentUser)));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Kiểm duyệt viên ra quyết định thẩm định ca báo cáo",
-            description = "Phê duyệt (APPROVE) hoặc từ chối (REJECT). Khi ra quyết định, tất cả các báo cáo PENDING của cùng một đối tượng (Indicator) sẽ được xử lý đồng bộ cùng lúc. Yêu cầu lý do tối thiểu 20 ký tự để lưu vết audit trail bất biến.")
+            description = "Chỉ xử lý một báo cáo IN_REVIEW. Đồng bộ trạng thái mọi bằng chứng; REJECT bắt buộc lý do từ 20 đến 2000 ký tự.")
     public ResponseEntity<BaseResponse<ModeratorReportResponse>> submitDecision(
             @Parameter(description = "ID gốc của hồ sơ báo cáo (ví dụ: 1891)")
             @PathVariable Long id,

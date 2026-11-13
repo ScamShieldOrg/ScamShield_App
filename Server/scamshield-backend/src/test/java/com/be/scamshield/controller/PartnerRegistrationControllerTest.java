@@ -2,6 +2,8 @@ package com.be.scamshield.controller;
 
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.dto.response.PartnerRegistrationResponse;
+import com.be.scamshield.dto.response.PartnerRegistrationPrecheckResponse;
+import com.be.scamshield.dto.response.PartnerRegistrationStatusResponse;
 import com.be.scamshield.config.SecurityConfig;
 import com.be.scamshield.security.JwtTokenProvider;
 import com.be.scamshield.security.JwtAuthenticationEntryPoint;
@@ -38,6 +40,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -50,7 +54,7 @@ class PartnerRegistrationControllerTest {
              "corporateEmail":"contact@example.com.vn", "representativeNameAndTitle":"Huy - Giám đốc",
              "contactPhone":"0912345678", "verificationToken":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "officialDomains":"example.com.vn",
              "officialHotlines":"1900545413", "smsBrandNames":"EXAMPLE",
-             "legalRepresentative":true, "agreeTerms":true}
+             "agreeTerms":true}
             """;
     @MockitoBean
     private IPartnerRegistrationService service;
@@ -60,6 +64,22 @@ class PartnerRegistrationControllerTest {
     private CustomUserDetailsService customUserDetailsService;
     @Autowired
     private MockMvc mvc;
+
+    @Test
+    void guestCanUseDraftStatusRefreshAndUploadRenewal() throws Exception {
+        String draftUrl = URL + "/draft-token";
+        when(service.status("draft-token")).thenReturn(new PartnerRegistrationStatusResponse("PROCESSING", null));
+        when(service.refreshDraft("draft-token")).thenReturn(LocalDateTime.of(2026, 10, 6, 10, 0));
+        when(service.renewUpload("draft-token", 0)).thenReturn(
+                new PartnerRegistrationPrecheckResponse.Upload(0, "https://storage.test/upload", "pending/test", 300));
+
+        mvc.perform(get(draftUrl + "/status"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("PROCESSING"));
+        mvc.perform(post(draftUrl + "/refresh"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.isSuccess").value(true));
+        mvc.perform(post(draftUrl + "/uploads/0/renew"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.documentIndex").value(0));
+    }
 
     @Test
     void acceptsJsonAndFilesAndReturnsCreatedWrappedResponse() throws Exception {
