@@ -7,8 +7,10 @@ import com.be.scamshield.dto.response.PartnerRegistrationPrecheckResponse;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -36,7 +38,7 @@ public class InMemoryPartnerRegistrationDraftStore implements PartnerRegistratio
     public Optional<Draft> find(String token) {
         Draft draft = drafts.get(token);
         if (draft != null && !draft.expiresAt().isAfter(LocalDateTime.now(applicationClock))) {
-            drafts.remove(token);
+            drafts.remove(token, draft);
             return Optional.empty();
         }
         return Optional.ofNullable(draft);
@@ -44,25 +46,30 @@ public class InMemoryPartnerRegistrationDraftStore implements PartnerRegistratio
 
     @Override
     public LocalDateTime refresh(String token) {
-        Draft draft = find(token).orElseThrow(() -> new IllegalArgumentException("Phiên đăng ký đã hết hạn"));
         LocalDateTime expiresAt = LocalDateTime.now(applicationClock).plus(Duration.ofMinutes(60));
-        drafts.put(token, new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
-                draft.businessVerification(), draft.uploads(), expiresAt));
+        Draft updated = drafts.compute(token, (key, draft) -> draft == null
+                || !draft.expiresAt().isAfter(LocalDateTime.now(applicationClock)) ? null
+                : new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
+                        draft.businessVerification(), draft.uploads(), expiresAt));
+        if (updated == null) throw new IllegalArgumentException("Phiên đăng ký đã hết hạn");
         return expiresAt;
     }
 
     @Override
     public void replaceUpload(String token, int index, PartnerRegistrationPrecheckResponse.Upload upload) {
-        Draft draft = find(token).orElseThrow(() -> new IllegalArgumentException("Phiên đăng ký đã hết hạn"));
-        var uploads = new java.util.ArrayList<>(draft.uploads());
-        uploads.set(index, upload);
-        drafts.put(token, new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
-                draft.businessVerification(), uploads, LocalDateTime.now(applicationClock).plus(Duration.ofMinutes(60))));
+        Draft updated = drafts.compute(token, (key, draft) -> {
+            if (draft == null || !draft.expiresAt().isAfter(LocalDateTime.now(applicationClock))) return null;
+            var uploads = new ArrayList<>(draft.uploads());
+            uploads.set(index, upload);
+            return new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
+                    draft.businessVerification(), uploads, LocalDateTime.now(applicationClock).plus(Duration.ofMinutes(60)));
+        });
+        if (updated == null) throw new IllegalArgumentException("Phiên đăng ký đã hết hạn");
     }
 
     @Override
     public String claim(String token) {
-        String claimId = java.util.UUID.randomUUID().toString();
+        String claimId = UUID.randomUUID().toString();
         return claims.putIfAbsent(token, claimId) == null ? claimId : null;
     }
 

@@ -9,6 +9,7 @@ import com.be.scamshield.external.FirebasePhoneClient;
 import com.be.scamshield.external.XinvoiceBusinessClient;
 
 import com.be.scamshield.constant.OtpType;
+import com.be.scamshield.constant.PartnerPasswordEmailStatus;
 import com.be.scamshield.config.PartnerBusinessVerificationProperties;
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.RoleEnum;
@@ -26,12 +27,12 @@ import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.Source
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.Outcome;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse.ExtractedBusiness;
 import com.be.scamshield.entity.PartnerProfile;
+import com.be.scamshield.entity.PartnerDocument;
 import com.be.scamshield.entity.Role;
 import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.RegistrationConflictException;
 import com.be.scamshield.exception.SmsProviderException;
-import com.be.scamshield.exception.PartnerBusinessVerificationException;
 import com.be.scamshield.repository.PartnerDocumentRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.RoleRepository;
@@ -48,6 +49,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -59,6 +61,7 @@ import tools.jackson.databind.ObjectMapper;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -153,6 +156,7 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
         request.setTaxCode("0100112437");
         request.setCorporateEmail("contact@example.com.vn");
         request.setRepresentativeNameAndTitle("Huy - Giám đốc");
+        request.setLegalRepresentative(true);
         request.setContactPhone("0912345678");
         request.setOfficialDomains("example.com.vn");
         request.setOfficialHotlines("1900545413");
@@ -171,13 +175,10 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
         });
         when(documentStorage.uploadPendingBytes(any(), any(), any(), any()))
                 .thenAnswer(invocation -> "pending/test/" + java.util.UUID.randomUUID() + ".pdf");
-        when(documentStorage.promotePending(any(), any()))
-                .thenAnswer(invocation -> "documents/" + invocation.getArgument(1) + "/"
-                        + java.util.UUID.randomUUID() + ".pdf");
     }
 
     @Test
-    void deferredOcrStillStoresPendingDossierWithExplicitlySkippedPdfChecks() {
+    void disabledOcrStoresPendingDossierWithoutPdfChecks() {
         prepareVerification();
         boolean original = businessVerificationProperties.getOcr().isEnabled();
         businessVerificationProperties.getOcr().setEnabled(false);
@@ -185,12 +186,12 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
             PartnerRegistrationResponse response = service.register(request, files, files, null);
             assertThat(response.getVerificationStatus()).isEqualTo(PartnerVerificationStatus.PENDING);
             assertThat(response.getBusinessVerification().ocrEnabled()).isFalse();
-            assertThat(response.getBusinessVerification().documents().getFirst().status()).isEqualTo(SourceStatus.DISABLED);
+            assertThat(response.getBusinessVerification().documents()).isEmpty();
             assertThat(documentRepository.count()).isEqualTo(2);
             var stored = objectMapper.readValue(profileRepository.findById(response.getRegistrationId()).orElseThrow()
                     .getBusinessVerificationResult(), PartnerBusinessVerificationResponse.class);
             assertThat(stored.ocrEnabled()).isFalse();
-            assertThat(stored.documents().getFirst().status()).isEqualTo(SourceStatus.DISABLED);
+            assertThat(stored.documents()).isEmpty();
             verifyNoInteractions(businessLicenseOcrClient);
         } finally {
             businessVerificationProperties.getOcr().setEnabled(original);
@@ -209,7 +210,9 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject("select content from partner_documents where document_type = 'BUSINESS_LICENSE'", byte[].class))
                 .isNull();
         assertThat(jdbc.queryForObject("select storage_object_key from partner_documents where document_type = 'BUSINESS_LICENSE'", String.class))
-                .startsWith("documents/");
+                .startsWith("pending/test/");
+        assertThat(jdbc.queryForObject("select storage_status from partner_documents where document_type = 'BUSINESS_LICENSE'", String.class))
+                .isEqualTo("MOVING");
         assertThat(userRepository.count()).isEqualTo(usersBefore + 1);
         transactionTemplate.executeWithoutResult(status -> {
             User user = userRepository.findById(response.getUserId()).orElseThrow();
@@ -257,6 +260,52 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
         assertThat(stored.getBrandName()).isEqualTo("Existing brand");
         assertThat(stored.getTaxCode()).isNull();
         assertThat(stored.getVerifiedAt()).isNotNull();
+    }
+
+    @Test
+    void readyProfileLimitExcludesOlderProfilesWithUnmovedDocuments() {
+        LocalDateTime now = LocalDateTime.now(applicationClock);
+        User olderUser = userRepository.saveAndFlush(User.builder().fullName("Older partner")
+                .phoneNumber("0912345679").email("older@example.com").passwordHash("hash")
+                .status(UserStatus.INACTIVE.name()).reputationPoints(0).createdAt(now).updatedAt(now).build());
+        User newerUser = userRepository.saveAndFlush(User.builder().fullName("Newer partner")
+                .phoneNumber("0912345680").email("newer@example.com").passwordHash("hash")
+                .status(UserStatus.INACTIVE.name()).reputationPoints(0).createdAt(now).updatedAt(now).build());
+        PartnerProfile older = profileRepository.saveAndFlush(PartnerProfile.builder().user(olderUser)
+                .legalName("Older company").brandName("Older company")
+                .verificationStatus(PartnerVerificationStatus.PENDING)
+                .documentVerificationStatus("PENDING_OCR").createdAt(now.minusHours(1)).build());
+        PartnerProfile newer = profileRepository.saveAndFlush(PartnerProfile.builder().user(newerUser)
+                .legalName("Newer company").brandName("Newer company")
+                .verificationStatus(PartnerVerificationStatus.PENDING)
+                .documentVerificationStatus("PENDING_OCR").createdAt(now).build());
+        documentRepository.saveAndFlush(PartnerDocument.builder().partner(older).documentType("BUSINESS_LICENSE")
+                .fileName("older.pdf").contentType("application/pdf").fileSize(1L)
+                .storageStatus("MOVING").createdAt(now).build());
+        documentRepository.saveAndFlush(PartnerDocument.builder().partner(newer).documentType("BUSINESS_LICENSE")
+                .fileName("newer.pdf").contentType("application/pdf").fileSize(1L)
+                .storageStatus("READY").createdAt(now).build());
+
+        assertThat(profileRepository.findReadyForDocumentVerification(PageRequest.of(0, 1)))
+                .extracting(PartnerProfile::getId).containsExactly(newer.getId());
+    }
+
+    @Test
+    void emailDeliveryUpdatePreservesConcurrentPasswordSetupTime() {
+        prepareVerification();
+        Long registrationId = service.register(request, files, files, null).getRegistrationId();
+        LocalDateTime completedAt = LocalDateTime.of(2026, 11, 13, 10, 30);
+
+        transactionTemplate.executeWithoutResult(status -> {
+            PartnerProfile profile = profileRepository.findById(registrationId).orElseThrow();
+            jdbc.update("update partner_profiles set password_setup_completed_at = ? where id = ?",
+                    Timestamp.valueOf(completedAt), registrationId);
+            profile.setPasswordLinkEmailStatus(PartnerPasswordEmailStatus.SENT);
+            profileRepository.flush();
+        });
+
+        assertThat(jdbc.queryForObject("select password_setup_completed_at from partner_profiles where id = ?",
+                Timestamp.class, registrationId).toLocalDateTime()).isEqualTo(completedAt);
     }
 
     @Test
@@ -353,72 +402,54 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void inactiveRegistryBlocksSubmissionWithoutConsumingToken() {
+    void inactiveRegistryStoresPendingReviewWithoutRunningOcr() {
         prepareVerification();
         when(xinvoiceBusinessClient.lookup(any())).thenReturn(new BusinessRegistryLookup(SourceStatus.SUCCESS,
                 request.getTaxCode(), request.getLegalName(), "NNT ngừng hoạt động và đã đóng MST", null));
-        when(businessLicenseOcrClient.extract(any(), any())).thenReturn(new BusinessDocumentOcr(SourceStatus.SUCCESS,
-                List.of(new ExtractedBusiness("CÔNG TY KHÁC", "0100112438", 0.99, 0.99))));
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOfSatisfying(PartnerBusinessVerificationException.class, ex -> {
-                    assertThat(ex.getHttpStatus()).isEqualTo(422);
-                    assertThat(ex.getVerification().outcome()).isEqualTo(Outcome.REVIEW_REQUIRED);
-                    assertThat(ex.getMessage()).contains("đang hoạt động");
-                });
-        assertThat(userRepository.count()).isZero();
-        assertThat(profileRepository.count()).isZero();
-        assertThat(documentRepository.count()).isZero();
+        PartnerRegistrationResponse response = service.register(request, files, files, null);
+        assertThat(response.getBusinessVerification().outcome()).isEqualTo(Outcome.REVIEW_REQUIRED);
+        assertThat(userRepository.count()).isEqualTo(1);
+        assertThat(profileRepository.count()).isEqualTo(1);
+        assertThat(documentRepository.count()).isEqualTo(2);
+        assertThat(profileRepository.findById(response.getRegistrationId()).orElseThrow()
+                .getDocumentVerificationStatus()).isEqualTo("PENDING_OCR");
         assertThat(verificationStore.findByTokenHash(contactVerificationService.hashToken(request.getVerificationToken()))
-                .orElseThrow().getUsedAt()).isNull();
+                .orElseThrow().getUsedAt()).isNotNull();
         assertThat(jdbc.queryForObject("select count(*) from whitelist_entries", Long.class)).isZero();
         verifyNoInteractions(businessLicenseOcrClient);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"name", "taxCode", "lowConfidence", "missingConfidence", "unreadable"})
-    void ocrMismatchOrUncertaintyBlocksSubmissionWithoutAccountOrConsumedToken(String failure) {
+    @Test
+    void registrationQueuesOcrWithoutCallingProvider() {
         prepareVerification();
-        BusinessDocumentOcr result = switch (failure) {
-            case "name" -> new BusinessDocumentOcr(SourceStatus.SUCCESS,
-                    List.of(new ExtractedBusiness("CÔNG TY KHÁC", request.getTaxCode(), 0.99, 0.99)));
-            case "taxCode" -> new BusinessDocumentOcr(SourceStatus.SUCCESS,
-                    List.of(new ExtractedBusiness(request.getLegalName(), "0100112438", 0.99, 0.99)));
-            case "lowConfidence" -> new BusinessDocumentOcr(SourceStatus.SUCCESS,
-                    List.of(new ExtractedBusiness(request.getLegalName(), request.getTaxCode(), 0.5, 0.5)));
-            case "missingConfidence" -> new BusinessDocumentOcr(SourceStatus.SUCCESS,
-                    List.of(new ExtractedBusiness(request.getLegalName(), request.getTaxCode(), null, null)));
-            default -> BusinessDocumentOcr.unavailable(SourceStatus.UNREADABLE);
-        };
-        when(businessLicenseOcrClient.extract(any(), any())).thenReturn(result);
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOfSatisfying(PartnerBusinessVerificationException.class, ex -> assertThat(ex.getHttpStatus()).isEqualTo(422));
-        assertThat(userRepository.count()).isZero();
-        assertThat(profileRepository.count()).isZero();
-        assertThat(documentRepository.count()).isZero();
+        PartnerRegistrationResponse response = service.register(request, files, files, null);
+        assertThat(response.getBusinessVerification().outcome()).isEqualTo(Outcome.MATCHED);
+        assertThat(response.getBusinessVerification().documents()).isEmpty();
+        assertThat(userRepository.count()).isEqualTo(1);
+        assertThat(profileRepository.count()).isEqualTo(1);
+        assertThat(documentRepository.count()).isEqualTo(2);
+        assertThat(profileRepository.findById(response.getRegistrationId()).orElseThrow()
+                .getDocumentVerificationStatus()).isEqualTo("PENDING_OCR");
         assertThat(verificationStore.findByTokenHash(contactVerificationService.hashToken(request.getVerificationToken()))
-                .orElseThrow().getUsedAt()).isNull();
+                .orElseThrow().getUsedAt()).isNotNull();
+        verifyNoInteractions(businessLicenseOcrClient);
     }
 
     @Test
-    void providerOutageCanRetrySameTokenAndRepresentativeIsNotCompared() {
+    void providerOutageStoresPendingReviewAndRepresentativeIsNotCompared() {
         prepareVerification();
         request.setRepresentativeNameAndTitle("Một người khác hoàn toàn");
         when(xinvoiceBusinessClient.lookup(any())).thenReturn(BusinessRegistryLookup.unavailable(SourceStatus.UNAVAILABLE));
-        assertThatThrownBy(() -> service.register(request, files, files, null))
-                .isInstanceOfSatisfying(PartnerBusinessVerificationException.class, ex -> {
-                    assertThat(ex.getHttpStatus()).isEqualTo(503);
-                    assertThat(ex.getVerification().xinvoice().status()).isEqualTo(SourceStatus.UNAVAILABLE);
-                });
-        assertThat(userRepository.count()).isZero();
-        assertThat(profileRepository.count()).isZero();
-        assertThat(verificationStore.findByTokenHash(contactVerificationService.hashToken(request.getVerificationToken()))
-                .orElseThrow().getUsedAt()).isNull();
-        when(xinvoiceBusinessClient.lookup(any())).thenReturn(new BusinessRegistryLookup(SourceStatus.SUCCESS,
-                request.getTaxCode(), request.getLegalName(), "NNT đang hoạt động", null));
         PartnerRegistrationResponse response = service.register(request, files, files, null);
-        assertThat(response.getBusinessVerification().outcome()).isEqualTo(Outcome.MATCHED);
+        assertThat(response.getBusinessVerification().outcome()).isEqualTo(Outcome.REVIEW_REQUIRED);
+        assertThat(response.getBusinessVerification().xinvoice().status()).isEqualTo(SourceStatus.UNAVAILABLE);
+        assertThat(userRepository.count()).isEqualTo(1);
+        assertThat(profileRepository.count()).isEqualTo(1);
+        assertThat(verificationStore.findByTokenHash(contactVerificationService.hashToken(request.getVerificationToken()))
+                .orElseThrow().getUsedAt()).isNotNull();
         assertThat(profileRepository.findById(response.getRegistrationId()).orElseThrow().getBusinessVerificationResult())
                 .doesNotContain("Một người khác hoàn toàn");
+        verifyNoInteractions(businessLicenseOcrClient);
     }
 
     @Test

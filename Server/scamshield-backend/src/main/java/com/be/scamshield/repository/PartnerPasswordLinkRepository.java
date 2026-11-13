@@ -12,6 +12,9 @@ import org.springframework.data.repository.query.Param;
 public interface PartnerPasswordLinkRepository extends JpaRepository<PartnerPasswordLink, Long> {
     Optional<PartnerPasswordLink> findByTokenHash(String tokenHash);
 
+    @Query("select l.partner.id from PartnerPasswordLink l where l.tokenHash = :hash")
+    Optional<Long> findPartnerIdByTokenHash(@Param("hash") String hash);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select l from PartnerPasswordLink l where l.tokenHash = :hash")
     Optional<PartnerPasswordLink> findLockedByTokenHash(@Param("hash") String hash);

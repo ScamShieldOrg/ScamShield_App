@@ -8,6 +8,7 @@ import com.be.scamshield.dto.request.PartnerRegistrationPrecheckRequest;
 import com.be.scamshield.dto.request.PartnerDocumentUploadRequest;
 import com.be.scamshield.dto.response.PartnerRegistrationResponse;
 import com.be.scamshield.dto.response.PartnerRegistrationPrecheckResponse;
+import com.be.scamshield.dto.response.PartnerRegistrationStatusResponse;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse;
 import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.entity.PartnerDocument;
@@ -63,11 +64,11 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
     private final PartnerDocumentStorageService documentStorage;
 
     @Override
-    public com.be.scamshield.dto.response.PartnerRegistrationStatusResponse status(String draftToken) {
+    public PartnerRegistrationStatusResponse status(String draftToken) {
         var completed = profileRepository.findByRegistrationToken(draftToken);
-        if (completed.isPresent()) return new com.be.scamshield.dto.response.PartnerRegistrationStatusResponse(
+        if (completed.isPresent()) return new PartnerRegistrationStatusResponse(
                 "COMPLETED", registrationResponse(completed.get()));
-        return new com.be.scamshield.dto.response.PartnerRegistrationStatusResponse(
+        return new PartnerRegistrationStatusResponse(
                 draftStore.find(draftToken).isPresent() ? "PROCESSING" : "EXPIRED", null);
     }
 

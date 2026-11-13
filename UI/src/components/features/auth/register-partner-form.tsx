@@ -44,6 +44,7 @@ const RECAPTCHA_CONTAINER_ID = "register-partner-recaptcha"
 const FORM_STORAGE_KEY = "scamshield_partner_register_form"
 const COOLDOWN_STORAGE_KEY = "scamshield_partner_otp_cooldown_until"
 const OTP_OPEN_STORAGE_KEY = "scamshield_partner_otp_open"
+const PENDING_DRAFT_STORAGE_KEY = "scamshield_partner_pending_draft"
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const TAX_CODE_REGEX = /^[0-9]{10}(-?[0-9]{3})?$/
 const MOBILE_PHONE_REGEX =
@@ -279,6 +280,9 @@ export function RegisterPartnerForm() {
   const [uploadProgress, setUploadProgress] =
     useState<PartnerUploadProgress | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
+  const [pendingDraftToken, setPendingDraftToken] = useState<string | null>(null)
+  const [checkingStatus, setCheckingStatus] = useState(false)
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
 
   const [form, setForm] = useState<PartnerFormState>({
@@ -327,8 +331,13 @@ export function RegisterPartnerForm() {
       // ignore
     }
 
-    // 3. Khôi phục pop-up OTP nếu cooldown còn hiệu lực và pop-up đang mở trước đó
+    // 3. Khôi phục hồ sơ đang chờ xác nhận hoặc pop-up OTP.
     try {
+      const pendingDraft = sessionStorage.getItem(PENDING_DRAFT_STORAGE_KEY)
+      if (pendingDraft) {
+        setPendingDraftToken(pendingDraft)
+        return
+      }
       if (
         remaining > 0 &&
         sessionStorage.getItem(OTP_OPEN_STORAGE_KEY) === "true"
@@ -642,7 +651,7 @@ export function RegisterPartnerForm() {
   }
 
   async function handleOtpVerify(otp: string) {
-    if (submittingRef.current) return
+    if (submittingRef.current || pendingDraftToken) return
     submittingRef.current = true
     setIsSubmitting(true)
     setUploadProgress(null)
@@ -694,19 +703,17 @@ export function RegisterPartnerForm() {
       toast.success(
         result?.message || "Hồ sơ đối tác đã được gửi và đang chờ xét duyệt!"
       )
-      try {
-        localStorage.removeItem(COOLDOWN_STORAGE_KEY)
-        sessionStorage.removeItem(OTP_OPEN_STORAGE_KEY)
-        sessionStorage.removeItem(FORM_STORAGE_KEY)
-      } catch {
-        // ignore
-      }
-      setIsOtpOpen(false)
-      setIsSubmittedSuccess(true)
-      setCooldown(0)
+      markSubmittedSuccess()
     } catch (partnerErr) {
       if (partnerErr instanceof PartnerRegistrationOutcomeUnknownError) {
         toast.warn(partnerErr.message)
+        setPendingDraftToken(partnerErr.draftToken)
+        setPendingMessage(partnerErr.message)
+        try {
+          sessionStorage.setItem(PENDING_DRAFT_STORAGE_KEY, partnerErr.draftToken)
+        } catch {
+          // Keep the pending state for this page session.
+        }
         setIsOtpOpen(false)
         return
       }
@@ -720,6 +727,50 @@ export function RegisterPartnerForm() {
     } finally {
       setIsSubmitting(false)
       submittingRef.current = false
+    }
+  }
+
+  function markSubmittedSuccess() {
+    try {
+      localStorage.removeItem(COOLDOWN_STORAGE_KEY)
+      sessionStorage.removeItem(OTP_OPEN_STORAGE_KEY)
+      sessionStorage.removeItem(FORM_STORAGE_KEY)
+      sessionStorage.removeItem(PENDING_DRAFT_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+    setPendingDraftToken(null)
+    setPendingMessage(null)
+    setIsOtpOpen(false)
+    setIsSubmittedSuccess(true)
+    setCooldown(0)
+  }
+
+  async function handleStatusRetry() {
+    if (!pendingDraftToken || checkingStatus) return
+    setCheckingStatus(true)
+    setPendingMessage(null)
+    try {
+      const result = await authServices.getPartnerRegistrationStatus(pendingDraftToken)
+      if (result.status === "COMPLETED") {
+        toast.success("Hồ sơ đối tác đã được gửi và đang chờ xét duyệt!")
+        markSubmittedSuccess()
+      } else if (result.status === "EXPIRED") {
+        try {
+          sessionStorage.removeItem(PENDING_DRAFT_STORAGE_KEY)
+        } catch {
+          // The server response still resolves the pending state.
+        }
+        setPendingDraftToken(null)
+        setPendingMessage(null)
+        toast.error("Phiên đăng ký đã hết hạn. Vui lòng gửi lại hồ sơ.")
+      } else {
+        setPendingMessage("Hồ sơ vẫn đang được xử lý. Vui lòng kiểm tra lại sau.")
+      }
+    } catch {
+      setPendingMessage("Chưa thể kiểm tra trạng thái. Vui lòng thử lại.")
+    } finally {
+      setCheckingStatus(false)
     }
   }
 
@@ -852,7 +903,7 @@ export function RegisterPartnerForm() {
             </div>
           )}
 
-          {!isSubmittedSuccess && (
+          {!isSubmittedSuccess && !pendingDraftToken && (
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
               {/* ── SECTION 1: Legal Enterprise Info (KYB) ── */}
               <div className="rounded-xl border border-[#EAEDFF] bg-[#F2F3FF]/70 p-4 sm:p-5 dark:border-border dark:bg-muted/40">
@@ -1305,6 +1356,31 @@ export function RegisterPartnerForm() {
         }
         error={otpError}
       />
+      {pendingDraftToken && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="partner-pending-title"
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-2xl"
+          >
+            <h2 id="partner-pending-title" className="text-lg font-bold">
+              Đang xác nhận kết quả đăng ký
+            </h2>
+            <p role="status" className="mt-3 text-sm text-muted-foreground">
+              {pendingMessage || "Hồ sơ có thể đã được gửi. Vui lòng kiểm tra trạng thái trước khi thử lại."}
+            </p>
+            <button
+              type="button"
+              onClick={handleStatusRetry}
+              disabled={checkingStatus}
+              className="mt-5 h-11 w-full rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
+            >
+              {checkingStatus ? "Đang kiểm tra..." : "Kiểm tra trạng thái"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

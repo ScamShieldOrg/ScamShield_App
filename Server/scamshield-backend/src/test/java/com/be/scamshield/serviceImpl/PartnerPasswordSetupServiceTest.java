@@ -33,6 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class PartnerPasswordSetupServiceTest {
@@ -59,7 +60,7 @@ class PartnerPasswordSetupServiceTest {
     }
 
     private void mockLookup() {
-        when(links.findByTokenHash(anyString())).thenReturn(Optional.of(link));
+        when(links.findPartnerIdByTokenHash(anyString())).thenReturn(Optional.of(10L));
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
         when(links.findLockedByTokenHash(anyString())).thenReturn(Optional.of(link));
     }
@@ -74,6 +75,10 @@ class PartnerPasswordSetupServiceTest {
         assertThat(profile.getUser().getPasswordHash()).isEqualTo("hashed-password");
         assertThat(profile.getPasswordSetupCompletedAt()).isEqualTo(now);
         assertThat(link.getConsumedAt()).isEqualTo(now);
+        var lookupOrder = inOrder(links, profiles);
+        lookupOrder.verify(links).findPartnerIdByTokenHash(anyString());
+        lookupOrder.verify(profiles).findByIdForReview(10L);
+        lookupOrder.verify(links).findLockedByTokenHash(anyString());
         verify(refreshTokens).deleteByUser(profile.getUser());
         assertThatThrownBy(() -> service.setup(token, "other-secret"))
                 .isInstanceOf(BadRequestException.class);

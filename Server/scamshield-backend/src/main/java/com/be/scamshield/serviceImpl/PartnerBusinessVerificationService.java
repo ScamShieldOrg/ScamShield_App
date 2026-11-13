@@ -73,7 +73,12 @@ public class PartnerBusinessVerificationService {
         boolean registryPassed = precheck.outcome() == Outcome.MATCHED;
         List<DocumentResult> documentResults = documents.stream()
                 .filter(document -> "BUSINESS_LICENSE".equals(document.getDocumentType()))
-                    .map(document -> verifyDocument(document, legalName, taxCode, registry, deadline)).toList();
+                .map(document -> registry.status() == SourceStatus.SUCCESS
+                        ? verifyDocument(document, legalName, taxCode, registry, deadline)
+                        : new DocumentResult(document.getFileName(), SourceStatus.NOT_CHECKED, List.of(),
+                                MatchResult.INCONCLUSIVE, MatchResult.INCONCLUSIVE,
+                                MatchResult.INCONCLUSIVE, MatchResult.INCONCLUSIVE))
+                .toList();
         boolean documentsMatched = !documentResults.isEmpty()
                 && documentResults.stream().allMatch(document -> document.status() == SourceStatus.SUCCESS
                     && document.formNameVsOcr() == MatchResult.MATCHED && document.formTaxCodeVsOcr() == MatchResult.MATCHED

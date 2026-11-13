@@ -41,7 +41,7 @@ public class RegisterPartnerRequest {
     @Size(max = 255, message = "Thông tin người đại diện tối đa 255 ký tự")
     private String representativeNameAndTitle;
 
-    private boolean legalRepresentative;
+    private boolean legalRepresentative = true;
 
     @NotBlank(message = "Số điện thoại liên hệ không được để trống")
     @Size(max = 30, message = "Số điện thoại liên hệ tối đa 30 ký tự")

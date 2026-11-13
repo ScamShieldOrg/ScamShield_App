@@ -79,9 +79,9 @@ public class PartnerPasswordSetupServiceImpl implements PartnerPasswordSetupServ
             throw new BadRequestException("Link đặt mật khẩu không hợp lệ hoặc đã hết hạn");
         }
         String tokenHash = hash(token);
-        var existing = links.findByTokenHash(tokenHash)
+        Long partnerId = links.findPartnerIdByTokenHash(tokenHash)
                 .orElseThrow(() -> new BadRequestException("Link đặt mật khẩu không hợp lệ hoặc đã hết hạn"));
-        var profile = profiles.findByIdForReview(existing.getPartner().getId())
+        var profile = profiles.findByIdForReview(partnerId)
                 .orElseThrow(() -> new BadRequestException("Link đặt mật khẩu không hợp lệ hoặc đã hết hạn"));
         var link = links.findLockedByTokenHash(tokenHash)
                 .orElseThrow(() -> new BadRequestException("Link đặt mật khẩu không hợp lệ hoặc đã hết hạn"));

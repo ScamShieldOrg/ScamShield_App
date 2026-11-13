@@ -56,7 +56,16 @@ export interface RegisterPartnerResponseData {
     submittedAt: string;
 }
 
-export class PartnerRegistrationOutcomeUnknownError extends Error {}
+export class PartnerRegistrationOutcomeUnknownError extends Error {
+    constructor(message: string, public readonly draftToken: string) {
+        super(message);
+    }
+}
+
+export interface PartnerRegistrationStatus {
+    status: "PROCESSING" | "COMPLETED" | "EXPIRED";
+    registration: RegisterPartnerResponseData | null;
+}
 
 export type PartnerUploadProgress = {
     stage: "precheck" | "upload" | "finalize";
@@ -75,6 +84,7 @@ function uploadPartnerFile(
     return new Promise((resolve, reject) => {
         const request = new XMLHttpRequest();
         request.open("PUT", url);
+        request.timeout = 60_000;
         request.setRequestHeader("Content-Type", file.type);
         request.upload.onprogress = (event) => onProgress(event.loaded);
         request.onload = () =>
@@ -83,6 +93,8 @@ function uploadPartnerFile(
                 : reject(new Error(`Không tải được tài liệu ${file.name}.`));
         request.onerror = () =>
             reject(new Error(`Không tải được tài liệu ${file.name}.`));
+        request.ontimeout = () =>
+            reject(new Error(`Tải tài liệu ${file.name} quá thời gian cho phép.`));
         request.send(file);
     });
 }
@@ -437,7 +449,7 @@ export const authServices = {
                     const finalized = await publicApi.post(
                         "/partners/registrations/finalize",
                         { draftToken },
-                        { timeout: 0 }
+                        { timeout: 30_000 }
                     );
                     return finalized.data?.data;
                 } catch (error) {
@@ -466,29 +478,39 @@ export const authServices = {
                             "đang được xử lý"
                         )))
             ) {
+                let expired = false;
                 for (let attempt = 0; attempt < 6; attempt++) {
                     await new Promise((resolve) =>
                         window.setTimeout(resolve, 2000)
                     );
                     try {
-                        const status = await publicApi.get(
-                            `/partners/registrations/${draftToken}/status`
-                        );
-                        if (status.data?.data?.status === "COMPLETED")
-                            return status.data.data.registration;
-                        if (status.data?.data?.status === "EXPIRED") break;
+                        const status = await authServices.getPartnerRegistrationStatus(draftToken);
+                        if (status.status === "COMPLETED")
+                            return status.registration;
+                        if (status.status === "EXPIRED") {
+                            expired = true;
+                            break;
+                        }
                     } catch {
                         /* Keep checking while the backend may still be committing. */
                     }
                 }
+                if (expired) {
+                    throw new Error("Phiên đăng ký đã hết hạn. Vui lòng gửi lại hồ sơ.");
+                }
                 throw new PartnerRegistrationOutcomeUnknownError(
-                    "Chưa thể xác nhận kết quả đăng ký. Hồ sơ có thể đã được gửi; vui lòng kiểm tra trạng thái trước khi đăng ký lại."
+                    "Chưa thể xác nhận kết quả đăng ký. Hồ sơ có thể đã được gửi; vui lòng kiểm tra trạng thái trước khi đăng ký lại.",
+                    draftToken
                 );
             }
             throw new Error(
                 extractErrorMessage(error, "Đăng ký đối tác thất bại.")
             );
         }
+    },
+    getPartnerRegistrationStatus: async function (draftToken: string): Promise<PartnerRegistrationStatus> {
+        const response = await publicApi.get(`/partners/registrations/${draftToken}/status`);
+        return response.data.data;
     },
     loginGoogle: async function (idToken: string) {
         try {

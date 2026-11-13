@@ -4,14 +4,20 @@ import com.be.scamshield.dto.request.PartnerDocumentUploadRequest;
 import com.be.scamshield.dto.request.RegisterPartnerRequest;
 import com.be.scamshield.dto.response.PartnerBusinessVerificationResponse;
 import com.be.scamshield.dto.response.PartnerRegistrationPrecheckResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.function.UnaryOperator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -56,43 +62,66 @@ public class RedisPartnerRegistrationDraftStore implements PartnerRegistrationDr
 
     @Override
     public LocalDateTime refresh(String token) {
-        if (!Boolean.TRUE.equals(redis.expire(KEY_PREFIX + token, TTL))) {
-            throw new IllegalArgumentException("Phiên đăng ký đã hết hạn");
-        }
-        LocalDateTime expiresAt = LocalDateTime.now(applicationClock).plus(TTL);
-        return expiresAt;
+        return update(token, draft -> new Draft(draft.registration(), draft.verificationToken(),
+                draft.documents(), draft.businessVerification(), draft.uploads(),
+                LocalDateTime.now(applicationClock).plus(TTL))).expiresAt();
     }
 
     @Override
     public void replaceUpload(String token, int index, PartnerRegistrationPrecheckResponse.Upload upload) {
-        Draft draft = find(token).orElseThrow(() -> new IllegalArgumentException("Phiên đăng ký đã hết hạn"));
-        var uploads = new java.util.ArrayList<>(draft.uploads());
-        uploads.set(index, upload);
-        write(token, new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
-                draft.businessVerification(), uploads, LocalDateTime.now(applicationClock).plus(TTL)));
+        update(token, draft -> {
+            if (index < 0 || index >= draft.uploads().size()) {
+                throw new IllegalArgumentException("Tài liệu không hợp lệ");
+            }
+            var uploads = new ArrayList<>(draft.uploads());
+            uploads.set(index, upload);
+            return new Draft(draft.registration(), draft.verificationToken(), draft.documents(),
+                    draft.businessVerification(), uploads, LocalDateTime.now(applicationClock).plus(TTL));
+        });
     }
 
-    private void write(String token, Draft draft) {
-        try {
-            redis.opsForValue().set(KEY_PREFIX + token, objectMapper.writeValueAsString(draft), TTL);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Không thể cập nhật phiên đăng ký", ex);
+    private Draft update(String token, UnaryOperator<Draft> change) {
+        byte[] key = (KEY_PREFIX + token).getBytes(StandardCharsets.UTF_8);
+        for (int attempt = 0; attempt < 10; attempt++) {
+            Draft updated = redis.execute((RedisCallback<Draft>) connection -> {
+                connection.watch(key);
+                boolean inTransaction = false;
+                try {
+                    byte[] raw = connection.stringCommands().get(key);
+                    if (raw == null) throw new IllegalArgumentException("Phiên đăng ký đã hết hạn");
+                    Draft draft = objectMapper.readValue(raw, Draft.class);
+                    Draft next = change.apply(draft);
+                    connection.multi();
+                    inTransaction = true;
+                    connection.stringCommands().setEx(key, TTL.toSeconds(), objectMapper.writeValueAsBytes(next));
+                    List<Object> result = connection.exec();
+                    inTransaction = false;
+                    return result == null ? null : next;
+                } catch (RuntimeException ex) {
+                    if (inTransaction) connection.discard();
+                    throw ex;
+                } finally {
+                    if (!inTransaction) connection.unwatch();
+                }
+            });
+            if (updated != null) return updated;
         }
+        throw new IllegalStateException("Phiên đăng ký đang được cập nhật; vui lòng thử lại");
     }
 
     @Override
     public String claim(String token) {
-        String claimId = java.util.UUID.randomUUID().toString();
+        String claimId = UUID.randomUUID().toString();
         return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(
                 KEY_PREFIX + "processing:" + token, claimId, Duration.ofMinutes(2))) ? claimId : null;
     }
 
     @Override
     public void releaseClaim(String token, String claimId) {
-        var script = new org.springframework.data.redis.core.script.DefaultRedisScript<Long>(
+        var script = new DefaultRedisScript<Long>(
                 "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
                 Long.class);
-        redis.execute(script, java.util.List.of(KEY_PREFIX + "processing:" + token), claimId);
+        redis.execute(script, List.of(KEY_PREFIX + "processing:" + token), claimId);
     }
 
     @Override

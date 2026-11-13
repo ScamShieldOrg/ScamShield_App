@@ -119,6 +119,7 @@ public class PartnerDocumentStorageService {
             }
             int length = (int) Math.min(expectedSize, 8192);
             try (var stream = client.getObject(GetObjectRequest.builder().bucket(bucket).key(key)
+                    .ifMatch(head.eTag())
                     .range("bytes=0-" + (length - 1)).build())) {
                 byte[] signature = stream.readNBytes(length);
                 if (signature.length != length) throw new IOException("Không thể đọc chữ ký tài liệu");
@@ -200,7 +201,7 @@ public class PartnerDocumentStorageService {
     @Scheduled(fixedDelayString = "${PARTNER_DOCUMENT_CLEANUP_INTERVAL_MS:3600000}")
     public void cleanupExpiredPendingObjects() {
         if (!StringUtils.hasText(accessKeyId) || !StringUtils.hasText(secretAccessKey)
-                || !StringUtils.hasText(endpoint) || !StringUtils.hasText(bucket)) return;
+                || !StringUtils.hasText(bucket)) return;
         Instant cutoff = Instant.now().minus(1, ChronoUnit.HOURS);
         try (var client = clients.createClient(region, accessKeyId, secretAccessKey, endpoint)) {
             String continuation = null;
@@ -224,7 +225,7 @@ public class PartnerDocumentStorageService {
 
     private void requireConfigured() {
         if (!StringUtils.hasText(accessKeyId) || !StringUtils.hasText(secretAccessKey)
-                || !StringUtils.hasText(endpoint) || !StringUtils.hasText(bucket)) {
+                || !StringUtils.hasText(bucket)) {
             throw new IllegalStateException("Supabase Storage cho tài liệu đối tác chưa được cấu hình đầy đủ");
         }
     }

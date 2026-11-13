@@ -1,15 +1,19 @@
 package com.be.scamshield.repository;
 
+import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.entity.PartnerProfile;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
+import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import jakarta.persistence.LockModeType;
-import com.be.scamshield.constant.PartnerVerificationStatus;
-import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface PartnerProfileRepository extends JpaRepository<PartnerProfile, Long> {
     Optional<PartnerProfile> findByUserId(Long userId);
@@ -19,26 +23,34 @@ public interface PartnerProfileRepository extends JpaRepository<PartnerProfile, 
     @Query("SELECT p FROM PartnerProfile p JOIN FETCH p.user WHERE p.registrationToken = :registrationToken")
     Optional<PartnerProfile> findByRegistrationToken(@Param("registrationToken") String registrationToken);
 
-    java.util.List<PartnerProfile> findTop20ByDocumentVerificationStatusOrderByCreatedAtAsc(String status);
+    List<PartnerProfile> findTop20ByDocumentVerificationStatusOrderByCreatedAtAsc(String status);
 
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.transaction.annotation.Transactional
+    @Query("""
+            SELECT p FROM PartnerProfile p
+            WHERE p.documentVerificationStatus = 'PENDING_OCR'
+              AND NOT EXISTS (SELECT d.id FROM PartnerDocument d WHERE d.partner = p AND d.storageStatus <> 'READY')
+            ORDER BY p.createdAt ASC, p.id ASC
+            """)
+    List<PartnerProfile> findReadyForDocumentVerification(Pageable pageable);
+
+    @Modifying
+    @Transactional
     @Query("UPDATE PartnerProfile p SET p.documentVerificationStatus = 'RUNNING_OCR', p.documentVerificationStartedAt = :startedAt WHERE p.id = :id AND p.documentVerificationStatus = 'PENDING_OCR'")
-    int claimDocumentVerification(@Param("id") Long id, @Param("startedAt") java.time.LocalDateTime startedAt);
+    int claimDocumentVerification(@Param("id") Long id, @Param("startedAt") LocalDateTime startedAt);
 
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.transaction.annotation.Transactional
+    @Modifying
+    @Transactional
     @Query("UPDATE PartnerProfile p SET p.documentVerificationStatus = 'PENDING_OCR', p.documentVerificationStartedAt = NULL WHERE p.documentVerificationStatus = 'RUNNING_OCR' AND p.documentVerificationStartedAt < :cutoff")
-    int resetStaleDocumentVerification(@Param("cutoff") java.time.LocalDateTime cutoff);
+    int resetStaleDocumentVerification(@Param("cutoff") LocalDateTime cutoff);
 
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.transaction.annotation.Transactional
+    @Modifying
+    @Transactional
     @Query("UPDATE PartnerProfile p SET p.businessVerificationResult = :result, p.documentVerificationStatus = :status, p.documentVerificationStartedAt = NULL WHERE p.id = :id AND p.documentVerificationStatus = 'RUNNING_OCR'")
     int completeDocumentVerification(@Param("id") Long id, @Param("result") String result,
                                      @Param("status") String status);
 
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.transaction.annotation.Transactional
+    @Modifying
+    @Transactional
     @Query("UPDATE PartnerProfile p SET p.documentVerificationAttempts = :attempts, p.documentVerificationStatus = :status, p.documentVerificationStartedAt = NULL WHERE p.id = :id AND p.documentVerificationStatus = 'RUNNING_OCR'")
     int failDocumentVerification(@Param("id") Long id, @Param("attempts") int attempts,
                                  @Param("status") String status);

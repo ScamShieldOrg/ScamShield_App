@@ -4,11 +4,13 @@ import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.constant.PartnerPasswordEmailStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "partner_profiles")
+@DynamicUpdate
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

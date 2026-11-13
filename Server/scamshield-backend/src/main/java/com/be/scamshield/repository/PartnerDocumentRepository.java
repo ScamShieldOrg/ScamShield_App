@@ -9,11 +9,13 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PartnerDocumentRepository extends JpaRepository<PartnerDocument, Long> {
-    List<PartnerDocument> findTop50ByStorageStatusOrderByIdAsc(String storageStatus);
+    List<PartnerDocument> findTop50ByStorageStatusAndIdGreaterThanOrderByIdAsc(String storageStatus, Long afterId);
 
     boolean existsByStorageObjectKey(String storageObjectKey);
 
     boolean existsByPartnerIdAndStorageStatusNot(Long partnerId, String storageStatus);
+
+    boolean existsByPartnerIdAndStorageStatus(Long partnerId, String storageStatus);
 
     List<PartnerDocument> findByPartnerId(Long partnerId);
     @Query("SELECT new com.be.scamshield.dto.admin.PartnerDocumentMetadataResponse(d.id, d.documentType, d.fileName, d.contentType, d.fileSize, d.storageStatus) FROM PartnerDocument d WHERE d.partner.id = :partnerId ORDER BY d.id")
