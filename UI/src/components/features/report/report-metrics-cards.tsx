@@ -53,11 +53,11 @@ export function ReportMetricsCards({
           {metrics.totalReports}
         </div>
 
-        <div className="inline-flex min-h-6 items-center gap-1 rounded-full bg-[#E2E7FF]/60 px-2.5 py-0.5 text-[11px] font-semibold text-[#131B2E] dark:bg-muted dark:text-foreground">
+        <div className="inline-block min-h-6 rounded-lg bg-[#E2E7FF]/60 px-2.5 py-0.5 text-[11px] leading-5 font-semibold text-[#131B2E] dark:bg-muted dark:text-foreground">
           <span className="font-bold text-[#008CC7] dark:text-primary">
             +{metrics.recentReports7Days}
           </span>{" "}
-          báo cáo được gửi trong 7 ngày qua
+          báo cáo trong 7 ngày qua
         </div>
       </div>
 

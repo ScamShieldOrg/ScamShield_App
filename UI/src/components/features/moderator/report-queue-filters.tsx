@@ -9,7 +9,6 @@ const tabs: [QueueFilterTab, string][] = [
   ["IN_REVIEW", "Đang duyệt"],
   ["APPROVED", "Đã phê duyệt"],
   ["REJECTED", "Đã từ chối"],
-  ["WITHDRAWN", "Đã thu hồi"],
 ]
 export function ReportQueueFilters({
   currentTab,
@@ -26,16 +25,7 @@ export function ReportQueueFilters({
 }) {
   return (
     <div className="space-y-3 border-b border-border p-4">
-      <h2 className="font-semibold">Hàng đợi xét duyệt</h2>
-      <div className="flex flex-wrap gap-2 text-xs">
-        <span className="rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-1.5 text-foreground">
-          <strong className="mr-1 tabular-nums">{counts.pending}</strong> chờ
-          duyệt
-        </span>
-        <span className="rounded-lg border border-border px-2.5 py-1.5 text-foreground">
-          <strong className="mr-1 tabular-nums">{counts.all}</strong> tổng số
-        </span>
-      </div>
+      <h2 className="font-semibold">Danh sách báo cáo</h2>
       <input
         aria-label="Tìm báo cáo"
         className="w-full rounded-lg border border-border bg-background p-2 text-sm"

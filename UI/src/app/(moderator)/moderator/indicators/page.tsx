@@ -1,5 +1,7 @@
 "use client"
 
+import { ModeratorDashboard } from "@/components/features/moderator/moderator-dashboard"
+
 import { useState, useEffect } from "react"
 import { toast } from "react-toastify"
 import {
@@ -61,12 +63,7 @@ export default function ModeratorPartnerSubmissionsPage() {
       setItems(list)
       setCounts(countData)
 
-      if (list.length > 0) {
-        setSelectedId((prev) => (list.some((item) => item.id === prev) ? prev : list[0].id))
-      } else {
-        setSelectedId(null)
-        setSelectedDetail(null)
-      }
+      setSelectedId(previous => list.some(item => item.id === previous) ? previous : null)
     } catch (e: any) {
       console.error("Load queue error", e)
       toast.error("Không thể tải danh sách hàng chờ thẩm định.")
@@ -334,7 +331,7 @@ export default function ModeratorPartnerSubmissionsPage() {
 
         {/* Right column: Detail & Verdict (7 cols) */}
         <div className="lg:col-span-7">
-          {selectedDetail ? (
+          {selectedId === null ? <ModeratorDashboard /> : selectedDetail ? (
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-6">
               {/* Header of detail */}
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">

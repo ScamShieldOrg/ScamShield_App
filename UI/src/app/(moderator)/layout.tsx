@@ -8,9 +8,9 @@ export default function ModeratorLayout({
 }>) {
   return (
     <RoleGuard allowedRoles={["MODERATOR"]}>
-      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col dark:bg-slate-950 dark:text-slate-100 antialiased">
-        <ModeratorHeader />
-        <main className="flex-1 flex flex-col">{children}</main>
+      <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 antialiased lg:has-[[data-report-workspace]]:h-dvh lg:has-[[data-report-workspace]]:min-h-0 dark:bg-slate-950 dark:text-slate-100">
+        <ModeratorHeader className="shrink-0" />
+        <main className="flex min-h-0 flex-1 flex-col">{children}</main>
       </div>
     </RoleGuard>
   )

@@ -258,7 +258,7 @@ export function RecentReportsTable({
 
                   {/* Category */}
                   <td className="px-3 py-3.5">
-                    <span className="rounded-md border border-[#C6C6CE]/40 bg-[#FAF8FF] px-2 py-0.5 text-[11px] font-semibold text-[#45464D] dark:border-border dark:bg-muted/40 dark:text-muted-foreground">
+                    <span className="inline-block max-w-full rounded-md border border-[#C6C6CE]/40 bg-[#FAF8FF] px-2 py-0.5 text-[11px] leading-4 font-semibold wrap-break-word text-[#45464D] dark:border-border dark:bg-muted/40 dark:text-muted-foreground">
                       {item.category}
                     </span>
                   </td>

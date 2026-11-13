@@ -44,7 +44,7 @@ export function ReportThreatTypeSelector({
   return (
     <div
       role="group"
-      aria-label="Loại đe dọa"
+      aria-label="Loại đối tượng báo cáo"
       aria-describedby={invalid ? "report-threat-type-error" : undefined}
       className="grid grid-cols-1 gap-3 sm:grid-cols-3"
     >

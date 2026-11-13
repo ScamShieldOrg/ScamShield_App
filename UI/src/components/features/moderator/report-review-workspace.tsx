@@ -18,7 +18,10 @@ import {
 } from "@/features/moderator/services/moderator-report.service"
 import { ReportQueueFilters } from "./report-queue-filters"
 import { ReportQueueItemCard } from "./report-queue-item-card"
+import { ModeratorDashboard } from "@/components/features/moderator/moderator-dashboard"
 import { ReportQueueDetailView } from "./report-queue-detail-view"
+
+const REPORT_PAGE_SIZE = 10
 
 export function ReportReviewWorkspace({
   initialId = "",
@@ -128,7 +131,12 @@ export function ReportReviewWorkspace({
   useEffect(() => {
     let active = true
     void Promise.all([
-      getModeratorReportQueue({ tab, search: query, page }),
+      getModeratorReportQueue({
+        tab,
+        search: query,
+        page,
+        size: REPORT_PAGE_SIZE,
+      }),
       getModeratorQueueCounts(),
     ])
       .then(([result, totals]) => {
@@ -221,7 +229,6 @@ export function ReportReviewWorkspace({
         const result = await submitModerationDecision({
           ...decision,
           rawId: detail.rawId,
-          categoryId: detail.categoryId,
         })
         setDetail(result.data)
         reviewingId.current = null
@@ -243,52 +250,64 @@ export function ReportReviewWorkspace({
     }
   }
   return (
-    <div className="flex flex-1 flex-col bg-background text-foreground lg:flex-row">
+    <div
+      data-report-workspace
+      className="flex flex-1 flex-col bg-background text-foreground lg:min-h-0 lg:flex-row"
+    >
       <aside className="w-full border-r border-border lg:w-96 lg:shrink-0">
-        <fieldset disabled={busy || detailLoading} className="min-w-0">
-          <ReportQueueFilters
-            currentTab={tab}
-            onTabChange={(value) => {
-              setTab(value)
-              setPage(0)
-            }}
-            searchQuery={search}
-            onSearchChange={setSearch}
-            counts={counts}
-          />
-          <div className="space-y-3 p-4" aria-busy={loading}>
-            {!loading && queueError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {queueError}
-              </p>
-            ) : loading ? (
-              <p className="text-sm text-muted-foreground">
-                Đang tải hàng đợi...
-              </p>
-            ) : items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Không có báo cáo phù hợp.
-              </p>
-            ) : (
-              items.map((item) => (
-                <ReportQueueItemCard
-                  key={item.id}
-                  item={item}
-                  isSelected={
-                    selected === item.id || String(item.rawId) === selected
-                  }
-                  onSelect={async (value) => {
-                    if (
-                      value.id === selected ||
-                      String(value.rawId) === selected
-                    )
-                      return
-                    if (await leaveReview()) setSelected(value.id)
-                  }}
-                />
-              ))
-            )}
-            <div className="flex items-center justify-between gap-2 text-xs">
+        <fieldset
+          disabled={busy || detailLoading}
+          className="min-w-0 lg:h-full"
+        >
+          <div className="flex flex-col lg:h-full">
+            <ReportQueueFilters
+              currentTab={tab}
+              onTabChange={(value) => {
+                setTab(value)
+                setPage(0)
+              }}
+              searchQuery={search}
+              onSearchChange={setSearch}
+              counts={counts}
+            />
+            <div
+              key={JSON.stringify([tab, query, page])}
+              className="min-h-0 flex-1 space-y-3 p-4 lg:overflow-y-auto lg:overscroll-contain"
+              aria-busy={loading}
+            >
+              {!loading && queueError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {queueError}
+                </p>
+              ) : loading ? (
+                <p className="text-sm text-muted-foreground">
+                  Đang tải hàng đợi...
+                </p>
+              ) : items.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Không có báo cáo phù hợp.
+                </p>
+              ) : (
+                items.map((item) => (
+                  <ReportQueueItemCard
+                    key={item.id}
+                    item={item}
+                    isSelected={
+                      selected === item.id || String(item.rawId) === selected
+                    }
+                    onSelect={async (value) => {
+                      if (
+                        value.id === selected ||
+                        String(value.rawId) === selected
+                      )
+                        return
+                      if (await leaveReview()) setSelected(value.id)
+                    }}
+                  />
+                ))
+              )}
+            </div>
+            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border p-4 text-xs">
               <button
                 type="button"
                 disabled={loading || page === 0}
@@ -297,9 +316,16 @@ export function ReportReviewWorkspace({
               >
                 Trang trước
               </button>
-              <span>
-                {pages ? page + 1 : 0}/{pages}
-              </span>
+              <div className="text-center tabular-nums">
+                <p>
+                  Trang {pages ? page + 1 : 0}/{pages}
+                </p>
+                {!loading && !queueError && (
+                  <p className="mt-1 text-muted-foreground">
+                    {items.length}/{REPORT_PAGE_SIZE} báo cáo
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
                 disabled={loading || page + 1 >= pages}
@@ -312,7 +338,12 @@ export function ReportReviewWorkspace({
           </div>
         </fieldset>
       </aside>
-      <section className="min-w-0 flex-1" aria-busy={busy || detailLoading}>
+      <section
+        className="min-w-0 flex-1 lg:overflow-y-auto lg:overscroll-contain"
+        aria-label="Chi tiết báo cáo"
+        aria-busy={busy || detailLoading}
+        tabIndex={0}
+      >
         <button
           type="button"
           disabled={busy || loading || detailLoading}
@@ -331,7 +362,9 @@ export function ReportReviewWorkspace({
             {detailError}
           </p>
         )}
-        {detailLoading ? (
+        {!selected ? (
+          <ModeratorDashboard key={revision} />
+        ) : detailLoading ? (
           <p className="p-5 text-sm text-muted-foreground">Đang tải hồ sơ...</p>
         ) : (
           <ReportQueueDetailView

@@ -1,4 +1,4 @@
-import { publicApi } from "@/lib/api/instance";
+import { authorizeApi, publicApi } from "@/lib/api/instance";
 import { decodeJwt } from "@/lib/utils/jwtUtil";
 import { useAuthStore } from "@/store/auth.store";
 import { User, UserRole } from "@/types/user";
@@ -143,6 +143,17 @@ export const authServices = {
         } catch (cause) {
             throw new Error(extractErrorMessage(cause, "Không thể đặt mật khẩu. Vui lòng thử lại."))
         }
+    },
+    async getCurrentProfile(signal?: AbortSignal) {
+        const { data } = await authorizeApi.get<{
+            isSuccess?: boolean
+            success?: boolean
+            data?: { id: number; fullName?: string; username: string; email?: string; role: UserRole }
+        }>("/auth/me", { signal })
+        if (!(data.isSuccess ?? data.success) || !data.data) {
+            throw new Error("Không thể tải thông tin tài khoản")
+        }
+        return data.data
     },
     loginByForm: async function (identifier: string, password: string) {
         try {

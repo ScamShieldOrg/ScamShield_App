@@ -11,6 +11,8 @@ import java.util.Optional;
 
 @Repository
 public interface PartnerOfficialAlertRepository extends JpaRepository<PartnerOfficialAlert, Long>, JpaSpecificationExecutor<PartnerOfficialAlert> {
+    long countByReviewedByIdAndStatus(Long userId, String status);
+
 
     Page<PartnerOfficialAlert> findByPartnerId(Long partnerId, Pageable pageable);
 

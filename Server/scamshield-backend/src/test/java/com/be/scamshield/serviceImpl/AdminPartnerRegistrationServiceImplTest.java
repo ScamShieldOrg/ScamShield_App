@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.WhitelistVerificationStatus;
 import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.constant.PartnerVerificationStatus;
@@ -111,7 +112,7 @@ class AdminPartnerRegistrationServiceImplTest {
         assertThat(entry.getAllValues()).extracting(value -> value.getIndicator().getNormalizedValue())
                 .containsExactly("example.com.vn", "0912345678");
         assertThat(entry.getAllValues()).allSatisfy(value ->
-                assertThat(value.getVerificationStatus()).isEqualTo("VERIFIED"));
+                assertThat(value.getVerificationStatus()).isEqualTo(WhitelistVerificationStatus.VERIFIED));
         ArgumentCaptor<AuditLog> audit = ArgumentCaptor.forClass(AuditLog.class);
         verify(auditLogs).save(audit.capture());
         assertThat(audit.getValue().getActorUser()).isSameAs(reviewer);
@@ -212,7 +213,7 @@ class AdminPartnerRegistrationServiceImplTest {
         Indicator existing = Indicator.builder().id(5L).type(IndicatorType.URL).normalizedValue("example.com.vn").build();
         when(indicators.findByTypeAndNormalizedValue(IndicatorType.URL, "example.com.vn"))
                 .thenReturn(Optional.of(existing));
-        when(whitelistEntries.existsByIndicatorIdAndVerificationStatusAndPartnerIdNot(5L, "VERIFIED", 10L))
+        when(whitelistEntries.existsByIndicatorIdAndVerificationStatusAndPartnerIdNot(5L, WhitelistVerificationStatus.VERIFIED, 10L))
                 .thenReturn(true);
         assertThatThrownBy(() -> service.review(10L,
                 request(PartnerVerificationStatus.VERIFIED, "Đã xác minh hồ sơ"), 1L))

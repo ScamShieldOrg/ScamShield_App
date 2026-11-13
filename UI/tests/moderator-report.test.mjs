@@ -12,7 +12,7 @@ function load(file, api = {}, aliases = {}) {
   const filename = path.join(root, file)
   const module = { exports: {} }
   const source = ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText
-  vm.compileFunction(source, ["require", "module", "exports"], { filename })(id => aliases[id] ?? (id === "@/store/auth.store" ? { useAuthStore: { getState: () => ({ token: "test-token" }) } } : id === "@/lib/api/instance" ? { authorizeApi: api } : require(id)), module, module.exports)
+  vm.compileFunction(source, ["require", "module", "exports"], { filename })(id => aliases[id] ?? (id === "@/store/auth.store" ? { useAuthStore: { getState: () => ({ token: "test-token" }) } } : id === "@/lib/api/instance" ? { authorizeApi: api } : id === "@/features/report/utils/report-status" ? load("src/features/report/utils/report-status.ts") : require(id)), module, module.exports)
   return module.exports
 }
 const serviceFile = "src/features/moderator/services/moderator-report.service.ts"
@@ -110,7 +110,8 @@ test("decision form only marks actual draft changes as dirty", () => {
   const changes = []
   const { ReportDecisionForm } = load("src/components/features/moderator/report-decision-form.tsx", {}, {
     "@phosphor-icons/react": { CheckCircle: () => null, XCircle: () => null, ShieldWarning: () => null },
-    react: { ...React, useState: initial => {
+    "@/features/report/services/report.service": { getReportCategories: async () => [] },
+    react: { ...React, useEffect: () => {}, useState: initial => {
       const index = cursor++
       if (!(index in state)) state[index] = initial
       return [state[index], value => { state[index] = value }]
