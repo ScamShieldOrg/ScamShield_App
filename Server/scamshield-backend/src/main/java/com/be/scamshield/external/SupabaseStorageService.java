@@ -8,14 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.multipart.MultipartFile;
 
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -25,7 +22,6 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
-import java.net.URI;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
@@ -33,7 +29,10 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class SupabaseStorageService {
+
+    private final SupabaseStorageClientFactory clientFactory;
 
     @Value("${app.aws.s3.region:${app.supabase.storage.region:${AWS_REGION:${SUPABASE_STORAGE_REGION:ap-south-1}}}}")
     private String region;
@@ -406,17 +405,7 @@ public class SupabaseStorageService {
     }
 
     private S3Client createS3Client() {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(getAccessKeyId(), getSecretAccessKey());
-        var builder = S3Client.builder()
-                .region(Region.of(getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials));
-
-        String override = getEndpointOverride();
-        if (StringUtils.hasText(override)) {
-            builder.endpointOverride(URI.create(override))
-                    .forcePathStyle(true);
-        }
-        return builder.build();
+        return clientFactory.createClient(getRegion(), getAccessKeyId(), getSecretAccessKey(), getEndpointOverride());
     }
 
     private S3Presigner createS3Presigner() {
@@ -424,22 +413,8 @@ public class SupabaseStorageService {
     }
 
     private S3Presigner createS3Presigner(boolean pathStyleAccessEnabled) {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(getAccessKeyId(), getSecretAccessKey());
-        var builder = S3Presigner.builder()
-                .region(Region.of(getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials));
-
-        String override = getEndpointOverride();
-        if (StringUtils.hasText(override)) {
-            override = enforceHttps(override);
-            builder.endpointOverride(URI.create(override));
-            if (pathStyleAccessEnabled) {
-                builder.serviceConfiguration(S3Configuration.builder()
-                        .pathStyleAccessEnabled(true)
-                        .build());
-            }
-        }
-        return builder.build();
+        return clientFactory.createPresigner(getRegion(), getAccessKeyId(), getSecretAccessKey(),
+                enforceHttps(getEndpointOverride()), pathStyleAccessEnabled);
     }
 
     private String enforceHttps(String url) {

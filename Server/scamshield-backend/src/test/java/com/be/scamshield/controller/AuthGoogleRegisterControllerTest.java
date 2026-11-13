@@ -9,6 +9,7 @@ import com.be.scamshield.security.CustomUserDetailsService;
 import com.be.scamshield.security.JwtAuthenticationEntryPoint;
 import com.be.scamshield.security.JwtTokenProvider;
 import com.be.scamshield.service.IAuthService;
+import com.be.scamshield.service.PartnerPasswordSetupService;
 import com.be.scamshield.service.IOtpService;
 import com.be.scamshield.serviceImpl.ContactVerificationService;
 import tools.jackson.databind.ObjectMapper;
@@ -40,6 +41,9 @@ class AuthGoogleRegisterControllerTest {
 
     @MockitoBean
     private ContactVerificationService contactVerificationService;
+
+    @MockitoBean
+    private PartnerPasswordSetupService partnerPasswordSetupService;
 
     @MockitoBean
     private JwtTokenProvider tokenProvider;

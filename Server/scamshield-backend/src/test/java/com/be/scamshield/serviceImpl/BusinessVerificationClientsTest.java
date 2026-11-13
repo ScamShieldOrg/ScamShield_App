@@ -95,6 +95,8 @@ class BusinessVerificationClientsTest {
         server.expect(requestTo("https://api.xinvoice.vn/gdt-api/tax-payer/0100112437"))
                 .andRespond(withStatus(HttpStatusCode.valueOf(status))
                         .body("provider credentials must never be exposed"));
+        if (status != 404) server.expect(requestTo("https://api.xinvoice.vn/gdt-api/tax-payer/0100112437"))
+                .andRespond(withStatus(HttpStatusCode.valueOf(status)));
         assertThat(registry.lookup("0100112437").status())
                 .isEqualTo(status == 404 ? SourceStatus.NOT_FOUND : SourceStatus.UNAVAILABLE);
         server.verify();
@@ -108,6 +110,8 @@ class BusinessVerificationClientsTest {
         assertThat(ocr.extract(new byte[0], "license.pdf").status()).isEqualTo(SourceStatus.NOT_CONFIGURED);
         server.verify();
         properties.getXinvoice().setApiKey("test");
+        server.expect(requestTo("https://api.xinvoice.vn/gdt-api/tax-payer/0100112437"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
         server.expect(requestTo("https://api.xinvoice.vn/gdt-api/tax-payer/0100112437"))
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
         assertThat(registry.lookup("0100112437").status()).isEqualTo(SourceStatus.UNAVAILABLE);
@@ -159,6 +163,8 @@ class BusinessVerificationClientsTest {
     @Test
     void emptyResultIsUnreadableAndTimeoutIsUnavailable() {
         server.expect(requestTo(OCR_URL)).andRespond(withSuccess("{\"errorCode\":\"0\",\"data\":[]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.xinvoice.vn/gdt-api/tax-payer/0100112437"))
+                .andRespond(withException(new SocketTimeoutException("provider timeout")));
         server.expect(requestTo("https://api.xinvoice.vn/gdt-api/tax-payer/0100112437"))
                 .andRespond(withException(new SocketTimeoutException("provider timeout")));
         assertThat(ocr.extract(new byte[]{1}, "license.pdf").status()).isEqualTo(SourceStatus.UNREADABLE);
