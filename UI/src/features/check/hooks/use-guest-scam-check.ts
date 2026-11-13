@@ -20,6 +20,15 @@ import type {
 
 type Phase = "initializing" | "idle" | "quota" | "scanning" | "updating"
 
+type ResultMap = Partial<Record<GuestInputType, GuestCheckResult | null>>
+type ErrorMap = Partial<Record<GuestInputType, string | null>>
+type ElapsedMap = Partial<Record<GuestInputType, number>>
+
+/** Real measurement helper; never a made-up duration. */
+function now(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now()
+}
+
 function errorMessage(error: unknown): string {
   if (isAxiosError(error)) {
     if (!error.response) {
@@ -39,26 +48,49 @@ function errorMessage(error: unknown): string {
     : "Đã xảy ra lỗi. Vui lòng thử lại."
 }
 
+/**
+ * Guest scan state machine.
+ *
+ * Results and errors are keyed by the input type of the submitted request, not
+ * by a render-time prop: a scan resolves after `inputType` may have changed, so
+ * reading the prop inside the write would file a PHONE result under TEXT and
+ * silently drop it.
+ */
 export function useGuestScamCheck(inputType: GuestInputType) {
   const [phase, setPhase] = useState<Phase>("initializing")
   const [quota, setQuota] = useState<GuestQuota | null>(null)
-  const [results, setResults] = useState<
-    Partial<Record<GuestInputType, GuestCheckResult | null>>
-  >({})
-  const [errors, setErrors] = useState<
-    Partial<Record<GuestInputType, string | null>>
-  >({})
-  const result = results[inputType] ?? null
-  const error = errors[inputType] ?? null
-  const setResult = (value: GuestCheckResult | null) => {
-    setResults((previous) => ({ ...previous, [inputType]: value }))
-  }
-  const setError = (value: string | null) => {
-    setErrors((previous) => ({ ...previous, [inputType]: value }))
-  }
+  const [results, setResults] = useState<ResultMap>({})
+  const [errors, setErrors] = useState<ErrorMap>({})
+  // Measured round-trip per submitted type, so a verdict always shows the
+  // duration of the request that actually produced it.
+  const [elapsedByType, setElapsedByType] = useState<ElapsedMap>({})
   const [quotaError, setQuotaError] = useState<string | null>(null)
+  // The type that produced the currently displayed scan. Reading through this
+  // key instead of the live tab keeps the resolved scan on screen when the
+  // user switches tabs, and never files it under the wrong type.
+  const [lastSubmittedType, setLastSubmittedType] =
+    useState<GuestInputType | null>(null)
+  const resultType = lastSubmittedType ?? inputType
+  const result = results[resultType] ?? null
+  const error = errors[resultType] ?? null
+  // Duration of the request that produced the displayed result, in ms.
+  const executionTimeMs = elapsedByType[resultType] ?? 0
   const locked = useRef(false)
   const token = useRef<string | null>(null)
+
+  const writeResult = useCallback(
+    (type: GuestInputType, value: GuestCheckResult | null) => {
+      setResults((previous) => ({ ...previous, [type]: value }))
+    },
+    []
+  )
+
+  const writeError = useCallback(
+    (type: GuestInputType, value: string | null) => {
+      setErrors((previous) => ({ ...previous, [type]: value }))
+    },
+    []
+  )
 
   const refreshQuota = useCallback(async () => {
     if (locked.current) return
@@ -113,11 +145,14 @@ export function useGuestScamCheck(inputType: GuestInputType) {
   const submit = async (request: GuestCheckRequest) => {
     if (locked.current) return
     const payload = normalizeScamCheckRequest(request)
+    // Key every write by the type actually submitted, captured before any await.
+    const submittedType = payload.inputType
+    setLastSubmittedType(submittedType)
     const validationError = validateScamCheck(payload)
-    setError(validationError)
+    writeError(submittedType, validationError)
     if (validationError) return
     locked.current = true
-    setResult(null)
+    writeResult(submittedType, null)
     setPhase("quota")
     let attemptedScan = false
     try {
@@ -127,16 +162,28 @@ export function useGuestScamCheck(inputType: GuestInputType) {
       setQuota(currentQuota)
       setQuotaError(null)
       if (currentQuota.remaining <= 0) {
-        setError("Bạn đã sử dụng hết lượt kiểm tra trong ngày.")
+        writeError(
+          submittedType,
+          "Bạn đã sử dụng hết lượt kiểm tra trong ngày."
+        )
         return
       }
       setPhase("scanning")
       attemptedScan = true
-      setResult(
-        await submitGuestCheck(session.sessionToken, payload)
-      )
+      // Measure the scan request itself: the session and quota round-trips are
+      // not part of the analysis, and the result must never show a made-up
+      // duration. The duration is written together with the result so the
+      // verdict never renders once with a stale or zero execution time.
+      const startedAt = now()
+      const scanResult = await submitGuestCheck(session.sessionToken, payload)
+      const durationMs = now() - startedAt
+      setElapsedByType((previous) => ({
+        ...previous,
+        [submittedType]: durationMs,
+      }))
+      writeResult(submittedType, scanResult)
     } catch (err) {
-      setError(errorMessage(err))
+      writeError(submittedType, errorMessage(err))
       if (!attemptedScan)
         setQuotaError(
           "Chưa xác minh được lượt còn lại. Vui lòng cập nhật và thử lại."
@@ -145,7 +192,8 @@ export function useGuestScamCheck(inputType: GuestInputType) {
         // Recover the session without automatically repeating a potentially charged scan.
         try {
           token.current = (await restoreGuestSession()).sessionToken
-          setError(
+          writeError(
+            submittedType,
             "Phiên khách đã được khôi phục. Vui lòng bấm Phân tích để thử lại."
           )
         } catch {
@@ -169,9 +217,9 @@ export function useGuestScamCheck(inputType: GuestInputType) {
     }
   }
 
-  const clearResult = () => {
-    setResult(null)
-    setError(null)
+  const clearResult = (type: GuestInputType = inputType) => {
+    writeResult(type, null)
+    writeError(type, null)
   }
 
   return {
@@ -180,6 +228,10 @@ export function useGuestScamCheck(inputType: GuestInputType) {
     result,
     error,
     quotaError,
+    /** Type that produced the displayed result/error; null before any submit. */
+    lastSubmittedType,
+    /** Locally measured duration of the displayed scan, in ms (never faked). */
+    executionTimeMs,
     submit,
     refreshQuota,
     clearResult,

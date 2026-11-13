@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import {
+  Bank,
   ChatText,
   Link as LinkIcon,
   Phone,
@@ -9,20 +10,40 @@ import {
   Trash,
   Lightning,
   CircleNotch,
+  Info,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import type { CheckType } from "@/features/check/types/check.types"
 
 export interface ScamCheckInputProps {
+  /** Tab the user is composing in. The parent owns it so drafts survive switches. */
+  activeTab: CheckType
+  onTabChange: (type: CheckType) => void
+  /** One draft per tab: switching tabs must never drop what the user typed. */
+  drafts: Record<CheckType, string>
+  onDraftChange: (type: CheckType, value: string) => void
   onAnalyze: (content: string, type: CheckType) => void
   isLoading?: boolean
+  /** Blocks submitting and explains why when the daily quota is used up. */
+  quotaExhausted?: boolean
 }
 
-export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputProps) {
-  const [activeTab, setActiveTab] = useState<CheckType>("TEXT")
-  const [content, setContent] = useState("")
+export function ScamCheckInput({
+  activeTab,
+  onTabChange,
+  drafts,
+  onDraftChange,
+  onAnalyze,
+  isLoading = false,
+  quotaExhausted = false,
+}: ScamCheckInputProps) {
   const [clipboardError, setClipboardError] = useState<string | null>(null)
+
+  // The draft of the visible tab only: each tab keeps its own text.
+  const content = drafts[activeTab] ?? ""
+
+  const updateContent = (value: string) => onDraftChange(activeTab, value)
 
   const tabs: { type: CheckType; label: string; icon: typeof ChatText }[] = [
     {
@@ -40,6 +61,11 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
       label: "Số điện thoại / Đầu số",
       icon: Phone,
     },
+    {
+      type: "BANK_ACCOUNT",
+      label: "Ngân hàng / Số tài khoản",
+      icon: Bank,
+    },
   ]
 
   const handlePaste = async () => {
@@ -47,7 +73,7 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
     try {
       const text = await navigator.clipboard.readText()
       if (text) {
-        setContent(text)
+        updateContent(text)
       }
     } catch {
       setClipboardError(
@@ -57,19 +83,25 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
   }
 
   const handleClear = () => {
-    setContent("")
+    updateContent("")
     setClipboardError(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!content.trim() || isLoading) return
+    if (!content.trim() || isLoading || quotaExhausted) return
     onAnalyze(content.trim(), activeTab)
   }
 
   // Count characters, links, and phone numbers in content
   const charCount = content.length
-  const linksCount = (content.match(/https?:\/\/[^\s]+/g) || []).length
+  // Full URLs (scheme or www.) always count; bare domains need a known lowercase TLD,
+  // so a missing space after a period ("khac.Do") is not miscounted as a link.
+  const urlPattern = new RegExp(
+    "https?:\\/\\/[^\\s<>\"']+|www\\.[^\\s<>\"']+|(?<![\\w@.])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:com|net|org|info|biz|vn|io|co|me|to|cc|tv|xyz|top|vip|shop|online|site|club|app|link|live|store|asia|tk|ml|ga|cf|gq|icu|cyou|bond|sbs|click|fun|pro|win|bet|best|life|world|today|news|space|website|tech|dev|ly|gl|gd|in|us|uk|cn|ru)\\b(?:\\/[^\\s<>\"']*)?",
+    "g"
+  )
+  const linksCount = new Set(content.match(urlPattern) || []).size
   const phoneCount = (content.match(/(0\d{9,10}|\+84\d{9,10})/g) || []).length
 
   return (
@@ -92,7 +124,7 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
                   type="button"
                   aria-pressed={isActive}
                   onClick={() => {
-                    setActiveTab(tab.type)
+                    onTabChange(tab.type)
                     setClipboardError(null)
                   }}
                   className={cn(
@@ -129,8 +161,8 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
               </span>
             </label>
             <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-              {charCount} ký tự • Đã phát hiện {linksCount} liên kết, {phoneCount}{" "}
-              số điện thoại
+              {charCount} ký tự • Đã phát hiện {linksCount} liên kết,{" "}
+              {phoneCount} số điện thoại
             </span>
           </div>
 
@@ -140,16 +172,29 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
             aria-label="Nội dung khả nghi cần phân tích"
             rows={4}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => updateContent(e.target.value)}
             placeholder={
               activeTab === "URL"
                 ? "Nhập hoặc dán đường dẫn website (URL) nghi vấn..."
                 : activeTab === "PHONE"
                   ? "Nhập số điện thoại hoặc đầu số tổng đài khả nghi..."
-                  : "Nhập hoặc dán nội dung tin nhắn, đường link hoặc số điện thoại đáng ngờ..."
+                  : activeTab === "BANK_ACCOUNT"
+                    ? "Nhập số tài khoản nghi vấn (chữ số, có thể cách nhau bằng dấu cách, dấu chấm hoặc gạch nối — ví dụ: 0123 456 789)..."
+                    : "Nhập hoặc dán nội dung tin nhắn, đường link hoặc số điện thoại đáng ngờ..."
             }
             className="w-full resize-none rounded-xl bg-[#FAF8FF] p-4 text-xs leading-relaxed text-[#131B2E] placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:bg-muted/40 dark:text-foreground"
           />
+
+          {activeTab === "BANK_ACCOUNT" && (
+            <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+              <Info aria-hidden="true" size={14} className="mt-0.5 shrink-0" />
+              <span>
+                Chỉ tra cứu trong danh sách cảnh báo và danh bạ xác minh — không
+                dùng AI phán đoán. Số tài khoản không có trong danh sách không
+                đồng nghĩa với an toàn.
+              </span>
+            </p>
+          )}
 
           {/* Action Toolbar & CTA */}
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#C6C6CE]/30 pt-4 dark:border-border">
@@ -175,7 +220,7 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
             </div>
             <Button
               type="submit"
-              disabled={isLoading || !content.trim()}
+              disabled={isLoading || quotaExhausted || !content.trim()}
               className="cursor-pointer bg-[#008CC7] text-white hover:bg-[#007AB0] dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
             >
               {isLoading ? (
@@ -189,6 +234,19 @@ export function ScamCheckInput({ onAnalyze, isLoading = false }: ScamCheckInputP
               <span>{isLoading ? "Đang phân tích…" : "Phân tích"}</span>
             </Button>
           </div>
+
+          {quotaExhausted && (
+            <p
+              role="alert"
+              className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400"
+            >
+              <Info aria-hidden="true" size={14} className="mt-0.5 shrink-0" />
+              <span>
+                Bạn đã dùng hết hạn mức kiểm tra hôm nay nên chưa thể gửi nội
+                dung mới. Hạn mức được đặt lại lúc 00:00 giờ Việt Nam.
+              </span>
+            </p>
+          )}
         </div>
       </fieldset>
       {clipboardError && (

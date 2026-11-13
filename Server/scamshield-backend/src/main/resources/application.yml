@@ -117,6 +117,6 @@ app:
   contact-verification:
     expiration-ms: ${CONTACT_VERIFICATION_EXPIRATION_MS:600000}
   jwt:
-    secret: ${JWT_SECRET}
-    expiration-ms: ${JWT_EXPIRATION_MS}
-    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS}
+    secret: ${JWT_SECRET:C31ruqAfYphaGU/LUdieXU3aWydi8NZIQZeMd65mdpk=}
+    expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}

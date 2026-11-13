@@ -1,3 +1,5 @@
+import type { CouncilDeliberation, DeterministicFeatures } from "./check.types"
+
 export type ScamCheckInputType = "MESSAGE" | "URL" | "PHONE" | "BANK_ACCOUNT"
 
 export interface ScamCheckRequest {
@@ -33,7 +35,14 @@ export interface ScamCheckResult {
       confidence: number
       summary: string
     }
-    radarMetrics: Record<"urgency" | "authority_impersonation" | "financial_lure" | "suspicious_channel" | "data_harvesting", number> | null
+    radarMetrics: Record<
+      | "urgency"
+      | "authority_impersonation"
+      | "financial_lure"
+      | "suspicious_channel"
+      | "data_harvesting",
+      number
+    > | null
     recommendations: string[]
     councilAudit: {
       consensusRatio: string | null
@@ -42,5 +51,9 @@ export interface ScamCheckResult {
       defenderIntervened: boolean
       agents: { role: string; verdict: string; score: number }[]
     } | null
+    councilDeliberation?: CouncilDeliberation | null
+    council_deliberation?: CouncilDeliberation | null
+    deterministicFeatures?: DeterministicFeatures | null
+    deterministic_features?: DeterministicFeatures | null
   } | null
 }
