@@ -789,4 +789,99 @@ class PartnerSubmissionServiceImplTest {
 
         verify(confirmedIndicatorRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("Regression: Submission với số điện thoại tiền tố 84 được thẩm định sau khi hotline nội địa 0x vào Whitelist -> Chặn duyệt và không tạo ConfirmedIndicator ACTIVE")
+    void reviewSubmission_phoneWith84PrefixMatchingDomesticVerifiedHotline_blocksApprovalWithoutActiveConfirmation() {
+        when(userRepository.findById(20L)).thenReturn(Optional.of(moderatorUser));
+
+        PartnerProfile vcbPartner = PartnerProfile.builder()
+                .id(200L)
+                .legalName("Ngân hàng TMCP Ngoại thương Việt Nam")
+                .brandName("Vietcombank")
+                .officialHotline("0912345678")
+                .verificationStatus(PartnerVerificationStatus.VERIFIED)
+                .build();
+
+        Indicator domesticIndicator = Indicator.builder()
+                .id(990L)
+                .type(IndicatorType.PHONE)
+                .normalizedValue("0912345678")
+                .displayValue("0912345678")
+                .build();
+
+        WhitelistEntry verifiedWhitelist = WhitelistEntry.builder()
+                .id(15L)
+                .partner(vcbPartner)
+                .indicator(domesticIndicator)
+                .verificationStatus(WhitelistVerificationStatus.VERIFIED)
+                .build();
+
+        when(indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(eq(IndicatorType.PHONE), any()))
+                .thenReturn(java.util.List.of(domesticIndicator));
+        when(whitelistEntryRepository.findVerifiedForCheck(eq(java.util.List.of(990L)), eq(PartnerVerificationStatus.VERIFIED), any()))
+                .thenReturn(java.util.List.of(verifiedWhitelist));
+
+        PartnerOfficialAlert alert = PartnerOfficialAlert.builder()
+                .id(509L)
+                .partner(partnerProfile)
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo số giả mạo")
+                .description("[Target: PHONE:84912345678 | Category: VIEN_THONG]\nCuộc gọi nghi vấn")
+                .status("PENDING")
+                .build();
+        when(partnerOfficialAlertRepository.findById(509L)).thenReturn(Optional.of(alert));
+
+        ReviewPartnerSubmissionRequest reviewRequest = ReviewPartnerSubmissionRequest.builder()
+                .decision(ReviewPartnerSubmissionRequest.DecisionType.VERIFY)
+                .reason("Duyệt chỉ số")
+                .build();
+
+        assertThatThrownBy(() -> service.reviewSubmission(509L, reviewRequest, moderatorPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Không thể phê duyệt cảnh báo")
+                .hasMessageContaining("đối tác thành viên [Vietcombank]");
+
+        verify(confirmedIndicatorRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Regression: Submission với số điện thoại tiền tố 84 khớp với officialHotline của PartnerProfile -> Chặn duyệt và không tạo ConfirmedIndicator ACTIVE")
+    void reviewSubmission_phoneWith84PrefixMatchingPartnerProfileHotline_blocksApprovalWithoutActiveConfirmation() {
+        when(userRepository.findById(20L)).thenReturn(Optional.of(moderatorUser));
+
+        PartnerProfile vcbPartner = PartnerProfile.builder()
+                .id(200L)
+                .legalName("Ngân hàng TMCP Ngoại thương Việt Nam")
+                .brandName("Vietcombank")
+                .officialHotline("0912345678")
+                .verificationStatus(PartnerVerificationStatus.VERIFIED)
+                .build();
+
+        when(indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(eq(IndicatorType.PHONE), any()))
+                .thenReturn(java.util.Collections.emptyList());
+        when(partnerProfileRepository.findAll()).thenReturn(java.util.List.of(vcbPartner));
+
+        PartnerOfficialAlert alert = PartnerOfficialAlert.builder()
+                .id(510L)
+                .partner(partnerProfile)
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo đầu số Vietcombank 84 prefix")
+                .description("[Target: PHONE:84912345678 | Category: VIEN_THONG]\nCuộc gọi nghi vấn")
+                .status("PENDING")
+                .build();
+        when(partnerOfficialAlertRepository.findById(510L)).thenReturn(Optional.of(alert));
+
+        ReviewPartnerSubmissionRequest reviewRequest = ReviewPartnerSubmissionRequest.builder()
+                .decision(ReviewPartnerSubmissionRequest.DecisionType.VERIFY)
+                .reason("Duyệt chỉ số")
+                .build();
+
+        assertThatThrownBy(() -> service.reviewSubmission(510L, reviewRequest, moderatorPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Không thể phê duyệt cảnh báo")
+                .hasMessageContaining("đối tác thành viên [Vietcombank]");
+
+        verify(confirmedIndicatorRepository, never()).save(any());
+    }
 }

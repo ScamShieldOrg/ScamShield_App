@@ -728,10 +728,12 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                 }
             } else if (type == IndicatorType.PHONE) {
                 if (StringUtils.hasText(profile.getOfficialHotline())) {
-                    String offHotline = profile.getOfficialHotline().replaceAll("[\\s().-]", "");
+                    String offHotline = normalizePhoneToDomestic(profile.getOfficialHotline());
+                    String offHotlineRaw = profile.getOfficialHotline().replaceAll("[\\s().-]", "");
                     for (String val : candidateLookupValues) {
-                        String cleanVal = val.replaceAll("[\\s().-]", "");
-                        if (cleanVal.equals(offHotline) || cleanVal.equals(profile.getOfficialHotline().trim())) {
+                        String cleanVal = normalizePhoneToDomestic(val);
+                        String rawVal = val.replaceAll("[\\s().-]", "");
+                        if (cleanVal.equals(offHotline) || rawVal.equals(offHotlineRaw) || val.equals(profile.getOfficialHotline().trim())) {
                             handleCollision(currentPartner, profile, rawToken);
                         }
                     }
@@ -764,11 +766,36 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
         }
     }
 
+    private String normalizePhoneToDomestic(String phone) {
+        if (!StringUtils.hasText(phone)) return "";
+        String digits = phone.replaceAll("[\\s().-]", "");
+        if (digits.startsWith("+84")) {
+            return "0" + digits.substring(3);
+        } else if (digits.startsWith("84") && digits.length() >= 11) {
+            return "0" + digits.substring(2);
+        }
+        return digits;
+    }
+
     private void assertNotWhitelisted(IndicatorType type, String normalizedVal, String displayVal, LocalDateTime now) {
+        String canonicalNormalized = normalizedVal;
+        if (type == IndicatorType.PHONE && StringUtils.hasText(normalizedVal)) {
+            canonicalNormalized = normalizePhoneToDomestic(normalizedVal);
+        }
+
         List<String> lookupValues = new ArrayList<>();
-        lookupValues.add(normalizedVal);
+        lookupValues.add(canonicalNormalized);
+        if (StringUtils.hasText(normalizedVal) && !normalizedVal.equals(canonicalNormalized)) {
+            lookupValues.add(normalizedVal);
+        }
         if (StringUtils.hasText(displayVal)) {
             lookupValues.add(displayVal.trim());
+            if (type == IndicatorType.PHONE) {
+                String domesticDisplay = normalizePhoneToDomestic(displayVal);
+                if (StringUtils.hasText(domesticDisplay) && !lookupValues.contains(domesticDisplay)) {
+                    lookupValues.add(domesticDisplay);
+                }
+            }
         }
         if (type == IndicatorType.URL) {
             String lower = normalizedVal.toLowerCase(Locale.ROOT);
@@ -781,9 +808,9 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                 lookupValues.add("www." + host);
             }
         } else if (type == IndicatorType.PHONE) {
-            if (normalizedVal.startsWith("0")) {
-                lookupValues.add("+84" + normalizedVal.substring(1));
-                lookupValues.add("84" + normalizedVal.substring(1));
+            if (canonicalNormalized.startsWith("0")) {
+                lookupValues.add("+84" + canonicalNormalized.substring(1));
+                lookupValues.add("84" + canonicalNormalized.substring(1));
             }
         }
 
@@ -825,9 +852,14 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                 }
             } else if (type == IndicatorType.PHONE) {
                 if (StringUtils.hasText(profile.getOfficialHotline())) {
-                    String offHotline = profile.getOfficialHotline().replaceAll("[\\s().-]", "");
+                    String offHotlineRaw = profile.getOfficialHotline().replaceAll("[\\s().-]", "");
+                    String offHotline = normalizePhoneToDomestic(profile.getOfficialHotline());
                     for (String val : lookupValues) {
-                        if (val.replaceAll("[\\s().-]", "").equals(offHotline) || val.equals(profile.getOfficialHotline().trim())) {
+                        String cleanVal = normalizePhoneToDomestic(val);
+                        String rawVal = val.replaceAll("[\\s().-]", "");
+                        if (cleanVal.equals(offHotline)
+                                || rawVal.equals(offHotlineRaw)
+                                || val.equals(profile.getOfficialHotline().trim())) {
                             String partnerName = profile.getBrandName() != null ? profile.getBrandName() : profile.getLegalName();
                             throw new BadRequestException("Không thể phê duyệt cảnh báo: Kênh thông tin '" + displayVal
                                     + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
@@ -914,8 +946,7 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
         String upperType = type != null ? type.toUpperCase(Locale.ROOT) : "";
 
         if ("PHONE".equals(upperType)) {
-            String digits = trimmed.replaceAll("[\\s().-]", "");
-            return digits.startsWith("+84") ? "0" + digits.substring(3) : digits;
+            return normalizePhoneToDomestic(trimmed);
         } else if ("URL".equals(upperType) || "WEBSITE".equals(upperType) || "DOMAIN".equals(upperType)) {
             String lower = trimmed.toLowerCase(Locale.ROOT);
             if (lower.startsWith("https://")) lower = lower.substring(8);
