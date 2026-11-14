@@ -10,12 +10,23 @@ import java.util.Map;
 public record ScamCheckAiDetails(
         String scanId, String createdAt, Integer tierExecuted, AiVerdict verdict,
         Map<String, BigDecimal> radarMetrics, List<String> recommendations,
-        CouncilAudit councilAudit) {
+        CouncilAudit councilAudit,
+        Map<String, Object> councilDeliberation,
+        Map<String, Object> deterministicFeatures) {
+
+    public ScamCheckAiDetails(
+            String scanId, String createdAt, Integer tierExecuted, AiVerdict verdict,
+            Map<String, BigDecimal> radarMetrics, List<String> recommendations,
+            CouncilAudit councilAudit) {
+        this(scanId, createdAt, tierExecuted, verdict, radarMetrics, recommendations, councilAudit, null, null);
+    }
+
     public record AiVerdict(String riskLevel, BigDecimal riskScore, String scamType,
                             BigDecimal confidence, String summary) {
         public AiVerdict {
             riskLevel = ScamVerdict.normalize(riskLevel);
             if ("UNKNOWN".equals(riskLevel)) riskScore = null;
+
         }
     }
     public record CouncilAudit(String consensusRatio, String leadModel, boolean earlyExit,
