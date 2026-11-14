@@ -387,29 +387,33 @@ export default function ModeratorPartnerSubmissionsPage() {
               {/* Indicator Metadata Card */}
               <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50 space-y-3">
                 <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                  Thông Tin Chỉ Số Nhận Diện (IOC)
+                  Thông Tin Đối Tượng & Mục Tiêu Báo Cáo
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="text-slate-500">Loại chỉ số:</span>
+                    <span className="text-slate-500">Hình thức vi phạm:</span>
                     <div className="font-semibold text-slate-900 dark:text-white mt-0.5">
-                      {selectedDetail.indicatorType || "WEBSITE / URL"}
+                      {selectedDetail.indicatorType === "PHONE"
+                        ? "Số điện thoại / SMS Brandname"
+                        : selectedDetail.indicatorType === "BANK_ACCOUNT"
+                        ? "Số tài khoản ngân hàng thụ hưởng"
+                        : "Tên miền / Website lừa đảo"}
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-500">Giá trị chỉ số (Target):</span>
+                    <span className="text-slate-500">Đối tượng bị báo cáo (Mục tiêu):</span>
                     <div className="font-mono font-semibold text-red-600 dark:text-red-400 mt-0.5 break-all">
                       {selectedDetail.indicatorValue || "N/A"}
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-500">Mã phân loại (Category):</span>
+                    <span className="text-slate-500">Hình thức tấn công / Phân loại:</span>
                     <div className="font-medium text-slate-800 dark:text-slate-200 mt-0.5">
                       {selectedDetail.categoryName || selectedDetail.categoryCode || "Mạo danh ngân hàng"}
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-500">Trạng thái trong Blacklist:</span>
+                    <span className="text-slate-500">Trạng thái danh sách đen:</span>
                     <div className="font-medium text-slate-800 dark:text-slate-200 mt-0.5">
                       {selectedDetail.isConfirmed ? "Đã kích hoạt trong Blacklist" : "Chưa kích hoạt"}
                     </div>

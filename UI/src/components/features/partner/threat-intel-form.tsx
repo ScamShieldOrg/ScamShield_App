@@ -206,7 +206,13 @@ export function ThreatIntelForm() {
       setZeroPiiChecked(false)
     } catch (err: any) {
       console.error("Submit error", err)
-      toast.error(err?.response?.data?.message || "Không thể nộp hồ sơ tình báo, vui lòng thử lại sau.")
+      const status = err?.response?.status
+      const errorMsg = err?.response?.data?.message || "Không thể nộp hồ sơ tình báo, vui lòng thử lại sau."
+      if (status === 409) {
+        toast.warning(errorMsg, { autoClose: 10000 })
+      } else {
+        toast.error(errorMsg)
+      }
     } finally {
       setIsSubmitting(false)
     }

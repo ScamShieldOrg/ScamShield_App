@@ -33,6 +33,31 @@ interface AttachedFile {
   file?: File
 }
 
+function isValidUrlOrDomain(val: string): boolean {
+  const trimmed = val.trim()
+  if (!trimmed) return true
+  const pattern = /^(?:https?:\/\/)?(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?$/
+  return pattern.test(trimmed)
+}
+
+function isValidPhone(val: string): boolean {
+  const trimmed = val.trim()
+  if (!trimmed) return true
+  // Allow text brandname: 3 to 30 chars, alphanumeric with symbols _ . -
+  if (/^[a-zA-Z0-9_.-]{3,30}$/.test(trimmed) && /[a-zA-Z]/.test(trimmed)) {
+    return true
+  }
+  const digitsOnly = trimmed.replace(/[\s().-]/g, "")
+  const pattern = /^(?:(?:\+84|84|0)[0-9]{9}|(?:1800|1900)[0-9]{4,7})$/
+  return pattern.test(digitsOnly)
+}
+
+function isValidBankAccount(val: string): boolean {
+  const trimmed = val.replace(/[\s.-]/g, "")
+  if (!trimmed) return true
+  return /^[0-9]{6,30}$/.test(trimmed)
+}
+
 export function OfficialAlertForm() {
   const user = useAuthStore((state) => state.user)
 
@@ -129,9 +154,60 @@ export function OfficialAlertForm() {
       return
     }
 
-    if (!domains && !brandnamePhone && !muleAccounts) {
-      toast.error("Vui lòng cung cấp ít nhất một chỉ báo IOC (tên miền, số điện thoại hoặc số tài khoản).")
+    if (attackVector === "bts-fake") {
+      if (!brandnamePhone.trim() && !domains.trim()) {
+        toast.error("Vui lòng cung cấp Tên SMS Brandname hoặc Đầu số phát tán BTS giả mạo.")
+        return
+      }
+    } else if (attackVector === "phone-spoof") {
+      if (!brandnamePhone.trim()) {
+        toast.error("Vui lòng cung cấp Số điện thoại hoặc Tổng đài mạo danh.")
+        return
+      }
+    } else if (attackVector === "phishing-web") {
+      if (!domains.trim()) {
+        toast.error("Vui lòng cung cấp Tên miền hoặc URL website lừa đảo.")
+        return
+      }
+    } else if (attackVector === "malware-apk") {
+      if (!domains.trim()) {
+        toast.error("Vui lòng cung cấp Đường dẫn tải tệp mã độc APK.")
+        return
+      }
+    } else if (!domains && !brandnamePhone && !muleAccounts) {
+      toast.error("Vui lòng cung cấp thông tin mục tiêu hoặc đối tượng bị mạo danh.")
       return
+    }
+
+    // Client-side format validations
+    if (domains.trim()) {
+      const domainList = domains.split(/[,;\s]+/).filter(Boolean)
+      for (const d of domainList) {
+        if (!isValidUrlOrDomain(d)) {
+          toast.error(`Tên miền hoặc URL không hợp lệ: "${d}". Vui lòng nhập định dạng hợp lệ (ví dụ: domain.com hoặc https://domain.com/path).`)
+          return
+        }
+      }
+    }
+
+    if (brandnamePhone.trim()) {
+      const phoneList = brandnamePhone.split(/[,;\s]+/).filter(Boolean)
+      for (const p of phoneList) {
+        if (!isValidPhone(p)) {
+          toast.error(`Số điện thoại không hợp lệ: "${p}". Vui lòng nhập số điện thoại di động 10 chữ số (03x, 05x, 07x, 08x, 09x) hoặc hotline 1800/1900.`)
+          return
+        }
+      }
+    }
+
+    if (muleAccounts.trim()) {
+      const muleList = muleAccounts.split(/[,;\s]+/).filter(Boolean)
+      for (const m of muleList) {
+        if (!isValidBankAccount(m)) {
+          toast.error(`Số tài khoản ngân hàng không hợp lệ: "${m}". Số tài khoản phải từ 6 đến 30 chữ số.`)
+          return
+        }
+      }
     }
 
     if (scenarioDescription.trim().length > 160) {
@@ -151,28 +227,90 @@ export function OfficialAlertForm() {
     const submittedAgreement = agreementChecked
 
     try {
-      // Pick representative indicator
-      const primaryUrl = domains.split(",")[0]?.trim()
-      const primaryIndicator = primaryUrl || brandnamePhone.split(",")[0]?.trim() || muleAccounts
+      // Pick representative indicator & type strictly based on attackVector selected by partner
+      const primaryUrl = domains.split(/[,;\s]+/)[0]?.trim()
+      const primaryPhone = brandnamePhone.split(/[,;\s]+/)[0]?.trim()
+      const primaryMule = muleAccounts.split(/[,;\s]+/)[0]?.trim()
 
-      const title = `[CẢNH BÁO KHẨN] Chiến dịch mạo danh qua ${
-        attackVector === "bts-fake"
-          ? "SMS Brandname Fake BTS"
-          : attackVector === "phishing-web"
-            ? "Website Phishing OTP"
-            : attackVector === "malware-apk"
-              ? "Mã độc APK Ngân Hàng Giả"
-              : "Tổng đài mạo danh"
-      }`
+      let indicatorType: "URL" | "PHONE" | "BANK_ACCOUNT" = "URL"
+      let primaryIndicator = ""
 
-      const safeDesc = scenarioDescription.trim()
+      if (attackVector === "bts-fake") {
+        // Đối với SMS Brandname (Trạm BTS giả):
+        // Nếu có link phishing đính kèm -> URL là chỉ báo độc hại cần đưa vào Blacklist bảo vệ người dùng
+        // Tên Brandname là đối tượng bị mạo danh được lưu vào tiêu đề và hồ sơ
+        if (primaryUrl) {
+          indicatorType = "URL"
+          primaryIndicator = primaryUrl
+        } else if (primaryPhone) {
+          indicatorType = "PHONE"
+          primaryIndicator = primaryPhone
+        } else {
+          indicatorType = "BANK_ACCOUNT"
+          primaryIndicator = primaryMule
+        }
+      } else if (attackVector === "phone-spoof") {
+        // Cuộc gọi mạo danh: Ưu tiên Số điện thoại kẻ gian dùng để gọi
+        if (primaryPhone) {
+          indicatorType = "PHONE"
+          primaryIndicator = primaryPhone
+        } else if (primaryUrl) {
+          indicatorType = "URL"
+          primaryIndicator = primaryUrl
+        } else {
+          indicatorType = "BANK_ACCOUNT"
+          primaryIndicator = primaryMule
+        }
+      } else {
+        // Website Phishing hoặc Mã độc APK: Ưu tiên Tên miền / URL độc hại
+        if (primaryUrl) {
+          indicatorType = "URL"
+          primaryIndicator = primaryUrl
+        } else if (primaryPhone) {
+          indicatorType = "PHONE"
+          primaryIndicator = primaryPhone
+        } else {
+          indicatorType = "BANK_ACCOUNT"
+          primaryIndicator = primaryMule
+        }
+      }
+
+      let vectorTitle = "Tổng đài mạo danh"
+      if (attackVector === "bts-fake") {
+        vectorTitle = primaryPhone ? `SMS Brandname ${primaryPhone} (BTS Giả)` : "SMS Brandname Fake BTS"
+      } else if (attackVector === "phishing-web") {
+        vectorTitle = "Website Phishing OTP"
+      } else if (attackVector === "malware-apk") {
+        vectorTitle = "Mã độc APK Ngân Hàng Giả"
+      } else if (attackVector === "phone-spoof") {
+        vectorTitle = primaryPhone ? `Cuộc gọi mạo danh (${primaryPhone})` : "Tổng đài mạo danh"
+      }
+
+      const title = `[CẢNH BÁO KHẨN] Chiến dịch mạo danh qua ${vectorTitle}`
+
+      // Include associated channels into description for complete investigation context
+      let extraContext = ""
+      if (attackVector === "bts-fake" && primaryPhone) {
+        extraContext += ` | Brandname: ${primaryPhone}`
+      }
+      if (attackVector === "bts-fake" && domains.trim()) {
+        extraContext += ` | Link SMS: ${domains.trim()}`
+      }
+      if (attackVector === "phone-spoof" && domains.trim()) {
+        extraContext += ` | Link gửi kèm: ${domains.trim()}`
+      }
+      if (muleAccounts.trim()) {
+        extraContext += ` | STK thụ hưởng: ${muleAccounts.trim()}`
+      }
+
+      const safeDesc = (scenarioDescription.trim() + extraContext).slice(0, 180)
       const payload = {
         submissionType: "SCAM_ALERT" as const,
         title: title.slice(0, 250),
         description: safeDesc,
-        indicatorType: primaryUrl ? "URL" : "PHONE",
+        indicatorType,
         indicatorValue: primaryIndicator,
-        categoryCode: attackVector === "bts-fake" ? "SMS_BTS" : "PHISHING_PORTAL",
+        categoryCode: attackVector === "bts-fake" ? "SMS_BTS" : (attackVector === "phone-spoof" ? "VIEN_THONG" : "PHISHING_PORTAL"),
       }
 
       await submitPartnerAlertOrIntel(payload, uploadedRealFile)
@@ -199,10 +337,16 @@ export function OfficialAlertForm() {
             pending: res.data.filter((i) => i.status === "PENDING").length,
           })
         }
-      } catch {}
+      } catch { }
     } catch (err: any) {
       console.error("Submit error", err)
-      toast.error(err?.response?.data?.message || "Không thể gửi cảnh báo, vui lòng thử lại sau.")
+      const status = err?.response?.status
+      const errorMsg = err?.response?.data?.message || "Không thể gửi cảnh báo, vui lòng thử lại sau."
+      if (status === 409) {
+        toast.warning(errorMsg, { autoClose: 10000 })
+      } else {
+        toast.error(errorMsg)
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -418,60 +562,249 @@ export function OfficialAlertForm() {
 
             {/* Section 2 */}
             <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-center gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
-                <span className="flex size-6 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-900">
-                  2
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="flex size-6 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-900">
+                    2
+                  </span>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-white">
+                    Thông Tin Đối Tượng Bị Mạo Danh & Phạm Vi Tác Động
+                  </h2>
+                </div>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {attackVector === "bts-fake" && "Mẫu: SMS Brandname Giả Mạo"}
+                  {attackVector === "phishing-web" && "Mẫu: Website / Phishing Portal"}
+                  {attackVector === "phone-spoof" && "Mẫu: Cuộc Gọi / Tổng Đài Mạo Danh"}
+                  {attackVector === "malware-apk" && "Mẫu: Tệp Cài Đặt Mã Độc APK"}
                 </span>
-                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-white">
-                  Thông Tin Indicator (IOCs) & Phạm Vi Ảnh Hưởng
-                </h2>
               </div>
 
               <div className="mt-4 space-y-4 text-xs">
-                {/* Brandname */}
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Đầu số mạo danh / Brandname
-                  </label>
-                  <input
-                    type="text"
-                    value={brandnamePhone}
-                    onChange={(e) => setBrandnamePhone(e.target.value)}
-                    placeholder="Ví dụ: +84 28 7300 xxxx, VIETCOMBANK (Phát tán qua BTS trạm sóng giả)..."
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
+                {/* Dynamic fields based on Attack Vector */}
+                {attackVector === "bts-fake" && (
+                  <>
+                    {/* Primary: Brandname / BTS */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300">
+                          Tên SMS Brandname / Đầu số phát tán BTS giả
+                        </label>
+                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded dark:bg-red-950/50 dark:text-red-400">
+                          BẮT BUỘC
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={brandnamePhone}
+                        onChange={(e) => setBrandnamePhone(e.target.value)}
+                        placeholder="Ví dụ: VIETCOMBANK, VCB-Digi, 0287300xxxx..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        Tên Brandname hiển thị trên tin nhắn nạn nhân nhận được hoặc đầu số phát tán qua trạm BTS giả.
+                      </p>
+                    </div>
 
-                {/* Domains */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                      Danh sách Tên miền / URL thu thập thông tin nghi vấn
-                    </label>
-                    <span className="text-[10px] text-slate-400">Phân tách bằng dấu phẩy</span>
-                  </div>
-                  <input
-                    type="text"
-                    value={domains}
-                    onChange={(e) => setDomains(e.target.value)}
-                    placeholder="Ví dụ: vcb-digibank-xacthuc.top, vietcombank-secotp.com..."
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
+                    {/* Secondary: URL in SMS */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300">
+                          Đường dẫn lừa đảo đính kèm trong tin nhắn SMS (nếu có)
+                        </label>
+                        <span className="text-[10px] text-slate-400">Phân tách bằng dấu phẩy</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={domains}
+                        onChange={(e) => setDomains(e.target.value)}
+                        placeholder="Ví dụ: https://vcb-digibank-xacthuc.top, https://vietcombank-secotp.com..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        Đường dẫn đính kèm trong tin nhắn dẫn dụ người dùng bấm vào đăng nhập.
+                      </p>
+                    </div>
 
-                {/* Mule accounts */}
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Số tài khoản thụ hưởng dòng tiền lừa đảo (Mule Accounts - nếu có)
-                  </label>
-                  <input
-                    type="text"
-                    value={muleAccounts}
-                    onChange={(e) => setMuleAccounts(e.target.value)}
-                    placeholder="Ví dụ: 0704 2292 8192 11 - NGUYEN VAN B - Ngân hàng TMCP X..."
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
+                    {/* Tertiary: Mule accounts */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Số tài khoản ngân hàng thụ hưởng dòng tiền lừa đảo (nếu có)
+                      </label>
+                      <input
+                        type="text"
+                        value={muleAccounts}
+                        onChange={(e) => setMuleAccounts(e.target.value)}
+                        placeholder="Ví dụ: 0704 2292 8192 11 - NGUYEN VAN B - Ngân hàng TMCP X..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {attackVector === "phishing-web" && (
+                  <>
+                    {/* Primary: Domains / URLs */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300">
+                          Danh sách Tên miền / Website lừa đảo
+                        </label>
+                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded dark:bg-red-950/50 dark:text-red-400">
+                          BẮT BUỘC
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={domains}
+                        onChange={(e) => setDomains(e.target.value)}
+                        placeholder="Ví dụ: vcb-digibank-xacthuc.top, https://vietcombank-secotp.com/portal..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        Tên miền hoặc URL website mạo danh giao diện tổ chức đánh cắp tài khoản & mã OTP. Phân tách bằng dấu phẩy nếu có nhiều link.
+                      </p>
+                    </div>
+
+                    {/* Secondary: Mule accounts */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Số tài khoản ngân hàng thụ hưởng dòng tiền lừa đảo (nếu có)
+                      </label>
+                      <input
+                        type="text"
+                        value={muleAccounts}
+                        onChange={(e) => setMuleAccounts(e.target.value)}
+                        placeholder="Ví dụ: 0704 2292 8192 11 - NGUYEN VAN B - Ngân hàng TMCP X..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    {/* Tertiary: Brandname / Phone */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Đầu số / Brandname phát tán liên kết (nếu có)
+                      </label>
+                      <input
+                        type="text"
+                        value={brandnamePhone}
+                        onChange={(e) => setBrandnamePhone(e.target.value)}
+                        placeholder="Ví dụ: 1900xxxx, +84 28 7300 xxxx, VIETCOMBANK..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {attackVector === "phone-spoof" && (
+                  <>
+                    {/* Primary: Phone / Hotline */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300">
+                          Số điện thoại / Tổng đài mạo danh
+                        </label>
+                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded dark:bg-red-950/50 dark:text-red-400">
+                          BẮT BUỘC
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={brandnamePhone}
+                        onChange={(e) => setBrandnamePhone(e.target.value)}
+                        placeholder="Ví dụ: 0287300xxxx, 0901234567, 1900xxxx..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        Số điện thoại hoặc đầu số hotline kẻ gian dùng để gọi điện đe dọa hoặc mạo danh phòng nghiệp vụ, tổng đài ngân hàng.
+                      </p>
+                    </div>
+
+                    {/* Secondary: URL sent via SMS/Zalo */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300">
+                          Đường dẫn lừa đảo gửi kèm qua Zalo/SMS (nếu có)
+                        </label>
+                        <span className="text-[10px] text-slate-400">Phân tách bằng dấu phẩy</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={domains}
+                        onChange={(e) => setDomains(e.target.value)}
+                        placeholder="Ví dụ: https://cskh-xacthuc.top..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    {/* Tertiary: Mule accounts */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Số tài khoản ngân hàng thụ hưởng (nếu có)
+                      </label>
+                      <input
+                        type="text"
+                        value={muleAccounts}
+                        onChange={(e) => setMuleAccounts(e.target.value)}
+                        placeholder="Ví dụ: 0704 2292 8192 11 - NGUYEN VAN B..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {attackVector === "malware-apk" && (
+                  <>
+                    {/* Primary: APK download URL */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300">
+                          Đường dẫn tải tệp mã độc APK / Landing page giả
+                        </label>
+                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded dark:bg-red-950/50 dark:text-red-400">
+                          BẮT BUỘC
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={domains}
+                        onChange={(e) => setDomains(e.target.value)}
+                        placeholder="Ví dụ: https://dichvucong-chinhphu.top/vcb_safe.apk..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        Đường dẫn phát tán file cài đặt mã độc Trojan chiếm quyền Accessibility Service trên hệ điều hành Android.
+                      </p>
+                    </div>
+
+                    {/* Secondary: Phone / Zalo */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Số điện thoại đối tượng phát tán / hỗ trợ cài đặt (nếu có)
+                      </label>
+                      <input
+                        type="text"
+                        value={brandnamePhone}
+                        onChange={(e) => setBrandnamePhone(e.target.value)}
+                        placeholder="Ví dụ: 0987654321, 0247300xxxx..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    {/* Tertiary: Mule accounts */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Số tài khoản ngân hàng thụ hưởng (nếu có)
+                      </label>
+                      <input
+                        type="text"
+                        value={muleAccounts}
+                        onChange={(e) => setMuleAccounts(e.target.value)}
+                        placeholder="Ví dụ: 0704 2292 8192 11 - NGUYEN VAN B..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                    </div>
+                  </>
+                )}
 
                 {/* 3 cols: First Observed, Last Observed, Scope */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
@@ -530,11 +863,10 @@ export function OfficialAlertForm() {
                   value={scenarioDescription}
                   onChange={(e) => setScenarioDescription(e.target.value)}
                   placeholder="Mô tả tóm tắt kịch bản lừa đảo, phương thức phát tán và cơ chế tấn công..."
-                  className={`w-full rounded-lg border p-3 text-xs leading-relaxed focus:bg-white focus:outline-none dark:bg-slate-800 dark:text-white ${
-                    scenarioDescription.length > 160
+                  className={`w-full rounded-lg border p-3 text-xs leading-relaxed focus:bg-white focus:outline-none dark:bg-slate-800 dark:text-white ${scenarioDescription.length > 160
                       ? "border-red-500 bg-red-50/30 focus:border-red-600 dark:border-red-500"
                       : "border-slate-200 bg-slate-50 text-slate-900 focus:border-slate-900 dark:border-slate-700"
-                  }`}
+                    }`}
                 />
                 <div className="mt-1 flex items-center justify-between text-xs">
                   {scenarioDescription.length > 160 ? (
