@@ -1,61 +1,78 @@
-import type { AdminAccount } from "@/features/admin/data/demo-accounts"
+import type { AdminAccount } from "@/features/admin/services/admin-users"
 import { cn } from "@/lib/utils"
 
 const roleStyles = {
-  partner: {
+  BUSINESS_PARTNER: {
     label: "Đối tác doanh nghiệp",
     color: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
   },
-  user: {
+  REGISTERED_USER: {
     label: "Người dùng",
     color:
       "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   },
-  moderator: {
+  MODERATOR: {
     label: "Kiểm duyệt viên",
     color: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
   },
-  admin: {
+  ADMINISTRATOR: {
     label: "Quản trị viên",
     color:
       "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200",
   },
 }
 
-export function AccountRoleBadge({ role }: { role: AdminAccount["role"] }) {
-  const { label, color } = roleStyles[role]
+export function AccountRoleBadge({
+  role,
+  label,
+}: {
+  role: AdminAccount["role"]
+  label: string
+}) {
+  const style = roleStyles[role as keyof typeof roleStyles]
   return (
     <span
       className={cn(
         "inline-flex rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap",
-        color
+        style?.color ?? "bg-muted text-muted-foreground"
       )}
     >
-      {label}
+      {label || style?.label || role}
     </span>
   )
 }
 
 export function AccountStatusBadge({
   status,
+  label,
+  isFlagged,
 }: {
   status: AdminAccount["status"]
+  label: string
+  isFlagged: boolean
 }) {
-  if (status === "flagged") {
+  if (isFlagged) {
     return (
       <div className="flex flex-wrap gap-1">
         <span className="rounded-md bg-red-100 px-2 py-1 text-[11px] font-medium text-red-900 dark:bg-red-950 dark:text-red-200">
-          ● Có cờ
+          {label || status} · Có cờ
         </span>
         <span className="rounded-md bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          Báo hàng loạt
+          Cần kiểm tra
         </span>
       </div>
     )
   }
   return (
-    <span className="inline-flex rounded-md bg-emerald-100 px-2 py-1 text-[11px] font-medium whitespace-nowrap text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-      Bình thường
+    <span
+      className={cn(
+        "inline-flex rounded-md px-2 py-1 text-[11px] font-medium whitespace-nowrap",
+        status === "ACTIVE"
+          ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+          : "bg-muted text-muted-foreground"
+      )}
+    >
+      {label || status}
     </span>
   )
 }
