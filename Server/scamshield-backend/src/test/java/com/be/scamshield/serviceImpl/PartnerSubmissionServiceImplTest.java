@@ -17,7 +17,9 @@ import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.entity.Role;
 import com.be.scamshield.entity.ScamCategory;
 import com.be.scamshield.entity.User;
+import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.exception.PartnerSubmissionConflictException;
 import com.be.scamshield.repository.AuditLogRepository;
 import com.be.scamshield.repository.ConfirmedIndicatorRepository;
 import com.be.scamshield.repository.IndicatorRepository;
@@ -28,6 +30,7 @@ import com.be.scamshield.repository.PartnerOfficialAlertRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.ScamCategorieRepository;
 import com.be.scamshield.repository.UserRepository;
+import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.external.SupabaseStorageService;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,6 +86,9 @@ class PartnerSubmissionServiceImplTest {
 
     @Mock
     private OfficialScamWarningRepository officialScamWarningRepository;
+
+    @Mock
+    private WhitelistEntryRepository whitelistEntryRepository;
 
     @Mock
     private Clock applicationClock;
@@ -518,5 +524,183 @@ class PartnerSubmissionServiceImplTest {
 
         verify(indicatorRepository, never()).save(any());
         verifyNoInteractions(confirmedIndicatorRepository);
+    }
+
+    @Test
+    @DisplayName("Nộp cảnh báo: URL sai định dạng -> throw BadRequestException")
+    void submitAlertOrIntel_invalidUrlFormat_throwsBadRequestException() {
+        when(partnerProfileRepository.findByUserId(10L)).thenReturn(Optional.of(partnerProfile));
+
+        SubmitPartnerAlertRequest request = SubmitPartnerAlertRequest.builder()
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo link lừa đảo")
+                .description("Phát hiện link độc hại")
+                .indicatorType("URL")
+                .indicatorValue("invalid-domain-without-tld")
+                .build();
+
+        assertThatThrownBy(() -> service.submitAlertOrIntel(request, null, partnerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Tên miền không đúng định dạng hợp lệ");
+
+        verify(partnerOfficialAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Nộp cảnh báo: Số điện thoại sai định dạng -> throw BadRequestException")
+    void submitAlertOrIntel_invalidPhoneFormat_throwsBadRequestException() {
+        when(partnerProfileRepository.findByUserId(10L)).thenReturn(Optional.of(partnerProfile));
+
+        SubmitPartnerAlertRequest request = SubmitPartnerAlertRequest.builder()
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo số mạo danh")
+                .description("Số giả danh nhân viên ngân hàng")
+                .indicatorType("PHONE")
+                .indicatorValue("12345")
+                .build();
+
+        assertThatThrownBy(() -> service.submitAlertOrIntel(request, null, partnerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Số điện thoại không đúng định dạng hợp lệ");
+
+        verify(partnerOfficialAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Nộp cảnh báo: Trùng whitelist của chính tổ chức -> throw BadRequestException (hướng dẫn cung cấp link giả mạo)")
+    void submitAlertOrIntel_selfWhitelistCollision_throwsBadRequestException() {
+        when(partnerProfileRepository.findByUserId(10L)).thenReturn(Optional.of(partnerProfile));
+
+        Indicator selfIndicator = Indicator.builder()
+                .id(777L)
+                .type(IndicatorType.URL)
+                .normalizedValue("shopee.vn")
+                .build();
+
+        when(indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(eq(IndicatorType.URL), any()))
+                .thenReturn(java.util.List.of(selfIndicator));
+
+        WhitelistEntry selfWhitelist = WhitelistEntry.builder()
+                .id(1L)
+                .partner(partnerProfile) // same partner
+                .indicator(selfIndicator)
+                .verificationStatus("VERIFIED")
+                .build();
+
+        when(whitelistEntryRepository.findVerifiedForCheck(eq(java.util.List.of(777L)), eq(PartnerVerificationStatus.VERIFIED), any()))
+                .thenReturn(java.util.List.of(selfWhitelist));
+
+        SubmitPartnerAlertRequest request = SubmitPartnerAlertRequest.builder()
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo mạo danh Shopee")
+                .description("Bị kẻ gian mạo danh")
+                .indicatorType("URL")
+                .indicatorValue("shopee.vn")
+                .build();
+
+        assertThatThrownBy(() -> service.submitAlertOrIntel(request, null, partnerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("tài nguyên số chính thức đã được bảo hộ của chính quý đơn vị");
+
+        verify(partnerOfficialAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Nộp cảnh báo: Trùng whitelist của đối tác khác -> throw PartnerSubmissionConflictException (HTTP 409)")
+    void submitAlertOrIntel_partnerOnPartnerCollision_throwsConflictException() {
+        when(partnerProfileRepository.findByUserId(10L)).thenReturn(Optional.of(partnerProfile));
+
+        PartnerProfile otherPartner = PartnerProfile.builder()
+                .id(200L)
+                .legalName("Ngân hàng TMCP Ngoại thương Việt Nam")
+                .brandName("Vietcombank")
+                .build();
+
+        Indicator vcbIndicator = Indicator.builder()
+                .id(888L)
+                .type(IndicatorType.URL)
+                .normalizedValue("vietcombank.com.vn")
+                .build();
+
+        when(indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(eq(IndicatorType.URL), any()))
+                .thenReturn(java.util.List.of(vcbIndicator));
+
+        WhitelistEntry vcbWhitelist = WhitelistEntry.builder()
+                .id(2L)
+                .partner(otherPartner) // Different partner!
+                .indicator(vcbIndicator)
+                .verificationStatus("VERIFIED")
+                .build();
+
+        when(whitelistEntryRepository.findVerifiedForCheck(eq(java.util.List.of(888L)), eq(PartnerVerificationStatus.VERIFIED), any()))
+                .thenReturn(java.util.List.of(vcbWhitelist));
+
+        SubmitPartnerAlertRequest request = SubmitPartnerAlertRequest.builder()
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo phát hiện link nghi vấn")
+                .description("Phát hiện link nghi vấn Vietcombank")
+                .indicatorType("URL")
+                .indicatorValue("https://vietcombank.com.vn/portal")
+                .build();
+
+        assertThatThrownBy(() -> service.submitAlertOrIntel(request, null, partnerPrincipal))
+                .isInstanceOf(PartnerSubmissionConflictException.class)
+                .hasMessageContaining("Thông tin đối tượng")
+                .hasMessageContaining("Vietcombank");
+
+        verify(partnerOfficialAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Thẩm định cảnh báo: Indicator thuộc Whitelist của đối tác -> chặn kiểm duyệt viên phê duyệt")
+    void reviewSubmission_indicatorOnWhitelist_blocksModeratorApproval() {
+        when(userRepository.findById(20L)).thenReturn(Optional.of(moderatorUser));
+
+        PartnerProfile vcbPartner = PartnerProfile.builder()
+                .id(200L)
+                .legalName("Ngân hàng TMCP Ngoại thương Việt Nam")
+                .brandName("Vietcombank")
+                .build();
+
+        PartnerOfficialAlert alert = PartnerOfficialAlert.builder()
+                .id(507L)
+                .partner(partnerProfile)
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo Vietcombank")
+                .description("[Target: URL:vietcombank.com.vn | Category: PHISHING]\nTrang web nghi vấn")
+                .status("PENDING")
+                .build();
+        when(partnerOfficialAlertRepository.findById(507L)).thenReturn(Optional.of(alert));
+
+        Indicator vcbIndicator = Indicator.builder()
+                .id(888L)
+                .type(IndicatorType.URL)
+                .normalizedValue("vietcombank.com.vn")
+                .build();
+
+        when(indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(eq(IndicatorType.URL), any()))
+                .thenReturn(java.util.List.of(vcbIndicator));
+
+        WhitelistEntry vcbWhitelist = WhitelistEntry.builder()
+                .id(2L)
+                .partner(vcbPartner)
+                .indicator(vcbIndicator)
+                .verificationStatus("VERIFIED")
+                .build();
+
+        when(whitelistEntryRepository.findVerifiedForCheck(eq(java.util.List.of(888L)), eq(PartnerVerificationStatus.VERIFIED), any()))
+                .thenReturn(java.util.List.of(vcbWhitelist));
+
+        ReviewPartnerSubmissionRequest reviewRequest = ReviewPartnerSubmissionRequest.builder()
+                .decision(ReviewPartnerSubmissionRequest.DecisionType.VERIFY)
+                .reason("Duyệt chỉ số")
+                .build();
+
+        assertThatThrownBy(() -> service.reviewSubmission(507L, reviewRequest, moderatorPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Không thể phê duyệt cảnh báo")
+                .hasMessageContaining("đối tác thành viên [Vietcombank]");
+
+        verify(confirmedIndicatorRepository, never()).save(any());
     }
 }
