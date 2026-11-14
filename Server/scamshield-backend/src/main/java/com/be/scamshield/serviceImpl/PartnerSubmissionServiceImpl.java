@@ -20,7 +20,9 @@ import com.be.scamshield.entity.PartnerOfficialAlert;
 import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.entity.ScamCategory;
 import com.be.scamshield.entity.User;
+import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.exception.PartnerSubmissionConflictException;
 import com.be.scamshield.exception.ResourceNotFoundException;
 import com.be.scamshield.exception.UnauthorizedException;
 import com.be.scamshield.external.SupabaseStorageService;
@@ -34,6 +36,7 @@ import com.be.scamshield.repository.PartnerOfficialAlertRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.ScamCategorieRepository;
 import com.be.scamshield.repository.UserRepository;
+import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IPartnerSubmissionService;
 import jakarta.persistence.criteria.Predicate;
@@ -50,9 +53,12 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.IDN;
+import java.net.URI;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -78,6 +84,7 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
     private final AuditLogRepository auditLogRepository;
     private final OfficialScamWarningRepository officialScamWarningRepository;
     private final SupabaseStorageService supabaseStorageService;
+    private final WhitelistEntryRepository whitelistEntryRepository;
     private final Clock applicationClock;
 
     @Override
@@ -89,6 +96,19 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
 
         PartnerProfile partnerProfile = resolveActivePartnerProfile(currentUser);
         LocalDateTime now = LocalDateTime.now(applicationClock);
+
+        // Pre-moderation Gate: Format Validation & Whitelist Collision Check
+        validateIndicatorAndCheckWhitelist(
+                request.getIndicatorType(),
+                request.getIndicatorValue(),
+                partnerProfile,
+                now
+        );
+
+        // Also inspect description for any embedded whitelisted domains/URLs
+        if (StringUtils.hasText(request.getDescription())) {
+            checkDescriptionForWhitelistedUrls(request.getDescription(), partnerProfile, now);
+        }
 
         Long evidenceId = null;
         if (file != null && !file.isEmpty()) {
@@ -134,9 +154,20 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
             submissionType = "THREAT_INTEL";
         }
 
+        String canonicalIndicatorValue = request.getIndicatorValue();
+        if (StringUtils.hasText(canonicalIndicatorValue)) {
+            canonicalIndicatorValue = canonicalIndicatorValue.trim();
+            if (StringUtils.hasText(request.getIndicatorType())) {
+                IndicatorType type = supportedIndicatorType(request.getIndicatorType());
+                if (type == IndicatorType.BANK_ACCOUNT) {
+                    canonicalIndicatorValue = canonicalIndicatorValue.replaceAll("[\\s.-]", "");
+                }
+            }
+        }
+
         String formattedDescription = formatDescription(
                 request.getIndicatorType(),
-                request.getIndicatorValue(),
+                canonicalIndicatorValue,
                 request.getCategoryCode(),
                 request.getDescription()
         );
@@ -312,6 +343,9 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                 IndicatorType type = supportedIndicatorType(rawType);
                 if (type == null) throw new BadRequestException("Loại đối tượng phải là PHONE, URL hoặc BANK_ACCOUNT");
                 String normalizedVal = normalizeIdentifier(type.name(), target.indicatorValue());
+
+                // Defense-in-depth: Ensure indicator is not verified in Whitelist before confirming into Active Blacklist
+                assertNotWhitelisted(type, normalizedVal, target.indicatorValue(), now);
 
                 Optional<Indicator> existingIndicatorOpt = indicatorRepository.findByTypeAndNormalizedValue(type, normalizedVal);
 
@@ -501,10 +535,333 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản kiểm duyệt viên với ID: " + currentUser.getId()));
     }
 
+    private void validateIndicatorAndCheckWhitelist(
+            String indicatorType,
+            String indicatorValue,
+            PartnerProfile currentPartner,
+            LocalDateTime now) {
+
+        if (!StringUtils.hasText(indicatorValue)) {
+            return;
+        }
+
+        if (!StringUtils.hasText(indicatorType)) {
+            throw new BadRequestException("Vui lòng chỉ định loại chỉ báo (PHONE, URL hoặc BANK_ACCOUNT) cho giá trị: " + indicatorValue);
+        }
+
+        IndicatorType type = supportedIndicatorType(indicatorType);
+        if (type == null) {
+            throw new BadRequestException("Loại đối tượng phải là PHONE, URL hoặc BANK_ACCOUNT");
+        }
+
+        String[] tokens = indicatorValue.split("[,;\\s]+");
+        int validTokenCount = 0;
+        for (String token : tokens) {
+            if (StringUtils.hasText(token)) validTokenCount++;
+        }
+        if (validTokenCount > 1) {
+            throw new BadRequestException("Mỗi hồ sơ cảnh báo/tình báo chỉ tiếp nhận một chỉ số mục tiêu chính (indicatorValue). Vui lòng tách thành các hồ sơ riêng biệt hoặc cung cấp các đối tượng bổ sung trong phần mô tả.");
+        }
+
+        for (String token : tokens) {
+            if (!StringUtils.hasText(token)) continue;
+            String trimmedToken = token.trim();
+
+            List<String> candidateLookupValues = new ArrayList<>();
+
+            if (type == IndicatorType.PHONE) {
+                String trimmed = trimmedToken;
+                boolean isBrandnameText = trimmed.matches("^[A-Za-z0-9_.-]{3,30}$") && !trimmed.matches("^[0-9+].*");
+                if (isBrandnameText) {
+                    candidateLookupValues.add(trimmed);
+                    candidateLookupValues.add(trimmed.toLowerCase(Locale.ROOT));
+                    candidateLookupValues.add(trimmed.toUpperCase(Locale.ROOT));
+                } else {
+                    String digitsOnly = trimmed.replaceAll("[\\s().-]", "");
+                    String normalizedPhone = digitsOnly;
+                    if (digitsOnly.startsWith("+84")) {
+                        normalizedPhone = "0" + digitsOnly.substring(3);
+                    } else if (digitsOnly.startsWith("84") && digitsOnly.length() >= 11) {
+                        normalizedPhone = "0" + digitsOnly.substring(2);
+                    }
+
+                    if (!normalizedPhone.matches("^(?:0[0-9]{8,10}|1[89]00[0-9]{4,7})$")) {
+                        throw new BadRequestException("Số điện thoại không đúng định dạng hợp lệ (10 chữ số di động, tổng đài 1800/1900 hoặc tên Brandname): " + trimmedToken);
+                    }
+
+                    candidateLookupValues.add(normalizedPhone);
+                    candidateLookupValues.add(trimmedToken);
+                    if (normalizedPhone.startsWith("0")) {
+                        candidateLookupValues.add("+84" + normalizedPhone.substring(1));
+                        candidateLookupValues.add("84" + normalizedPhone.substring(1));
+                    }
+                }
+            } else if (type == IndicatorType.URL) {
+                String urlToTest = trimmedToken.contains("://") ? trimmedToken : "https://" + trimmedToken;
+                URI uri;
+                try {
+                    uri = URI.create(urlToTest);
+                } catch (Exception e) {
+                    throw new BadRequestException("Đường dẫn hoặc tên miền không đúng định dạng URL hợp lệ: " + trimmedToken);
+                }
+
+                String authority = uri.getRawAuthority();
+                if (authority == null || uri.getRawUserInfo() != null
+                        || !("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))) {
+                    throw new BadRequestException("Đường dẫn hoặc tên miền không đúng định dạng URL hợp lệ (chỉ hỗ trợ giao thức HTTP/HTTPS): " + trimmedToken);
+                }
+
+                int colon = authority.lastIndexOf(':');
+                int port = colon < 0 ? -1 : parsePort(authority.substring(colon + 1));
+                String host;
+                try {
+                    host = IDN.toASCII(colon < 0 ? authority : authority.substring(0, colon), IDN.USE_STD3_ASCII_RULES)
+                            .toLowerCase(Locale.ROOT).replaceAll("\\.$", "");
+                } catch (Exception e) {
+                    throw new BadRequestException("Tên miền chứa ký tự không hợp lệ: " + trimmedToken);
+                }
+
+                if (host.length() > 253 || !host.contains(".") || port > 65535 || port < -1) {
+                    throw new BadRequestException("Tên miền không đúng định dạng hợp lệ: " + trimmedToken);
+                }
+
+                int lastDot = host.lastIndexOf('.');
+                String tld = host.substring(lastDot + 1);
+                boolean isIpv4 = host.matches("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$");
+                if (!isIpv4 && (tld.isEmpty() || tld.matches(".*\\d.*") || tld.length() < 2)) {
+                    throw new BadRequestException("Tên miền không đúng định dạng hợp lệ (phần mở rộng tên miền không hợp lệ): " + trimmedToken);
+                }
+
+                String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+                if ("/".equals(path) && uri.getRawQuery() == null) path = "";
+                String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+                boolean defaultPort = port == -1 || (port == 80 && "http".equals(scheme))
+                        || (port == 443 && "https".equals(scheme));
+                String key = host + (defaultPort ? "" : ":" + port) + path
+                        + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());
+
+                candidateLookupValues.add(key);
+                candidateLookupValues.add(host);
+                candidateLookupValues.add("https://" + host);
+                candidateLookupValues.add("http://" + host);
+                candidateLookupValues.add(host + "/");
+                candidateLookupValues.add(trimmedToken.toLowerCase(Locale.ROOT));
+
+                if (host.startsWith("www.")) {
+                    candidateLookupValues.add(host.substring(4));
+                } else {
+                    candidateLookupValues.add("www." + host);
+                }
+            } else if (type == IndicatorType.BANK_ACCOUNT) {
+                String normalizedAccount = trimmedToken.replaceAll("[\\s.-]", "");
+                if (!normalizedAccount.matches("^[0-9]{6,30}$")) {
+                    throw new BadRequestException("Số tài khoản ngân hàng phải có từ 6 đến 30 chữ số: " + trimmedToken);
+                }
+                candidateLookupValues.add(normalizedAccount);
+            }
+
+            if (!candidateLookupValues.isEmpty()) {
+                // 1. Check in whitelist_entries
+                List<Indicator> matchedIndicators = indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(type, candidateLookupValues);
+                if (!matchedIndicators.isEmpty()) {
+                    List<Long> indicatorIds = matchedIndicators.stream().map(Indicator::getId).toList();
+                    List<WhitelistEntry> verifiedWhitelists = whitelistEntryRepository.findVerifiedForCheck(
+                            indicatorIds, PartnerVerificationStatus.VERIFIED, now);
+
+                    if (!verifiedWhitelists.isEmpty()) {
+                        for (WhitelistEntry entry : verifiedWhitelists) {
+                            if (entry.getPartner() != null) {
+                                handleCollision(currentPartner, entry.getPartner(), trimmedToken);
+                            }
+                        }
+                    }
+                }
+
+                // 2. Direct check against verified partner profiles (domain, hotline, SMS brandname)
+                checkAgainstPartnerProfiles(type, candidateLookupValues, currentPartner, trimmedToken);
+            }
+        }
+    }
+
+    private void checkDescriptionForWhitelistedUrls(String description, PartnerProfile currentPartner, LocalDateTime now) {
+        if (!StringUtils.hasText(description)) return;
+        Pattern urlPattern = Pattern.compile("(?i)(?:https?://|www\\.)[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(?:/[^\\s,;\\]\\)]*)?");
+        Matcher matcher = urlPattern.matcher(description);
+        while (matcher.find()) {
+            String extracted = matcher.group().replaceAll("[.,;:!?)\\]]+$", "");
+            try {
+                validateIndicatorAndCheckWhitelist("URL", extracted, currentPartner, now);
+            } catch (BadRequestException ignored) {
+                // Ignore general formatting errors in description prose, but conflict/collision will throw!
+            }
+        }
+    }
+
+    private void checkAgainstPartnerProfiles(IndicatorType type, List<String> candidateLookupValues, PartnerProfile currentPartner, String rawToken) {
+        List<PartnerProfile> allProfiles = partnerProfileRepository.findAll();
+        for (PartnerProfile profile : allProfiles) {
+            if (profile.getVerificationStatus() != PartnerVerificationStatus.VERIFIED) {
+                continue;
+            }
+            if (type == IndicatorType.URL && StringUtils.hasText(profile.getOfficialDomain())) {
+                String offDomain = profile.getOfficialDomain().trim().toLowerCase(Locale.ROOT);
+                if (offDomain.startsWith("www.")) {
+                    offDomain = offDomain.substring(4);
+                }
+                for (String val : candidateLookupValues) {
+                    String lower = val.toLowerCase(Locale.ROOT);
+                    String valHost = lower;
+                    if (valHost.contains("://")) {
+                        valHost = valHost.substring(valHost.indexOf("://") + 3);
+                    }
+                    int slashIdx = valHost.indexOf('/');
+                    if (slashIdx >= 0) {
+                        valHost = valHost.substring(0, slashIdx);
+                    }
+                    int colonIdx = valHost.indexOf(':');
+                    if (colonIdx >= 0) {
+                        valHost = valHost.substring(0, colonIdx);
+                    }
+                    if (valHost.equals(offDomain) || valHost.endsWith("." + offDomain)) {
+                        handleCollision(currentPartner, profile, rawToken);
+                    }
+                }
+            } else if (type == IndicatorType.PHONE) {
+                if (StringUtils.hasText(profile.getOfficialHotline())) {
+                    String offHotline = profile.getOfficialHotline().replaceAll("[\\s().-]", "");
+                    for (String val : candidateLookupValues) {
+                        String cleanVal = val.replaceAll("[\\s().-]", "");
+                        if (cleanVal.equals(offHotline) || cleanVal.equals(profile.getOfficialHotline().trim())) {
+                            handleCollision(currentPartner, profile, rawToken);
+                        }
+                    }
+                }
+                if (StringUtils.hasText(profile.getSmsBrandName())) {
+                    String offBrand = profile.getSmsBrandName().trim();
+                    for (String val : candidateLookupValues) {
+                        if (val.equalsIgnoreCase(offBrand) || val.equalsIgnoreCase(profile.getBrandName().trim())) {
+                            handleCollision(currentPartner, profile, rawToken);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void handleCollision(PartnerProfile currentPartner, PartnerProfile matchedPartner, String indicator) {
+        if (currentPartner != null && currentPartner.getId().equals(matchedPartner.getId())) {
+            String brandOrLegal = currentPartner.getBrandName() != null ? currentPartner.getBrandName() : "Tổ chức của bạn";
+            throw new BadRequestException("Kênh thông tin '" + indicator + "' hiện là tài nguyên số chính thức đã được bảo hộ của chính quý đơn vị ("
+                    + brandOrLegal
+                    + "). Để phục vụ công tác điều tra và xử lý vi phạm, quý đơn vị vui lòng chỉ cung cấp địa chỉ trang web mạo danh, đầu số lừa đảo hoặc tài khoản thụ hưởng của đối tượng gian lận.");
+        } else {
+            String partnerName = matchedPartner.getBrandName() != null
+                    ? matchedPartner.getBrandName()
+                    : matchedPartner.getLegalName();
+            throw new PartnerSubmissionConflictException("Thông tin đối tượng '" + indicator
+                    + "' đã được xác thực là kênh số chính thức thuộc quyền sở hữu của đối tác thành viên [" + partnerName
+                    + "]. Để bảo vệ uy tín và quyền lợi hợp pháp giữa các doanh nghiệp đối tác, hệ thống không tiếp nhận cảnh báo vi phạm đối với tài nguyên chính thống này. Quý đơn vị vui lòng kiểm tra lại liên kết hoặc chỉ cung cấp trang web, đầu số giả mạo thực tế do kẻ gian phát tán.");
+        }
+    }
+
+    private void assertNotWhitelisted(IndicatorType type, String normalizedVal, String displayVal, LocalDateTime now) {
+        List<String> lookupValues = new ArrayList<>();
+        lookupValues.add(normalizedVal);
+        if (StringUtils.hasText(displayVal)) {
+            lookupValues.add(displayVal.trim());
+        }
+        if (type == IndicatorType.URL) {
+            String lower = normalizedVal.toLowerCase(Locale.ROOT);
+            int slashIdx = lower.indexOf('/');
+            String host = slashIdx >= 0 ? lower.substring(0, slashIdx) : lower;
+            lookupValues.add(host);
+            if (host.startsWith("www.")) {
+                lookupValues.add(host.substring(4));
+            } else {
+                lookupValues.add("www." + host);
+            }
+        } else if (type == IndicatorType.PHONE) {
+            if (normalizedVal.startsWith("0")) {
+                lookupValues.add("+84" + normalizedVal.substring(1));
+                lookupValues.add("84" + normalizedVal.substring(1));
+            }
+        }
+
+        List<Indicator> matched = indicatorRepository.findByTypeAndNormalizedValueInOrderByIdAsc(type, lookupValues);
+        if (!matched.isEmpty()) {
+            List<Long> ids = matched.stream().map(Indicator::getId).toList();
+            List<WhitelistEntry> verified = whitelistEntryRepository.findVerifiedForCheck(ids, PartnerVerificationStatus.VERIFIED, now);
+            if (!verified.isEmpty()) {
+                WhitelistEntry entry = verified.get(0);
+                String partnerName = entry.getPartner() != null
+                        ? (entry.getPartner().getBrandName() != null ? entry.getPartner().getBrandName() : entry.getPartner().getLegalName())
+                        : "Đối tác";
+                throw new BadRequestException("Không thể phê duyệt cảnh báo: Kênh thông tin '" + displayVal
+                        + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
+            }
+        }
+
+        // Secondary check against verified partner profiles
+        List<PartnerProfile> profiles = partnerProfileRepository.findAll();
+        for (PartnerProfile profile : profiles) {
+            if (profile.getVerificationStatus() != PartnerVerificationStatus.VERIFIED) {
+                continue;
+            }
+            if (type == IndicatorType.URL && StringUtils.hasText(profile.getOfficialDomain())) {
+                String offDomain = profile.getOfficialDomain().trim().toLowerCase(Locale.ROOT);
+                if (offDomain.startsWith("www.")) offDomain = offDomain.substring(4);
+                for (String val : lookupValues) {
+                    String valHost = val.toLowerCase(Locale.ROOT);
+                    if (valHost.contains("://")) valHost = valHost.substring(valHost.indexOf("://") + 3);
+                    int slashIdx = valHost.indexOf('/');
+                    if (slashIdx >= 0) valHost = valHost.substring(0, slashIdx);
+                    int colonIdx = valHost.indexOf(':');
+                    if (colonIdx >= 0) valHost = valHost.substring(0, colonIdx);
+                    if (valHost.equals(offDomain) || valHost.endsWith("." + offDomain)) {
+                        String partnerName = profile.getBrandName() != null ? profile.getBrandName() : profile.getLegalName();
+                        throw new BadRequestException("Không thể phê duyệt cảnh báo: Kênh thông tin '" + displayVal
+                                + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
+                    }
+                }
+            } else if (type == IndicatorType.PHONE) {
+                if (StringUtils.hasText(profile.getOfficialHotline())) {
+                    String offHotline = profile.getOfficialHotline().replaceAll("[\\s().-]", "");
+                    for (String val : lookupValues) {
+                        if (val.replaceAll("[\\s().-]", "").equals(offHotline) || val.equals(profile.getOfficialHotline().trim())) {
+                            String partnerName = profile.getBrandName() != null ? profile.getBrandName() : profile.getLegalName();
+                            throw new BadRequestException("Không thể phê duyệt cảnh báo: Kênh thông tin '" + displayVal
+                                    + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
+                        }
+                    }
+                }
+                if (StringUtils.hasText(profile.getSmsBrandName())) {
+                    String offBrand = profile.getSmsBrandName().trim();
+                    String brand = StringUtils.hasText(profile.getBrandName()) ? profile.getBrandName().trim() : "";
+                    for (String val : lookupValues) {
+                        if (val.equalsIgnoreCase(offBrand) || (!brand.isEmpty() && val.equalsIgnoreCase(brand))) {
+                            String partnerName = profile.getBrandName() != null ? profile.getBrandName() : profile.getLegalName();
+                            throw new BadRequestException("Không thể phê duyệt cảnh báo: Kênh thông tin '" + displayVal
+                                    + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private int parsePort(String portStr) {
+        try {
+            return Integer.parseInt(portStr);
+        } catch (NumberFormatException e) {
+            return -2;
+        }
+    }
+
     private IndicatorType supportedIndicatorType(String value) {
         if (!StringUtils.hasText(value)) return null;
         String type = value.trim().toUpperCase(Locale.ROOT);
         if ("WEBSITE".equals(type) || "DOMAIN".equals(type)) return IndicatorType.URL;
+        if ("BRANDNAME".equals(type) || "SMS_BRANDNAME".equals(type)) return IndicatorType.PHONE;
         try {
             return IndicatorType.valueOf(type);
         } catch (IllegalArgumentException exception) {
@@ -566,7 +923,7 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
             if (lower.endsWith("/")) lower = lower.substring(0, lower.length() - 1);
             return lower;
         } else if ("BANK_ACCOUNT".equals(upperType)) {
-            return trimmed.replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
+            return trimmed.replaceAll("[\\s.-]", "").toUpperCase(Locale.ROOT);
         }
         return trimmed.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }
