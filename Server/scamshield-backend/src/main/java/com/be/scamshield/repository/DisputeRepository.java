@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DisputeRepository extends JpaRepository<Dispute, Long>, JpaSpecificationExecutor<Dispute> {
+    long countByResolvedByUserIdAndStatus(Long userId, DisputeStatus status);
+
     @Override
     @EntityGraph(attributePaths = {"confirmedIndicator", "confirmedIndicator.indicator"})
     Page<Dispute> findAll(Specification<Dispute> specification, Pageable pageable);

@@ -8,6 +8,7 @@ import com.be.scamshield.security.CustomUserDetailsService;
 import com.be.scamshield.exception.OtpRateLimitException;
 import com.be.scamshield.exception.SmsProviderException;
 import com.be.scamshield.service.IAuthService;
+import com.be.scamshield.service.PartnerPasswordSetupService;
 import com.be.scamshield.service.IOtpService;
 import com.be.scamshield.serviceImpl.ContactVerificationService;
 import com.be.scamshield.dto.response.ContactVerificationResponse;
@@ -49,6 +50,9 @@ class SmsOtpControllerTest {
     private IOtpService otpService;
     @MockitoBean
     private ContactVerificationService contactVerificationService;
+
+    @MockitoBean
+    private PartnerPasswordSetupService partnerPasswordSetupService;
     @MockitoBean
     private JwtTokenProvider tokenProvider;
     @MockitoBean

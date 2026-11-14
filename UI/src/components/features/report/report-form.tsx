@@ -1,5 +1,6 @@
 "use client"
 
+import { getReportTargetTypeWarning } from "@/features/report/utils/report-target"
 import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
 
 import { Combobox } from "@base-ui/react/combobox"
@@ -19,6 +20,7 @@ import {
   CircleNotch,
   CheckCircle,
   Medal,
+  MapPin,
 } from "@phosphor-icons/react"
 import { ReportThreatTypeSelector } from "./report-threat-type-selector"
 import { ReportFileUpload, type ReportAttachment } from "./report-file-upload"
@@ -30,6 +32,9 @@ import {
 } from "@/features/report/types/report.types"
 
 import { getReportCategories } from "@/features/report/services/report.service"
+
+const reportInputClass =
+  "w-full scroll-mt-24 rounded-xl border border-[#C6C6CE]/50 bg-[#FAF8FF] py-2.5 pr-3 pl-10 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden aria-invalid:border-destructive dark:border-border dark:bg-muted/30 dark:text-foreground"
 
 interface ReportFormProps {
   onSubmit: (payload: CreateReportPayload) => Promise<void>
@@ -44,6 +49,7 @@ export function ReportForm({
 }: ReportFormProps) {
   const [threatType, setThreatType] = useState<ReportThreatType | null>(null)
   const [targetIdentifier, setTargetIdentifier] = useState("")
+  const [targetTouched, setTargetTouched] = useState(false)
   const [regions, setRegions] = useState<DashboardRegionOption[]>([])
   const [regionName, setRegionName] = useState("")
   const [regionError, setRegionError] = useState("")
@@ -65,7 +71,6 @@ export function ReportForm({
   const [categories, setCategories] = useState<ScamCategoryItem[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const loadCategories = async () => {
-    setCategoriesLoading(true)
     try {
       setCategories(await getReportCategories())
     } finally {
@@ -95,9 +100,12 @@ export function ReportForm({
   const submittingRef = useRef(false)
   const activeRef = useRef(true)
   const isBusy = Boolean(isLoading || isSubmitting)
+  const typeWarning = getReportTargetTypeWarning(threatType, targetIdentifier)
+  const showTypeWarning = (targetTouched || hasAttemptedSubmit) && typeWarning
   const isComplete = Boolean(
     threatType &&
     targetIdentifier.trim() &&
+    !typeWarning &&
     category.trim() &&
     regionCode &&
     description.trim() &&
@@ -157,6 +165,12 @@ export function ReportForm({
     if (submittingRef.current || isLoading) return
     setIsSuccess(false)
     setSubmitError(null)
+    if (typeWarning) {
+      setHasAttemptedSubmit(true)
+      setTargetTouched(true)
+      targetRef.current?.focus()
+      return
+    }
     if (!isComplete || !threatType) {
       setHasAttemptedSubmit(true)
       toast.warn(
@@ -222,6 +236,7 @@ export function ReportForm({
       // Reset form after successful submission
       setThreatType(null)
       setTargetIdentifier("")
+      setTargetTouched(false)
       setCategory("")
       setRegionName("")
       setDescription("")
@@ -271,14 +286,14 @@ export function ReportForm({
           </div>
         </div>
 
-        {/* STEP 1: Loại đe dọa */}
+        {/* STEP 1: Loại đối tượng báo cáo */}
         <div ref={threatGroupRef} className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="flex size-5 items-center justify-center rounded-full bg-[#0B132B] font-heading text-[11px] font-bold text-white dark:bg-primary dark:text-primary-foreground">
               1
             </span>
             <h3 className="text-xs font-bold text-[#131B2E] dark:text-foreground">
-              Loại đe dọa <span className="text-destructive">*</span>
+              Loại đối tượng báo cáo <span className="text-destructive">*</span>
             </h3>
           </div>
 
@@ -292,7 +307,7 @@ export function ReportForm({
               id="report-threat-type-error"
               className="text-xs text-destructive"
             >
-              Vui lòng chọn loại đe dọa cần báo cáo.
+              Vui lòng chọn loại đối tượng báo cáo.
             </p>
           )}
         </div>
@@ -335,9 +350,13 @@ export function ReportForm({
                   id="report-target-identifier"
                   type="text"
                   required
-                  aria-invalid={targetMissing}
+                  aria-invalid={targetMissing || Boolean(showTypeWarning)}
                   aria-describedby={
-                    targetMissing ? "report-target-error" : undefined
+                    targetMissing
+                      ? "report-target-error"
+                      : showTypeWarning
+                        ? "report-target-type-warning"
+                        : undefined
                   }
                   value={
                     threatType === "PHONE" || threatType === null
@@ -345,6 +364,7 @@ export function ReportForm({
                       : targetIdentifier
                   }
                   onChange={(e) => setTargetIdentifier(e.target.value)}
+                  onBlur={() => setTargetTouched(true)}
                   placeholder={
                     !threatType
                       ? "Nhập số điện thoại, URL hoặc tài khoản cần báo cáo..."
@@ -354,9 +374,18 @@ export function ReportForm({
                           ? "Nhập URL website giả mạo..."
                           : "Nhập số tài khoản ngân hàng thụ hưởng..."
                   }
-                  className="w-full scroll-mt-24 rounded-xl border border-[#C6C6CE]/50 bg-[#FAF8FF] py-2.5 pr-3 pl-10 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden aria-invalid:border-destructive dark:border-border dark:bg-muted/30 dark:text-foreground"
+                  className={reportInputClass}
                 />
               </div>
+              {showTypeWarning && (
+                <p
+                  id="report-target-type-warning"
+                  role="alert"
+                  className="text-xs text-destructive"
+                >
+                  {showTypeWarning}
+                </p>
+              )}
               {targetMissing && (
                 <p
                   id="report-target-error"
@@ -367,9 +396,12 @@ export function ReportForm({
               )}
             </div>
 
-            {/* Category Dropdown */}
-            <div className="space-y-2">
-              <label htmlFor="report-region" className="text-sm font-semibold">
+            {/* Province selector */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="report-region"
+                className="block text-xs font-bold text-[#131B2E] dark:text-foreground"
+              >
                 Tỉnh/thành của bạn khi gửi báo cáo{" "}
                 <span className="text-destructive">*</span>
               </label>
@@ -381,16 +413,23 @@ export function ReportForm({
                 onValueChange={(value) => setRegionName(value ?? "")}
                 disabled={isBusy || regions.length === 0}
               >
-                <Combobox.Input
-                  ref={regionRef}
-                  id="report-region"
-                  required
-                  autoComplete="off"
-                  placeholder="Nhập tên để tìm và chọn tỉnh/thành"
-                  aria-invalid={hasAttemptedSubmit && !regionCode}
-                  aria-describedby="report-region-help"
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-ring/30 focus:outline-none"
-                />
+                <div className="relative">
+                  <MapPin
+                    size={16}
+                    weight="bold"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-[#45464D] dark:text-muted-foreground"
+                  />
+                  <Combobox.Input
+                    ref={regionRef}
+                    id="report-region"
+                    required
+                    autoComplete="off"
+                    placeholder="Nhập tên để tìm và chọn tỉnh/thành"
+                    aria-invalid={hasAttemptedSubmit && !regionCode}
+                      className={reportInputClass}
+                  />
+                </div>
                 <Combobox.Portal>
                   <Combobox.Positioner
                     anchor={regionRef}
@@ -398,7 +437,7 @@ export function ReportForm({
                     sideOffset={6}
                     className="z-50 w-[var(--anchor-width)] max-w-[var(--available-width)]"
                   >
-                    <Combobox.Popup className="w-full overflow-hidden rounded-xl border border-border bg-popover py-1 text-sm text-popover-foreground shadow-lg">
+                    <Combobox.Popup className="w-full overflow-hidden rounded-xl border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg">
                       <Combobox.Empty className="px-3 py-3 text-muted-foreground">
                         Không tìm thấy tỉnh/thành phù hợp.
                       </Combobox.Empty>
@@ -417,19 +456,13 @@ export function ReportForm({
                   </Combobox.Positioner>
                 </Combobox.Portal>
               </Combobox.Root>
-              <p
-                id="report-region-help"
-                className="text-xs text-muted-foreground"
-              >
-                Chọn tỉnh/thành nơi bạn đang có mặt khi gửi báo cáo.
-              </p>
               {hasAttemptedSubmit && !regionCode && (
-                <p role="alert" className="text-sm text-destructive">
+                <p role="alert" className="text-xs text-destructive">
                   Vui lòng chọn một tỉnh/thành trong danh sách.
                 </p>
               )}
               {regionError && (
-                <p role="alert" className="text-sm text-destructive">
+                <p role="alert" className="text-xs text-destructive">
                   {regionError}{" "}
                   <button
                     type="button"
@@ -466,7 +499,7 @@ export function ReportForm({
                 <option value="" disabled>
                   {categoriesLoading
                     ? "Đang tải danh mục..."
-                    : "Chọn danh mục thủ đoạn"}
+                    : "Chọn thủ đoạn"}
                 </option>
                 {categories.map((item) => (
                   <option key={item.id} value={item.code}>
@@ -479,7 +512,10 @@ export function ReportForm({
                   Không tải được danh mục hoặc chưa có danh mục hoạt động.{" "}
                   <button
                     type="button"
-                    onClick={() => void loadCategories()}
+                    onClick={() => {
+                      setCategoriesLoading(true)
+                      void loadCategories()
+                    }}
                     className="underline"
                   >
                     Thử lại

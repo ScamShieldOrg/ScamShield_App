@@ -1,3 +1,5 @@
+import { AdminEscalationsWorkspace } from "@/components/features/admin/escalations/admin-escalations-workspace"
+
 export default function AdminEscalationsPage() {
-  return <div>This is admin escalations page</div>
+  return <AdminEscalationsWorkspace />
 }

@@ -2,6 +2,7 @@ package com.be.scamshield.config;
 
 import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.constant.PartnerVerificationStatus;
+import com.be.scamshield.constant.WhitelistVerificationStatus;
 import com.be.scamshield.entity.*;
 import com.be.scamshield.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -128,7 +129,7 @@ public class PartnerWhitelistDataInitializer implements CommandLineRunner {
                 .orElseGet(() -> whitelistEntryRepository.save(WhitelistEntry.builder()
                         .partner(profile)
                         .indicator(domainIndicator)
-                        .verificationStatus("VERIFIED")
+                        .verificationStatus(WhitelistVerificationStatus.VERIFIED)
                         .verifiedAt(now)
                         .autoLockModeration(true)
                         .createdAt(now)
@@ -139,7 +140,7 @@ public class PartnerWhitelistDataInitializer implements CommandLineRunner {
                 .orElseGet(() -> whitelistEntryRepository.save(WhitelistEntry.builder()
                         .partner(profile)
                         .indicator(phoneIndicator)
-                        .verificationStatus("VERIFIED")
+                        .verificationStatus(WhitelistVerificationStatus.VERIFIED)
                         .verifiedAt(now)
                         .autoLockModeration(true)
                         .createdAt(now)

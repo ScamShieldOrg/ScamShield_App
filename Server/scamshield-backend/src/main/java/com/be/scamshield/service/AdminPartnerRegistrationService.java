@@ -19,4 +19,5 @@ public interface AdminPartnerRegistrationService {
     PartnerDocumentContentResponse document(Long partnerId, Long documentId);
 
     AdminPartnerRegistrationDetailResponse review(Long id, AdminPartnerReviewRequest request, Long reviewerId);
+    AdminPartnerRegistrationDetailResponse resendPasswordLink(Long id);
 }

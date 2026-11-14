@@ -23,7 +23,8 @@ import java.util.List;
 @RequestMapping("/api/reports")
 @RequiredArgsConstructor
 @Tag(name = "Report Scam API", description = "API Tiếp nhận báo cáo hành vi lừa đảo")
-public class ReportController {
+public class
+ReportController {
 
     private final IReportService reportService;
 

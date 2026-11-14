@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation"
+import { ModeratorDashboard } from "@/components/features/moderator/moderator-dashboard"
 
 export default function ModeratorHomePage() {
-  redirect("/moderator/reports")
+  return <ModeratorDashboard />
 }

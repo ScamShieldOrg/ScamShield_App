@@ -2,6 +2,7 @@ package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.ReportEvidenceType;
 import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.constant.PartnerVerificationStatus;
 import static com.be.scamshield.util.ReportEvidenceTypeResolver.resolveEvidenceType;
 import com.be.scamshield.external.SupabaseStorageService;
 import org.springframework.context.ApplicationEventPublisher;
@@ -25,6 +26,7 @@ import com.be.scamshield.repository.ReportEvidenceRepository;
 import com.be.scamshield.repository.ReportRepository;
 import com.be.scamshield.repository.ScamCategorieRepository;
 import com.be.scamshield.repository.UserRepository;
+import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IReportService;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +49,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -59,6 +62,7 @@ public class ReportServiceImpl implements IReportService {
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final IndicatorRepository indicatorRepository;
+    private final WhitelistEntryRepository whitelistEntries;
     private final ScamCategorieRepository scamCategorieRepository;
     private final UserRepository userRepository;
     private final SupabaseStorageService supabaseStorageService;
@@ -94,9 +98,30 @@ public class ReportServiceImpl implements IReportService {
         }
 
         // 1. Resolve & normalize target indicator
-        String normalizedValue = normalizeIdentifier(request.getTargetIdentifier());
+        String target = request.getTargetIdentifier();
+        String legacyValue = target.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        String normalizedValue = switch (reportType) {
+            case PHONE -> normalizePhoneForOwnershipCheck(target);
+            case URL -> normalizeReportUrl(target);
+            case BANK_ACCOUNT -> target.replaceAll("[\\s\\p{Z}]+", "").toUpperCase(Locale.ROOT);
+        };
+        if (!StringUtils.hasText(normalizedValue)) {
+            throw new BadRequestException("Đối tượng báo cáo không hợp lệ");
+        }
+        List<String> targetValues = legacyIndicatorValues(reportType, normalizedValue, legacyValue);
+        targetValues.add(normalizedValue);
+        List<Long> matchingIds = indicatorRepository
+                .findByTypeAndNormalizedValueInOrderByIdAsc(reportType, targetValues)
+                .stream().map(Indicator::getId).toList();
+        if (!matchingIds.isEmpty() && !whitelistEntries.findVerifiedForCheck(
+                matchingIds, PartnerVerificationStatus.VERIFIED, LocalDateTime.now()).isEmpty()) {
+            throw new BadRequestException("Đối tượng này thuộc danh sách tin cậy (whitelist) đang có hiệu lực. Hiện tại bạn không thể gửi báo cáo về đối tượng này.");
+        }
+
         Indicator indicator = indicatorRepository
                 .findFirstByTypeAndNormalizedValueOrderByIdAsc(reportType, normalizedValue)
+                .or(() -> indicatorRepository.findFirstByTypeAndNormalizedValueInOrderByIdAsc(
+                        reportType, legacyIndicatorValues(reportType, normalizedValue, legacyValue)))
                 .orElseGet(() -> {
                     Indicator newIndicator = Indicator.builder()
                             .type(reportType)
@@ -217,9 +242,30 @@ public class ReportServiceImpl implements IReportService {
         }).toList();
     }
 
-    private String normalizeIdentifier(String identifier) {
-        if (!StringUtils.hasText(identifier)) return "";
-        return identifier.replaceAll("\\s+", "").toLowerCase();
+    private List<String> legacyIndicatorValues(IndicatorType type, String normalized, String submitted) {
+        List<String> values = new ArrayList<>();
+        if (type == IndicatorType.URL) {
+            for (String prefix : List.of("", "http://", "https://")) {
+                values.add(prefix + normalized);
+                if (!normalized.matches(".*[/#?].*")) {
+                    values.add(prefix + normalized + "/");
+                }
+            }
+            return values;
+        }
+        values.add(submitted);
+        if (type == IndicatorType.PHONE && normalized.matches("0[0-9]{9}")) {
+            String nationalNumber = normalized.substring(1);
+            values.addAll(List.of("+84" + nationalNumber, "0084" + nationalNumber, "84" + nationalNumber));
+        }
+        return values;
+    }
+
+    private String normalizeReportUrl(String target) {
+        String url = target.strip().replaceFirst("(?i)^https?://", "");
+        String[] parts = url.split("(?=[/#?])", 2);
+        String authority = parts[0].toLowerCase(Locale.ROOT);
+        return parts.length == 1 || parts[1].equals("/") ? authority : authority + parts[1];
     }
 
     private String normalizePhoneForOwnershipCheck(String phone) {

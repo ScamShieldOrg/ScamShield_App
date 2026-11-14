@@ -1,4 +1,4 @@
-import { publicApi } from "@/lib/api/instance";
+import { authorizeApi, publicApi } from "@/lib/api/instance";
 import { decodeJwt } from "@/lib/utils/jwtUtil";
 import { useAuthStore } from "@/store/auth.store";
 import { User, UserRole } from "@/types/user";
@@ -56,6 +56,49 @@ export interface RegisterPartnerResponseData {
     submittedAt: string;
 }
 
+export class PartnerRegistrationOutcomeUnknownError extends Error {
+    constructor(message: string, public readonly draftToken: string) {
+        super(message);
+    }
+}
+
+export interface PartnerRegistrationStatus {
+    status: "PROCESSING" | "COMPLETED" | "EXPIRED";
+    registration: RegisterPartnerResponseData | null;
+}
+
+export type PartnerUploadProgress = {
+    stage: "precheck" | "upload" | "finalize";
+    completedFiles: number;
+    totalFiles: number;
+    fileProgress: number[];
+    fileNames: string[];
+    totalPercent: number;
+};
+
+function uploadPartnerFile(
+    url: string,
+    file: File,
+    onProgress: (loaded: number) => void
+): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open("PUT", url);
+        request.timeout = 60_000;
+        request.setRequestHeader("Content-Type", file.type);
+        request.upload.onprogress = (event) => onProgress(event.loaded);
+        request.onload = () =>
+            request.status >= 200 && request.status < 300
+                ? resolve()
+                : reject(new Error(`Không tải được tài liệu ${file.name}.`));
+        request.onerror = () =>
+            reject(new Error(`Không tải được tài liệu ${file.name}.`));
+        request.ontimeout = () =>
+            reject(new Error(`Tải tài liệu ${file.name} quá thời gian cho phép.`));
+        request.send(file);
+    });
+}
+
 function extractErrorMessage(error: unknown, fallback: string): string {
     const vietnameseMessage = (value: unknown): string | undefined => {
         if (typeof value !== "string") return undefined
@@ -103,6 +146,27 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 }
 
 export const authServices = {
+    setupPartnerPassword: async function (token: string, newPassword: string) {
+        try {
+            const response = await publicApi.post("/auth/partner-password/setup", { token, newPassword })
+            if (response.data?.isSuccess !== true) {
+                throw new Error(response.data?.message || "Không thể đặt mật khẩu.")
+            }
+        } catch (cause) {
+            throw new Error(extractErrorMessage(cause, "Không thể đặt mật khẩu. Vui lòng thử lại."))
+        }
+    },
+    async getCurrentProfile(signal?: AbortSignal) {
+        const { data } = await authorizeApi.get<{
+            isSuccess?: boolean
+            success?: boolean
+            data?: { id: number; fullName?: string; username: string; email?: string; role: UserRole }
+        }>("/auth/me", { signal })
+        if (!(data.isSuccess ?? data.success) || !data.data) {
+            throw new Error("Không thể tải thông tin tài khoản")
+        }
+        return data.data
+    },
     loginByForm: async function (identifier: string, password: string) {
         try {
             const response = await publicApi.post("/auth/login", {
@@ -120,7 +184,7 @@ export const authServices = {
     
             const decoded = decodeJwt(accessToken)
             return { role: (decoded?.role || "") }
-        } catch (error: unknown) {
+        } catch {
             throw new Error("Tài khoản/mật khẩu không chính xác")
         }
     },
@@ -238,31 +302,215 @@ export const authServices = {
     },
     registerPartner: async function (
         requestData: RegisterPartnerPayload,
-        files: RegisterPartnerFiles
+        files: RegisterPartnerFiles,
+        onProgress?: (progress: PartnerUploadProgress) => void
     ) {
+        let finalizing = false;
+        let draftToken: string | undefined;
         try {
-            const formData = new FormData()
-            formData.append(
-                "request",
-                new Blob([JSON.stringify(requestData)], { type: "application/json" })
-            )
-            files.businessLicenseFiles.forEach((file) => {
-                formData.append("businessLicenseFiles", file)
-            })
-            files.ownershipProofFiles.forEach((file) => {
-                formData.append("ownershipProofFiles", file)
-            })
-            files.authorizationFiles.forEach((file) => {
-                formData.append("authorizationFiles", file)
-            })
-
-            const response = await publicApi.post("/partners/registrations", formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            })
-            return response.data
+            const documents = [
+                ...files.businessLicenseFiles.map((file) => ({
+                    file,
+                    documentType: "BUSINESS_LICENSE",
+                })),
+                ...files.ownershipProofFiles.map((file) => ({
+                    file,
+                    documentType: "OWNERSHIP_PROOF",
+                })),
+                ...files.authorizationFiles.map((file) => ({
+                    file,
+                    documentType: "AUTHORIZATION",
+                })),
+            ];
+            onProgress?.({
+                stage: "precheck",
+                completedFiles: 0,
+                totalFiles: documents.length,
+                fileProgress: documents.map(() => 0),
+                fileNames: documents.map(({ file }) => file.name),
+                totalPercent: 0,
+            });
+            const precheck = await publicApi.post(
+                "/partners/registrations/precheck",
+                {
+                    registration: requestData,
+                    documents: documents.map(({ file, documentType }) => ({
+                        documentType,
+                        fileName: file.name,
+                        contentType: file.type,
+                        fileSize: file.size,
+                    })),
+                }
+            );
+            const precheckData = precheck.data?.data;
+            if (
+                !precheck.data?.isSuccess ||
+                !precheckData?.draftToken ||
+                !Array.isArray(precheckData.uploads)
+            ) {
+                throw new Error(
+                    precheck.data?.message || "Không thể bắt đầu tải tài liệu."
+                );
+            }
+            draftToken = precheckData.draftToken as string;
+            const loaded = documents.map(() => 0);
+            let completed = 0;
+            let next = 0;
+            const report = () =>
+                onProgress?.({
+                    stage: "upload",
+                    completedFiles: completed,
+                    totalFiles: documents.length,
+                    fileProgress: documents.map(({ file }, index) =>
+                        Math.round((loaded[index] / file.size) * 100)
+                    ),
+                    fileNames: documents.map(({ file }) => file.name),
+                    totalPercent: Math.round(
+                        (loaded.reduce((sum, bytes) => sum + bytes, 0) /
+                            documents.reduce(
+                                (sum, { file }) => sum + file.size,
+                                0
+                            )) *
+                            100
+                    ),
+                });
+            report();
+            const heartbeat = window.setInterval(
+                () => {
+                    void publicApi
+                        .post(`/partners/registrations/${draftToken}/refresh`)
+                        .catch(() => {});
+                },
+                5 * 60 * 1000
+            );
+            try {
+                await Promise.all(
+                    Array.from(
+                        { length: Math.min(3, documents.length) },
+                        async () => {
+                            while (next < documents.length) {
+                                const index = next++;
+                                const file = documents[index].file;
+                                let target = precheckData.uploads.find(
+                                    (item: { documentIndex: number }) =>
+                                        item.documentIndex === index
+                                );
+                                if (!target)
+                                    throw new Error(
+                                        "Thông tin tài liệu tải lên không khớp."
+                                    );
+                                for (let attempt = 0; attempt < 3; attempt++) {
+                                    try {
+                                        await uploadPartnerFile(
+                                            target.uploadUrl,
+                                            file,
+                                            (bytes) => {
+                                                loaded[index] = bytes;
+                                                report();
+                                            }
+                                        );
+                                        loaded[index] = file.size;
+                                        completed++;
+                                        report();
+                                        break;
+                                    } catch (uploadError) {
+                                        if (attempt === 2) throw uploadError;
+                                        await new Promise((resolve) =>
+                                            window.setTimeout(
+                                                resolve,
+                                                500 * 2 ** attempt
+                                            )
+                                        );
+                                        const renewed = await publicApi.post(
+                                            `/partners/registrations/${draftToken}/uploads/${index}/renew`
+                                        );
+                                        target = renewed.data.data;
+                                        loaded[index] = 0;
+                                    }
+                                }
+                            }
+                        }
+                    )
+                );
+            } finally {
+                window.clearInterval(heartbeat);
+            }
+            finalizing = true;
+            onProgress?.({
+                stage: "finalize",
+                completedFiles: completed,
+                totalFiles: documents.length,
+                fileProgress: documents.map(() => 100),
+                fileNames: documents.map(({ file }) => file.name),
+                totalPercent: 100,
+            });
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const finalized = await publicApi.post(
+                        "/partners/registrations/finalize",
+                        { draftToken },
+                        { timeout: 30_000 }
+                    );
+                    return finalized.data?.data;
+                } catch (error) {
+                    if (
+                        attempt === 2 ||
+                        !axios.isAxiosError(error) ||
+                        (error.response &&
+                            error.response.status < 500 &&
+                            error.response.status !== 409)
+                    )
+                        throw error;
+                    await new Promise((resolve) =>
+                        window.setTimeout(resolve, 1000 * 2 ** attempt)
+                    );
+                }
+            }
         } catch (error) {
-            throw new Error(extractErrorMessage(error, "Đăng ký đối tác thất bại."))
+            if (
+                finalizing &&
+                draftToken &&
+                axios.isAxiosError(error) &&
+                (!error.response ||
+                    error.response.status >= 500 ||
+                    (error.response.status === 409 &&
+                        String(error.response.data?.message).includes(
+                            "đang được xử lý"
+                        )))
+            ) {
+                let expired = false;
+                for (let attempt = 0; attempt < 6; attempt++) {
+                    await new Promise((resolve) =>
+                        window.setTimeout(resolve, 2000)
+                    );
+                    try {
+                        const status = await authServices.getPartnerRegistrationStatus(draftToken);
+                        if (status.status === "COMPLETED")
+                            return status.registration;
+                        if (status.status === "EXPIRED") {
+                            expired = true;
+                            break;
+                        }
+                    } catch {
+                        /* Keep checking while the backend may still be committing. */
+                    }
+                }
+                if (expired) {
+                    throw new Error("Phiên đăng ký đã hết hạn. Vui lòng gửi lại hồ sơ.");
+                }
+                throw new PartnerRegistrationOutcomeUnknownError(
+                    "Chưa thể xác nhận kết quả đăng ký. Hồ sơ có thể đã được gửi; vui lòng kiểm tra trạng thái trước khi đăng ký lại.",
+                    draftToken
+                );
+            }
+            throw new Error(
+                extractErrorMessage(error, "Đăng ký đối tác thất bại.")
+            );
         }
+    },
+    getPartnerRegistrationStatus: async function (draftToken: string): Promise<PartnerRegistrationStatus> {
+        const response = await publicApi.get(`/partners/registrations/${draftToken}/status`);
+        return response.data.data;
     },
     loginGoogle: async function (idToken: string) {
         try {

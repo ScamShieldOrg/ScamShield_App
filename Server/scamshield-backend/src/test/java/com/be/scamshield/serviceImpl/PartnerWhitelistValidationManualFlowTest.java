@@ -2,6 +2,7 @@ package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.constant.PartnerVerificationStatus;
+import com.be.scamshield.constant.WhitelistVerificationStatus;
 import com.be.scamshield.dto.partner.PartnerSubmissionResponse;
 import com.be.scamshield.dto.partner.SubmitPartnerAlertRequest;
 import com.be.scamshield.entity.*;
@@ -121,7 +122,7 @@ public class PartnerWhitelistValidationManualFlowTest {
                 .id(1L)
                 .partner(vcbPartner)
                 .indicator(vcbDomainIndicator)
-                .verificationStatus("VERIFIED")
+                .verificationStatus(WhitelistVerificationStatus.VERIFIED)
                 .build();
     }
 

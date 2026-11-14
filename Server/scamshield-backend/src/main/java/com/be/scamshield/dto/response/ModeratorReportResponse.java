@@ -52,10 +52,22 @@ public class ModeratorReportResponse {
 
     @Schema(description = "Tài khoản hiện tại có quyền nhận duyệt báo cáo")
     private boolean canReview;
+    private boolean assignedToMe;
 
     @Schema(description = "Indicator thuộc whitelist đang có hiệu lực; cảnh báo hỗ trợ quyết định")
     private boolean whitelisted;
     private List<WhitelistMatch> whitelistMatches;
+
+    private IndicatorContext indicatorContext;
+    private ReporterContext reporterContext;
+
+    public record IndicatorContext(String blacklistStatus, long reports, long approvedReports, long rejectedReports, long disputes,
+                                   LocalDateTime firstSeenAt, LocalDateTime lastSeenAt) { }
+
+    public record ReporterContext(String email, String phoneNumber, Integer reputationPoints,
+                                  LocalDateTime joinedAt, long reports, long approvedReports, long decidedReports,
+                                  long disputes, long approvedDisputes, long decidedDisputes,
+                                  long abuseFlags, long openFlags) { }
 
     public record WhitelistMatch(Long whitelistEntryId, Long partnerId, String legalName,
                                  LocalDateTime verifiedAt) { }

@@ -1,7 +1,10 @@
 package com.be.scamshield.entity;
 
+import com.be.scamshield.constant.WhitelistVerificationStatus;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "whitelist_entries")
@@ -24,8 +27,15 @@ public class WhitelistEntry {
     @JoinColumn(name = "indicator_id", nullable = false)
     private Indicator indicator;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false)
-    private String verificationStatus;
+    private WhitelistVerificationStatus verificationStatus;
+
+    @Column(name = "revoked_at")
+    private LocalDateTime revokedAt;
+
+    @Column(name = "revocation_reason", columnDefinition = "text")
+    private String revocationReason;
 
     @Column(name = "verification_evidence_id")
     private Long verificationEvidenceId;
@@ -35,15 +45,15 @@ public class WhitelistEntry {
     private User verifiedByUser;
 
     @Column(name = "verified_at")
-    private java.time.LocalDateTime verifiedAt;
+    private LocalDateTime verifiedAt;
 
     @Column(name = "auto_lock_moderation", nullable = false)
     private Boolean autoLockModeration;
 
     @Column(name = "created_at", nullable = false)
-    private java.time.LocalDateTime createdAt;
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
-    private java.time.LocalDateTime updatedAt;
+    private LocalDateTime updatedAt;
 
 }

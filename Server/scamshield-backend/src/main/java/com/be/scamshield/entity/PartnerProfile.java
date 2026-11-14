@@ -1,18 +1,27 @@
 package com.be.scamshield.entity;
 
 import com.be.scamshield.constant.PartnerVerificationStatus;
+import com.be.scamshield.constant.PartnerPasswordEmailStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "partner_profiles")
+@DynamicUpdate
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class PartnerProfile {
+    @PrePersist
+    void defaults() {
+        if (legalRepresentative == null) legalRepresentative = true;
+        if (documentVerificationStatus == null) documentVerificationStatus = "NOT_REQUIRED";
+        if (documentVerificationAttempts == null) documentVerificationAttempts = 0;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,6 +51,9 @@ public class PartnerProfile {
     @Column(name = "representative_name_and_title")
     private String representativeNameAndTitle;
 
+    @Column(name = "legal_representative", nullable = false, columnDefinition = "boolean default true")
+    private Boolean legalRepresentative;
+
     @Column(name = "contact_phone", length = 30)
     private String contactPhone;
 
@@ -52,6 +64,18 @@ public class PartnerProfile {
     @Column(name = "business_verification_result", columnDefinition = "text")
     private String businessVerificationResult;
 
+    @Column(name = "registration_token", unique = true, length = 36)
+    private String registrationToken;
+
+    @Column(name = "document_verification_status", nullable = false, length = 20, columnDefinition = "varchar(20) default 'NOT_REQUIRED'")
+    private String documentVerificationStatus;
+
+    @Column(name = "document_verification_attempts", nullable = false, columnDefinition = "integer default 0")
+    private Integer documentVerificationAttempts;
+
+    @Column(name = "document_verification_started_at")
+    private LocalDateTime documentVerificationStartedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")
     @ToString.Exclude
@@ -61,11 +85,21 @@ public class PartnerProfile {
     @Column(name = "verified_at")
     private LocalDateTime verifiedAt;
 
+    @Column(name = "verification_reason", length = 2000)
+    private String verificationReason;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "password_link_email_status", length = 16)
+    private PartnerPasswordEmailStatus passwordLinkEmailStatus;
+
+    @Column(name = "password_setup_completed_at")
+    private LocalDateTime passwordSetupCompletedAt;
 
     @Column(name = "official_domain", length = 253)
     private String officialDomain;

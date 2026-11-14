@@ -5,6 +5,7 @@ import com.be.scamshield.constant.NotificationType;
 import com.be.scamshield.constant.ConfirmedIndicatorStatus;
 
 import com.be.scamshield.constant.PartnerVerificationStatus;
+import com.be.scamshield.constant.WhitelistVerificationStatus;
 import com.be.scamshield.dto.partner.PartnerSubmissionResponse;
 import com.be.scamshield.dto.partner.ReviewPartnerSubmissionRequest;
 import com.be.scamshield.dto.partner.SubmitPartnerAlertRequest;
@@ -584,7 +585,7 @@ class PartnerSubmissionServiceImplTest {
                 .id(1L)
                 .partner(partnerProfile) // same partner
                 .indicator(selfIndicator)
-                .verificationStatus("VERIFIED")
+                .verificationStatus(WhitelistVerificationStatus.VERIFIED)
                 .build();
 
         when(whitelistEntryRepository.findVerifiedForCheck(eq(java.util.List.of(777L)), eq(PartnerVerificationStatus.VERIFIED), any()))
@@ -629,7 +630,7 @@ class PartnerSubmissionServiceImplTest {
                 .id(2L)
                 .partner(otherPartner) // Different partner!
                 .indicator(vcbIndicator)
-                .verificationStatus("VERIFIED")
+                .verificationStatus(WhitelistVerificationStatus.VERIFIED)
                 .build();
 
         when(whitelistEntryRepository.findVerifiedForCheck(eq(java.util.List.of(888L)), eq(PartnerVerificationStatus.VERIFIED), any()))
@@ -685,7 +686,7 @@ class PartnerSubmissionServiceImplTest {
                 .id(2L)
                 .partner(vcbPartner)
                 .indicator(vcbIndicator)
-                .verificationStatus("VERIFIED")
+                .verificationStatus(WhitelistVerificationStatus.VERIFIED)
                 .build();
 
         when(whitelistEntryRepository.findVerifiedForCheck(eq(java.util.List.of(888L)), eq(PartnerVerificationStatus.VERIFIED), any()))
