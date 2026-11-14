@@ -154,9 +154,20 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
             submissionType = "THREAT_INTEL";
         }
 
+        String canonicalIndicatorValue = request.getIndicatorValue();
+        if (StringUtils.hasText(canonicalIndicatorValue)) {
+            canonicalIndicatorValue = canonicalIndicatorValue.trim();
+            if (StringUtils.hasText(request.getIndicatorType())) {
+                IndicatorType type = supportedIndicatorType(request.getIndicatorType());
+                if (type == IndicatorType.BANK_ACCOUNT) {
+                    canonicalIndicatorValue = canonicalIndicatorValue.replaceAll("[\\s.-]", "");
+                }
+            }
+        }
+
         String formattedDescription = formatDescription(
                 request.getIndicatorType(),
-                request.getIndicatorValue(),
+                canonicalIndicatorValue,
                 request.getCategoryCode(),
                 request.getDescription()
         );
@@ -544,6 +555,14 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
         }
 
         String[] tokens = indicatorValue.split("[,;\\s]+");
+        int validTokenCount = 0;
+        for (String token : tokens) {
+            if (StringUtils.hasText(token)) validTokenCount++;
+        }
+        if (validTokenCount > 1) {
+            throw new BadRequestException("Mỗi hồ sơ cảnh báo/tình báo chỉ tiếp nhận một chỉ số mục tiêu chính (indicatorValue). Vui lòng tách thành các hồ sơ riêng biệt hoặc cung cấp các đối tượng bổ sung trong phần mô tả.");
+        }
+
         for (String token : tokens) {
             if (!StringUtils.hasText(token)) continue;
             String trimmedToken = token.trim();
@@ -639,7 +658,6 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                     throw new BadRequestException("Số tài khoản ngân hàng phải có từ 6 đến 30 chữ số: " + trimmedToken);
                 }
                 candidateLookupValues.add(normalizedAccount);
-                candidateLookupValues.add(trimmedToken);
             }
 
             if (!candidateLookupValues.isEmpty()) {
@@ -805,13 +823,26 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
                                 + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
                     }
                 }
-            } else if (type == IndicatorType.PHONE && StringUtils.hasText(profile.getOfficialHotline())) {
-                String offHotline = profile.getOfficialHotline().replaceAll("[\\s().-]", "");
-                for (String val : lookupValues) {
-                    if (val.replaceAll("[\\s().-]", "").equals(offHotline)) {
-                        String partnerName = profile.getBrandName() != null ? profile.getBrandName() : profile.getLegalName();
-                        throw new BadRequestException("Không thể phê duyệt cảnh báo: Kênh thông tin '" + displayVal
-                                + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
+            } else if (type == IndicatorType.PHONE) {
+                if (StringUtils.hasText(profile.getOfficialHotline())) {
+                    String offHotline = profile.getOfficialHotline().replaceAll("[\\s().-]", "");
+                    for (String val : lookupValues) {
+                        if (val.replaceAll("[\\s().-]", "").equals(offHotline) || val.equals(profile.getOfficialHotline().trim())) {
+                            String partnerName = profile.getBrandName() != null ? profile.getBrandName() : profile.getLegalName();
+                            throw new BadRequestException("Không thể phê duyệt cảnh báo: Kênh thông tin '" + displayVal
+                                    + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
+                        }
+                    }
+                }
+                if (StringUtils.hasText(profile.getSmsBrandName())) {
+                    String offBrand = profile.getSmsBrandName().trim();
+                    String brand = StringUtils.hasText(profile.getBrandName()) ? profile.getBrandName().trim() : "";
+                    for (String val : lookupValues) {
+                        if (val.equalsIgnoreCase(offBrand) || (!brand.isEmpty() && val.equalsIgnoreCase(brand))) {
+                            String partnerName = profile.getBrandName() != null ? profile.getBrandName() : profile.getLegalName();
+                            throw new BadRequestException("Không thể phê duyệt cảnh báo: Kênh thông tin '" + displayVal
+                                    + "' đã được chứng thực là tài nguyên số an toàn của đối tác thành viên [" + partnerName + "].");
+                        }
                     }
                 }
             }
@@ -892,7 +923,7 @@ public class PartnerSubmissionServiceImpl implements IPartnerSubmissionService {
             if (lower.endsWith("/")) lower = lower.substring(0, lower.length() - 1);
             return lower;
         } else if ("BANK_ACCOUNT".equals(upperType)) {
-            return trimmed.replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
+            return trimmed.replaceAll("[\\s.-]", "").toUpperCase(Locale.ROOT);
         }
         return trimmed.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }

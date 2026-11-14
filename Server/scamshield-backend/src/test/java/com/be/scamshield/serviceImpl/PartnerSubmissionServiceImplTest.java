@@ -704,4 +704,89 @@ class PartnerSubmissionServiceImplTest {
 
         verify(confirmedIndicatorRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("Gửi chỉ báo: Nhiều token mục tiêu trong indicatorValue -> Bị từ chối theo hợp đồng đơn mục tiêu")
+    void submitAlertOrIntel_multipleIndicators_rejectsBadRequest() {
+        when(partnerProfileRepository.findByUserId(10L)).thenReturn(Optional.of(partnerProfile));
+
+        SubmitPartnerAlertRequest request = SubmitPartnerAlertRequest.builder()
+                .submissionType("SCAM_ALERT")
+                .title("Nhiều liên kết giả mạo")
+                .description("Phát hiện nhiều link lừa đảo")
+                .indicatorType("URL")
+                .indicatorValue("shopee-fake1.xyz, shopee-fake2.xyz")
+                .build();
+
+        assertThatThrownBy(() -> service.submitAlertOrIntel(request, null, partnerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Mỗi hồ sơ cảnh báo/tình báo chỉ tiếp nhận một chỉ số mục tiêu chính");
+
+        verify(partnerOfficialAlertRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Gửi chỉ báo BANK_ACCOUNT: Chuẩn hóa canonical xuyên suốt quá trình lưu và phản hồi")
+    void submitAlertOrIntel_bankAccount_storesAndUsesCanonicalNormalizedAccount() {
+        when(partnerProfileRepository.findByUserId(10L)).thenReturn(Optional.of(partnerProfile));
+        when(partnerOfficialAlertRepository.save(any(PartnerOfficialAlert.class))).thenAnswer(inv -> {
+            PartnerOfficialAlert a = inv.getArgument(0);
+            a.setId(789L);
+            return a;
+        });
+
+        SubmitPartnerAlertRequest request = SubmitPartnerAlertRequest.builder()
+                .submissionType("THREAT_INTEL")
+                .title("Tài khoản lừa đảo")
+                .description("Số tài khoản nhận tiền mạo danh")
+                .indicatorType("BANK_ACCOUNT")
+                .indicatorValue(" 9876-5432.1001 ")
+                .build();
+
+        PartnerSubmissionResponse res = service.submitAlertOrIntel(request, null, partnerPrincipal);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getIndicatorValue()).isEqualTo("987654321001");
+        assertThat(res.getNormalizedValue()).isEqualTo("987654321001");
+        verify(partnerOfficialAlertRepository).save(argThat(saved ->
+                saved.getDescription().contains("[Target: BANK_ACCOUNT:987654321001")));
+    }
+
+    @Test
+    @DisplayName("Thẩm định cảnh báo: PHONE khớp với SMS Brandname của đối tác thành viên -> chặn phê duyệt")
+    void reviewSubmission_phoneMatchesVerifiedSmsBrandName_blocksModeratorApproval() {
+        when(userRepository.findById(20L)).thenReturn(Optional.of(moderatorUser));
+
+        PartnerProfile vcbPartner = PartnerProfile.builder()
+                .id(200L)
+                .legalName("Ngân hàng TMCP Ngoại thương Việt Nam")
+                .brandName("Vietcombank")
+                .smsBrandName("Vietcombank")
+                .verificationStatus(PartnerVerificationStatus.VERIFIED)
+                .build();
+
+        when(partnerProfileRepository.findAll()).thenReturn(java.util.List.of(vcbPartner));
+
+        PartnerOfficialAlert alert = PartnerOfficialAlert.builder()
+                .id(508L)
+                .partner(partnerProfile)
+                .submissionType("SCAM_ALERT")
+                .title("Cảnh báo mạo danh Vietcombank")
+                .description("[Target: PHONE:Vietcombank | Category: SMS_BTS]\nGiả mạo SMS Brandname")
+                .status("PENDING")
+                .build();
+        when(partnerOfficialAlertRepository.findById(508L)).thenReturn(Optional.of(alert));
+
+        ReviewPartnerSubmissionRequest reviewRequest = ReviewPartnerSubmissionRequest.builder()
+                .decision(ReviewPartnerSubmissionRequest.DecisionType.VERIFY)
+                .reason("Duyệt brandname")
+                .build();
+
+        assertThatThrownBy(() -> service.reviewSubmission(508L, reviewRequest, moderatorPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Không thể phê duyệt cảnh báo")
+                .hasMessageContaining("đối tác thành viên [Vietcombank]");
+
+        verify(confirmedIndicatorRepository, never()).save(any());
+    }
 }

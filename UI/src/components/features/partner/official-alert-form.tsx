@@ -228,9 +228,12 @@ export function OfficialAlertForm() {
 
     try {
       // Pick representative indicator & type strictly based on attackVector selected by partner
-      const primaryUrl = domains.split(/[,;\s]+/)[0]?.trim()
-      const primaryPhone = brandnamePhone.split(/[,;\s]+/)[0]?.trim()
-      const primaryMule = muleAccounts.split(/[,;\s]+/)[0]?.trim()
+      // Trim tokens before choosing the first non-empty value to avoid leading whitespace/separators
+      const primaryUrl = domains.split(/[,;\s]+/).map((t) => t.trim()).find(Boolean) || ""
+      const primaryPhone = brandnamePhone.split(/[,;\s]+/).map((t) => t.trim()).find(Boolean) || ""
+      const primaryMule = muleAccounts.split(/[,;\s]+/).map((t) => t.trim()).find(Boolean) || ""
+
+      const isBrandname = Boolean(primaryPhone && /^[a-zA-Z0-9_.-]{3,30}$/.test(primaryPhone) && /[a-zA-Z]/.test(primaryPhone))
 
       let indicatorType: "URL" | "PHONE" | "BANK_ACCOUNT" = "URL"
       let primaryIndicator = ""
@@ -242,37 +245,48 @@ export function OfficialAlertForm() {
         if (primaryUrl) {
           indicatorType = "URL"
           primaryIndicator = primaryUrl
-        } else if (primaryPhone) {
-          indicatorType = "PHONE"
-          primaryIndicator = primaryPhone
-        } else {
+        } else if (primaryMule) {
           indicatorType = "BANK_ACCOUNT"
           primaryIndicator = primaryMule
+        } else if (primaryPhone && !isBrandname) {
+          indicatorType = "PHONE"
+          primaryIndicator = primaryPhone
+        } else if (primaryPhone && isBrandname) {
+          toast.error("Tên SMS Brandname là nhãn thương hiệu bị mạo danh, không phải chỉ báo độc hại (IOC). Vui lòng cung cấp thêm Đường dẫn liên kết (URL), Số tài khoản ngân hàng hoặc Đầu số viễn thông thực tế do kẻ gian phát tán để làm chỉ báo ngăn chặn.")
+          return
         }
       } else if (attackVector === "phone-spoof") {
         // Cuộc gọi mạo danh: Ưu tiên Số điện thoại kẻ gian dùng để gọi
-        if (primaryPhone) {
+        if (primaryPhone && !isBrandname) {
           indicatorType = "PHONE"
           primaryIndicator = primaryPhone
         } else if (primaryUrl) {
           indicatorType = "URL"
           primaryIndicator = primaryUrl
-        } else {
+        } else if (primaryMule) {
           indicatorType = "BANK_ACCOUNT"
           primaryIndicator = primaryMule
+        } else if (primaryPhone && isBrandname) {
+          toast.error("Vui lòng cung cấp Số điện thoại hoặc Tổng đài mạo danh (dãy chữ số) để làm chỉ báo ngăn chặn.")
+          return
         }
       } else {
         // Website Phishing hoặc Mã độc APK: Ưu tiên Tên miền / URL độc hại
         if (primaryUrl) {
           indicatorType = "URL"
           primaryIndicator = primaryUrl
-        } else if (primaryPhone) {
-          indicatorType = "PHONE"
-          primaryIndicator = primaryPhone
-        } else {
+        } else if (primaryMule) {
           indicatorType = "BANK_ACCOUNT"
           primaryIndicator = primaryMule
+        } else if (primaryPhone && !isBrandname) {
+          indicatorType = "PHONE"
+          primaryIndicator = primaryPhone
         }
+      }
+
+      if (!primaryIndicator) {
+        toast.error("Vui lòng cung cấp ít nhất một chỉ báo độc hại hợp lệ (Tên miền/URL, Số điện thoại hoặc Số tài khoản ngân hàng).")
+        return
       }
 
       let vectorTitle = "Tổng đài mạo danh"
@@ -292,6 +306,8 @@ export function OfficialAlertForm() {
       let extraContext = ""
       if (attackVector === "bts-fake" && primaryPhone) {
         extraContext += ` | Brandname: ${primaryPhone}`
+      } else if ((attackVector === "phishing-web" || attackVector === "malware-apk") && primaryPhone) {
+        extraContext += ` | Đầu số/Brandname: ${primaryPhone}`
       }
       if (attackVector === "bts-fake" && domains.trim()) {
         extraContext += ` | Link SMS: ${domains.trim()}`
@@ -303,14 +319,23 @@ export function OfficialAlertForm() {
         extraContext += ` | STK thụ hưởng: ${muleAccounts.trim()}`
       }
 
-      const safeDesc = (scenarioDescription.trim() + extraContext).slice(0, 180)
+      const categoryCode = attackVector === "bts-fake" ? "SMS_BTS" : (attackVector === "phone-spoof" ? "VIEN_THONG" : "PHISHING_PORTAL")
+      const fullDesc = (scenarioDescription.trim() + extraContext).trim()
+      const targetHeader = indicatorType && primaryIndicator ? `[Target: ${indicatorType}:${primaryIndicator} | Category: ${categoryCode}]\n` : ""
+      const totalDescriptionLength = targetHeader.length + fullDesc.length
+
+      if (totalDescriptionLength > 255) {
+        toast.error(`Mô tả chi tiết và các thông tin chỉ báo liên quan vượt quá giới hạn 255 ký tự (hiện tại: ${totalDescriptionLength} ký tự bao gồm tiền tố hệ thống). Vui lòng rút ngắn nội dung mô tả kịch bản.`)
+        return
+      }
+
       const payload = {
         submissionType: "SCAM_ALERT" as const,
         title: title.slice(0, 250),
-        description: safeDesc,
+        description: fullDesc,
         indicatorType,
         indicatorValue: primaryIndicator,
-        categoryCode: attackVector === "bts-fake" ? "SMS_BTS" : (attackVector === "phone-spoof" ? "VIEN_THONG" : "PHISHING_PORTAL"),
+        categoryCode,
       }
 
       await submitPartnerAlertOrIntel(payload, uploadedRealFile)
