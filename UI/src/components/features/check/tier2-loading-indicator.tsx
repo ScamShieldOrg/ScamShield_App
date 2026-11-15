@@ -17,7 +17,7 @@ import {
 export type LoadingStage = "CURATED_LOOKUP" | "AI_ANALYSIS"
 
 /** Only these input types can escalate from the curated lists to the AI tier. */
-const AI_ELIGIBLE_TYPES = new Set(["TEXT", "MESSAGE", "URL"])
+const AI_ELIGIBLE_TYPES = new Set(["TEXT", "MESSAGE"])
 
 interface Tier2LoadingIndicatorProps {
   inputType?: string
@@ -62,7 +62,9 @@ export function Tier2LoadingIndicator({
       ? 1
       : stage === "CURATED_LOOKUP"
         ? 0
-        : -1
+        : aiEligible
+          ? (seconds >= 2 ? 1 : 0)
+          : 0
 
   return (
     <div

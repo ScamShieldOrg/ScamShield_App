@@ -95,7 +95,8 @@ public class ScamCheckServiceImpl implements IScamCheckService {
                 check.getId(), check.getInputType(), userId == null ? "GUEST" : "USER", input.candidates().size());
         CheckVerdict saved;
         try {
-            var decision = decisions.decide(check, input.candidates());
+            boolean forceTier2 = Boolean.TRUE.equals(request.getForceTier2());
+            var decision = decisions.decide(check, input.candidates(), forceTier2);
             saved = transactions.execute(status -> {
                 LocalDateTime now = now();
                 CheckRequest managedCheck = checks.findById(check.getId()).orElseThrow(this::notFound);
