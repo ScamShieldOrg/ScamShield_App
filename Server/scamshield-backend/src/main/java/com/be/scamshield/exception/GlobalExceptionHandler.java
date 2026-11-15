@@ -52,7 +52,7 @@ public class GlobalExceptionHandler {
                 .body(new BaseResponse<>(false, ex.getMessage(), null));
     }
 
-    @ExceptionHandler({RegistrationConflictException.class, DisputeConflictException.class, PartnerReviewConflictException.class, AbuseEscalationConflictException.class, ScamCategoryConflictException.class})
+    @ExceptionHandler({RegistrationConflictException.class, DisputeConflictException.class, PartnerReviewConflictException.class, AbuseEscalationConflictException.class, PartnerSubmissionConflictException.class, ScamCategoryConflictException.class})
     public ResponseEntity<BaseResponse<Void>> handleConflict(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new BaseResponse<>(false, ex.getMessage(), null));
     }
