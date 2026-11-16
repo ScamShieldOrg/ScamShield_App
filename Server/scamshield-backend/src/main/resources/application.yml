@@ -68,6 +68,12 @@ google:
 # Application Configurations
 app:
   ui-base-url: ${APP_UI_BASE_URL:http://localhost:3001}
+  cors:
+    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:3001}
+  auth:
+    cookie:
+      secure: ${AUTH_COOKIE_SECURE:false}
+      same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
   evidence-analysis:
     enabled: ${EVIDENCE_ANALYSIS_ENABLED:true}
     executable: ${TESSERACT_EXECUTABLE:tesseract}
@@ -76,12 +82,14 @@ app:
     timeout-seconds: ${EVIDENCE_OCR_TIMEOUT_SECONDS:15}
     max-pdf-pages: ${EVIDENCE_OCR_MAX_PDF_PAGES:3}
     image-distance: ${EVIDENCE_PHASH_MAX_DISTANCE:10}
-    text-similarity: ${EVIDENCE_OCR_TEXT_SIMILARITY:0.80}
+    text-similarity: ${EVIDENCE_OCR_TEXT_SIMILARITY:0.60}
+    text-candidate-distance: ${EVIDENCE_OCR_TEXT_CANDIDATE_DISTANCE:16}
     candidate-limit: ${EVIDENCE_SIMILARITY_CANDIDATE_LIMIT:200}
   scam-check:
     ai:
       enabled: ${SCAM_CHECK_AI_ENABLED:true}
       base-url: ${SCAM_CHECK_AI_BASE_URL:http://localhost:8000}
+      token: ${SCAM_CHECK_AI_TOKEN:}
       connect-timeout-ms: ${SCAM_CHECK_AI_CONNECT_TIMEOUT_MS:2000}
       request-timeout-ms: ${SCAM_CHECK_AI_REQUEST_TIMEOUT_MS:60000}
     registered-daily-limit: ${SCAM_CHECK_REGISTERED_DAILY_LIMIT:10}
@@ -117,6 +125,6 @@ app:
   contact-verification:
     expiration-ms: ${CONTACT_VERIFICATION_EXPIRATION_MS:600000}
   jwt:
-    secret: ${JWT_SECRET}
-    expiration-ms: ${JWT_EXPIRATION_MS}
-    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS}
+    secret: ${JWT_SECRET:C31ruqAfYphaGU/LUdieXU3aWydi8NZIQZeMd65mdpk=}
+    expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}

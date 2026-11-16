@@ -16,6 +16,7 @@ import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.*;
 import com.be.scamshield.repository.RefreshTokenRepository;
 import com.be.scamshield.repository.RoleRepository;
+import com.be.scamshield.repository.ReputationRankRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.security.GoogleTokenVerifier;
 import com.be.scamshield.security.JwtTokenProvider;
@@ -62,6 +63,7 @@ public class AuthServiceImpl implements IAuthService {
     private final Clock applicationClock;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final ReputationRankRepository reputationRankRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -70,6 +72,12 @@ public class AuthServiceImpl implements IAuthService {
     private final IOtpService otpService;
     private final ContactVerificationService contactVerificationService;
     private final GoogleTokenVerifier googleTokenVerifier;
+
+    @Value("${app.auth.cookie.secure:false}")
+    private boolean refreshCookieSecure;
+
+    @Value("${app.auth.cookie.same-site:Lax}")
+    private String refreshCookieSameSite = "Lax";
 
     @Override
     @Transactional
@@ -104,6 +112,7 @@ public class AuthServiceImpl implements IAuthService {
                 .role(userRole)
                 .status(UserStatus.ACTIVE.name())
                 .reputationPoints(0)
+                .reputationRank(reputationRankRepository.findRankByPoints(0).orElse(null))
                 .createdAt(LocalDateTime.now(applicationClock))
                 .updatedAt(LocalDateTime.now(applicationClock))
                 .build();
@@ -188,6 +197,7 @@ public class AuthServiceImpl implements IAuthService {
                 .role(userRole)
                 .status(UserStatus.ACTIVE.name())
                 .reputationPoints(0)
+                .reputationRank(reputationRankRepository.findRankByPoints(0).orElse(null))
                 .createdAt(now)
                 .updatedAt(now)
                 .lastLoginAt(now)
@@ -434,10 +444,10 @@ public class AuthServiceImpl implements IAuthService {
         if (response == null) return;
         ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
-                .secure(false) // Can be set to true in HTTPS production
+                .secure(refreshCookieSecure)
                 .path("/")
                 .maxAge(tokenProvider.getRefreshExpirationInMs() / 1000)
-                .sameSite("Lax")
+                .sameSite(refreshCookieSameSite)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
@@ -446,10 +456,10 @@ public class AuthServiceImpl implements IAuthService {
         if (response == null) return;
         ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
                 .httpOnly(true)
-                .secure(false)
+                .secure(refreshCookieSecure)
                 .path("/")
                 .maxAge(0)
-                .sameSite("Lax")
+                .sameSite(refreshCookieSameSite)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }

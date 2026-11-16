@@ -4,9 +4,178 @@ import type { ScamCheckResult } from "../types/scam-check.types"
 import {
   CheckScanRequest,
   CheckScanResponse,
+  DeterministicFeatures,
   RiskLevel,
   ExecutionProvenance,
 } from "../types/check.types"
+
+const OFFICIAL_WHITELIST_DOMAINS = [
+  "vietcombank.com.vn",
+  "bidv.com.vn",
+  "vietinbank.vn",
+  "agribank.com.vn",
+  "techcombank.com",
+  "techcombank.com.vn",
+  "mbbank.com.vn",
+  "acb.com.vn",
+  "vpbank.com.vn",
+  "tpb.vn",
+  "sacombank.com.vn",
+  "vib.com.vn",
+  "hdbank.com.vn",
+  "shb.com.vn",
+  "seabank.com.vn",
+  "lpbank.com.vn",
+  "msb.com.vn",
+  "ocb.com.vn",
+  "eximbank.com.vn",
+  "viettel.com.vn",
+  "vietteltelecom.vn",
+  "vnpt.com.vn",
+  "vinaphone.com.vn",
+  "mobifone.vn",
+  "dichvucong.gov.vn",
+  "chinhphu.vn",
+  "mps.gov.vn",
+  "sbv.gov.vn",
+  "vneid.gov.vn",
+]
+
+const CLIENT_URL_REGEX =
+  /https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|(?<![\w@.])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|info|biz|vn|io|co|me|to|cc|tv|xyz|top|vip|shop|online|site|club|app|link|live|store|asia|tk|ml|ga|cf|gq|icu|cyou|bond|sbs|click|fun|pro|win|bet|best|life|world|today|news|space|website|tech|dev|ly|gl|gd|in|us|uk|cn|ru)\b(?:\/[^\s<>"']*)?/g
+
+const CLIENT_PHONE_REGEX =
+  /(?<!\d)(?:(?:\+84|0)[35789]\d{8}|(?:1800|1900)\d{4,6})(?!\d)/g
+
+function extractFallbackFeatures(
+  content: string,
+  decidedByStage?: string
+): DeterministicFeatures | null {
+  if (!content || !content.trim()) return null
+
+  const ignored = new Set(["e.g", "i.e", "tp.hcm", "tp.hn"])
+  const rawUrls = content.match(CLIENT_URL_REGEX) || []
+  const urls = Array.from(
+    new Set(
+      rawUrls
+        .map((m) => m.trim().replace(/[.,;:!?)'"]+$/g, ""))
+        .filter(
+          (c) =>
+            c &&
+            !ignored.has(c.toLowerCase()) &&
+            !/^\d+\.\d+$/.test(c) &&
+            !c.includes("@")
+        )
+    )
+  )
+
+  const rawPhones = content.match(CLIENT_PHONE_REGEX) || []
+  const phones = Array.from(new Set(rawPhones.map((p) => p.trim())))
+
+  let isWhitelist = decidedByStage === "WHITELIST"
+  if (urls.length > 0 && !isWhitelist && decidedByStage !== "BLACKLIST") {
+    isWhitelist = urls.some((u) => {
+      try {
+        const full = u.includes("://") ? u : `http://${u}`
+        const host = new URL(full).hostname.toLowerCase()
+        return OFFICIAL_WHITELIST_DOMAINS.some(
+          (d) => host === d || host.endsWith(`.${d}`)
+        )
+      } catch {
+        return false
+      }
+    })
+  }
+
+  return {
+    url_analysis: {
+      detected_urls: urls,
+      is_in_official_whitelist: urls.length > 0 ? isWhitelist : true,
+      domain_reputation:
+        urls.length === 0
+          ? "LEGITIMATE"
+          : isWhitelist
+            ? "LEGITIMATE"
+            : "MALICIOUS_SIMILARITY",
+    },
+    phone_analysis: {
+      detected_phones: phones,
+      is_official_hotline: phones.some(
+        (p) => p.startsWith("1800") || p.startsWith("1900")
+      ),
+      phone_type: phones.some(
+        (p) => p.startsWith("1800") || p.startsWith("1900")
+      )
+        ? "HOTLINE"
+        : phones.length > 0
+          ? "PERSONAL_MOBILE"
+          : "NONE",
+    },
+    urgency_indicators: {
+      matched_keywords: [],
+      urgency_score: 0,
+    },
+  }
+}
+
+/**
+ * Vietnamese label used when the backend did not name the scam type itself.
+ * BANK_ACCOUNT checks are directory lookups only, so their wording never
+ * implies an AI judgement.
+ */
+function fallbackScamType(riskLevel: RiskLevel, resolvedType: string): string {
+  const isPhone = resolvedType === "PHONE"
+  const isUrl = resolvedType === "URL"
+  const isBank = resolvedType === "BANK_ACCOUNT"
+
+  if (riskLevel === "DANGEROUS") {
+    if (isPhone) return "Số điện thoại có nguy cơ lừa đảo / làm phiền"
+    if (isUrl) return "Đường dẫn (URL) độc hại / giả mạo"
+    if (isBank) return "Số tài khoản có dấu hiệu lừa đảo"
+    return "Cảnh báo nguy cơ lừa đảo"
+  }
+  if (riskLevel === "SAFE") {
+    if (isPhone) return "Số điện thoại chính thức đã xác minh"
+    if (isUrl) return "Đường dẫn (URL) chính thức đã xác thực"
+    if (isBank) return "Số tài khoản thuộc danh bạ đã xác minh"
+    return "Tin nhắn an toàn"
+  }
+  if (isPhone) return "Số điện thoại cần kiểm chứng thêm"
+  if (isUrl) return "Đường dẫn (URL) cần kiểm chứng thêm"
+  if (isBank) return "Số tài khoản chưa có trong danh bạ xác minh"
+  return "Nội dung cần kiểm chứng"
+}
+
+/**
+ * Vietnamese summary used when the backend returned no explanation.
+ * Never claims a tier or an AI verdict that did not run.
+ */
+function fallbackSummary(riskLevel: RiskLevel, resolvedType: string): string {
+  const isPhone = resolvedType === "PHONE"
+  const isUrl = resolvedType === "URL"
+  const isBank = resolvedType === "BANK_ACCOUNT"
+
+  if (riskLevel === "DANGEROUS") {
+    if (isPhone)
+      return "Hệ thống ghi nhận số điện thoại này trong danh sách cảnh báo hoặc có dấu hiệu mạo danh."
+    if (isUrl)
+      return "Hệ thống phát hiện đường dẫn này có dấu hiệu lừa đảo hoặc chứa mã độc đánh cắp thông tin."
+    if (isBank)
+      return "Hệ thống ghi nhận số tài khoản này trong danh sách cảnh báo lừa đảo đã được xác minh."
+    return "Hệ thống phát hiện dấu hiệu rủi ro cao trong nội dung kiểm tra."
+  }
+  if (riskLevel === "SAFE") {
+    if (isPhone)
+      return "Số điện thoại thuộc danh bạ đối tác chính thức đã được chứng thực."
+    if (isUrl)
+      return "Đường dẫn thuộc danh bạ tên miền chính thức đã được chứng thực."
+    if (isBank) return "Số tài khoản khớp với danh bạ đối tác đã được xác minh."
+    return "Nội dung khớp với thông báo thông thường, không phát hiện dấu hiệu lừa đảo."
+  }
+  if (isBank)
+    return "Số tài khoản chưa có trong danh bạ xác minh. Hệ thống chỉ đối chiếu danh sách cảnh báo và danh bạ đã xác minh, nên hãy kiểm chứng thêm trước khi chuyển tiền."
+  return "Chưa đủ dữ liệu để kết luận chắc chắn. Khuyến nghị kiểm chứng thêm."
+}
 
 /**
  * Maps Spring Boot Backend ScamCheckResult DTO into UI CheckScanResponse contract.
@@ -15,7 +184,8 @@ import {
 export function mapBackendDtoToScanResponse(
   backendData: ScamCheckResult,
   executionTimeMs: number,
-  inputTypeOverride?: string
+  inputTypeOverride?: string,
+  rawInputContent?: string
 ): CheckScanResponse {
   if (!backendData || typeof backendData !== "object" || !backendData.verdict) {
     throw new Error("Dữ liệu phản hồi từ máy chủ kiểm tra không hợp lệ.")
@@ -23,13 +193,18 @@ export function mapBackendDtoToScanResponse(
 
   const ai = backendData.aiDetails
   const rawVerdict = String(backendData.verdict).toUpperCase()
-  const resolvedType = (inputTypeOverride || backendData.inputType || "").toUpperCase()
+  const resolvedType = (
+    inputTypeOverride ||
+    backendData.inputType ||
+    ""
+  ).toUpperCase()
 
   // 1. Determine risk level
   let riskLevel: RiskLevel = "UNKNOWN"
   if (ai?.verdict?.riskLevel) {
     const aiRisk = ai.verdict.riskLevel.toUpperCase()
-    if (aiRisk === "DANGEROUS" || aiRisk === "SCAM_RISK") riskLevel = "DANGEROUS"
+    if (aiRisk === "DANGEROUS" || aiRisk === "SCAM_RISK")
+      riskLevel = "DANGEROUS"
     else if (aiRisk === "SAFE" || aiRisk === "LOW_RISK") riskLevel = "SAFE"
     else if (aiRisk === "SUSPICIOUS") riskLevel = "SUSPICIOUS"
     else riskLevel = "UNKNOWN"
@@ -41,64 +216,48 @@ export function mapBackendDtoToScanResponse(
     riskLevel = "SUSPICIOUS"
   }
 
-  // 2. Determine risk score (0-100, or null if UNKNOWN)
-  let riskScore: number | null = null
-  if (ai?.verdict?.riskScore != null) {
-    riskScore = Math.round(Number(ai.verdict.riskScore))
-  } else if (riskLevel === "DANGEROUS") {
-    riskScore = 92
-  } else if (riskLevel === "SAFE") {
-    riskScore = 5
-  } else if (riskLevel === "SUSPICIOUS") {
-    riskScore = 60
-  }
+  // 2. Determine risk score (0-100, or null when the backend did not score it)
+  // Never synthesise a score from the risk level: the backend is the only
+  // source of truth, so unknown stays unknown in the UI.
+  const riskScore: number | null =
+    ai?.verdict?.riskScore != null
+      ? Math.round(Number(ai.verdict.riskScore))
+      : null
 
   // 3. Determine scam type & summary
   const scamType =
     ai?.verdict?.scamType ||
     backendData.categoryCode ||
-    (riskLevel === "DANGEROUS"
-      ? resolvedType === "PHONE"
-        ? "Số điện thoại có nguy cơ lừa đảo / làm phiền"
-        : resolvedType === "URL"
-          ? "Đường dẫn (URL) độc hại / giả mạo"
-          : "Cảnh báo nguy cơ lừa đảo"
-      : riskLevel === "SAFE"
-        ? resolvedType === "PHONE"
-          ? "Số điện thoại chính thức đã xác minh"
-          : resolvedType === "URL"
-            ? "Đường dẫn (URL) chính thức đã xác thực"
-            : "Tin nhắn an toàn"
-        : resolvedType === "PHONE"
-          ? "Số điện thoại cần kiểm chứng thêm"
-          : resolvedType === "URL"
-            ? "Đường dẫn (URL) cần kiểm chứng thêm"
-            : "Nội dung cần kiểm chứng")
+    fallbackScamType(riskLevel, resolvedType)
 
   const summary =
     ai?.verdict?.summary ||
     backendData.explanation ||
-    (riskLevel === "DANGEROUS"
-      ? resolvedType === "PHONE"
-        ? "Hệ thống ghi nhận số điện thoại này trong danh sách cảnh báo hoặc có dấu hiệu mạo danh."
-        : resolvedType === "URL"
-          ? "Hệ thống phát hiện đường dẫn này có dấu hiệu lừa đảo hoặc chứa mã độc đánh cắp thông tin."
-          : "Hệ thống phát hiện dấu hiệu rủi ro cao trong nội dung kiểm tra."
-      : riskLevel === "SAFE"
-        ? resolvedType === "PHONE"
-          ? "Số điện thoại thuộc danh bạ đối tác chính thức đã được chứng thực."
-          : resolvedType === "URL"
-            ? "Đường dẫn thuộc danh bạ tên miền chính thức đã được chứng thực."
-            : "Nội dung khớp với thông báo thông thường, không phát hiện dấu hiệu lừa đảo."
-        : "Chưa đủ dữ liệu để kết luận chắc chắn. Khuyến nghị kiểm chứng thêm.")
+    fallbackSummary(riskLevel, resolvedType)
 
-  // 4. Execution provenance
-  let provenance: ExecutionProvenance = "TIER1_FAST_PATH"
-  if (ai?.tierExecuted === 2 || backendData.decidedByStage?.includes("TIER2")) {
-    provenance = "TIER2_FORENSIC_COUNCIL"
-  } else if (riskLevel === "UNKNOWN") {
-    provenance = "TRI_STATE_UNKNOWN"
-  }
+  // 4. Execution provenance — derived only from signals the backend actually
+  // reported. Tier 2 is claimed when the forensic council really ran, tier 1
+  // only when a curated / AI fast-path decision exists. Anything else stays
+  // explicitly unknown instead of being defaulted to a tier.
+  const decidedByStage = (backendData.decidedByStage || "").toUpperCase()
+  const councilExecuted =
+    ai?.tierExecuted === 2 ||
+    ai?.councilAudit != null ||
+    decidedByStage.includes("TIER2") ||
+    decidedByStage.includes("COUNCIL") ||
+    decidedByStage.includes("LLM")
+  const curatedDecision =
+    backendData.matchedIndicator != null ||
+    decidedByStage.includes("BLACKLIST") ||
+    decidedByStage.includes("WHITELIST") ||
+    decidedByStage.includes("VISOBERT") ||
+    ai?.tierExecuted === 1
+
+  const provenance: ExecutionProvenance = councilExecuted
+    ? "TIER2_FORENSIC_COUNCIL"
+    : curatedDecision
+      ? "TIER1_FAST_PATH"
+      : "TRI_STATE_UNKNOWN"
 
   // 5. Actionable steps tailored by inputType & riskLevel
   const actionableSteps: string[] = []
@@ -164,6 +323,15 @@ export function mapBackendDtoToScanResponse(
     }
   }
 
+  const council = ai?.councilDeliberation || ai?.council_deliberation || null
+
+  const features =
+    ai?.deterministicFeatures ||
+    ai?.deterministic_features ||
+    (rawInputContent
+      ? extractFallbackFeatures(rawInputContent, backendData.decidedByStage)
+      : null)
+
   // Determine confidence (represent unavailable as undefined)
   const confidence =
     ai?.verdict?.confidence != null
@@ -175,12 +343,17 @@ export function mapBackendDtoToScanResponse(
   return {
     status: "success",
     scan_id: ai?.scanId || `SCAN-${backendData.checkId || Date.now()}`,
+    // Pass the persisted check id through so the action bar can deep-link to
+    // the report form and the history detail page.
+    check_id: Number(backendData.checkId) || 0,
     created_at:
       ai?.createdAt ||
-      (backendData.createdAt ? String(backendData.createdAt) : new Date().toISOString()),
+      (backendData.createdAt
+        ? String(backendData.createdAt)
+        : new Date().toISOString()),
     execution_provenance: provenance,
-    execution_time_ms: Math.max(1, Math.round(executionTimeMs * 10) / 10),
-    cloud_cost_usd: ai?.tierExecuted === 2 ? 0.002 : 0.0,
+    // Caller-measured wall-clock duration, passed through unchanged.
+    execution_time_ms: executionTimeMs,
     engine_details: {
       model_name:
         ai?.councilAudit?.leadModel || "Hệ thống đánh giá ScamShield Core",
@@ -194,9 +367,7 @@ export function mapBackendDtoToScanResponse(
       summary: summary,
       ...(confidence != null ? { confidence } : {}),
       confidence_level:
-        riskLevel === "DANGEROUS" || riskLevel === "SAFE"
-          ? "HIGH"
-          : "MEDIUM",
+        riskLevel === "DANGEROUS" || riskLevel === "SAFE" ? "HIGH" : "MEDIUM",
     },
     guidance_type:
       ai?.tierExecuted === 2
@@ -205,11 +376,15 @@ export function mapBackendDtoToScanResponse(
           ? "EPISTEMIC_CAUTION"
           : "STATIC_SOP",
     actionable_steps: actionableSteps,
-    tier_executed: ai?.tierExecuted === 2 ? 2 : 1,
+    // Only report a tier the backend actually executed; never invent tier 1.
+    tier_executed: ai?.tierExecuted,
     recommendations: actionableSteps,
     input_type: resolvedType || "TEXT",
     matched_indicator: backendData.matchedIndicator,
     decided_by_stage: backendData.decidedByStage,
+    unknown_reason: backendData.unknownReason,
+    council_deliberation: council || undefined,
+    deterministic_features: features || undefined,
   }
 }
 
@@ -236,19 +411,23 @@ export async function checkScamContent(
     // Ignore localStorage access failures in restricted environments
   }
 
+  // BANK_ACCOUNT is a real backend input type: map it explicitly instead of
+  // silently degrading it to MESSAGE (account numbers are not AI content).
+  const payloadType = payload?.check_type
   const inputType =
-    payload?.check_type === "URL"
-      ? "URL"
-      : payload?.check_type === "PHONE"
-        ? "PHONE"
-        : "MESSAGE"
+    payloadType === "URL" ||
+    payloadType === "PHONE" ||
+    payloadType === "BANK_ACCOUNT"
+      ? payloadType
+      : "MESSAGE"
 
   const headers: Record<string, string> = {}
   if (guestToken) {
     headers["X-Guest-Session"] = guestToken
   }
 
-  const startTime = typeof performance !== "undefined" ? performance.now() : Date.now()
+  const startTime =
+    typeof performance !== "undefined" ? performance.now() : Date.now()
 
   try {
     const { data: res } = await authorizeApi.post<{
@@ -263,15 +442,23 @@ export async function checkScamContent(
       },
       {
         headers,
-        timeout: 20000,
+        // Tier 2 (AI council) runs synchronously server-side; the backend allows
+        // up to 60s, so the client must wait longer than that before aborting.
+        timeout: 90000,
       }
     )
 
     const elapsedMs =
-      (typeof performance !== "undefined" ? performance.now() : Date.now()) - startTime
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+      startTime
 
     if (res?.isSuccess && res.data) {
-      return mapBackendDtoToScanResponse(res.data, elapsedMs, inputType)
+      return mapBackendDtoToScanResponse(
+        res.data,
+        elapsedMs,
+        inputType,
+        content.trim()
+      )
     }
 
     throw new Error(res?.message || "Không thể hoàn tất phân tích.")
@@ -282,7 +469,9 @@ export async function checkScamContent(
           "Yêu cầu phân tích bị quá thời gian chờ (Timeout). Vui lòng thử lại."
         )
       }
-      const serverMessage = (err.response?.data as { message?: string } | undefined)?.message
+      const serverMessage = (
+        err.response?.data as { message?: string } | undefined
+      )?.message
       if (serverMessage) {
         throw new Error(serverMessage)
       }
@@ -300,7 +489,9 @@ export async function checkScamContent(
 /**
  * Retrieve saved scam check record by checkId from backend
  */
-export async function getScamCheckResult(checkId: number): Promise<ScamCheckResult> {
+export async function getScamCheckResult(
+  checkId: number
+): Promise<ScamCheckResult> {
   const { data } = await authorizeApi.get<{
     isSuccess: boolean
     message: string

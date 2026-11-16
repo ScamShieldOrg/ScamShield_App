@@ -50,7 +50,6 @@ export interface CreateReportPayload {
   targetIdentifier: string
   category: string
   description: string
-  reportedMessage?: string
   attachments: File[]
   isConfirmed: boolean
 }
@@ -110,7 +109,6 @@ export interface OwnReportDetail {
   categoryId: number | null
   regionCode: string | null
   description: string | null
-  reportedMessage: string | null
   status: ReportStatus
   createdAt: string
   updatedAt: string
@@ -126,7 +124,6 @@ export interface OwnReportDetail {
 
 export interface UpdateOwnReportPayload {
   description: string
-  reportedMessage: string | null
   categoryId: number | null
   regionCode: string | null
   evidences?: {

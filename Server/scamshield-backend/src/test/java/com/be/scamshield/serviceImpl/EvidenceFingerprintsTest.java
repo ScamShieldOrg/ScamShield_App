@@ -10,6 +10,18 @@ import static org.assertj.core.api.Assertions.*;
 
 class EvidenceFingerprintsTest {
     @Test
+    void extractsSmsBodyDespiteDifferentScreenHeaders() {
+        String body = "Ma tang LC79 gui tang quy khach code tri gia 50K. Truy cap tai day de nhan qua.";
+        String first = "18:25 5G\nTin nhan van ban - SMS\n18:23, Hom nay\n" + body;
+        String second = "025 all ee\nTin nhắn văn bản • SMS\n18:23, Ha m nay\n" + body
+                + "\nTin nhắn văn bản • SMS";
+        assertThat(EvidenceFingerprints.normalizeSmsBody(first, 60))
+                .isNotEmpty()
+                .isEqualTo(EvidenceFingerprints.normalizeSmsBody(second, 60));
+        assertThat(EvidenceFingerprints.normalizeSmsBody(body, 60)).isEmpty();
+    }
+
+    @Test
     void resizedAndReencodedImagesHaveDifferentShaButSimilarPerceptualHash() throws Exception {
         BufferedImage original = new BufferedImage(800, 400, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = original.createGraphics();

@@ -72,7 +72,6 @@ export interface ModeratorReportItem {
   targetIdentifier: string
   targetType?: string
   description?: string | null
-  reportedMessage?: string | null
   category: string
   categoryId?: number
   reportCount: number

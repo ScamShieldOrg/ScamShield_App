@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import {
   Phone,
   Bank,
@@ -99,9 +99,68 @@ const ALLOWED_MIME_TYPES = [
   "image/jpg",
 ]
 
+/** Keep in sync with `DISPUTE_PREFILL_KEY` in the check action bar. */
+const DISPUTE_PREFILL_KEY = "scamshield.dispute-prefill"
+
+/** Only an indicator can be disputed, so free-form text maps to nothing. */
+const INPUT_TYPE_TO_INDICATOR: Record<string, DisputeIndicatorType> = {
+  URL: "URL",
+  PHONE: "PHONE",
+  BANK_ACCOUNT: "BANK_ACCOUNT",
+}
+
+/** Draft written by the check result action bar before navigating here. */
+interface DisputePrefillDraft {
+  scanId?: string | null
+  checkId?: number | null
+  inputType?: string | null
+  indicatorValue?: string | null
+}
+
+/**
+ * Reads the draft without consuming it, so the form can seed its fields during
+ * the first render. `clearDisputePrefill` drops it once the form has mounted.
+ */
+function peekDisputePrefill(): DisputePrefillDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(DISPUTE_PREFILL_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== "object") return null
+    return parsed as DisputePrefillDraft
+  } catch {
+    return null
+  }
+}
+
+/** One-shot hand-off: never re-apply stale context on a later visit. */
+function clearDisputePrefill() {
+  try {
+    window.sessionStorage.removeItem(DISPUTE_PREFILL_KEY)
+  } catch {
+    // Private mode or a blocked storage API: there is nothing to clear.
+  }
+}
+
+function indicatorTypeFromInputType(value: string | null | undefined) {
+  if (!value) return null
+  return INPUT_TYPE_TO_INDICATOR[value] ?? null
+}
+
 export function DisputeSubmissionForm({ onSuccess }: DisputeSubmissionFormProps) {
-  const [indicatorType, setIndicatorType] = useState<DisputeIndicatorType>("PHONE")
-  const [indicatorValue, setIndicatorValue] = useState("")
+  // The check action bar hands a one-shot draft over in `sessionStorage`. It is
+  // read during the first render - never inside an effect - so the fields are
+  // seeded without cascading re-renders.
+  const [prefillDraft] = useState(() => peekDisputePrefill())
+  const [indicatorType, setIndicatorType] = useState<DisputeIndicatorType>(
+    () => indicatorTypeFromInputType(prefillDraft?.inputType) ?? "PHONE"
+  )
+  // Only the disputed target is carried over. The reason box stays empty on
+  // purpose: it is the user's own legal declaration, not a summary of the
+  // automated verdict.
+  const [indicatorValue, setIndicatorValue] = useState(
+    () => prefillDraft?.indicatorValue?.trim() ?? ""
+  )
   const [legalRelationship, setLegalRelationship] =
     useState<DisputeLegalRelationship>("OWNER")
   const [reason, setReason] = useState("")
@@ -112,6 +171,14 @@ export function DisputeSubmissionForm({ onSuccess }: DisputeSubmissionFormProps)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // The draft was already rendered into the fields above; drop it now so a
+  // later visit starts clean.
+  useEffect(() => {
+    if (prefillDraft) clearDisputePrefill()
+    // `prefillDraft` never changes after the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const activeIndicatorConfig =
     INDICATOR_TYPES.find((t) => t.type === indicatorType) || INDICATOR_TYPES[0]

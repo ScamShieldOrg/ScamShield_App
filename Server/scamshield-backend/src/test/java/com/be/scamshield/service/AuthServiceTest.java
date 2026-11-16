@@ -13,6 +13,7 @@ import com.be.scamshield.exception.ResourceNotFoundException;
 import com.be.scamshield.exception.UnauthorizedException;
 import com.be.scamshield.repository.RefreshTokenRepository;
 import com.be.scamshield.repository.RoleRepository;
+import com.be.scamshield.repository.ReputationRankRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.security.GoogleTokenVerifier;
 import com.be.scamshield.security.JwtTokenProvider;
@@ -55,6 +56,8 @@ class AuthServiceTest {
     private GoogleTokenVerifier googleTokenVerifier;
     @Mock
     private RoleRepository roleRepository;
+    @Mock
+    private ReputationRankRepository reputationRankRepository;
     @Mock
     private ContactVerificationService contactVerificationService;
     @Mock

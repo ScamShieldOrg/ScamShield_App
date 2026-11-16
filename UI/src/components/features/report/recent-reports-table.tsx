@@ -94,8 +94,8 @@ export function RecentReportsTable({
     const labels: Record<string, string> = {
       PENDING: "Đang chờ duyệt",
       IN_REVIEW: "Đang kiểm duyệt",
-      APPROVED: "Đã duyệt",
-      REJECTED: "Từ chối duyệt",
+      APPROVED: "Đã chấp nhận",
+      REJECTED: "Đã từ chối",
       WITHDRAWN: "Đã thu hồi",
     }
     return (
@@ -237,10 +237,16 @@ export function RecentReportsTable({
               filteredItems.map((item) => (
                 <tr
                   key={item.id}
-                  className="transition-colors hover:bg-[#FAF8FF]/80 dark:hover:bg-muted/20"
+                  className="relative transition-colors hover:bg-[#FAF8FF]/80 focus-within:bg-[#FAF8FF]/80 dark:hover:bg-muted/20 dark:focus-within:bg-muted/20"
                 >
                   <td className="py-3.5 pr-3 font-medium tabular-nums">
-                    {Number(item.id.split("-").at(-1))}
+                    <Link
+                      href={`/user/reports/${item.id.replace(/\D/g, "")}`}
+                      aria-label={`Xem chi tiết báo cáo ${Number(item.id.split("-").at(-1))}`}
+                      className="after:absolute after:inset-0 after:cursor-pointer focus-visible:underline"
+                    >
+                      {Number(item.id.split("-").at(-1))}
+                    </Link>
                   </td>
                   {/* Target Value with Icon */}
                   <td className="py-3.5 pr-3">
@@ -304,7 +310,7 @@ export function RecentReportsTable({
                     <Menu.Root>
                       <Menu.Trigger
                         aria-label={`Quản lý báo cáo ${item.targetValue}`}
-                        className="mx-auto flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                        className="relative z-10 mx-auto flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <DotsThree size={22} weight="bold" />
                       </Menu.Trigger>

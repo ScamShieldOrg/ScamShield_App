@@ -185,25 +185,6 @@ test("send JSON metadata and original file bytes in separate multipart parts", a
   assert.equal(result.evidenceCount, 2)
 })
 
-test("preserve optional pasted message separately from the report description", async () => {
-  const h = createHarness()
-  const reportedMessage = "  Tin nhắn gốc:\n" + "Chuyển tiền ngay. ".repeat(30)
-  await h.submitScamReport({ ...payload(), reportedMessage })
-  const request = JSON.parse(await h.requests[0].body.get("request").text())
-  assert.equal(request.reportedMessage, reportedMessage)
-  assert.equal(request.description, "Gửi SMS yêu cầu cung cấp mã OTP.")
-})
-
-test("omit the optional message when absent, empty or whitespace only", async () => {
-  for (const reportedMessage of [undefined, "", " \n\t "]) {
-    const h = createHarness()
-    await h.submitScamReport({ ...payload(), reportedMessage })
-    const request = JSON.parse(await h.requests[0].body.get("request").text())
-    assert.equal(Object.hasOwn(request, "reportedMessage"), false)
-    assert.equal(request.description, "Gửi SMS yêu cầu cung cấp mã OTP.")
-  }
-})
-
 test("a report without evidence is rejected before contacting the backend", async () => {
   const h = createHarness()
   await assert.rejects(
@@ -351,15 +332,13 @@ test("actual Axios transport sends a valid multipart boundary, auth header and b
   assert.ok(received.body.includes(Buffer.from("%PDF-1.4")))
 })
 
-test("each report text field accepts 2000 characters and rejects 2001 before upload", async () => {
+test("report description accepts 2000 characters and rejects 2001 before upload", async () => {
   const accepted = createHarness()
-  await accepted.submitScamReport({ ...payload(), description: "a".repeat(2000), reportedMessage: "b".repeat(2000) })
+  await accepted.submitScamReport({ ...payload(), description: "a".repeat(2000) })
   assert.equal(accepted.requests.length, 1)
-  for (const field of ["description", "reportedMessage"]) {
-    const rejected = createHarness()
-    await assert.rejects(rejected.submitScamReport({ ...payload(), [field]: "x".repeat(2001) }), /2\.000 ký tự/)
-    assert.equal(rejected.requests.length, 0)
-  }
+  const rejected = createHarness()
+  await assert.rejects(rejected.submitScamReport({ ...payload(), description: "x".repeat(2001) }), /2\.000 ký tự/)
+  assert.equal(rejected.requests.length, 0)
 })
 
 test("submitted report exposes the friendly category name returned by the API", async () => {

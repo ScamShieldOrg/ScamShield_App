@@ -31,7 +31,7 @@ export default function UserNotificationsPage() {
   const [tabCounts, setTabCounts] =
     useState<NotificationTabCounts>(DEFAULT_TAB_COUNTS)
 
-  const notificationRevision = useNotificationStore(state => state.revision)
+  const notificationRevision = useNotificationStore((state) => state.revision)
   const latestRequest = useRef(0)
   const [loadError, setLoadError] = useState("")
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
@@ -271,47 +271,85 @@ export default function UserNotificationsPage() {
         ) : (
           // Real Notifications List
           notifications.map((notif) => {
+            const isReport =
+              notif.referenceType === "REPORT" || notif.type === "REPORT"
+            const reportId =
+              isReport &&
+              Number.isSafeInteger(notif.referenceId) &&
+              Number(notif.referenceId) > 0
+                ? notif.referenceId
+                : undefined
+            const rejection = isReport
+              ? notif.desc.match(
+                  /^Báo cáo của bạn về (.+?) đã bị từ chối\. Lý do: ([\s\S]+)$/u
+                )
+              : null
+            const approval = isReport
+              ? notif.desc.match(
+                  /^Báo cáo của bạn về (.+?) đã được xác thực và đưa vào danh sách cảnh báo\.$/u
+                )
+              : null
+            const target = rejection?.[1] ?? approval?.[1]
             return (
               <button
                 type="button"
                 key={notif.id}
                 onClick={() => {
                   void handleNotificationClick(notif)
-                  if (
-                    (notif.referenceType === "REPORT" ||
-                      notif.type === "REPORT") &&
-                    Number.isSafeInteger(notif.referenceId) &&
-                    Number(notif.referenceId) > 0
-                  ) {
-                    router.push(`/user/reports/${notif.referenceId}`)
+                  if (reportId) {
+                    router.push(`/user/reports/${reportId}`)
                   }
                 }}
                 className="group flex w-full cursor-pointer flex-col justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-xs transition-colors hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/80"
               >
-                <div className="flex items-start gap-4">
-                  <div>
-                    <div className="mb-1 flex items-center gap-2">
-                      <h3
-                        className={cn(
-                          "text-[15px] leading-snug",
-                          notif.unread
-                            ? "font-bold text-slate-900 dark:text-white"
-                            : "font-semibold text-slate-700 dark:text-slate-300"
-                        )}
-                      >
-                        {notif.title}
-                      </h3>
-                      {notif.unread && (
-                        <span
-                          aria-label="Chưa đọc"
-                          className="size-2 shrink-0 rounded-full bg-blue-600 dark:bg-blue-400"
-                        />
+                <div className="min-w-0">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <h3
+                      className={cn(
+                        "text-[15px] leading-snug",
+                        rejection
+                          ? "font-bold text-red-700 dark:text-red-300"
+                          : approval
+                            ? "font-bold text-emerald-700 dark:text-emerald-300"
+                            : notif.unread
+                              ? "font-bold text-slate-900 dark:text-white"
+                              : "font-semibold text-slate-700 dark:text-slate-300"
                       )}
-                    </div>
-                    <p className="text-[13px] leading-relaxed font-medium text-slate-500 dark:text-slate-400">
-                      {notif.desc}
-                    </p>
+                    >
+                      {notif.title}
+                    </h3>
+                    {reportId && (
+                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-foreground">
+                        Báo cáo {reportId}
+                      </span>
+                    )}
+                    {notif.unread && (
+                      <span
+                        aria-label="Chưa đọc"
+                        className="size-2 shrink-0 rounded-full bg-blue-600 dark:bg-blue-400"
+                      />
+                    )}
                   </div>
+                  <p className="text-[13px] leading-relaxed font-medium wrap-anywhere text-slate-500 dark:text-slate-400">
+                    {target ? (
+                      <>
+                        Đối tượng bị báo cáo{" "}
+                        <strong className="text-foreground">{target}</strong>
+                      </>
+                    ) : (
+                      notif.desc
+                    )}
+                  </p>
+                  {rejection && (
+                    <p className="mt-1 text-[13px] leading-relaxed wrap-anywhere text-foreground">
+                      <strong>Lý do từ chối</strong> · {rejection[2]}
+                    </p>
+                  )}
+                  {approval && (
+                    <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+                      Đối tượng đã được xác thực và đưa vào danh sách cảnh báo.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">

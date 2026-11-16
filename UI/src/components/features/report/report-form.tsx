@@ -7,7 +7,9 @@ import { Combobox } from "@base-ui/react/combobox"
 
 import { dashboardService } from "@/features/dashboard/services/dashboard.service"
 import type { DashboardRegionOption } from "@/features/dashboard/types/dashboard.types"
-import { useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { ReportSubmissionError } from "./report-submission-error"
 import { toast } from "react-toastify"
 import { cn } from "@/lib/utils"
 import {
@@ -30,6 +32,73 @@ import {
   ReportThreatType,
   CreateReportPayload,
 } from "@/features/report/types/report.types"
+import { getScamCheckResult } from "@/features/check/services/check.service"
+
+/** Keep in sync with `REPORT_PREFILL_KEY` in the check action bar. */
+const REPORT_PREFILL_KEY = "scamshield.report-prefill"
+
+const INPUT_TYPE_TO_THREAT_TYPE: Record<string, ReportThreatType> = {
+  URL: "WEBSITE",
+  PHONE: "PHONE",
+  BANK_ACCOUNT: "BANK_ACCOUNT",
+}
+
+/** Draft written by the check result action bar before navigating here. */
+interface ReportPrefillDraft {
+  scanId?: string | null
+  checkId?: number | null
+  inputType?: string | null
+  targetIdentifier?: string | null
+  reportedMessage?: string | null
+  description?: string | null
+}
+
+/**
+ * Reads the draft without consuming it, so the form can seed its fields during
+ * the first render. `clearReportPrefill` drops it once the form has mounted.
+ */
+function peekReportPrefill(): ReportPrefillDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(REPORT_PREFILL_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== "object") return null
+    return parsed as ReportPrefillDraft
+  } catch {
+    return null
+  }
+}
+
+/** One-shot hand-off: never re-apply stale context on a later visit. */
+function clearReportPrefill() {
+  try {
+    window.sessionStorage.removeItem(REPORT_PREFILL_KEY)
+  } catch {
+    // Private mode or a blocked storage API: there is nothing to clear.
+  }
+}
+
+function threatTypeFromInputType(value: string | null | undefined) {
+  if (!value) return null
+  return INPUT_TYPE_TO_THREAT_TYPE[value] ?? null
+}
+
+function parseCheckId(value: string | number | null | undefined) {
+  const numeric = typeof value === "number" ? value : Number(value)
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : null
+}
+
+function extractTrailingDigits(value: string) {
+  const match = /(\d+)\s*$/.exec(value)
+  return match ? match[1] : null
+}
+
+function truncateText(value: string, maxLength: number) {
+  const trimmed = value.trim()
+  return trimmed.length <= maxLength
+    ? trimmed
+    : `${trimmed.slice(0, maxLength - 3).trimEnd()}...`
+}
 
 import { getReportCategories } from "@/features/report/services/report.service"
 
@@ -42,13 +111,41 @@ interface ReportFormProps {
   uploadProgress?: number
 }
 
-export function ReportForm({
+export function ReportForm(props: ReportFormProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6 rounded-2xl border border-[#C6C6CE]/40 bg-white p-6 shadow-xs dark:border-border dark:bg-card">
+          <p className="text-xs text-muted-foreground">
+            Đang chuẩn bị biểu mẫu báo cáo...
+          </p>
+        </div>
+      }
+    >
+      <ReportFormContent {...props} />
+    </Suspense>
+  )
+}
+
+function ReportFormContent({
   onSubmit,
   isLoading,
   uploadProgress = 0,
 }: ReportFormProps) {
-  const [threatType, setThreatType] = useState<ReportThreatType | null>(null)
-  const [targetIdentifier, setTargetIdentifier] = useState("")
+  // `useSearchParams` must be called inside the Suspense boundary above.
+  const searchParams = useSearchParams()
+  const scanIdParam = searchParams.get("scanId")?.trim() ?? ""
+  const checkIdParam = searchParams.get("checkId")?.trim() ?? ""
+  // The check action bar hands a one-shot draft over in `sessionStorage`. It is
+  // read during the first render - never inside an effect - so the fields are
+  // seeded without cascading re-renders.
+  const [prefillDraft] = useState(() => peekReportPrefill())
+  const [threatType, setThreatType] = useState<ReportThreatType | null>(() =>
+    threatTypeFromInputType(prefillDraft?.inputType)
+  )
+  const [targetIdentifier, setTargetIdentifier] = useState(
+    () => prefillDraft?.targetIdentifier?.trim() ?? ""
+  )
   const [targetTouched, setTargetTouched] = useState(false)
   const [regions, setRegions] = useState<DashboardRegionOption[]>([])
   const [regionName, setRegionName] = useState("")
@@ -82,7 +179,6 @@ export function ReportForm({
   }, [])
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
-  const [reportedMessage, setReportedMessage] = useState("")
   const [attachments, setAttachments] = useState<ReportAttachment[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -117,6 +213,61 @@ export function ReportForm({
   const categoryMissing = hasAttemptedSubmit && !category.trim()
   const descriptionMissing = hasAttemptedSubmit && !description.trim()
   const confirmationMissing = hasAttemptedSubmit && !isConfirmed
+  const prefillConsumedRef = useRef(false)
+
+  // `/user/reports/new` sits behind the user role guard, so the request below
+  // always carries an authorized session.
+  useEffect(() => {
+    // The draft was already rendered into the fields above; drop it now so a
+    // later visit starts clean.
+    if (prefillDraft) {
+      prefillConsumedRef.current = true
+      clearReportPrefill()
+    }
+    // Never let the weaker deep-link fallback overwrite the draft.
+    if (prefillConsumedRef.current) return
+    // A bare `?scanId=` deep link carries no draft. The saved check is the only
+    // source left: it recovers the type, the matched indicator, and the verdict
+    // summary, but never the original pasted content.
+    if (!scanIdParam) return
+
+    const scanId = scanIdParam
+    let cancelled = false
+
+    const loadPrefill = async () => {
+      // A bare `?scanId=` deep link may carry an explicit `checkId`; otherwise
+      // the trailing number of the scan id is the only usable hint.
+      const checkId = parseCheckId(
+        checkIdParam || extractTrailingDigits(scanId)
+      )
+      if (!checkId) return
+
+      try {
+        const result = await getScamCheckResult(checkId)
+        if (cancelled) return
+        // The saved check keeps no raw input, so the matched indicator is the
+        // closest thing to the original target the API still returns.
+        const resultThreatType = threatTypeFromInputType(result.inputType)
+        if (resultThreatType) setThreatType(resultThreatType)
+        const matchedValue = result.matchedIndicator?.value?.trim()
+        if (matchedValue) setTargetIdentifier(matchedValue)
+        const summary =
+          result.aiDetails?.verdict.summary?.trim() ||
+          result.explanation?.trim()
+        if (summary) setDescription(truncateText(summary, 300))
+      } catch {
+        // Expired session or a deleted check: leave the form empty on purpose.
+      }
+    }
+
+    void loadPrefill()
+
+    return () => {
+      cancelled = true
+    }
+    // `prefillDraft` never changes after the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkIdParam, scanIdParam])
 
   useEffect(() => {
     activeRef.current = true
@@ -195,8 +346,8 @@ export function ReportForm({
               ? descriptionRef.current
               : attachments.length === 0
                 ? fileSectionRef.current?.querySelector<HTMLButtonElement>(
-                    "button"
-                  )
+                  "button"
+                )
                 : confirmationRef.current
       if (!regionCode) {
         regionRef.current?.focus()
@@ -226,7 +377,6 @@ export function ReportForm({
             : targetIdentifier.trim(),
         category,
         description: description.trim(),
-        reportedMessage,
         regionCode,
         attachments: attachments.map((item) => item.file),
         isConfirmed,
@@ -240,7 +390,6 @@ export function ReportForm({
       setCategory("")
       setRegionName("")
       setDescription("")
-      setReportedMessage("")
       setAttachments([])
       objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
       objectUrls.current.clear()
@@ -275,14 +424,9 @@ export function ReportForm({
             <div className="flex size-9 items-center justify-center rounded-xl bg-[#0B132B] text-white dark:bg-primary dark:text-primary-foreground">
               <Shield size={20} weight="fill" />
             </div>
-            <div>
-              <h2 className="font-heading text-sm font-bold text-[#131B2E] dark:text-foreground">
-                Biểu Mẫu Tiếp Nhận Báo Cáo
-              </h2>
-              <p className="text-[11px] text-[#45464D] dark:text-muted-foreground">
-                Quy trình 3 bước tinh gọn, bảo mật danh tính người gửi
-              </p>
-            </div>
+            <h2 className="font-heading text-sm font-bold text-[#131B2E] dark:text-foreground">
+              Biểu Mẫu Tiếp Nhận Báo Cáo
+            </h2>
           </div>
         </div>
 
@@ -427,7 +571,7 @@ export function ReportForm({
                     autoComplete="off"
                     placeholder="Nhập tên để tìm và chọn tỉnh/thành"
                     aria-invalid={hasAttemptedSubmit && !regionCode}
-                      className={reportInputClass}
+                    className={reportInputClass}
                   />
                 </div>
                 <Combobox.Portal>
@@ -571,36 +715,6 @@ export function ReportForm({
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-3">
-              <label
-                htmlFor="report-message"
-                className="text-xs font-bold text-[#131B2E] dark:text-foreground"
-              >
-                Nội dung tin nhắn lừa đảo (tùy chọn)
-              </label>
-              <span className="shrink-0 text-xs font-semibold text-black tabular-nums dark:text-white">
-                {reportedMessage.length}/2000 ký tự
-              </span>
-            </div>
-            <textarea
-              id="report-message"
-              rows={4}
-              maxLength={2000}
-              aria-describedby="report-message-hint"
-              value={reportedMessage}
-              onChange={(e) => setReportedMessage(e.target.value)}
-              placeholder="Dán nguyên văn tin nhắn nghi lừa đảo mà bạn nhận được..."
-              className="w-full resize-y rounded-xl border border-[#C6C6CE]/50 bg-[#FAF8FF] p-3 text-xs leading-relaxed text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-muted/30 dark:text-foreground"
-            />
-            <p
-              id="report-message-hint"
-              className="text-[11px] text-muted-foreground"
-            >
-              Có thể bỏ trống nếu không có tin nhắn.
-            </p>
-          </div>
-
           {/* Evidence Attachments Upload Zone */}
           <div ref={fileSectionRef}>
             <ReportFileUpload
@@ -731,7 +845,7 @@ export function ReportForm({
           )}
           {submitError && (
             <p role="alert" className="text-xs text-destructive">
-              {submitError}
+              <ReportSubmissionError message={submitError} />
             </p>
           )}
         </div>
