@@ -2,8 +2,9 @@ export const ADMIN_NAV_ITEMS = [
   { title: "Tài khoản", href: "/admin", iconName: "Users" },
   { title: "Phân loại", href: "/admin/taxonomy", iconName: "Tag" },
   { title: "Whitelist", href: "/admin/whitelist", iconName: "SealCheck" },
-  { title: "Phối hợp", href: "/admin/escalations", iconName: "Handshake" },
+  { title: "Xử lý lạm dụng", href: "/admin/escalations", iconName: "Flag" },
   { title: "Nội dung", href: "/admin/content/warnings", iconName: "Article" },
+  { title: "Mô hình AI", href: "/admin/thresholds", iconName: "Robot" },
   { title: "Rate Limit", href: "/admin/rate-limits", iconName: "Gauge" },
   {
     title: "Nhật ký",

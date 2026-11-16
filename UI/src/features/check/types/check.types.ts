@@ -1,11 +1,9 @@
-export type CheckType = "TEXT" | "URL" | "PHONE"
+export type CheckType = "TEXT" | "URL" | "PHONE" | "BANK_ACCOUNT"
 
 export type RiskLevel = "SAFE" | "SUSPICIOUS" | "DANGEROUS" | "UNKNOWN"
 
 export type ExecutionProvenance =
-  | "TIER1_FAST_PATH"
-  | "TIER2_FORENSIC_COUNCIL"
-  | "TRI_STATE_UNKNOWN"
+  "TIER1_FAST_PATH" | "TIER2_FORENSIC_COUNCIL" | "TRI_STATE_UNKNOWN"
 
 export type RuntimeType =
   | "ONNX_INT8_EDGE"
@@ -16,9 +14,7 @@ export type RuntimeType =
 export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW"
 
 export type GuidanceType =
-  | "STATIC_SOP"
-  | "DYNAMIC_CONTEXTUAL"
-  | "EPISTEMIC_CAUTION"
+  "STATIC_SOP" | "DYNAMIC_CONTEXTUAL" | "EPISTEMIC_CAUTION"
 
 export interface CheckScanRequest {
   content: string
@@ -43,6 +39,11 @@ export interface DeterministicFeatures {
     detected_urls: string[]
     is_in_official_whitelist: boolean
     domain_reputation: "LEGITIMATE" | "SUSPICIOUS_TLD" | "MALICIOUS_SIMILARITY"
+  }
+  phone_analysis?: {
+    detected_phones: string[]
+    is_official_hotline: boolean
+    phone_type: "HOTLINE" | "PERSONAL_MOBILE" | "NONE"
   }
   otp_structure?: {
     has_otp_pattern: boolean
@@ -93,10 +94,12 @@ export interface EngineDetails {
 export interface CheckScanResponse {
   status: "success" | "error"
   scan_id: string
+  /** Numeric backend check id; deep links to history/report need it. */
+  check_id: number
   created_at: string
   execution_provenance: ExecutionProvenance
+  /** Caller-measured wall-clock duration of the scan request, in ms. */
   execution_time_ms: number
-  cloud_cost_usd: number
   engine_details: EngineDetails
   verdict: Verdict
   deterministic_features?: DeterministicFeatures
@@ -108,6 +111,7 @@ export interface CheckScanResponse {
   input_type?: CheckType | string
   matched_indicator?: MatchedIndicatorInfo | null
   decided_by_stage?: string
+  unknown_reason?: string | null
   // Backwards compatibility / optional fields
   tier_executed?: 1 | 2
   recommendations?: string[]

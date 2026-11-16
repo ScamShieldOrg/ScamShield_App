@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation"
 import {
   Article,
   ClockCounterClockwise,
+  Flag,
   Gauge,
-  Handshake,
+  Robot,
   SealCheck,
   SignOut,
   Tag,
@@ -24,8 +25,9 @@ const icons = {
   Users,
   Tag,
   SealCheck,
-  Handshake,
+  Flag,
   Article,
+  Robot,
   Gauge,
   ClockCounterClockwise,
 }
