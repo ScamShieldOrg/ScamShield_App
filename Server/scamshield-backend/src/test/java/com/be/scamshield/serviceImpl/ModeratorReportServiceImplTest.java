@@ -82,6 +82,8 @@ class ModeratorReportServiceImplTest {
 
     @Mock
     private ReputationTransactionRepository reputationTransactionRepository;
+    @Mock
+    private ReputationRankRepository reputationRankRepository;
 
     @Mock private ReportAssignmentService reviewAssignments;
 

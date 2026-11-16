@@ -71,6 +71,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     private final NotificationRepository notificationRepository;
     private final ScamCategorieRepository scamCategorieRepository;
     private final ReputationTransactionRepository reputationTransactionRepository;
+    private final ReputationRankRepository reputationRankRepository;
     private final WhitelistEntryRepository whitelistEntryRepository;
     private final ReportAssignmentService reviewAssignments;
     private final EvidenceComparisonService evidenceSimilarities;
@@ -275,7 +276,11 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     // Reward reputation points only after approval (+50 points per report).
                     int bonusPoints = 50;
                     int currentPoints = reporter.getReputationPoints() != null ? reporter.getReputationPoints() : 0;
-                    reporter.setReputationPoints(currentPoints + bonusPoints);
+                    int updatedPoints = currentPoints + bonusPoints;
+                    reporter.setReputationPoints(updatedPoints);
+                    if (reputationRankRepository != null) {
+                        reputationRankRepository.findRankByPoints(updatedPoints).ifPresent(reporter::setReputationRank);
+                    }
                     userRepository.save(reporter);
 
                     ReputationTransaction tx = ReputationTransaction.builder()

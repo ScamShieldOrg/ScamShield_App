@@ -50,6 +50,7 @@ class AbuseEscalationFlowE2ETest {
     @Mock private NotificationRepository notificationRepository;
     @Mock private ScamCategorieRepository scamCategorieRepository;
     @Mock private ReputationTransactionRepository reputationTransactionRepository;
+    @Mock private ReputationRankRepository reputationRankRepository;
     @Mock private ReportAssignmentService reviewAssignments;
     @Mock private EvidenceComparisonService evidenceSimilarities;
     @Mock private AbuseFlagRepository abuseFlagRepository;
