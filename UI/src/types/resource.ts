@@ -43,6 +43,7 @@ export interface WhitelistResource {
   brandName: string
   partnerType: string
   taxId: string | null
+  verificationReason: string | null
   legalRepresentative: string | null
   officialHotlines: string[]
   officialDomains: string[]

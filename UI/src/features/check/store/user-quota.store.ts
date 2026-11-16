@@ -21,6 +21,9 @@ export const useUserQuotaStore = create<UserQuotaState>((set, get) => ({
   isLoading: false,
   error: null,
   fetchQuota: async () => {
+    // Collapse concurrent callers (sidebar card + check form) into one request,
+    // but never leave a stale result behind: the request id still guards writes.
+    if (get().isLoading) return
     const currentRequest = ++requestId
     const token = useAuthStore.getState().token
     if (!token) {

@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ScamCheckAiClientTest {
     private final ObjectMapper json = new ObjectMapper();
@@ -67,7 +68,7 @@ class ScamCheckAiClientTest {
 
     @Test
     void mapsBothTiersAndRejectsInvalidVerdicts() {
-        var client = new ScamCheckAiClient(json, "http://localhost:8000", 1000, 1000, true);
+        var client = new ScamCheckAiClient(json, "http://localhost:8000", 1000, 1000, true, "test-service-token");
         assertThat(client.parse(response("SAFE", 1), "MESSAGE").verdict()).isEqualTo("LOW_RISK");
         assertThat(client.parse(flatResponse(), "MESSAGE").verdict()).isEqualTo("UNKNOWN");
         assertThat(client.parse(flatResponse(), "MESSAGE").aiDetails().recommendations())
@@ -128,9 +129,11 @@ class ScamCheckAiClientTest {
         var payload = new AtomicReference<String>();
         var upgrade = new AtomicReference<String>();
         var protocol = new AtomicReference<String>();
+        var authorization = new AtomicReference<String>();
         server.createContext("/api/v1/scan", exchange -> {
             upgrade.set(exchange.getRequestHeaders().getFirst("Upgrade"));
             protocol.set(exchange.getProtocol());
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
             payload.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] bytes = response("DANGEROUS", 1).getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(payload.get().contains("\"core_check_id\":1") ? 200 : 503, bytes.length);
@@ -139,12 +142,13 @@ class ScamCheckAiClientTest {
         });
         server.start();
         try {
-            var client = new ScamCheckAiClient(json, "http://127.0.0.1:" + server.getAddress().getPort(), 1000, 1000, true);
+            var client = new ScamCheckAiClient(json, "http://127.0.0.1:" + server.getAddress().getPort(), 1000, 1000, true, "test-service-token");
             String original = "Bạn được tặng 1 phần quà tri ân. Liên hệ Telegram [NUMBER] gặp NV Quân để xác nhận địa chỉ nhận hàng.";
             var result = client.scan(1L, "MESSAGE", original);
             assertThat(result.verdict()).isEqualTo("SCAM_RISK");
             assertThat(result.scanId()).isEqualTo("SC-123");
             assertThat(protocol.get()).isEqualTo("HTTP/1.1");
+            assertThat(authorization.get()).isEqualTo("Bearer test-service-token");
             assertThat(upgrade.get()).isNull();
             assertThat(json.readTree(payload.get()).path("check_type").asText()).isEqualTo("SMS");
             assertThat(json.readTree(payload.get()).path("content").asText()).isEqualTo(original);
@@ -172,8 +176,34 @@ class ScamCheckAiClientTest {
         });
         server.start();
         try {
-            var client = new ScamCheckAiClient(json, "http://127.0.0.1:" + server.getAddress().getPort(), 1000, 30, true);
+            var client = new ScamCheckAiClient(json, "http://127.0.0.1:" + server.getAddress().getPort(), 1000, 30, true, "test-service-token");
             assertThat(client.scan(3L, "MESSAGE", "Original content").unknownReason()).isEqualTo("AI_UNAVAILABLE");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void rejectsMissingTokenAndNonLoopbackHttp() {
+        assertThatThrownBy(() -> new ScamCheckAiClient(json, "http://localhost:8000", 1000, 1000, true, " "))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("SCAM_CHECK_AI_TOKEN");
+        assertThatThrownBy(() -> new ScamCheckAiClient(json, "http://example.com:8000", 1000, 1000, true, "test-service-token"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("HTTPS");
+    }
+
+    @Test
+    void unauthorizedResponseBecomesAiUnavailable() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/scan", exchange -> {
+            byte[] body = "{\"error\":{\"code\":\"UNAUTHORIZED\"}}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(401, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var client = new ScamCheckAiClient(json, "http://127.0.0.1:" + server.getAddress().getPort(), 1000, 1000, true, "test-service-token");
+            assertThat(client.scan(1L, "MESSAGE", "private content").unknownReason()).isEqualTo("AI_UNAVAILABLE");
         } finally {
             server.stop(0);
         }

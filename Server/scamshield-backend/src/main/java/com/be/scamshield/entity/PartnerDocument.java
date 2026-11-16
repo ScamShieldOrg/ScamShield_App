@@ -25,6 +25,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PartnerDocument {
+    @jakarta.persistence.PrePersist
+    void defaults() {
+        if (storageStatus == null) storageStatus = "READY";
+    }
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -45,8 +49,17 @@ public class PartnerDocument {
     @Column(nullable = false)
     private Long fileSize;
 
-    // PostgreSQL bytea keeps legal evidence private and in the same DB transaction.
-    @Column(nullable = false, columnDefinition = "bytea")
+    @Column(name = "storage_object_key", length = 1024)
+    private String storageObjectKey;
+
+    @Column(name = "storage_status", nullable = false, length = 16, columnDefinition = "varchar(16) default 'READY'")
+    private String storageStatus;
+
+    @Column(name = "storage_etag", length = 128)
+    private String storageEtag;
+
+    // Nullable during the transition for legacy rows; new registrations store bytes only transiently.
+    @Column(columnDefinition = "bytea")
     private byte[] content;
 
     @Column(nullable = false)

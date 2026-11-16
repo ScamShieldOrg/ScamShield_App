@@ -56,7 +56,7 @@ interface WhitelistItem {
   verifiedAt: string
   taxId?: string
   legalRepresentative?: string
-  securityCert?: string
+  verificationReason?: string
 }
 
 function toWhitelistItem(resource: WhitelistResource): WhitelistItem {
@@ -99,6 +99,7 @@ function toWhitelistItem(resource: WhitelistResource): WhitelistItem {
     verificationBadge: "Đã xác minh",
     verifiedAt: formatDate(resource.verifiedAt ?? undefined),
     taxId: resource.taxId ?? undefined,
+    verificationReason: resource.verificationReason ?? undefined,
     legalRepresentative: resource.legalRepresentative ?? undefined,
   }
 }
@@ -1166,7 +1167,7 @@ function GuestBlacklistContent({
                 </div>
                 <div>
                   <h3 className="font-heading text-lg font-bold text-[#131B2E] dark:text-foreground">
-                    Hồ sơ Thẩm định Định danh
+                    Hồ sơ thẩm định định danh
                   </h3>
                   <p className="text-xs text-[#45464D] dark:text-muted-foreground">
                     Mã xác thực: {selectedItemForDetail.id.toUpperCase()}
@@ -1186,9 +1187,6 @@ function GuestBlacklistContent({
             {/* Modal Body */}
             <div className="mt-4 space-y-4 text-xs">
               <div className="rounded-xl bg-[#F2F3FF] p-3.5 dark:bg-muted/40">
-                <span className="block text-[10px] font-bold tracking-wider text-[#45464D] uppercase dark:text-muted-foreground">
-                  TỔ CHỨC ĐƯỢC XÁC THỰC
-                </span>
                 <p className="mt-0.5 text-sm font-bold text-[#131B2E] dark:text-foreground">
                   {selectedItemForDetail.name}
                 </p>
@@ -1216,7 +1214,7 @@ function GuestBlacklistContent({
                 </div>
                 <div className="rounded-lg border border-[#E2E7FF] p-2.5 dark:border-border">
                   <span className="block text-[10px] text-[#45464D] dark:text-muted-foreground">
-                    Mã số thuế / Pháp lý
+                    Mã số thuế
                   </span>
                   <span className="mt-0.5 font-mono font-bold text-[#131B2E] dark:text-foreground">
                     {selectedItemForDetail.taxId || "Đang cập nhật"}
@@ -1224,10 +1222,10 @@ function GuestBlacklistContent({
                 </div>
                 <div className="rounded-lg border border-[#E2E7FF] p-2.5 dark:border-border">
                   <span className="block text-[10px] text-[#45464D] dark:text-muted-foreground">
-                    Chứng thư số bảo mật
+                    Lý do phê duyệt
                   </span>
-                  <span className="mt-0.5 truncate font-bold text-[#131B2E] dark:text-foreground">
-                    {selectedItemForDetail.securityCert || "Chưa có thông tin"}
+                  <span className="mt-0.5 block font-bold break-words text-[#131B2E] dark:text-foreground">
+                    {selectedItemForDetail.verificationReason || "Chưa có lý do phê duyệt"}
                   </span>
                 </div>
               </div>
@@ -1235,7 +1233,7 @@ function GuestBlacklistContent({
               {/* Verified Communications Channels */}
               <div className="space-y-2">
                 <span className="block text-[11px] font-bold text-[#131B2E] dark:text-foreground">
-                  KÊNH LIÊN HỆ ĐÃ ĐƯỢC BẢO HỘ PHÁP LÝ
+                  KÊNH LIÊN HỆ CHÍNH THỐNG
                 </span>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between rounded-lg bg-emerald-50/70 px-3 py-2 text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-300">

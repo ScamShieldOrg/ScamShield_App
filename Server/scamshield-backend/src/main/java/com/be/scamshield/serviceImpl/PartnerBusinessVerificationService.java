@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class PartnerBusinessVerificationService {
+    public boolean isOcrEnabled() { return properties.getOcr().isEnabled(); }
     private static final Set<String> ACTIVE_STATUSES = Set.of(
             "NNT ĐANG HOẠT ĐỘNG", "NNT ĐANG HOẠT ĐỘNG (ĐÃ ĐƯỢC CẤP GCN ĐKT)");
     private static final Set<String> OTHER_KNOWN_STATUSES = Set.of(
@@ -46,7 +47,10 @@ public class PartnerBusinessVerificationService {
     private final Clock applicationClock;
 
     public PartnerBusinessVerificationResponse verify(String legalName, String taxCode, List<PartnerDocument> documents) {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(properties.getTotalBudgetSeconds());
+        return verifyDocuments(legalName, taxCode, documents, precheck(legalName, taxCode));
+    }
+
+    public PartnerBusinessVerificationResponse precheck(String legalName, String taxCode) {
         var lookup = xinvoiceClient.lookup(taxCode);
         RegistryResult registry = new RegistryResult(lookup.status(), lookup.legalName(), lookup.taxCode(),
                 lookup.businessStatus(), activity(lookup.businessStatus()), lookup.updatedAt());
@@ -54,11 +58,27 @@ public class PartnerBusinessVerificationService {
                 ? compare(legalName, lookup.legalName(), this::normalizeName) : MatchResult.INCONCLUSIVE;
         MatchResult formTaxCode = lookup.status() == SourceStatus.SUCCESS
                 ? compare(taxCode, lookup.taxCode(), this::normalizeTaxCode) : MatchResult.INCONCLUSIVE;
-        boolean registryPassed = formName == MatchResult.MATCHED && formTaxCode == MatchResult.MATCHED
+        boolean matched = formName == MatchResult.MATCHED && formTaxCode == MatchResult.MATCHED
                 && registry.activityStatus() == ActivityStatus.ACTIVE;
+        return new PartnerBusinessVerificationResponse(matched ? Outcome.MATCHED : Outcome.REVIEW_REQUIRED,
+                LocalDateTime.now(applicationClock), legalName, taxCode, registry, formName, formTaxCode,
+                List.of(), properties.getOcr().isEnabled());
+    }
+
+    public PartnerBusinessVerificationResponse verifyDocuments(String legalName, String taxCode,
+                                                                 List<PartnerDocument> documents,
+                                                                 PartnerBusinessVerificationResponse precheck) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(properties.getTotalBudgetSeconds());
+        RegistryResult registry = precheck.xinvoice();
+        boolean registryPassed = precheck.outcome() == Outcome.MATCHED;
         List<DocumentResult> documentResults = documents.stream()
                 .filter(document -> "BUSINESS_LICENSE".equals(document.getDocumentType()))
-                .map(document -> verifyDocument(document, legalName, taxCode, registry, deadline, registryPassed)).toList();
+                .map(document -> registry.status() == SourceStatus.SUCCESS
+                        ? verifyDocument(document, legalName, taxCode, registry, deadline)
+                        : new DocumentResult(document.getFileName(), SourceStatus.NOT_CHECKED, List.of(),
+                                MatchResult.INCONCLUSIVE, MatchResult.INCONCLUSIVE,
+                                MatchResult.INCONCLUSIVE, MatchResult.INCONCLUSIVE))
+                .toList();
         boolean documentsMatched = !documentResults.isEmpty()
                 && documentResults.stream().allMatch(document -> document.status() == SourceStatus.SUCCESS
                     && document.formNameVsOcr() == MatchResult.MATCHED && document.formTaxCodeVsOcr() == MatchResult.MATCHED
@@ -66,15 +86,14 @@ public class PartnerBusinessVerificationService {
         // TODO: Restore mandatory three-source checks by enabling OCR once provider credentials are available.
         boolean matched = registryPassed && (!properties.getOcr().isEnabled() || documentsMatched);
         return new PartnerBusinessVerificationResponse(matched ? Outcome.MATCHED : Outcome.REVIEW_REQUIRED,
-                LocalDateTime.now(applicationClock), legalName, taxCode, registry, formName, formTaxCode,
+                LocalDateTime.now(applicationClock), legalName, taxCode, registry,
+                precheck.formNameVsXinvoice(), precheck.formTaxCodeVsXinvoice(),
                 documentResults, properties.getOcr().isEnabled());
     }
 
     private DocumentResult verifyDocument(PartnerDocument document, String legalName, String taxCode, RegistryResult registry,
-                                           long deadline, boolean registryPassed) {
-        // Avoid paid OCR calls when registry checks already prevent registration.
+                                           long deadline) {
         BusinessDocumentOcr ocr = !properties.getOcr().isEnabled() ? BusinessDocumentOcr.unavailable(SourceStatus.DISABLED)
-                : !registryPassed ? BusinessDocumentOcr.unavailable(SourceStatus.NOT_CHECKED)
                 : System.nanoTime() < deadline
                 ? ocrClient.extract(document.getContent(), document.getFileName())
                 : BusinessDocumentOcr.unavailable(SourceStatus.UNAVAILABLE);

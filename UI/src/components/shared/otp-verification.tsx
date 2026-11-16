@@ -52,12 +52,30 @@ export function InputOTPPattern({
         autoFocus={autoFocus}
       >
         <InputOTPGroup className="gap-2">
-          <InputOTPSlot index={0} className="size-11 rounded-lg text-lg font-bold" />
-          <InputOTPSlot index={1} className="size-11 rounded-lg text-lg font-bold" />
-          <InputOTPSlot index={2} className="size-11 rounded-lg text-lg font-bold" />
-          <InputOTPSlot index={3} className="size-11 rounded-lg text-lg font-bold" />
-          <InputOTPSlot index={4} className="size-11 rounded-lg text-lg font-bold" />
-          <InputOTPSlot index={5} className="size-11 rounded-lg text-lg font-bold" />
+          <InputOTPSlot
+            index={0}
+            className="size-11 rounded-lg text-lg font-bold"
+          />
+          <InputOTPSlot
+            index={1}
+            className="size-11 rounded-lg text-lg font-bold"
+          />
+          <InputOTPSlot
+            index={2}
+            className="size-11 rounded-lg text-lg font-bold"
+          />
+          <InputOTPSlot
+            index={3}
+            className="size-11 rounded-lg text-lg font-bold"
+          />
+          <InputOTPSlot
+            index={4}
+            className="size-11 rounded-lg text-lg font-bold"
+          />
+          <InputOTPSlot
+            index={5}
+            className="size-11 rounded-lg text-lg font-bold"
+          />
         </InputOTPGroup>
       </InputOTP>
       {error && (
@@ -76,6 +94,7 @@ export interface OtpVerificationPopupProps {
   phoneNumber?: string
   isLoading?: boolean
   error?: string | null
+  progressContent?: React.ReactNode
 }
 
 export function OtpVerificationPopup({
@@ -85,6 +104,7 @@ export function OtpVerificationPopup({
   phoneNumber,
   isLoading = false,
   error: externalError,
+  progressContent,
 }: OtpVerificationPopupProps) {
   const [otp, setOtp] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -117,9 +137,9 @@ export function OtpVerificationPopup({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-xs duration-200 fade-in">
       <div
-        className="relative w-full max-w-md rounded-2xl border border-[#D1DEFF] bg-white p-6 shadow-2xl dark:border-border dark:bg-card animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-md animate-in rounded-2xl border border-[#D1DEFF] bg-white p-6 shadow-2xl duration-200 zoom-in-95 dark:border-border dark:bg-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="otp-popup-title"
@@ -129,7 +149,7 @@ export function OtpVerificationPopup({
           type="button"
           onClick={onClose}
           disabled={isLoading}
-          className="absolute top-4 right-4 rounded-lg p-1 text-[#76767E] hover:bg-[#EAEDFF] hover:text-[#131B2E] transition-colors dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground disabled:opacity-50"
+          className="absolute top-4 right-4 rounded-lg p-1 text-[#76767E] transition-colors hover:bg-[#EAEDFF] hover:text-[#131B2E] disabled:opacity-50 dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
           aria-label="Đóng"
         >
           <X size={20} />
@@ -146,7 +166,7 @@ export function OtpVerificationPopup({
           >
             Xác thực số điện thoại
           </h2>
-          <p className="mt-1 text-xs text-[#545D7C] dark:text-muted-foreground leading-relaxed max-w-xs">
+          <p className="mt-1 max-w-xs text-xs leading-relaxed text-[#545D7C] dark:text-muted-foreground">
             Vui lòng nhập mã OTP 6 chữ số{" "}
             {phoneNumber ? (
               <>
@@ -163,7 +183,10 @@ export function OtpVerificationPopup({
         </div>
 
         {/* OTP Input Form */}
-        <form onSubmit={handleSubmit} className="mt-6 flex flex-col items-center gap-5">
+        <form
+          onSubmit={handleSubmit}
+          className="mt-6 flex flex-col items-center gap-5"
+        >
           <InputOTPPattern
             label="MÃ XÁC THỰC (6 CHỮ SỐ)"
             value={otp}
@@ -174,6 +197,7 @@ export function OtpVerificationPopup({
             disabled={isLoading}
             error={error || undefined}
           />
+          {isLoading && progressContent}
 
           {/* Action Buttons */}
           <div className="flex w-full flex-col gap-2 pt-2">
@@ -182,7 +206,7 @@ export function OtpVerificationPopup({
               disabled={otp.length < 6 || isLoading}
               className="h-11 w-full rounded-lg bg-[#131A33] text-sm font-bold text-white shadow-sm hover:bg-[#131A33]/90 dark:bg-primary dark:text-primary-foreground"
             >
-              {isLoading ? "Đang xác thực..." : "Xác nhận OTP"}
+              {isLoading ? "Đang xử lý..." : "Xác nhận OTP"}
             </Button>
             <Button
               type="button"

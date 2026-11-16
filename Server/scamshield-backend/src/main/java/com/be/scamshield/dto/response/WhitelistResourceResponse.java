@@ -17,6 +17,7 @@ public class WhitelistResourceResponse {
     private String name;
     private String brandName;
     private String taxId;
+    private String verificationReason;
     private String representativeNameAndTitle;
     private List<String> officialHotlines;
     private List<String> officialDomains;

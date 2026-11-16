@@ -67,6 +67,7 @@ public class ResourceServiceImpl implements IResourceService {
                 .name(partner.getLegalName())
                 .brandName(partner.getBrandName())
                 .taxId(partner.getTaxCode())
+                .verificationReason(partner.getVerificationReason())
                 .representativeNameAndTitle(partner.getRepresentativeNameAndTitle())
                 .officialHotlines(singleValue(partner.getOfficialHotline()))
                 .officialDomains(singleValue(partner.getOfficialDomain()))

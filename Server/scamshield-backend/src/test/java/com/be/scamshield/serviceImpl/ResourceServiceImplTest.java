@@ -75,6 +75,7 @@ class ResourceServiceImplTest {
         filter.setKeyword("  VIETTEL  ");
         filter.setSortBy("name");
         var first = partner(10L, "Viettel");
+        first.setVerificationReason("Đã đối soát pháp nhân và tên miền");
         var second = partner(20L, "Vietcombank");
         second.setOfficialHotline(null);
         second.setOfficialDomain(null);
@@ -96,10 +97,12 @@ class ResourceServiceImplTest {
         assertThat(result.getData().get(0).getOfficialHotlines()).containsExactly("18008098");
         assertThat(result.getData().get(0).getOfficialDomains()).containsExactly("viettel.vn");
         assertThat(result.getData().get(0).getSmsBrandNames()).containsExactly("VIETTEL");
+        assertThat(result.getData().get(0).getVerificationReason()).isEqualTo("Đã đối soát pháp nhân và tên miền");
         assertThat(result.getData().get(0).getVerifiedIndicators()).extracting("value")
                 .containsExactly("18008098", "viettel.vn");
         assertThat(result.getData().get(1).getVerifiedIndicators()).isEmpty();
         assertThat(result.getData().get(1).getOfficialHotlines()).isEmpty();
+        assertThat(result.getData().get(1).getVerificationReason()).isNull();
         verifyNoInteractions(resourceRepository);
     }
 

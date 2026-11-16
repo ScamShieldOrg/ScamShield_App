@@ -1,37 +1,62 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Flag, MagnifyingGlass, Users, X } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button"
 import {
-  DEMO_ACCOUNTS,
+  adminUsers,
   formatAccountDate,
-} from "@/features/admin/data/demo-accounts"
+  type AdminUserPage,
+} from "@/features/admin/services/admin-users"
 import { cn } from "@/lib/utils"
 import { AccountRoleBadge, AccountStatusBadge } from "./account-badges"
 import { AccountDetailDialog } from "./account-detail-dialog"
 
-function normalizeSearch(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D")
-    .toLowerCase()
-    .trim()
-}
-
 export function AdminAccountsDashboard() {
   const [search, setSearch] = useState("")
-  const query = normalizeSearch(search)
-  const accounts = DEMO_ACCOUNTS.filter((account) =>
-    normalizeSearch(`${account.name} ${account.email} ${account.id}`).includes(
-      query
-    )
-  )
-  const flaggedCount = DEMO_ACCOUNTS.filter(
-    (account) => account.status === "flagged"
-  ).length
+  const [query, setQuery] = useState("")
+  const [page, setPage] = useState(1)
+  const [result, setResult] = useState<AdminUserPage | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [revision, setRevision] = useState(0)
+  const accounts = loading ? [] : (result?.items ?? [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const nextQuery = search.trim()
+      if (nextQuery !== query) {
+        setLoading(true)
+        setPage(1)
+        setQuery(nextQuery)
+      }
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [search, query])
+
+  useEffect(() => {
+    let active = true
+    adminUsers
+      .list(query, page)
+      .then((data) => {
+        if (!active) return
+        setResult(data)
+        setError(null)
+      })
+      .catch((cause: unknown) => {
+        if (!active) return
+        setResult(null)
+        setError(
+          cause instanceof Error ? cause.message : "Không thể tải tài khoản."
+        )
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [query, page, revision])
 
   return (
     <section
@@ -48,7 +73,7 @@ export function AdminAccountsDashboard() {
           </h1>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-red-800 dark:text-red-300">
             <Flag size={13} weight="fill" aria-hidden="true" />
-            {flaggedCount} tài khoản bị gắn cờ báo cáo hàng loạt
+            {result?.flaggedAccountsCount ?? "—"} tài khoản cần kiểm tra
           </p>
         </div>
         <div className="relative w-full sm:w-64">
@@ -90,8 +115,8 @@ export function AdminAccountsDashboard() {
         >
           <table className="w-full min-w-4xl border-collapse text-left text-xs">
             <caption className="sr-only">
-              Danh sách tài khoản quản trị, dữ liệu minh họa. Hai tài khoản được
-              gắn cờ do báo cáo hàng loạt.
+              Danh sách tài khoản quản trị, có thể tìm kiếm theo tên, email hoặc
+              mã.
             </caption>
             <thead className="border-b border-border bg-muted/30 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
               <tr>
@@ -116,21 +141,26 @@ export function AdminAccountsDashboard() {
                   key={account.id}
                   className={cn(
                     "transition-colors hover:bg-muted/40",
-                    account.status === "flagged" &&
+                    account.isFlagged &&
                       "bg-orange-50/80 hover:bg-orange-100/60 dark:bg-amber-950/20 dark:hover:bg-amber-950/40"
                   )}
                 >
                   <td className="px-4 py-3.5 text-[11px] text-muted-foreground">
-                    #{account.id}
+                    {account.userCode || `#${account.id}`}
                   </td>
                   <th scope="row" className="px-4 py-3.5 font-normal">
-                    <span className="block font-semibold">{account.name}</span>
+                    <span className="block font-semibold">
+                      {account.fullName || "Chưa có tên"}
+                    </span>
                     <span className="mt-1 block text-[11px] text-muted-foreground">
                       {account.email}
                     </span>
                   </th>
                   <td className="px-4 py-3.5">
-                    <AccountRoleBadge role={account.role} />
+                    <AccountRoleBadge
+                      role={account.role}
+                      label={account.roleLabel}
+                    />
                   </td>
                   <td className="px-4 py-3.5 text-muted-foreground tabular-nums">
                     {formatAccountDate(account.joinedAt)}
@@ -138,14 +168,18 @@ export function AdminAccountsDashboard() {
                   <td
                     className={cn(
                       "px-4 py-3.5 tabular-nums",
-                      account.status === "flagged" &&
+                      account.isFlagged &&
                         "font-semibold text-red-800 dark:text-red-300"
                     )}
                   >
-                    {account.reports.toLocaleString("vi-VN")}
+                    {account.reportCount.toLocaleString("vi-VN")}
                   </td>
                   <td className="px-4 py-3.5">
-                    <AccountStatusBadge status={account.status} />
+                    <AccountStatusBadge
+                      status={account.status}
+                      label={account.statusLabel}
+                      isFlagged={account.isFlagged}
+                    />
                   </td>
                   <td className="px-4 py-3.5">
                     <AccountDetailDialog account={account} />
@@ -155,7 +189,31 @@ export function AdminAccountsDashboard() {
             </tbody>
           </table>
         </div>
-        {accounts.length === 0 && (
+        {loading && (
+          <p
+            role="status"
+            className="px-4 py-10 text-center text-sm text-muted-foreground"
+          >
+            Đang tải tài khoản...
+          </p>
+        )}
+        {error && !loading && (
+          <div role="alert" className="px-4 py-10 text-center text-sm">
+            <p>{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => {
+                setLoading(true)
+                setRevision((value) => value + 1)
+              }}
+            >
+              Thử lại
+            </Button>
+          </div>
+        )}
+        {!loading && !error && accounts.length === 0 && (
           <div className="flex flex-col items-center gap-2 px-4 py-14 text-center">
             <Users
               size={28}
@@ -166,24 +224,55 @@ export function AdminAccountsDashboard() {
               Không tìm thấy tài khoản
             </h2>
             <p className="text-xs text-muted-foreground">
-              Thử tên, email hoặc mã tài khoản khác.
+              {query
+                ? "Thử tên, email hoặc mã tài khoản khác."
+                : "Chưa có tài khoản nào."}
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => setSearch("")}
-            >
-              Xóa tìm kiếm
-            </Button>
+            {query && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => setSearch("")}
+              >
+                Xóa tìm kiếm
+              </Button>
+            )}
           </div>
         )}
       </div>
       <div className="mt-3 flex flex-wrap justify-between gap-2 text-[11px] text-muted-foreground">
         <p role="status" aria-live="polite">
-          Hiển thị {accounts.length} / {DEMO_ACCOUNTS.length} tài khoản
+          Hiển thị {accounts.length} / {result?.totalItems ?? 0} tài khoản
         </p>
-        <p>Dữ liệu minh họa</p>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading || !result?.hasPrevious}
+            onClick={() => {
+              setLoading(true)
+              setPage((value) => value - 1)
+            }}
+          >
+            Trước
+          </Button>
+          <span>
+            Trang {result?.currentPage ?? page} /{" "}
+            {Math.max(result?.totalPages ?? 0, 1)}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading || !result?.hasNext}
+            onClick={() => {
+              setLoading(true)
+              setPage((value) => value + 1)
+            }}
+          >
+            Sau
+          </Button>
+        </div>
       </div>
     </section>
   )

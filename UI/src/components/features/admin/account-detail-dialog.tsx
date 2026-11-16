@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import {
   formatAccountDate,
   type AdminAccount,
-} from "@/features/admin/data/demo-accounts"
+} from "@/features/admin/services/admin-users"
 import { AccountRoleBadge, AccountStatusBadge } from "./account-badges"
 
 export function AccountDetailDialog({ account }: { account: AdminAccount }) {
@@ -18,7 +18,7 @@ export function AccountDetailDialog({ account }: { account: AdminAccount }) {
             variant="outline"
             size="sm"
             className="h-8 bg-card text-xs"
-            aria-label={`Chi tiết tài khoản ${account.name}`}
+            aria-label={`Chi tiết tài khoản ${account.fullName || account.email}`}
           />
         }
       >
@@ -31,7 +31,7 @@ export function AccountDetailDialog({ account }: { account: AdminAccount }) {
             Chi tiết tài khoản
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-xs text-muted-foreground">
-            Thông tin minh họa · {account.id}
+            {account.userCode || account.id}
           </Dialog.Description>
           <Dialog.Close
             render={
@@ -47,7 +47,7 @@ export function AccountDetailDialog({ account }: { account: AdminAccount }) {
           </Dialog.Close>
           <div className="mt-6 border-b border-border pb-5">
             <h3 className="font-heading text-lg font-semibold">
-              {account.name}
+              {account.fullName || "Chưa có tên"}
             </h3>
             <p className="mt-1 text-sm break-all text-muted-foreground">
               {account.email}
@@ -57,13 +57,20 @@ export function AccountDetailDialog({ account }: { account: AdminAccount }) {
             <div>
               <dt className="mb-2 text-muted-foreground">Vai trò</dt>
               <dd>
-                <AccountRoleBadge role={account.role} />
+                <AccountRoleBadge
+                  role={account.role}
+                  label={account.roleLabel}
+                />
               </dd>
             </div>
             <div>
               <dt className="mb-2 text-muted-foreground">Trạng thái</dt>
               <dd>
-                <AccountStatusBadge status={account.status} />
+                <AccountStatusBadge
+                  status={account.status}
+                  label={account.statusLabel}
+                  isFlagged={account.isFlagged}
+                />
               </dd>
             </div>
             <div>
@@ -73,14 +80,13 @@ export function AccountDetailDialog({ account }: { account: AdminAccount }) {
             <div>
               <dt className="mb-2 text-muted-foreground">Báo cáo đã gửi</dt>
               <dd className="font-semibold tabular-nums">
-                {account.reports.toLocaleString("vi-VN")}
+                {account.reportCount.toLocaleString("vi-VN")}
               </dd>
             </div>
           </dl>
-          {account.status === "flagged" && (
+          {account.isFlagged && (
             <p className="mt-6 rounded-lg bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-              Tài khoản được gắn cờ do gửi báo cáo hàng loạt. Cần kiểm tra nội
-              dung báo cáo trước khi đưa ra quyết định.
+              Tài khoản cần được kiểm tra. {account.flagReasons?.join(", ")}
             </p>
           )}
           <div className="mt-6 flex justify-end">

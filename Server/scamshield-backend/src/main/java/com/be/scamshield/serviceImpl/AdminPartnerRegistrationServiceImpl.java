@@ -20,6 +20,7 @@ import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.PartnerReviewConflictException;
 import com.be.scamshield.exception.ResourceNotFoundException;
+import com.be.scamshield.external.PartnerDocumentStorageService;
 import com.be.scamshield.repository.AuditLogRepository;
 import com.be.scamshield.repository.IndicatorRepository;
 import com.be.scamshield.repository.PartnerDocumentRepository;
@@ -27,6 +28,8 @@ import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.service.AdminPartnerRegistrationService;
+import com.be.scamshield.service.PartnerPasswordSetupService;
+import com.be.scamshield.service.PartnerEmailService;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -38,6 +41,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
 
@@ -53,6 +58,9 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
     private final AuditLogRepository auditLogs;
     private final ObjectMapper objectMapper;
     private final Clock applicationClock;
+    private final PartnerPasswordSetupService passwordSetupService;
+    private final PartnerEmailService emailService;
+    private final PartnerDocumentStorageService documentStorage;
 
     @Override
     public PaginatedResponse<AdminPartnerRegistrationItemResponse> list(String search,
@@ -87,9 +95,12 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
         }
         PartnerDocument document = documents.findByIdAndPartnerId(documentId, partnerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài liệu của hồ sơ này"));
+        String downloadUrl = document.getStorageObjectKey() == null ? null
+                : documentStorage.createDownloadUrl(document.getStorageObjectKey(), document.getFileName());
+        String contentBase64 = document.getContent() == null ? null
+                : Base64.getEncoder().encodeToString(document.getContent());
         return new PartnerDocumentContentResponse(document.getId(), document.getFileName(),
-                document.getContentType(), document.getFileSize(),
-                Base64.getEncoder().encodeToString(document.getContent()));
+                document.getContentType(), document.getFileSize(), downloadUrl, contentBase64);
     }
 
     @Transactional
@@ -100,8 +111,9 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
             throw new BadRequestException("Chỉ có thể phê duyệt hoặc từ chối hồ sơ");
         }
         String reason = request.getReason() == null ? "" : request.getReason().trim();
-        if (decision == PartnerVerificationStatus.REJECTED && reason.isBlank()) {
-            throw new BadRequestException("Cần nhập lý do từ chối hồ sơ");
+        if (reason.isBlank()) {
+            throw new BadRequestException(decision == PartnerVerificationStatus.VERIFIED
+                    ? "Cần nhập lý do phê duyệt hồ sơ" : "Cần nhập lý do từ chối hồ sơ");
         }
         User reviewer = users.findById(reviewerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản quản trị"));
@@ -109,6 +121,12 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ đối tác"));
         if (profile.getVerificationStatus() != PartnerVerificationStatus.PENDING) {
             throw new PartnerReviewConflictException("Hồ sơ đã được xét duyệt; hãy tải lại trạng thái mới nhất");
+        }
+        if (decision == PartnerVerificationStatus.VERIFIED &&
+                (("PENDING_OCR".equals(profile.getDocumentVerificationStatus())
+                        || "RUNNING_OCR".equals(profile.getDocumentVerificationStatus()))
+                        || documents.existsByPartnerIdAndStorageStatusNot(id, "READY"))) {
+            throw new PartnerReviewConflictException("Tài liệu hoặc đối soát OCR chưa hoàn tất; chưa thể phê duyệt");
         }
         LocalDateTime now = LocalDateTime.now(applicationClock);
         if (decision == PartnerVerificationStatus.VERIFIED) {
@@ -119,13 +137,26 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
             profile.getUser().setStatus(UserStatus.INACTIVE.name());
         }
         profile.setVerificationStatus(decision);
+        profile.setVerificationReason(reason);
+        if (decision == PartnerVerificationStatus.VERIFIED) {
+            passwordSetupService.issue(id);
+        }
         profile.setVerifiedByUser(reviewer);
         profile.setVerifiedAt(now);
         profile.setUpdatedAt(now);
         auditLogs.save(AuditLog.builder().actorUser(reviewer).action("REVIEW_PARTNER_REGISTRATION")
                 .entityType("PARTNER_PROFILE").entityId(id).previousValue("PENDING")
-                .newValue(decision.name()).reason(reason.isBlank() ? "Đã phê duyệt hồ sơ đối tác" : reason)
+                .newValue(decision.name()).reason(reason)
                 .createdAt(now).build());
+        if (decision == PartnerVerificationStatus.REJECTED) {
+            String email = profile.getCorporateEmail();
+            String partnerName = profile.getLegalName();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() {
+                    emailService.sendRejection(id, email, partnerName, reason);
+                }
+            });
+        }
         return detail(profile);
     }
 
@@ -159,6 +190,12 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
         return normalized.startsWith("+84") ? "0" + normalized.substring(3) : normalized;
     }
 
+    @Transactional
+    public AdminPartnerRegistrationDetailResponse resendPasswordLink(Long id) {
+        passwordSetupService.issue(id);
+        return detail(id);
+    }
+
     private AdminPartnerRegistrationItemResponse item(PartnerProfile profile) {
         return new AdminPartnerRegistrationItemResponse(profile.getId(), profile.getLegalName(), profile.getTaxCode(),
                 profile.getCorporateEmail(), profile.getRepresentativeNameAndTitle(), profile.getOfficialDomain(),
@@ -167,20 +204,29 @@ public class AdminPartnerRegistrationServiceImpl implements AdminPartnerRegistra
     }
 
     private AdminPartnerRegistrationDetailResponse detail(PartnerProfile profile) {
-        String reason = auditLogs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("PARTNER_PROFILE", profile.getId())
-                .stream().filter(log -> "REVIEW_PARTNER_REGISTRATION".equals(log.getAction()))
-                .map(AuditLog::getReason).findFirst().orElse(null);
+        String reason = profile.getVerificationReason();
+        if (reason == null && profile.getVerificationStatus() == PartnerVerificationStatus.REJECTED) {
+            reason = auditLogs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("PARTNER_PROFILE", profile.getId())
+                    .stream().filter(log -> "REVIEW_PARTNER_REGISTRATION".equals(log.getAction()))
+                    .map(AuditLog::getReason).findFirst().orElse(null);
+        }
         PartnerBusinessVerificationResponse verification = null;
         if (StringUtils.hasText(profile.getBusinessVerificationResult())) {
             verification = objectMapper.readValue(profile.getBusinessVerificationResult(),
                     PartnerBusinessVerificationResponse.class);
         }
+        var metadata = documents.findMetadataByPartnerId(profile.getId());
+        var documentGroups = List.of("BUSINESS_LICENSE", "OWNERSHIP_PROOF", "AUTHORIZATION").stream()
+                .map(type -> new AdminPartnerRegistrationDetailResponse.DocumentGroup(type,
+                        metadata.stream().filter(document -> type.equals(document.documentType())).toList()))
+                .toList();
         return new AdminPartnerRegistrationDetailResponse(profile.getId(), profile.getUser().getId(),
                 profile.getLegalName(), profile.getTaxCode(), profile.getCorporateEmail(),
-                profile.getRepresentativeNameAndTitle(), profile.getContactPhone(),
+                profile.getRepresentativeNameAndTitle(), profile.getLegalRepresentative(), profile.getContactPhone(),
                 profile.getOfficialDomain(), profile.getOfficialHotline(), profile.getSmsBrandName(),
                 profile.getVerificationStatus(), profile.getCreatedAt(), profile.getVerifiedAt(),
                 profile.getVerifiedByUser() == null ? null : profile.getVerifiedByUser().getFullName(), reason,
-                verification, documents.findMetadataByPartnerId(profile.getId()));
+                profile.getPasswordLinkEmailStatus(), profile.getPasswordSetupCompletedAt(),
+                verification, profile.getDocumentVerificationStatus(), documentGroups);
     }
 }

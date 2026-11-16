@@ -23,14 +23,19 @@ export interface PartnerDocumentMetadata {
   fileName: string
   contentType: string
   fileSize: number
+  storageStatus?: "MOVING" | "READY"
 }
 
 export interface PartnerRegistrationDetail extends PartnerRegistrationItem {
+  documentVerificationStatus?:
+    "PENDING_OCR" | "RUNNING_OCR" | "PASSED" | "FLAGGED" | "NOT_REQUIRED"
   userId: number
   contactPhone: string
   legalRepresentative: boolean
   reviewedBy: string | null
   reviewReason: string | null
+  passwordLinkEmailStatus: "PENDING" | "SENT" | "FAILED" | null
+  passwordSetupCompletedAt: string | null
   businessVerification: {
     outcome: string
     checkedAt: string
@@ -46,7 +51,11 @@ export interface PartnerRegistrationDetail extends PartnerRegistrationItem {
     ocrEnabled: boolean
     documents: { fileName: string; status: string }[]
   } | null
-  documents: PartnerDocumentMetadata[]
+  documentGroups?: {
+    documentType: string
+    documents: PartnerDocumentMetadata[]
+  }[]
+  documents?: PartnerDocumentMetadata[]
 }
 
 export interface PartnerRegistrationCounts {
@@ -72,7 +81,8 @@ interface ApiResponse<T> {
 }
 
 interface DocumentContent extends PartnerDocumentMetadata {
-  contentBase64: string
+  downloadUrl: string | null
+  contentBase64: string | null
 }
 
 export class PartnerReviewApiError extends Error {
@@ -139,6 +149,11 @@ export const adminPartnerRegistrations = {
   ) {
     return unwrap<PartnerRegistrationDetail>(
       authorizeApi.patch(`${basePath}/${id}`, { verificationStatus, reason })
+    )
+  },
+  resendPasswordLink(id: number) {
+    return unwrap<PartnerRegistrationDetail>(
+      authorizeApi.post(`${basePath}/${id}/password-link/resend`)
     )
   },
   document(partnerId: number, documentId: number) {

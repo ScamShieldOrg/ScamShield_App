@@ -73,6 +73,12 @@ public class AuthServiceImpl implements IAuthService {
     private final ContactVerificationService contactVerificationService;
     private final GoogleTokenVerifier googleTokenVerifier;
 
+    @Value("${app.auth.cookie.secure:false}")
+    private boolean refreshCookieSecure;
+
+    @Value("${app.auth.cookie.same-site:Lax}")
+    private String refreshCookieSameSite = "Lax";
+
     @Override
     @Transactional
     public void registerPersonal(RegisterPersonalRequest request) {
@@ -438,10 +444,10 @@ public class AuthServiceImpl implements IAuthService {
         if (response == null) return;
         ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
-                .secure(false) // Can be set to true in HTTPS production
+                .secure(refreshCookieSecure)
                 .path("/")
                 .maxAge(tokenProvider.getRefreshExpirationInMs() / 1000)
-                .sameSite("Lax")
+                .sameSite(refreshCookieSameSite)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
@@ -450,10 +456,10 @@ public class AuthServiceImpl implements IAuthService {
         if (response == null) return;
         ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
                 .httpOnly(true)
-                .secure(false)
+                .secure(refreshCookieSecure)
                 .path("/")
                 .maxAge(0)
-                .sameSite("Lax")
+                .sameSite(refreshCookieSameSite)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }

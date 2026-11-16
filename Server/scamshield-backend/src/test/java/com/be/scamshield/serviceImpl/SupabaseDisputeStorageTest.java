@@ -1,6 +1,7 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.external.SupabaseStorageService;
+import com.be.scamshield.external.SupabaseStorageClientFactory;
 
 import com.be.scamshield.exception.DisputeStorageException;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +44,7 @@ class SupabaseDisputeStorageTest {
 
     @BeforeEach
     void setUp() {
-        storage = new SupabaseStorageService();
+        storage = new SupabaseStorageService(new SupabaseStorageClientFactory());
         ReflectionTestUtils.setField(storage, "region", "ap-south-1");
         ReflectionTestUtils.setField(storage, "accessKeyId", FAKE_ACCESS_KEY);
         ReflectionTestUtils.setField(storage, "secretAccessKey", FAKE_SECRET_KEY);
