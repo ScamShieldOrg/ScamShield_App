@@ -82,7 +82,8 @@ app:
     timeout-seconds: ${EVIDENCE_OCR_TIMEOUT_SECONDS:15}
     max-pdf-pages: ${EVIDENCE_OCR_MAX_PDF_PAGES:3}
     image-distance: ${EVIDENCE_PHASH_MAX_DISTANCE:10}
-    text-similarity: ${EVIDENCE_OCR_TEXT_SIMILARITY:0.80}
+    text-similarity: ${EVIDENCE_OCR_TEXT_SIMILARITY:0.60}
+    text-candidate-distance: ${EVIDENCE_OCR_TEXT_CANDIDATE_DISTANCE:16}
     candidate-limit: ${EVIDENCE_SIMILARITY_CANDIDATE_LIMIT:200}
   scam-check:
     ai:

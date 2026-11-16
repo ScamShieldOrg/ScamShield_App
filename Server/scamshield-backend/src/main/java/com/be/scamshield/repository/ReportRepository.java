@@ -19,6 +19,9 @@ import java.util.Optional;
 @Repository
 public interface ReportRepository extends JpaRepository<Report, Long>, JpaSpecificationExecutor<Report> {
 
+    Optional<Report> findFirstByReporterUser_IdAndIndicator_IdInAndStatusInOrderByIdDesc(
+            Long reporterId, List<Long> indicatorIds, List<ReportStatus> statuses);
+
     interface ReviewStats {
         String getBlacklistStatus();
         long getIndicatorReports();

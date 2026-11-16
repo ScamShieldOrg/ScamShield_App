@@ -29,6 +29,18 @@ public interface IndicatorRepository extends JpaRepository<Indicator, Long> {
 
     List<Indicator> findByTypeAndNormalizedValueInOrderByIdAsc(IndicatorType type, Collection<String> values);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select i from Indicator i
+            where i.type = :type and (
+                i.normalizedValue in :values
+                or (i.type = com.be.scamshield.constant.IndicatorType.PHONE
+                    and replace(i.normalizedValue, '.', '') in :values)
+            )
+            order by i.id
+            """)
+    List<Indicator> lockMatchingIndicators(IndicatorType type, Collection<String> values);
+
     @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(hashtext(:key))", nativeQuery = true)
     Integer lockIdentifier(@Param("key") String key);
 }

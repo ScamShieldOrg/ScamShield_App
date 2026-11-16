@@ -1,5 +1,7 @@
 "use client"
 
+import { ReportSubmissionError } from "@/components/features/report/report-submission-error"
+
 import { useState, useEffect } from "react"
 import { toast } from "react-toastify"
 import { ReportForm } from "@/components/features/report/report-form"
@@ -56,11 +58,11 @@ export default function UserReportsNewPage() {
         setReports((prev) => [newReport, ...prev])
       }
     } catch (err) {
-      toast.error(
+      const message =
         err instanceof Error
           ? err.message
           : "Không thể gửi báo cáo lừa đảo. Vui lòng thử lại!"
-      )
+      toast.error(<ReportSubmissionError message={message} />)
       throw err
     } finally {
       setIsSubmitting(false)

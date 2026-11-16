@@ -9,6 +9,7 @@ import { dashboardService } from "@/features/dashboard/services/dashboard.servic
 import type { DashboardRegionOption } from "@/features/dashboard/types/dashboard.types"
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { ReportSubmissionError } from "./report-submission-error"
 import { toast } from "react-toastify"
 import { cn } from "@/lib/utils"
 import {
@@ -177,12 +178,7 @@ function ReportFormContent({
     void loadCategories()
   }, [])
   const [category, setCategory] = useState("")
-  const [description, setDescription] = useState(
-    () => prefillDraft?.description?.trim() ?? ""
-  )
-  const [reportedMessage, setReportedMessage] = useState(
-    () => prefillDraft?.reportedMessage?.trim() ?? ""
-  )
+  const [description, setDescription] = useState("")
   const [attachments, setAttachments] = useState<ReportAttachment[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -350,8 +346,8 @@ function ReportFormContent({
               ? descriptionRef.current
               : attachments.length === 0
                 ? fileSectionRef.current?.querySelector<HTMLButtonElement>(
-                    "button"
-                  )
+                  "button"
+                )
                 : confirmationRef.current
       if (!regionCode) {
         regionRef.current?.focus()
@@ -381,7 +377,6 @@ function ReportFormContent({
             : targetIdentifier.trim(),
         category,
         description: description.trim(),
-        reportedMessage,
         regionCode,
         attachments: attachments.map((item) => item.file),
         isConfirmed,
@@ -395,7 +390,6 @@ function ReportFormContent({
       setCategory("")
       setRegionName("")
       setDescription("")
-      setReportedMessage("")
       setAttachments([])
       objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
       objectUrls.current.clear()
@@ -430,14 +424,9 @@ function ReportFormContent({
             <div className="flex size-9 items-center justify-center rounded-xl bg-[#0B132B] text-white dark:bg-primary dark:text-primary-foreground">
               <Shield size={20} weight="fill" />
             </div>
-            <div>
-              <h2 className="font-heading text-sm font-bold text-[#131B2E] dark:text-foreground">
-                Biểu Mẫu Tiếp Nhận Báo Cáo
-              </h2>
-              <p className="text-[11px] text-[#45464D] dark:text-muted-foreground">
-                Quy trình 3 bước tinh gọn, bảo mật danh tính người gửi
-              </p>
-            </div>
+            <h2 className="font-heading text-sm font-bold text-[#131B2E] dark:text-foreground">
+              Biểu Mẫu Tiếp Nhận Báo Cáo
+            </h2>
           </div>
         </div>
 
@@ -582,7 +571,7 @@ function ReportFormContent({
                     autoComplete="off"
                     placeholder="Nhập tên để tìm và chọn tỉnh/thành"
                     aria-invalid={hasAttemptedSubmit && !regionCode}
-                      className={reportInputClass}
+                    className={reportInputClass}
                   />
                 </div>
                 <Combobox.Portal>
@@ -726,36 +715,6 @@ function ReportFormContent({
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-3">
-              <label
-                htmlFor="report-message"
-                className="text-xs font-bold text-[#131B2E] dark:text-foreground"
-              >
-                Nội dung tin nhắn lừa đảo (tùy chọn)
-              </label>
-              <span className="shrink-0 text-xs font-semibold text-black tabular-nums dark:text-white">
-                {reportedMessage.length}/2000 ký tự
-              </span>
-            </div>
-            <textarea
-              id="report-message"
-              rows={4}
-              maxLength={2000}
-              aria-describedby="report-message-hint"
-              value={reportedMessage}
-              onChange={(e) => setReportedMessage(e.target.value)}
-              placeholder="Dán nguyên văn tin nhắn nghi lừa đảo mà bạn nhận được..."
-              className="w-full resize-y rounded-xl border border-[#C6C6CE]/50 bg-[#FAF8FF] p-3 text-xs leading-relaxed text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-muted/30 dark:text-foreground"
-            />
-            <p
-              id="report-message-hint"
-              className="text-[11px] text-muted-foreground"
-            >
-              Có thể bỏ trống nếu không có tin nhắn.
-            </p>
-          </div>
-
           {/* Evidence Attachments Upload Zone */}
           <div ref={fileSectionRef}>
             <ReportFileUpload
@@ -886,7 +845,7 @@ function ReportFormContent({
           )}
           {submitError && (
             <p role="alert" className="text-xs text-destructive">
-              {submitError}
+              <ReportSubmissionError message={submitError} />
             </p>
           )}
         </div>

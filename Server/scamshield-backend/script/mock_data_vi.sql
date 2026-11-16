@@ -64,7 +64,7 @@ INSERT INTO guest_sessions (session_token_hash, created_at) VALUES
 -- 09. quota_policies (2 bản ghi)
 INSERT INTO quota_policies (name, rank_id, max_checks_per_day, max_reports_per_day, created_at, updated_at) VALUES
 ('GUEST', NULL, 5, 0, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval)),
-('Tân Binh Quota', (SELECT id FROM reputation_ranks WHERE name = 'Tân Binh'), 10, 5, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
+('Tân Binh Quota', (SELECT id FROM reputation_ranks WHERE name = 'Tân Binh'), 100, 10, pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval), pg_catalog.timezone('Asia/Ho_Chi_Minh', CURRENT_TIMESTAMP) - CAST('7 hours' AS interval));
 
 -- 10. rate_limit_policies (1 bản ghi)
 INSERT INTO rate_limit_policies (name, scope, max_requests, window_seconds, enabled, created_at, updated_at) VALUES

@@ -1,4 +1,5 @@
 "use client"
+import { MagnifyingGlass } from "@phosphor-icons/react"
 import type {
   QueueFilterTab,
   ModeratorQueueCounts,
@@ -24,23 +25,27 @@ export function ReportQueueFilters({
   counts: ModeratorQueueCounts
 }) {
   return (
-    <div className="space-y-3 border-b border-border p-4">
-      <h2 className="font-semibold">Danh sách báo cáo</h2>
-      <input
-        aria-label="Tìm báo cáo"
-        className="w-full rounded-lg border border-border bg-background p-2 text-sm"
-        value={searchQuery}
-        onChange={(e) => onSearchChange(e.target.value)}
-        placeholder="Tìm mã báo cáo, đối tượng, người gửi..."
-      />
-      <div className="flex flex-wrap gap-2">
+    <div className="shrink-0 space-y-3 border-b border-border bg-card p-4">
+      <h2 className="text-base font-semibold">Danh sách báo cáo</h2>
+      <div className="relative">
+        <MagnifyingGlass size={17} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        <input
+          type="search"
+          aria-label="Tìm báo cáo"
+          className="h-10 w-full rounded-lg border border-border bg-background pr-3 pl-9 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Tìm mã báo cáo, đối tượng, người gửi..."
+        />
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Lọc theo trạng thái">
         {tabs.map(([value, label]) => (
           <button
             type="button"
             key={value}
             aria-pressed={currentTab === value}
             onClick={() => onTabChange(value)}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${currentTab === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-foreground"}`}
+            className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${currentTab === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-foreground"}`}
           >
             {label}
             {(value === "PENDING" || value === "IN_REVIEW") && (
