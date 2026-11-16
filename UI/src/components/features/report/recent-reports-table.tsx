@@ -94,7 +94,7 @@ export function RecentReportsTable({
     const labels: Record<string, string> = {
       PENDING: "Đang chờ duyệt",
       IN_REVIEW: "Đang kiểm duyệt",
-      APPROVED: "Đã duyệt",
+      APPROVED: "Đã chấp nhận",
       REJECTED: "Từ chối duyệt",
       WITHDRAWN: "Đã thu hồi",
     }

@@ -9,6 +9,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import com.be.scamshield.constant.EvidenceAnalysisStatus;
 import com.be.scamshield.constant.VietnamProvince;
 import com.be.scamshield.constant.IndicatorType;
+import com.be.scamshield.constant.DisputeStatus;
 
 import com.be.scamshield.dto.request.CreateReportRequest;
 import com.be.scamshield.dto.response.ReportEvidenceResponse;
@@ -22,6 +23,8 @@ import com.be.scamshield.exception.BadRequestException;
 import com.be.scamshield.exception.ResourceNotFoundException;
 import com.be.scamshield.exception.UnauthorizedException;
 import com.be.scamshield.repository.IndicatorRepository;
+import com.be.scamshield.repository.ConfirmedIndicatorRepository;
+import com.be.scamshield.repository.DisputeRepository;
 import com.be.scamshield.repository.ReportEvidenceRepository;
 import com.be.scamshield.repository.ReportRepository;
 import com.be.scamshield.repository.ScamCategorieRepository;
@@ -62,6 +65,8 @@ public class ReportServiceImpl implements IReportService {
     private final ReportRepository reportRepository;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final IndicatorRepository indicatorRepository;
+    private final ConfirmedIndicatorRepository confirmedIndicators;
+    private final DisputeRepository disputes;
     private final WhitelistEntryRepository whitelistEntries;
     private final ScamCategorieRepository scamCategorieRepository;
     private final UserRepository userRepository;
@@ -110,12 +115,26 @@ public class ReportServiceImpl implements IReportService {
         }
         List<String> targetValues = legacyIndicatorValues(reportType, normalizedValue, legacyValue);
         targetValues.add(normalizedValue);
+        indicatorRepository.lockIdentifier(reportType + ":" + normalizedValue);
         List<Long> matchingIds = indicatorRepository
-                .findByTypeAndNormalizedValueInOrderByIdAsc(reportType, targetValues)
+                .lockMatchingIndicators(reportType, targetValues)
                 .stream().map(Indicator::getId).toList();
+        if (!matchingIds.isEmpty()) {
+            if (!confirmedIndicators.findActiveForCheck(matchingIds, LocalDateTime.now()).isEmpty()) {
+                throw new BadRequestException("Đối tượng này đã có trong danh sách cảnh báo (blacklist).");
+            }
+            if (disputes.existsByConfirmedIndicator_Indicator_IdInAndStatusNot(matchingIds, DisputeStatus.DRAFT)) {
+                throw new BadRequestException("Đối tượng này đã có hồ sơ khiếu nại được nộp.");
+            }
+        }
         if (!matchingIds.isEmpty() && !whitelistEntries.findVerifiedForCheck(
                 matchingIds, PartnerVerificationStatus.VERIFIED, LocalDateTime.now()).isEmpty()) {
             throw new BadRequestException("Đối tượng này thuộc danh sách tin cậy (whitelist) đang có hiệu lực. Hiện tại bạn không thể gửi báo cáo về đối tượng này.");
+        }
+
+        if (!matchingIds.isEmpty() && reportRepository.existsByReporterUser_IdAndIndicator_IdInAndStatusIn(
+                reporterUser.getId(), matchingIds, List.of(ReportStatus.PENDING, ReportStatus.IN_REVIEW))) {
+            throw new BadRequestException("Bạn đã gửi báo cáo về đối tượng này. Vui lòng chờ kiểm duyệt viên xử lý.");
         }
 
         Indicator indicator = indicatorRepository

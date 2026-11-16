@@ -47,7 +47,7 @@ import {
 const statusNames: Record<string, string> = {
   PENDING: "Đang chờ duyệt",
   IN_REVIEW: "Đang kiểm duyệt",
-  APPROVED: "Đã duyệt",
+  APPROVED: "Đã chấp nhận",
   REJECTED: "Bị từ chối",
   WITHDRAWN: "Đã thu hồi",
 }
@@ -697,7 +697,7 @@ export function OwnReportDetailView({
                         <p className="font-semibold">
                           {(
                             {
-                              APPROVE: "Đã duyệt",
+                              APPROVE: "Đã chấp nhận",
                               REJECT: "Từ chối",
                               IN_REVIEW: "Bắt đầu kiểm duyệt",
                             } as Record<string, string>

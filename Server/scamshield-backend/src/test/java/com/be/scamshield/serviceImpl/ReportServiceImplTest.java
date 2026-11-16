@@ -4,7 +4,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.repository.WhitelistEntryRepository;
+import com.be.scamshield.repository.ConfirmedIndicatorRepository;
+import com.be.scamshield.repository.DisputeRepository;
+import com.be.scamshield.entity.ConfirmedIndicator;
+import com.be.scamshield.constant.DisputeStatus;
 import com.be.scamshield.constant.IndicatorType;
+import com.be.scamshield.constant.ReportStatus;
 
 import com.be.scamshield.constant.VietnamProvince;
 
@@ -114,6 +119,8 @@ class ReportServiceImplTest {
     @Mock private ReportEvidenceRepository evidences;
     @Mock private IndicatorRepository indicators;
     @Mock private WhitelistEntryRepository whitelistEntries;
+    @Mock private ConfirmedIndicatorRepository confirmedIndicators;
+    @Mock private DisputeRepository disputes;
     @Mock private ScamCategorieRepository categories;
     @Mock private UserRepository users;
     @Mock private SupabaseStorageService storage;
@@ -356,7 +363,7 @@ class ReportServiceImplTest {
         when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
         Indicator alias = Indicator.builder().id(42L).type(IndicatorType.PHONE)
                 .normalizedValue("+84987654321").build();
-        when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(
+        when(indicators.lockMatchingIndicators(
                 eq(IndicatorType.PHONE), argThat(values -> values.contains("+84987654321"))))
                 .thenReturn(List.of(alias));
         when(whitelistEntries.findVerifiedForCheck(eq(List.of(42L)),
@@ -366,6 +373,51 @@ class ReportServiceImplTest {
         assertThatThrownBy(() -> service.createReport(request("PHONE", "0987654321"), List.of(new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1})), principal()))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("danh sách tin cậy");
+        verifyNoInteractions(reports, storage);
+    }
+
+    @Test
+    void blocksReportForBlacklistedTargetBeforeSavingOrUploading() {
+        var request = existingTargetRequest();
+        when(confirmedIndicators.findActiveForCheck(eq(List.of(42L)), any()))
+                .thenReturn(List.of(ConfirmedIndicator.builder().build()));
+
+        assertBlockedBeforeUpload(request, "blacklist");
+    }
+
+    @Test
+    void blocksReportForDisputedTargetEvenAfterBlacklistRetraction() {
+        var request = existingTargetRequest();
+        when(disputes.existsByConfirmedIndicator_Indicator_IdInAndStatusNot(List.of(42L), DisputeStatus.DRAFT))
+                .thenReturn(true);
+
+        assertBlockedBeforeUpload(request, "khiếu nại");
+    }
+
+    @Test
+    void blocksAnotherReportWhileTheSameReporterHasAnOpenReportForTheTarget() {
+        var request = existingTargetRequest();
+        when(reports.existsByReporterUser_IdAndIndicator_IdInAndStatusIn(
+                1L, List.of(42L), List.of(ReportStatus.PENDING, ReportStatus.IN_REVIEW))).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> service.createReport(request,
+                List.of(new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1})), principal()));
+        verify(reports, never()).save(any());
+        verifyNoInteractions(storage);
+    }
+
+    private CreateReportRequest existingTargetRequest() {
+        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        when(indicators.lockMatchingIndicators(eq(IndicatorType.PHONE), any()))
+                .thenReturn(List.of(Indicator.builder().id(42L).build()));
+        return request("PHONE", "0987654321");
+    }
+
+    private void assertBlockedBeforeUpload(CreateReportRequest request, String message) {
+        var evidence = new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1});
+        assertThatThrownBy(() -> service.createReport(request, List.of(evidence), principal()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining(message);
         verifyNoInteractions(reports, storage);
     }
 }

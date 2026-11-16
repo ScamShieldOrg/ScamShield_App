@@ -9,8 +9,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.Normalizer;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public final class EvidenceFingerprints {
+    private static final Pattern SMS_HEADER = Pattern.compile("(?:tin nhan van ban sms|text message sms)");
+    private static final Pattern SMS_TIMESTAMP = Pattern.compile("\\d{1,2} \\d{2}(?: .+)?");
+
     private EvidenceFingerprints() { }
 
     public static String sha256(byte[] bytes) {
@@ -23,6 +27,21 @@ public final class EvidenceFingerprints {
         if (text == null) return "";
         return Normalizer.normalize(text, Normalizer.Form.NFKD).replaceAll("\\p{M}+", "")
                 .toLowerCase(Locale.ROOT).replace('đ', 'd').replaceAll("[^\\p{L}\\p{N}]+", " ").strip();
+    }
+
+    public static String normalizeSmsBody(String text, int minimumCharacters) {
+        if (text == null) return "";
+        List<String> lines = text.lines().map(EvidenceFingerprints::normalizeText)
+                .filter(line -> !line.isBlank()).toList();
+        for (int i = 0; i + 2 < lines.size(); i++) {
+            if (!SMS_HEADER.matcher(lines.get(i)).matches()
+                    || !SMS_TIMESTAMP.matcher(lines.get(i + 1)).matches()) continue;
+            int end = lines.size();
+            if (SMS_HEADER.matcher(lines.getLast()).matches()) end--;
+            String body = String.join(" ", lines.subList(i + 2, end));
+            return body.length() >= minimumCharacters ? body : "";
+        }
+        return "";
     }
 
     private static Set<String> shingles(String normalized) {

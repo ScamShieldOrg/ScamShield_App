@@ -37,7 +37,8 @@ public interface ReportEvidenceRepository extends JpaRepository<ReportEvidence, 
                    OR (CAST(:simHash AS bigint) IS NOT NULL AND e.ocr_sim_hash IS NOT NULL
                       AND bit_count((e.ocr_sim_hash # CAST(:simHash AS bigint))::bit(64)) <= :textDistance))
             ORDER BY CASE WHEN e.ocr_text_hash = CAST(:textHash AS varchar) THEN 0 ELSE 1 END,
-                     bit_count((e.perceptual_hash # CAST(:imageHash AS bigint))::bit(64)) NULLS LAST,
+                     CASE WHEN bit_count((e.perceptual_hash # CAST(:imageHash AS bigint))::bit(64)) <= :imageDistance
+                          THEN bit_count((e.perceptual_hash # CAST(:imageHash AS bigint))::bit(64)) END NULLS LAST,
                      bit_count((e.ocr_sim_hash # CAST(:simHash AS bigint))::bit(64)) NULLS LAST, e.id DESC
             LIMIT :limit
             """, nativeQuery = true)

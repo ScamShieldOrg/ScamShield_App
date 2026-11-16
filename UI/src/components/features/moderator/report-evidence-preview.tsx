@@ -27,9 +27,21 @@ function RelatedReportStatus({ status }: { status: string }) {
     </span>
   )
 }
-function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
+function EvidenceComparison({ evidence }: { evidence: QueueEvidence }) {
   const status = evidence.analysisStatus ?? "NOT_ANALYZED"
-  const matches = evidence.similarEvidences ?? []
+  const duplicates = evidence.duplicateCheckAvailable
+    ? (evidence.duplicates ?? [])
+    : []
+  const similar = evidence.similarEvidences ?? []
+  const matches = [
+    ...duplicates.map((match) => ({ ...match, similarity: null })),
+    ...similar.map((match) => ({ ...match, similarity: match })),
+  ]
+  const total =
+    (evidence.duplicateCheckAvailable
+      ? (evidence.duplicateCount ?? duplicates.length)
+      : 0) + (evidence.similarEvidenceCount ?? similar.length)
+  if (total === 0 && matches.length === 0 && status === "COMPLETED") return null
   return (
     <section
       className="overflow-hidden rounded-xl border border-border text-xs"
@@ -37,15 +49,13 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
     >
       <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-3 py-2">
         <h3 className="font-semibold">
-          Gần giống{" "}
-          <span className="ml-1 text-muted-foreground">
-            ({evidence.similarEvidenceCount ?? 0})
-          </span>
+          Phát hiện minh chứng gần giống{" "}
+          <span className="ml-1 text-muted-foreground">({total})</span>
         </h3>
       </div>
       {matches.length > 0 && (
         <ul className="divide-y divide-border">
-          {matches.map((match) => (
+          {matches.map(({ similarity, ...match }) => (
             <li key={match.evidenceId} className="space-y-3 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 space-y-1">
@@ -68,6 +78,9 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex min-h-7 items-center rounded-full border border-border bg-muted/40 px-2.5 py-1 font-semibold">
+                    {similarity ? "Gần giống" : "Trùng tệp"}
+                  </span>
                   <RelatedReportStatus status={match.reportStatus} />
                   <Link
                     href={`/moderator/reports/${match.reportId}`}
@@ -79,22 +92,21 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
                   </Link>
                 </div>
               </div>
-              {(match.matchTypes.includes("PHASH") ||
-                match.matchTypes.includes("OCR_TEXT")) && (
+              {similarity && (
                 <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-2.5">
-                  {match.matchTypes.includes("PHASH") && (
+                  {similarity.matchTypes.includes("PHASH") && (
                     <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 font-semibold">
                       Độ tương đồng hình ảnh:{" "}
                       <strong className="tabular-nums">
-                        {similarityPercentage(match.imageSimilarity)}
+                        {similarityPercentage(similarity.imageSimilarity)}
                       </strong>
                     </span>
                   )}
-                  {match.matchTypes.includes("OCR_TEXT") && (
+                  {similarity.matchTypes.includes("OCR_TEXT") && (
                     <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 font-semibold">
-                      Độ tương đồng văn bản (OCR):{" "}
+                      Độ tương đồng văn bản:{" "}
                       <strong className="tabular-nums">
-                        {similarityPercentage(match.textSimilarity)}
+                        {similarityPercentage(similarity.textSimilarity)}
                       </strong>
                     </span>
                   )}
@@ -103,12 +115,6 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
             </li>
           ))}
         </ul>
-      )}
-      {matches.some((match) => match.matchTypes.includes("OCR_TEXT")) && (
-        <p className="border-t border-border px-3 py-2 text-muted-foreground">
-          OCR đối chiếu phần chữ trích xuất từ hai minh chứng; tỷ lệ cho biết
-          mức tương đồng của văn bản.
-        </p>
       )}
       {status !== "COMPLETED" && (
         <p className="px-3 py-2 text-muted-foreground">
@@ -123,9 +129,9 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
           Không thể phân tích tệp. Vui lòng thử lại sau.
         </p>
       )}
-      {(evidence.similarEvidenceCount ?? 0) > matches.length && (
+      {total > matches.length && (
         <p className="px-3 py-2 text-muted-foreground">
-          Hiển thị {matches.length}/{evidence.similarEvidenceCount} kết quả.
+          Hiển thị {matches.length}/{total} kết quả.
         </p>
       )}
     </section>
@@ -173,67 +179,6 @@ function formatEvidenceDate(value: string | null): string {
   return Number.isNaN(date.getTime())
     ? "Chưa có thông tin"
     : `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
-}
-
-function EvidenceComparison({ active }: { active: QueueEvidence }) {
-  if (!active.duplicateCheckAvailable || (active.duplicateCount ?? 0) <= 0)
-    return null
-  return (
-    <section
-      aria-label={`Kết quả đối chiếu ${active.name}`}
-      className="overflow-hidden rounded-xl border border-border text-xs"
-    >
-      <div className="flex flex-wrap items-center gap-2 bg-muted/40 px-3 py-2">
-        <h3 className="font-semibold">Trùng tệp</h3>
-        <span className="text-muted-foreground">({active.duplicateCount})</span>
-      </div>
-      <ul className="divide-y divide-border">
-        {active.duplicates?.map((duplicate) => (
-          <li
-            key={duplicate.evidenceId}
-            className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5"
-          >
-            <div className="min-w-0 space-y-1">
-              <p className="font-semibold">
-                Báo cáo {duplicate.reportId}{" "}
-                <span className="font-normal text-muted-foreground">
-                  / Minh chứng {duplicate.evidenceId}
-                </span>
-              </p>
-              <p className="text-muted-foreground">
-                {duplicate.sameReporter
-                  ? "Cùng người gửi"
-                  : "Khác hoặc chưa xác định người gửi"}
-              </p>
-              <p className="text-muted-foreground">
-                Cập nhật lần cuối:{" "}
-                <time className="tabular-nums">
-                  {formatEvidenceDate(duplicate.reportUpdatedAt ?? null)}
-                </time>
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <RelatedReportStatus status={duplicate.reportStatus} />
-              <Link
-                href={`/moderator/reports/${duplicate.reportId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={comparisonLinkClass}
-              >
-                Xem báo cáo <ArrowSquareOut size={14} />
-              </Link>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {(active.duplicateCount ?? 0) > (active.duplicates?.length ?? 0) && (
-        <p className="px-3 py-2 text-muted-foreground">
-          Hiển thị {active.duplicates?.length ?? 0}/{active.duplicateCount} kết
-          quả.
-        </p>
-      )}
-    </section>
-  )
 }
 
 export function ReportEvidencePreview({
@@ -330,10 +275,7 @@ export function ReportEvidencePreview({
                     </span>
                   </div>
                 )}
-                <div className="grid items-start gap-3 xl:grid-cols-2">
-                  <EvidenceComparison active={evidence} />
-                  <EvidenceSimilarity evidence={evidence} />
-                </div>
+                <EvidenceComparison evidence={evidence} />
               </div>
             )
           })}
