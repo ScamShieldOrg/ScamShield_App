@@ -59,6 +59,7 @@ public class ScamCheckAiClient {
     private final Duration timeout;
 
     private final boolean enabled;
+    private final String token;
 
 
 
@@ -70,9 +71,23 @@ public class ScamCheckAiClient {
 
             @Value("${app.scam-check.ai.request-timeout-ms:60000}") long requestTimeout,
 
-            @Value("${app.scam-check.ai.enabled:true}") boolean enabled) {
+            @Value("${app.scam-check.ai.enabled:true}") boolean enabled,
+            @Value("${app.scam-check.ai.token:}") String token) {
 
         this.json = json;
+        if (enabled && (token == null || token.isBlank())) {
+            throw new IllegalArgumentException("SCAM_CHECK_AI_TOKEN is required when AI scanning is enabled");
+        }
+        this.token = token;
+        URI base = URI.create(baseUrl);
+        String scheme = base.getScheme();
+        String host = base.getHost();
+        boolean loopback = host != null && (host.equalsIgnoreCase("localhost")
+                || host.equals("127.0.0.1") || host.equals("::1") || host.equals("[::1]"));
+        if (host == null || base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null
+                || !("https".equalsIgnoreCase(scheme) || ("http".equalsIgnoreCase(scheme) && loopback))) {
+            throw new IllegalArgumentException("AI base URL must use HTTPS or loopback HTTP");
+        }
 
         // Uvicorn's HTTP/1.1 server does not support Java's cleartext HTTP/2 upgrade.
 
@@ -80,7 +95,7 @@ public class ScamCheckAiClient {
 
                 .connectTimeout(Duration.ofMillis(connectTimeout)).build();
 
-        this.endpoint = URI.create(baseUrl.replaceAll("/+$", "") + "/api/v1/scan");
+        this.endpoint = URI.create(base.toString().replaceAll("/+$", "") + "/api/v1/scan");
 
         this.timeout = Duration.ofMillis(requestTimeout);
 
@@ -181,6 +196,7 @@ public class ScamCheckAiClient {
             var request = HttpRequest.newBuilder(endpoint).timeout(timeout)
 
                     .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + token)
 
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
 
@@ -260,7 +276,7 @@ public class ScamCheckAiClient {
 
                     ex.getCause() == null ? "NONE" : ex.getCause().getClass().getSimpleName(),
 
-                    (System.nanoTime() - started) / 1_000_000, ex);
+                    (System.nanoTime() - started) / 1_000_000);
 
             return Result.failure("AI_UNAVAILABLE");
 

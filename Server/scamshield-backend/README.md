@@ -23,6 +23,21 @@ if (-not (Test-Path .\.env)) {
 - `FIREBASE_WEB_API_KEY`: API key của Firebase project dùng gửi OTP điện thoại.
 - `MAIL_USERNAME`, `MAIL_PASSWORD`: Gmail và App Password, nếu dùng API OTP email.
 - Các biến hết hạn `*_EXPIRATION_MS`: giữ giá trị mẫu hoặc đổi theo nhu cầu; đơn vị **mili giây**.
+- `SCAM_CHECK_AI_TOKEN`: cùng một giá trị ngẫu nhiên với `AI_SERVICE_TOKEN` của AI service; bắt buộc khi `SCAM_CHECK_AI_ENABLED=true`.
+
+Trong PowerShell, tạo một token ngẫu nhiên (64 ký tự hex) bằng lệnh sau:
+
+```powershell
+$tokenBytes = New-Object byte[] 32
+$tokenRandom = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$tokenRandom.GetBytes($tokenBytes)
+$tokenRandom.Dispose()
+[BitConverter]::ToString($tokenBytes).Replace('-', '').ToLowerInvariant()
+```
+
+Lưu **cùng một giá trị** vừa in ra vào `SCAM_CHECK_AI_TOKEN` trong `.env` của backend và `AI_SERVICE_TOKEN` trong `.env` của AI service. Không đưa token vào frontend hoặc ứng dụng di động. Chỉ dùng `SCAM_CHECK_AI_BASE_URL=http://localhost:8000` khi backend và AI service chạy trên cùng máy phát triển. Khi triển khai, đặt AI service sau HTTPS với chứng chỉ hợp lệ, đặt `SCAM_CHECK_AI_BASE_URL` thành địa chỉ HTTPS đó và cập nhật hai secret cùng lúc trước khi khởi động lại hai dịch vụ.
+
+Sau khi triển khai, chạy một lần quét qua backend với token đã cấu hình và xác nhận yêu cầu trực tiếp không có `Authorization` tới `/api/v1/scan` trả HTTP 401.
 
 Nếu chưa có `JWT_SECRET`, chạy lệnh sau rồi dán kết quả vào `.env`:
 

@@ -68,6 +68,12 @@ google:
 # Application Configurations
 app:
   ui-base-url: ${APP_UI_BASE_URL:http://localhost:3001}
+  cors:
+    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:3001}
+  auth:
+    cookie:
+      secure: ${AUTH_COOKIE_SECURE:false}
+      same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
   evidence-analysis:
     enabled: ${EVIDENCE_ANALYSIS_ENABLED:true}
     executable: ${TESSERACT_EXECUTABLE:tesseract}
@@ -82,6 +88,7 @@ app:
     ai:
       enabled: ${SCAM_CHECK_AI_ENABLED:true}
       base-url: ${SCAM_CHECK_AI_BASE_URL:http://localhost:8000}
+      token: ${SCAM_CHECK_AI_TOKEN:}
       connect-timeout-ms: ${SCAM_CHECK_AI_CONNECT_TIMEOUT_MS:2000}
       request-timeout-ms: ${SCAM_CHECK_AI_REQUEST_TIMEOUT_MS:60000}
     registered-daily-limit: ${SCAM_CHECK_REGISTERED_DAILY_LIMIT:10}
