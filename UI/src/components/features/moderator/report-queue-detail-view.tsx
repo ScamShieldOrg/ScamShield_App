@@ -76,7 +76,7 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
       ].map(({ title, name, fields }, index) => (
         <section
           key={title}
-          className={`min-w-0 rounded-2xl border p-4 sm:p-5 ${index === 0 ? "border-sky-900/15 bg-sky-50/55 dark:border-sky-200/15 dark:bg-sky-950/25" : "border-border bg-card"}`}
+          className="min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5"
         >
           <p className="text-xs font-semibold tracking-wide text-muted-foreground">
             {title}
@@ -95,7 +95,7 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
               </span>
               {indicator && (
                 <span
-                  className={`rounded-full border px-2.5 py-1 font-semibold ${indicator.blacklistStatus === "ACTIVE" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-card text-muted-foreground"}`}
+                  className={`rounded-full border px-2.5 py-1 font-semibold ${indicator.blacklistStatus === "ACTIVE" ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200" : "border-border bg-card text-muted-foreground"}`}
                 >
                   {indicator.blacklistStatus === "ACTIVE"
                     ? "Đang trong blacklist"
@@ -107,7 +107,7 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
             </div>
           )}
           {index === 0 && indicator && (
-            <dl className="mt-5 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-card">
+            <dl className="mt-5 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-muted/35">
               {[
                 {
                   label: "Tổng báo cáo",
@@ -161,14 +161,12 @@ export function ReportQueueDetailView({
   item,
   onDecisionSubmitted,
   onStartReview,
-  reviewActive = false,
   onDirtyChange,
   busy = false,
 }: {
   item: ModeratorReportItem | null
   onDecisionSubmitted: (payload: ModerationDecisionPayload) => Promise<void>
   onStartReview: () => Promise<void>
-  reviewActive?: boolean
   onDirtyChange?: (dirty: boolean) => void
   busy?: boolean
 }) {
@@ -182,7 +180,6 @@ export function ReportQueueDetailView({
     )
   const pending = item.status === "Pending" || item.status === "In Review"
   const canReview = ownsReportReview(item)
-  const showDecision = pending && canReview && reviewActive
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 pb-6 sm:px-6">
       <header className="z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 lg:sticky lg:top-0">
@@ -206,7 +203,7 @@ export function ReportQueueDetailView({
             {reportStatusLabel[item.status] ?? item.status}
           </span>
         </div>
-        {pending && item.canReview === true && !reviewActive && (
+        {item.status === "Pending" && item.canReview === true && (
           <button
             type="button"
             disabled={busy}
@@ -214,10 +211,10 @@ export function ReportQueueDetailView({
             className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
           >
             <Gavel size={16} aria-hidden="true" />
-            {busy ? "Đang bắt đầu duyệt..." : "Kiểm duyệt báo cáo"}
+            {busy ? "Đang mở phiên duyệt..." : "Kiểm duyệt báo cáo"}
           </button>
         )}
-        {showDecision && (
+        {canReview && (
           <button
             type="button"
             onClick={() => {
@@ -303,7 +300,7 @@ export function ReportQueueDetailView({
         evidences={item.evidences ?? []}
         completeness={item.evidenceCompleteness}
       />
-      {showDecision && (
+      {canReview && (
         <div ref={decisionRef} tabIndex={-1} className="scroll-mt-24">
           <ReportDecisionForm
             key={item.id}

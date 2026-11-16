@@ -238,9 +238,6 @@ export async function submitScamReport(
   if (payload.description.length > 2000) {
     throw new Error("Mô tả hành vi tối đa 2.000 ký tự")
   }
-  if ((payload.reportedMessage?.length ?? 0) > 2000) {
-    throw new Error("Nội dung tin nhắn tối đa 2.000 ký tự")
-  }
   const fileError = validateReportFiles(payload.attachments)
   if (fileError) throw new Error(fileError)
 
@@ -256,9 +253,6 @@ export async function submitScamReport(
           category: payload.category,
           regionCode: payload.regionCode,
           description: payload.description.trim(),
-          reportedMessage: payload.reportedMessage?.trim()
-            ? payload.reportedMessage
-            : undefined,
           isConfirmed: payload.isConfirmed,
         }),
       ],

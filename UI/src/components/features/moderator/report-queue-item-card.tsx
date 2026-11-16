@@ -21,7 +21,7 @@ export function ReportQueueItemCard({
       type="button"
       aria-pressed={isSelected}
       onClick={() => onSelect(item)}
-      className={`w-full space-y-2 rounded-xl border border-l-[3px] p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 ${isSelected ? "border-sky-900/20 border-l-sky-700 bg-sky-50 dark:border-sky-200/20 dark:border-l-sky-400 dark:bg-sky-950/40" : "border-border bg-card hover:bg-muted/60"}`}
+      className={`w-full space-y-2 rounded-xl border border-l-[3px] border-border bg-card p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 ${isSelected ? "border-l-foreground/70" : "hover:bg-muted/60"}`}
     >
       <span className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="flex flex-wrap items-center gap-2">

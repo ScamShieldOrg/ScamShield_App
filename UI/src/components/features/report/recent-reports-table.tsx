@@ -95,7 +95,7 @@ export function RecentReportsTable({
       PENDING: "Đang chờ duyệt",
       IN_REVIEW: "Đang kiểm duyệt",
       APPROVED: "Đã chấp nhận",
-      REJECTED: "Từ chối duyệt",
+      REJECTED: "Đã từ chối",
       WITHDRAWN: "Đã thu hồi",
     }
     return (

@@ -104,6 +104,35 @@ class EvidenceAnalysisPersistenceTest extends PostgresIntegrationTest {
         verifyNoInteractions(analyzer);
     }
 
+    @Test
+    void matchesMessageAcrossDifferentReportsWhenOneSmsHeaderIsMissing() {
+        Report sourceReport = report();
+        Report otherReport = Report.builder().reporterUser(sourceReport.getReporterUser())
+                .indicator(sourceReport.getIndicator()).status(ReportStatus.PENDING)
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
+        em.persist(otherReport);
+        ReportEvidence source = evidence(sourceReport, "evidences/cropped.png");
+        ReportEvidence other = evidence(otherReport, "evidences/full.png");
+        ReportEvidence unrelated = evidence(otherReport, "evidences/unrelated.png");
+        String body = "Gui tang quy khach code tri gia 50K. Truy cap tai day: nhanqua.example.com de nhan qua.";
+        for (ReportEvidence file : List.of(source, other, unrelated)) {
+            file.setAnalysisVersion(1);
+            file.setAnalysisStatus(EvidenceAnalysisStatus.COMPLETED);
+        }
+        source.setOcrText("18:23 5G\n" + body + "\nGui tin nhan");
+        other.setOcrText("Tin nhan van ban - SMS\n18:23, Hom nay\n" + body);
+        unrelated.setOcrText("Xem lich bao tri he thong va thoi gian khoi phuc tai nhanqua.example.com hom nay.");
+        em.flush();
+        em.clear();
+
+        assertThat(similarities.findMatchesForEvidenceIds(List.of(source.getId())))
+                .singleElement().satisfies(match -> {
+                    assertThat(match.getReportId()).isEqualTo(otherReport.getId());
+                    assertThat(match.getEvidenceId()).isEqualTo(other.getId());
+                    assertThat(match.getTextSimilarity()).isEqualTo(1.0);
+                });
+    }
+
     private Report report() {
         LocalDateTime now = LocalDateTime.now();
         User user = User.builder().fullName("Reporter").email("analysis@example.test").phoneNumber("0912345678")

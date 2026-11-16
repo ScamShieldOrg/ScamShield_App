@@ -30,7 +30,6 @@ export function ReportReviewWorkspace({
 }) {
   const [items, setItems] = useState<ModeratorReportItem[]>([])
   const [selected, setSelected] = useState("")
-  const [activeReviewId, setActiveReviewId] = useState("")
   const [detailResult, setDetailResult] = useState<{
     key: string
     data: ModeratorReportItem | null
@@ -73,7 +72,6 @@ export function ReportReviewWorkspace({
       active = false
     }
   }, [initialId])
-  const reviewingId = useRef<string | number | null>(null)
   const formDirty = useRef(false)
   const handleDirtyChange = useCallback((dirty: boolean) => {
     formDirty.current = dirty
@@ -81,34 +79,24 @@ export function ReportReviewWorkspace({
   const leaveMessage =
     "Thông tin đang cập nhật có thể bị mất. Bạn có muốn tiếp tục?"
   const leaveReview = () => {
-    const current = reviewingId.current
-    if (current == null) {
-      setActiveReviewId("")
-      return true
-    }
     if (actionInFlight.current) return false
     if (formDirty.current && !window.confirm(leaveMessage)) return false
     formDirty.current = false
-    reviewingId.current = null
-    setActiveReviewId("")
     return true
   }
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (reviewingId.current == null || !formDirty.current) return
+      if (!formDirty.current) return
       event.preventDefault()
       event.returnValue = ""
     }
     const pageHide = () => {
       formDirty.current = false
-      reviewingId.current = null
     }
     const pageShow = (event: PageTransitionEvent) => {
       if (!event.persisted) return
-      reviewingId.current = null
       formDirty.current = false
       setSelected("")
-      setActiveReviewId("")
       setRevision((value) => value + 1)
     }
     window.addEventListener("beforeunload", beforeUnload)
@@ -170,7 +158,7 @@ export function ReportReviewWorkspace({
         const report = result
         if (!active) return
         if (report.status !== "In Review" || report.canReview !== true) {
-          reviewingId.current = null
+          formDirty.current = false
         }
         setDetailResult({ key: detailKey, data: report, error: "" })
         setItems((previous) =>
@@ -197,7 +185,8 @@ export function ReportReviewWorkspace({
   const startReview = async () => {
     if (
       !detail ||
-      !["Pending", "In Review"].includes(detail.status) ||
+      detail.status !== "Pending" ||
+      detail.canReview !== true ||
       actionInFlight.current
     )
       return
@@ -206,13 +195,11 @@ export function ReportReviewWorkspace({
     try {
       const report = await startModeratorReportReview(detail.rawId ?? detail.id)
       setDetail(report)
-      setActiveReviewId(report.id)
-      reviewingId.current = report.rawId ?? report.id
       setRevision((value) => value + 1)
       toast.success("Đã bắt đầu duyệt báo cáo")
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Không thể bắt đầu duyệt"
+        error instanceof Error ? error.message : "Không thể mở phiên kiểm duyệt"
       )
       setRevision((value) => value + 1)
     } finally {
@@ -231,8 +218,6 @@ export function ReportReviewWorkspace({
           rawId: detail.rawId,
         })
         setDetail(result.data)
-        reviewingId.current = null
-        setActiveReviewId("")
         formDirty.current = false
         toast.success(result.message)
       }
@@ -240,7 +225,7 @@ export function ReportReviewWorkspace({
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Thao tác thất bại")
       if (e instanceof ModerationApiError && e.status === 409) {
-        reviewingId.current = null
+        formDirty.current = false
         setDetail(null)
       }
       setRevision((value) => value + 1)
@@ -371,7 +356,6 @@ export function ReportReviewWorkspace({
             key={detail?.id ?? selected}
             item={detail}
             busy={busy}
-            reviewActive={detail?.id === activeReviewId}
             onStartReview={startReview}
             onDirtyChange={handleDirtyChange}
             onDecisionSubmitted={(payload) => act(payload)}

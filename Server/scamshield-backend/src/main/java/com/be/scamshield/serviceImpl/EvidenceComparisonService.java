@@ -50,10 +50,11 @@ public class EvidenceComparisonService {
         for (ReportEvidence source : evidences.findAllById(ids)) {
             int minimumCharacters = properties.getMinimumTextCharacters();
             String sourceText = EvidenceFingerprints.normalizeText(source.getOcrText());
+            String sourceDomain = EvidenceFingerprints.firstDomain(source.getOcrText());
             String sourceSms = EvidenceFingerprints.normalizeSmsBody(source.getOcrText(), minimumCharacters);
             var candidates = evidences.findAnalysisCandidates(source.getId(), source.getFileHash(),
                     source.getPerceptualHash(), source.getOcrTextHash(), source.getOcrSimHash(),
-                    properties.getImageDistance(), properties.getTextCandidateDistance(), properties.getCandidateLimit());
+                    properties.getImageDistance(), properties.getTextCandidateDistance(), sourceDomain, properties.getCandidateLimit());
             List<MatchRow> matches = new ArrayList<>();
             for (var candidate : candidates) {
                 Integer distance = source.getPerceptualHash() != null && candidate.getPerceptualHash() != null
@@ -61,17 +62,20 @@ public class EvidenceComparisonService {
                 if (distance != null && distance > properties.getImageDistance()) distance = null;
                 String normalized = sourceText;
                 String other = EvidenceFingerprints.normalizeText(candidate.getOcrText());
-                if (!sourceSms.isEmpty()) {
-                    String candidateSms = EvidenceFingerprints.normalizeSmsBody(candidate.getOcrText(), minimumCharacters);
-                    if (!candidateSms.isEmpty()) {
-                        normalized = sourceSms;
-                        other = candidateSms;
-                    }
+                String candidateSms = EvidenceFingerprints.normalizeSmsBody(candidate.getOcrText(), minimumCharacters);
+                if (!sourceSms.isEmpty() && !candidateSms.isEmpty()) {
+                    normalized = sourceSms;
+                    other = candidateSms;
                 }
                 double score = 0;
                 if (normalized.length() >= minimumCharacters && other.length() >= minimumCharacters) {
                     score = normalized.equals(other) ? 1.0
                             : EvidenceFingerprints.textSimilarity(normalized, other);
+                    if (sourceDomain != null && sourceDomain.equals(EvidenceFingerprints.firstDomain(candidate.getOcrText()))) {
+                        score = Math.max(score, EvidenceFingerprints.textContainment(
+                                sourceSms.isEmpty() ? normalized : sourceSms,
+                                candidateSms.isEmpty() ? other : candidateSms));
+                    }
                 }
                 if (distance == null && score < properties.getTextSimilarity()) continue;
                 ReportEvidence target = evidences.findById(candidate.getId()).orElseThrow();

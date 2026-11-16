@@ -1,7 +1,7 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import Link from "next/link"
-import { ArrowSquareOut, FileText } from "@phosphor-icons/react"
+import { ArrowSquareOut, CaretDown, CaretUp, FileText } from "@phosphor-icons/react"
 import type { QueueEvidence } from "@/features/moderator/types/moderator.types"
 import { reportStatusClasses } from "@/features/report/utils/report-status"
 import { safeEvidenceUrl } from "@/features/moderator/report-review"
@@ -27,7 +27,11 @@ function RelatedReportStatus({ status }: { status: string }) {
     </span>
   )
 }
+const INITIAL_MATCH_COUNT = 3
+
 function EvidenceComparison({ evidence }: { evidence: QueueEvidence }) {
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
   const status = evidence.analysisStatus ?? "NOT_ANALYZED"
   const duplicates = evidence.duplicateCheckAvailable
     ? (evidence.duplicates ?? [])
@@ -37,26 +41,36 @@ function EvidenceComparison({ evidence }: { evidence: QueueEvidence }) {
     ...duplicates.map((match) => ({ ...match, similarity: null })),
     ...similar.map((match) => ({ ...match, similarity: match })),
   ]
-  const total =
-    (evidence.duplicateCheckAvailable
-      ? (evidence.duplicateCount ?? duplicates.length)
-      : 0) + (evidence.similarEvidenceCount ?? similar.length)
+  const duplicateCount = evidence.duplicateCheckAvailable
+    ? (evidence.duplicateCount ?? duplicates.length)
+    : null
+  const similarCount = evidence.similarEvidenceCount ?? similar.length
+  const total = (duplicateCount ?? 0) + similarCount
+  const visibleMatches = expanded ? matches : matches.slice(0, INITIAL_MATCH_COUNT)
+  const remaining = matches.length - INITIAL_MATCH_COUNT
   if (total === 0 && matches.length === 0 && status === "COMPLETED") return null
   return (
     <section
       className="overflow-hidden rounded-xl border border-border text-xs"
       aria-label={`Phân tích tương đồng ${evidence.name}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2.5">
         <h3 className="font-semibold">
-          Phát hiện minh chứng gần giống{" "}
-          <span className="ml-1 text-muted-foreground">({total})</span>
+          Phát hiện minh chứng gần giống
         </h3>
+        <div className="flex flex-wrap gap-2 tabular-nums">
+          <span className="rounded-full border border-border bg-card px-2 py-1">
+            Trùng tệp <strong>{duplicateCount ?? "—"}</strong>
+          </span>
+          <span className="rounded-full border border-border bg-card px-2 py-1">
+            Gần giống <strong>{similarCount}</strong>
+          </span>
+        </div>
       </div>
       {matches.length > 0 && (
-        <ul className="divide-y divide-border">
-          {matches.map(({ similarity, ...match }) => (
-            <li key={match.evidenceId} className="space-y-3 px-3 py-2.5">
+        <ul id={listId} className="divide-y divide-border">
+          {visibleMatches.map(({ similarity, ...match }) => (
+            <li key={match.evidenceId} className="space-y-2 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 space-y-1">
                   <p className="font-semibold">
@@ -93,9 +107,9 @@ function EvidenceComparison({ evidence }: { evidence: QueueEvidence }) {
                 </div>
               </div>
               {similarity && (
-                <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-2.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
                   {similarity.matchTypes.includes("PHASH") && (
-                    <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 font-semibold">
+                    <span>
                       Độ tương đồng hình ảnh:{" "}
                       <strong className="tabular-nums">
                         {similarityPercentage(similarity.imageSimilarity)}
@@ -103,7 +117,7 @@ function EvidenceComparison({ evidence }: { evidence: QueueEvidence }) {
                     </span>
                   )}
                   {similarity.matchTypes.includes("OCR_TEXT") && (
-                    <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 font-semibold">
+                    <span>
                       Độ tương đồng văn bản:{" "}
                       <strong className="tabular-nums">
                         {similarityPercentage(similarity.textSimilarity)}
@@ -115,6 +129,22 @@ function EvidenceComparison({ evidence }: { evidence: QueueEvidence }) {
             </li>
           ))}
         </ul>
+      )}
+      {remaining > 0 && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          onClick={() => setExpanded((value) => !value)}
+          className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 border-t border-border bg-muted/30 px-4 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        >
+          {expanded ? "Thu gọn" : `Xem thêm (${remaining})`}
+          {expanded ? (
+            <CaretUp size={16} aria-hidden="true" />
+          ) : (
+            <CaretDown size={16} aria-hidden="true" />
+          )}
+        </button>
       )}
       {status !== "COMPLETED" && (
         <p className="px-3 py-2 text-muted-foreground">
@@ -131,7 +161,7 @@ function EvidenceComparison({ evidence }: { evidence: QueueEvidence }) {
       )}
       {total > matches.length && (
         <p className="px-3 py-2 text-muted-foreground">
-          Hiển thị {matches.length}/{total} kết quả.
+          Có {matches.length}/{total} kết quả để xem.
         </p>
       )}
     </section>

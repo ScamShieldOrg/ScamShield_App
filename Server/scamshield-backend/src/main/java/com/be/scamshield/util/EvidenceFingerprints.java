@@ -17,6 +17,22 @@ public final class EvidenceFingerprints {
 
     private EvidenceFingerprints() { }
 
+    private static final Pattern DOMAIN = Pattern.compile(
+            "(?i)(?<![a-z0-9_.@-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}(?![a-z0-9_-]|\\.[a-z0-9])");
+
+    public static String firstDomain(String text) {
+        if (text == null) return null;
+        var match = DOMAIN.matcher(text);
+        return match.find() ? match.group().toLowerCase(Locale.ROOT) : null;
+    }
+
+    public static double textContainment(String normalizedFirst, String normalizedSecond) {
+        Set<String> first = shingles(normalizedFirst);
+        Set<String> second = shingles(normalizedSecond);
+        long common = first.stream().filter(second::contains).count();
+        return common >= 10 ? (double) common / Math.min(first.size(), second.size()) : 0;
+    }
+
     public static String sha256(byte[] bytes) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));

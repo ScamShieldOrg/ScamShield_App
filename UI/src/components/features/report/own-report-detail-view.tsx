@@ -137,7 +137,6 @@ export function OwnReportDetailView({
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [description, setDescription] = useState("")
-  const [message, setMessage] = useState("")
   const [categoryId, setCategoryId] = useState("")
   const [region, setRegion] = useState("")
   const [evidence, setEvidence] = useState<OwnReportEvidence[]>([])
@@ -169,7 +168,6 @@ export function OwnReportDetailView({
           setReport(data)
           if (initialEdit && data.status === "PENDING") {
             setDescription(data.description ?? "")
-            setMessage(data.reportedMessage ?? "")
             setCategoryId(data.categoryId?.toString() ?? "")
             setRegion(data.regionCode ?? "")
             setEvidence(data.evidences)
@@ -201,7 +199,6 @@ export function OwnReportDetailView({
   function startEdit() {
     if (!report) return
     setDescription(report.description ?? "")
-    setMessage(report.reportedMessage ?? "")
     setCategoryId(report.categoryId?.toString() ?? "")
     setRegion(report.regionCode ?? "")
     setEvidence(report.evidences)
@@ -265,7 +262,6 @@ export function OwnReportDetailView({
         )
       const updated = await updateOwnReport(id, {
         description: description.trim(),
-        reportedMessage: message,
         categoryId: categoryId ? Number(categoryId) : null,
         regionCode: region || null,
         evidences: replacement,
@@ -476,21 +472,6 @@ export function OwnReportDetailView({
                         rows={4}
                       />
                     </label>
-                    <label className="block space-y-2">
-                      <span className="flex items-center justify-between gap-3">
-                        <span>Tin nhắn nghi lừa đảo</span>
-                        <span className="text-xs font-semibold text-black tabular-nums dark:text-white">
-                          {message.length}/2000 ký tự
-                        </span>
-                      </span>
-                      <textarea
-                        maxLength={2000}
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        className={fieldClass}
-                        rows={4}
-                      />
-                    </label>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="block space-y-2">
                         <span>Danh mục</span>
@@ -621,11 +602,6 @@ export function OwnReportDetailView({
                   <p className="text-sm leading-7 break-words whitespace-pre-wrap">
                     {report.description || "Chưa có mô tả."}
                   </p>
-                  {report.reportedMessage && (
-                    <blockquote className="border-l-4 border-primary pl-4 break-words whitespace-pre-wrap text-muted-foreground">
-                      {report.reportedMessage}
-                    </blockquote>
-                  )}
                   <p className="flex items-center gap-1.5 border-t border-border/70 pt-4 text-xs text-muted-foreground">
                     <Clock size={14} /> Cập nhật lần cuối:{" "}
                     {date(report.updatedAt)}
