@@ -11,6 +11,7 @@ import {
 } from "@/features/moderator/report-review"
 import { ReportEvidencePreview } from "./report-evidence-preview"
 import { ReportDecisionForm } from "./report-decision-form"
+import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
 
 function contextDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString("vi-VN") : "Chưa có dữ liệu"
@@ -34,7 +35,12 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
     ["Điểm uy tín", reporter.reputationPoints ?? "Chưa có dữ liệu"],
     ["Tham gia từ", contextDate(reporter.joinedAt)],
     ["Email", reporter.email || "Chưa cung cấp"],
-    ["Số điện thoại", reporter.phoneNumber || "Chưa cung cấp"],
+    [
+      "Số điện thoại",
+      reporter.phoneNumber
+        ? formatReportPhoneInput(reporter.phoneNumber)
+        : "Chưa cung cấp",
+    ],
     ["Báo cáo đã gửi", reporter.reports],
     [
       "Tỷ lệ báo cáo được duyệt",
@@ -58,7 +64,10 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
       {[
         {
           title: "Đối tượng bị báo cáo",
-          name: item.targetIdentifier,
+          name:
+            item.targetType === "PHONE"
+              ? formatReportPhoneInput(item.targetIdentifier)
+              : item.targetIdentifier,
           fields: indicatorFields,
         },
         { title: "Người gửi", name: item.reportedBy, fields: reporterFields },
@@ -218,15 +227,6 @@ export function ReportQueueDetailView({
             className={`mt-2 text-sm break-words whitespace-pre-wrap ${item.description?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
           >
             {item.description?.trim() || "Chưa có mô tả."}
-          </p>
-        </div>
-        <div>
-          <h2 className="text-sm font-bold">Nội dung tin nhắn bị báo cáo</h2>
-          <p
-            className={`mt-2 text-sm break-words whitespace-pre-wrap ${item.reportedMessage?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
-          >
-            {item.reportedMessage?.trim() ||
-              "Người gửi không cung cấp nội dung tin nhắn."}
           </p>
         </div>
       </section>

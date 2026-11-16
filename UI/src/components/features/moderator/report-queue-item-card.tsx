@@ -6,6 +6,7 @@ import {
   reportTargetTypeLabel,
 } from "@/features/moderator/report-review"
 import type { ModeratorReportItem } from "@/features/moderator/types/moderator.types"
+import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
 export function ReportQueueItemCard({
   item,
   isSelected,
@@ -49,7 +50,9 @@ export function ReportQueueItemCard({
         {reportTargetTypeLabel(item.targetType)}
       </span>
       <span className="block text-sm font-semibold break-all">
-        {item.targetIdentifier}
+        {item.targetType === "PHONE"
+          ? formatReportPhoneInput(item.targetIdentifier)
+          : item.targetIdentifier}
       </span>
       <span className="block text-xs text-muted-foreground">
         {item.category}

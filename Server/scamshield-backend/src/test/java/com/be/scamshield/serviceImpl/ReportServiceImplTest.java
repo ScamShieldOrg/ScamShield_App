@@ -1,5 +1,8 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.repository.QuotaPolicyRepository;
+import com.be.scamshield.entity.ReputationRank;
+import com.be.scamshield.entity.QuotaPolicy;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.constant.PartnerVerificationStatus;
@@ -44,6 +47,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -116,6 +120,7 @@ class ReportServiceImplTest {
     }
 
     @Mock private ReportRepository reports;
+    @Mock private QuotaPolicyRepository quotaPolicies;
     @Mock private ReportEvidenceRepository evidences;
     @Mock private IndicatorRepository indicators;
     @Mock private WhitelistEntryRepository whitelistEntries;
@@ -397,12 +402,45 @@ class ReportServiceImplTest {
     @Test
     void blocksAnotherReportWhileTheSameReporterHasAnOpenReportForTheTarget() {
         var request = existingTargetRequest();
-        when(reports.existsByReporterUser_IdAndIndicator_IdInAndStatusIn(
-                1L, List.of(42L), List.of(ReportStatus.PENDING, ReportStatus.IN_REVIEW))).thenReturn(true);
+        when(reports.findFirstByReporterUser_IdAndIndicator_IdInAndStatusInOrderByIdDesc(
+                1L, List.of(42L), List.of(ReportStatus.PENDING, ReportStatus.IN_REVIEW)))
+                .thenReturn(Optional.of(Report.builder().id(42L).build()));
 
-        assertThrows(BadRequestException.class, () -> service.createReport(request,
+        assertBlockedBeforeUpload(request, "#RPT-0042");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {3, 10})
+    void rejectsRateLimitedReporterBeforeSavingOrUploading(int recentReports) {
+        when(users.findById(1L)).thenReturn(Optional.of(reporter("0912345678")));
+        when(reports.countByReporterUserIdAndCreatedAtAfter(eq(1L), any())).thenReturn((long) recentReports);
+
+        var error = assertThrows(ResponseStatusException.class, () -> service.createReport(
+                request("PHONE", "0987654321"),
                 List.of(new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1})), principal()));
+
+        assertEquals(429, error.getStatusCode().value());
+        verify(indicators).lockIdentifier("report-submission:1");
         verify(reports, never()).save(any());
+        verifyNoInteractions(storage);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 5})
+    void appliesRankReportQuotaIndependentlyOfCheckQuota(int maxReports) {
+        User reporter = reporter("0912345678");
+        reporter.setReputationRank(ReputationRank.builder().id(7L).build());
+        when(users.findById(1L)).thenReturn(Optional.of(reporter));
+        when(quotaPolicies.findByRankId(7L)).thenReturn(Optional.of(QuotaPolicy.builder()
+                .maxReportsPerDay(maxReports).maxChecksPerDay(99).build()));
+        when(reports.countByReporterUserIdAndCreatedAtAfter(eq(1L), any())).thenReturn((long) maxReports);
+
+        var error = assertThrows(ResponseStatusException.class, () -> service.createReport(
+                request("PHONE", "0987654321"),
+                List.of(new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1})), principal()));
+
+        assertEquals(429, error.getStatusCode().value());
+        assertEquals("Bạn đã đạt giới hạn " + maxReports + " báo cáo trong 24 giờ. Vui lòng thử lại sau.", error.getReason());
         verifyNoInteractions(storage);
     }
 
@@ -418,6 +456,7 @@ class ReportServiceImplTest {
         assertThatThrownBy(() -> service.createReport(request, List.of(evidence), principal()))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining(message);
-        verifyNoInteractions(reports, storage);
+        verify(reports, never()).save(any());
+        verifyNoInteractions(storage);
     }
 }

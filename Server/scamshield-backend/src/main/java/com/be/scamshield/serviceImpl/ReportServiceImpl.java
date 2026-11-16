@@ -16,6 +16,7 @@ import com.be.scamshield.dto.response.ReportEvidenceResponse;
 import com.be.scamshield.dto.response.ReportResponse;
 import com.be.scamshield.entity.Indicator;
 import com.be.scamshield.entity.Report;
+import com.be.scamshield.entity.QuotaPolicy;
 import com.be.scamshield.entity.ReportEvidence;
 import com.be.scamshield.entity.ScamCategory;
 import com.be.scamshield.entity.User;
@@ -27,6 +28,7 @@ import com.be.scamshield.repository.ConfirmedIndicatorRepository;
 import com.be.scamshield.repository.DisputeRepository;
 import com.be.scamshield.repository.ReportEvidenceRepository;
 import com.be.scamshield.repository.ReportRepository;
+import com.be.scamshield.repository.QuotaPolicyRepository;
 import com.be.scamshield.repository.ScamCategorieRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
@@ -35,6 +37,9 @@ import com.be.scamshield.service.IReportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -53,6 +58,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -63,6 +69,7 @@ public class ReportServiceImpl implements IReportService {
 
     private final ApplicationEventPublisher events;
     private final ReportRepository reportRepository;
+    private final QuotaPolicyRepository quotaPolicies;
     private final ReportEvidenceRepository reportEvidenceRepository;
     private final IndicatorRepository indicatorRepository;
     private final ConfirmedIndicatorRepository confirmedIndicators;
@@ -73,6 +80,12 @@ public class ReportServiceImpl implements IReportService {
     private final SupabaseStorageService supabaseStorageService;
     private final ReportAssignmentService reviewAssignments;
     private final EvidenceAnalysisQueueService evidenceAnalysis;
+
+    @Value("${app.report.submission-limit.per-five-minutes:3}")
+    private int reportsPerFiveMinutes = 3;
+
+    @Value("${app.report.submission-limit.per-day:10}")
+    private int reportsPerDay = 10;
 
     @Override
     @Transactional
@@ -115,6 +128,8 @@ public class ReportServiceImpl implements IReportService {
         }
         List<String> targetValues = legacyIndicatorValues(reportType, normalizedValue, legacyValue);
         targetValues.add(normalizedValue);
+        // Serialize the quota check and insert for this reporter even across different targets.
+        indicatorRepository.lockIdentifier("report-submission:" + reporterUser.getId());
         indicatorRepository.lockIdentifier(reportType + ":" + normalizedValue);
         List<Long> matchingIds = indicatorRepository
                 .lockMatchingIndicators(reportType, targetValues)
@@ -132,10 +147,17 @@ public class ReportServiceImpl implements IReportService {
             throw new BadRequestException("Đối tượng này thuộc danh sách tin cậy (whitelist) đang có hiệu lực. Hiện tại bạn không thể gửi báo cáo về đối tượng này.");
         }
 
-        if (!matchingIds.isEmpty() && reportRepository.existsByReporterUser_IdAndIndicator_IdInAndStatusIn(
-                reporterUser.getId(), matchingIds, List.of(ReportStatus.PENDING, ReportStatus.IN_REVIEW))) {
-            throw new BadRequestException("Bạn đã gửi báo cáo về đối tượng này. Vui lòng chờ kiểm duyệt viên xử lý.");
+        if (!matchingIds.isEmpty()) {
+            reportRepository.findFirstByReporterUser_IdAndIndicator_IdInAndStatusInOrderByIdDesc(
+                    reporterUser.getId(), matchingIds, List.of(ReportStatus.PENDING, ReportStatus.IN_REVIEW))
+                    .ifPresent(existing -> {
+                        throw new BadRequestException("Bạn đã có báo cáo " + formatReportCode(existing.getId())
+                                + " đang được xem xét cho đối tượng này. Hãy theo dõi hồ sơ trong Báo cáo của tôi.");
+                    });
         }
+
+        LocalDateTime submittedAt = LocalDateTime.now();
+        enforceSubmissionLimit(reporterUser, submittedAt);
 
         Indicator indicator = indicatorRepository
                 .findFirstByTypeAndNormalizedValueOrderByIdAsc(reportType, normalizedValue)
@@ -171,8 +193,8 @@ public class ReportServiceImpl implements IReportService {
                 .reportedMessage(StringUtils.hasText(request.getReportedMessage()) ? request.getReportedMessage() : null)
                 .status(ReportStatus.PENDING)
 
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(submittedAt)
+                .updatedAt(submittedAt)
                 .build();
 
         Report savedReport = reportRepository.save(report);
@@ -326,6 +348,29 @@ public class ReportServiceImpl implements IReportService {
                         .build()));
     }
 
+    private void enforceSubmissionLimit(User reporter, LocalDateTime now) {
+        Long reporterId = reporter.getId();
+        var rank = reporter.getReputationRank();
+        int dailyLimit = (rank == null ? Optional.<QuotaPolicy>empty() : quotaPolicies.findByRankId(rank.getId()))
+                .map(QuotaPolicy::getMaxReportsPerDay)
+                .filter(limit -> limit >= 0)
+                .or(() -> quotaPolicies.findByNameIgnoreCase("REGISTERED_USER")
+                        .map(QuotaPolicy::getMaxReportsPerDay).filter(limit -> limit >= 0))
+                .orElse(reportsPerDay);
+        if (reportRepository.countByReporterUserIdAndCreatedAtAfter(reporterId, now.minusHours(24)) >= dailyLimit) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Bạn đã đạt giới hạn " + dailyLimit + " báo cáo trong 24 giờ. Vui lòng thử lại sau.");
+        }
+        if (reportRepository.countByReporterUserIdAndCreatedAtAfter(reporterId, now.minusMinutes(5)) >= reportsPerFiveMinutes) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Bạn đã đạt giới hạn " + reportsPerFiveMinutes + " báo cáo trong 5 phút. Vui lòng thử lại sau vài phút.");
+        }
+    }
+
+    private String formatReportCode(Long id) {
+        return String.format("#RPT-%04d", id);
+    }
+
     private User resolveReporterUser(UserPrincipal currentUser) {
         if (currentUser == null || currentUser.getId() == null) {
             throw new UnauthorizedException("Vui lòng đăng nhập để thực hiện chức năng này.");
@@ -335,7 +380,7 @@ public class ReportServiceImpl implements IReportService {
     }
 
     private ReportResponse mapToResponse(Report report, List<ReportEvidence> evidences, int rewardPoints) {
-        String reportCode = String.format("#RPT-%04d", report.getId());
+        String reportCode = formatReportCode(report.getId());
         List<ReportEvidenceResponse> evidenceResponses = evidences.stream().map(e ->
                 ReportEvidenceResponse.builder()
                         .id(e.getId())

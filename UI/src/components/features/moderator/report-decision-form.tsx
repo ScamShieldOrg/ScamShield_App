@@ -100,6 +100,55 @@ export function ReportDecisionForm({
               <p className="text-xs text-muted-foreground">Không có danh mục để chọn. Bạn vẫn có thể duyệt với danh mục hiện tại.</p>
             )}
           </div>
+          <fieldset className="space-y-3 rounded-xl border border-border bg-muted/30 px-4 pb-4">
+            <legend className="px-1 text-sm font-semibold">
+              Checklist xác minh báo cáo
+            </legend>
+            <div className="space-y-1 text-sm">
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
+                <span>
+                  <strong>Khớp đối tượng.</strong> Đối chiếu số điện thoại, tên
+                  miền hoặc tài khoản trong minh chứng. Nếu nghi mạo danh,
+                  kiểm tra kênh chính thức của tổ chức.
+                </span>
+              </label>
+              <a
+                href="https://dichvucong.online.gov.vn/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-6 text-xs text-primary underline underline-offset-2"
+              >
+                Cổng thông tin quản lý hoạt động thương mại điện tử
+              </a>
+            </div>
+            <div className="space-y-1 text-sm">
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
+                <span>
+                  <strong>Khớp dấu hiệu.</strong> Chỉ ra hành vi trong minh
+                  chứng và đối chiếu với cảnh báo chính thức.
+                </span>
+              </label>
+              <a
+                href="https://cdannd1.bocongan.gov.vn/api/Resources/File/2023/cam_nang_nhan_dien_va_phong_tranh_ldtt_7493280830.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-6 text-xs text-primary underline underline-offset-2"
+              >
+                Cẩm nang nhận diện và phòng tránh lừa đảo trực tuyến (PDF)
+              </a>
+            </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
+              <span>
+                <strong>Ghi căn cứ quyết định.</strong> Nêu tệp nào thể hiện
+                hành vi gì và liên quan thế nào đến đối tượng. Nếu thiếu căn
+                cứ, ghi rõ thông tin cần bổ sung.
+              </span>
+            </label>
+          </fieldset>
+
           {/* 2 Decision Action Buttons matching UI mockups and backend enum */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
