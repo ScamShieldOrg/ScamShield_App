@@ -23,8 +23,8 @@ public class EvidenceAnalysisProperties {
     @Min(1) @Max(40) private int maxImageMegapixels = 16;
     @Min(1) @Max(50) private int maxFileMegabytes = 25;
     @Min(0) @Max(20) private int imageDistance = 10;
-    @Min(0) @Max(24) private int textCandidateDistance = 12;
-    @DecimalMin("0.5") @DecimalMax("1.0") private double textSimilarity = 0.80;
+    @Min(0) @Max(24) private int textCandidateDistance = 16;
+    @DecimalMin("0.5") @DecimalMax("1.0") private double textSimilarity = 0.60;
     @Min(30) @Max(500) private int minimumTextCharacters = 60;
     @Min(20) @Max(500) private int candidateLimit = 200;
 }

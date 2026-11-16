@@ -6,6 +6,7 @@ import {
   reportTargetTypeLabel,
 } from "@/features/moderator/report-review"
 import type { ModeratorReportItem } from "@/features/moderator/types/moderator.types"
+import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
 export function ReportQueueItemCard({
   item,
   isSelected,
@@ -20,7 +21,7 @@ export function ReportQueueItemCard({
       type="button"
       aria-pressed={isSelected}
       onClick={() => onSelect(item)}
-      className={`w-full space-y-2 rounded-xl border p-4 text-left disabled:opacity-60 ${isSelected ? "border-primary bg-muted ring-1 ring-primary" : "border-border bg-card hover:bg-muted"}`}
+      className={`w-full space-y-2 rounded-xl border border-l-[3px] border-border bg-card p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 ${isSelected ? "border-l-foreground/70" : "hover:bg-muted/60"}`}
     >
       <span className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="flex flex-wrap items-center gap-2">
@@ -42,14 +43,13 @@ export function ReportQueueItemCard({
           {reportStatusLabel[item.status] ?? item.status}
         </span>
       </span>
-      <span className="block text-xs text-muted-foreground">
-        Đối tượng bị báo cáo
-      </span>
       <span className="block text-xs font-medium text-muted-foreground">
         {reportTargetTypeLabel(item.targetType)}
       </span>
-      <span className="block text-sm font-semibold break-all">
-        {item.targetIdentifier}
+      <span className="block text-sm font-semibold break-words">
+        {item.targetType === "PHONE"
+          ? formatReportPhoneInput(item.targetIdentifier)
+          : item.targetIdentifier}
       </span>
       <span className="block text-xs text-muted-foreground">
         {item.category}
@@ -59,7 +59,7 @@ export function ReportQueueItemCard({
           Đối tượng thuộc danh sách tin cậy
         </span>
       )}
-      <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <span className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-2 text-xs text-muted-foreground tabular-nums">
         <span>{item.reportedAt}</span>
         <span className="flex items-center gap-1">
           <Paperclip size={13} />

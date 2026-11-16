@@ -16,6 +16,7 @@ import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.*;
 import com.be.scamshield.repository.RefreshTokenRepository;
 import com.be.scamshield.repository.RoleRepository;
+import com.be.scamshield.repository.ReputationRankRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.security.GoogleTokenVerifier;
 import com.be.scamshield.security.JwtTokenProvider;
@@ -62,6 +63,7 @@ public class AuthServiceImpl implements IAuthService {
     private final Clock applicationClock;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final ReputationRankRepository reputationRankRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -110,6 +112,7 @@ public class AuthServiceImpl implements IAuthService {
                 .role(userRole)
                 .status(UserStatus.ACTIVE.name())
                 .reputationPoints(0)
+                .reputationRank(reputationRankRepository.findRankByPoints(0).orElse(null))
                 .createdAt(LocalDateTime.now(applicationClock))
                 .updatedAt(LocalDateTime.now(applicationClock))
                 .build();
@@ -194,6 +197,7 @@ public class AuthServiceImpl implements IAuthService {
                 .role(userRole)
                 .status(UserStatus.ACTIVE.name())
                 .reputationPoints(0)
+                .reputationRank(reputationRankRepository.findRankByPoints(0).orElse(null))
                 .createdAt(now)
                 .updatedAt(now)
                 .lastLoginAt(now)

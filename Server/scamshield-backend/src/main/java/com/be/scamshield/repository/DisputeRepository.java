@@ -41,6 +41,9 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long>, JpaSpec
     boolean existsBySubmittedByUserIdAndConfirmedIndicatorIdAndStatusIn(
             Long userId, Long confirmedId, Collection<DisputeStatus> statuses);
 
+    boolean existsByConfirmedIndicator_Indicator_IdInAndStatusNot(
+            Collection<Long> indicatorIds, DisputeStatus status);
+
     long countByStatusIn(Collection<DisputeStatus> statuses);
 
     long countByStatus(DisputeStatus status);

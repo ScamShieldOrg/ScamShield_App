@@ -1,7 +1,7 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import Link from "next/link"
-import { ArrowSquareOut, FileText } from "@phosphor-icons/react"
+import { ArrowSquareOut, CaretDown, CaretUp, FileText } from "@phosphor-icons/react"
 import type { QueueEvidence } from "@/features/moderator/types/moderator.types"
 import { reportStatusClasses } from "@/features/report/utils/report-status"
 import { safeEvidenceUrl } from "@/features/moderator/report-review"
@@ -27,26 +27,50 @@ function RelatedReportStatus({ status }: { status: string }) {
     </span>
   )
 }
-function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
+const INITIAL_MATCH_COUNT = 3
+
+function EvidenceComparison({ evidence }: { evidence: QueueEvidence }) {
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
   const status = evidence.analysisStatus ?? "NOT_ANALYZED"
-  const matches = evidence.similarEvidences ?? []
+  const duplicates = evidence.duplicateCheckAvailable
+    ? (evidence.duplicates ?? [])
+    : []
+  const similar = evidence.similarEvidences ?? []
+  const matches = [
+    ...duplicates.map((match) => ({ ...match, similarity: null })),
+    ...similar.map((match) => ({ ...match, similarity: match })),
+  ]
+  const duplicateCount = evidence.duplicateCheckAvailable
+    ? (evidence.duplicateCount ?? duplicates.length)
+    : null
+  const similarCount = evidence.similarEvidenceCount ?? similar.length
+  const total = (duplicateCount ?? 0) + similarCount
+  const visibleMatches = expanded ? matches : matches.slice(0, INITIAL_MATCH_COUNT)
+  const remaining = matches.length - INITIAL_MATCH_COUNT
+  if (total === 0 && matches.length === 0 && status === "COMPLETED") return null
   return (
     <section
       className="overflow-hidden rounded-xl border border-border text-xs"
       aria-label={`Phân tích tương đồng ${evidence.name}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2.5">
         <h3 className="font-semibold">
-          Gần giống{" "}
-          <span className="ml-1 text-muted-foreground">
-            ({evidence.similarEvidenceCount ?? 0})
-          </span>
+          Phát hiện minh chứng gần giống
         </h3>
+        <div className="flex flex-wrap gap-2 tabular-nums">
+          <span className="rounded-full border border-border bg-card px-2 py-1">
+            Trùng tệp <strong>{duplicateCount ?? "—"}</strong>
+          </span>
+          <span className="rounded-full border border-border bg-card px-2 py-1">
+            Gần giống <strong>{similarCount}</strong>
+          </span>
+        </div>
       </div>
       {matches.length > 0 && (
-        <ul className="divide-y divide-border">
-          {matches.map((match) => (
-            <li key={match.evidenceId} className="space-y-3 px-3 py-2.5">
+        <ul id={listId} className="divide-y divide-border">
+          {visibleMatches.map(({ similarity, ...match }) => (
+            <li key={match.evidenceId} className="space-y-2 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 space-y-1">
                   <p className="font-semibold">
@@ -68,6 +92,9 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex min-h-7 items-center rounded-full border border-border bg-muted/40 px-2.5 py-1 font-semibold">
+                    {similarity ? "Gần giống" : "Trùng tệp"}
+                  </span>
                   <RelatedReportStatus status={match.reportStatus} />
                   <Link
                     href={`/moderator/reports/${match.reportId}`}
@@ -79,22 +106,21 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
                   </Link>
                 </div>
               </div>
-              {(match.matchTypes.includes("PHASH") ||
-                match.matchTypes.includes("OCR_TEXT")) && (
-                <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-2.5">
-                  {match.matchTypes.includes("PHASH") && (
-                    <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 font-semibold">
+              {similarity && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+                  {similarity.matchTypes.includes("PHASH") && (
+                    <span>
                       Độ tương đồng hình ảnh:{" "}
                       <strong className="tabular-nums">
-                        {similarityPercentage(match.imageSimilarity)}
+                        {similarityPercentage(similarity.imageSimilarity)}
                       </strong>
                     </span>
                   )}
-                  {match.matchTypes.includes("OCR_TEXT") && (
-                    <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 font-semibold">
-                      Độ tương đồng văn bản (OCR):{" "}
+                  {similarity.matchTypes.includes("OCR_TEXT") && (
+                    <span>
+                      Độ tương đồng văn bản:{" "}
                       <strong className="tabular-nums">
-                        {similarityPercentage(match.textSimilarity)}
+                        {similarityPercentage(similarity.textSimilarity)}
                       </strong>
                     </span>
                   )}
@@ -104,11 +130,21 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
           ))}
         </ul>
       )}
-      {matches.some((match) => match.matchTypes.includes("OCR_TEXT")) && (
-        <p className="border-t border-border px-3 py-2 text-muted-foreground">
-          OCR đối chiếu phần chữ trích xuất từ hai minh chứng; tỷ lệ cho biết
-          mức tương đồng của văn bản.
-        </p>
+      {remaining > 0 && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          onClick={() => setExpanded((value) => !value)}
+          className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 border-t border-border bg-muted/30 px-4 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        >
+          {expanded ? "Thu gọn" : `Xem thêm (${remaining})`}
+          {expanded ? (
+            <CaretUp size={16} aria-hidden="true" />
+          ) : (
+            <CaretDown size={16} aria-hidden="true" />
+          )}
+        </button>
       )}
       {status !== "COMPLETED" && (
         <p className="px-3 py-2 text-muted-foreground">
@@ -123,9 +159,9 @@ function EvidenceSimilarity({ evidence }: { evidence: QueueEvidence }) {
           Không thể phân tích tệp. Vui lòng thử lại sau.
         </p>
       )}
-      {(evidence.similarEvidenceCount ?? 0) > matches.length && (
+      {total > matches.length && (
         <p className="px-3 py-2 text-muted-foreground">
-          Hiển thị {matches.length}/{evidence.similarEvidenceCount} kết quả.
+          Có {matches.length}/{total} kết quả để xem.
         </p>
       )}
     </section>
@@ -175,67 +211,6 @@ function formatEvidenceDate(value: string | null): string {
     : `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
 }
 
-function EvidenceComparison({ active }: { active: QueueEvidence }) {
-  if (!active.duplicateCheckAvailable || (active.duplicateCount ?? 0) <= 0)
-    return null
-  return (
-    <section
-      aria-label={`Kết quả đối chiếu ${active.name}`}
-      className="overflow-hidden rounded-xl border border-border text-xs"
-    >
-      <div className="flex flex-wrap items-center gap-2 bg-muted/40 px-3 py-2">
-        <h3 className="font-semibold">Trùng tệp</h3>
-        <span className="text-muted-foreground">({active.duplicateCount})</span>
-      </div>
-      <ul className="divide-y divide-border">
-        {active.duplicates?.map((duplicate) => (
-          <li
-            key={duplicate.evidenceId}
-            className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5"
-          >
-            <div className="min-w-0 space-y-1">
-              <p className="font-semibold">
-                Báo cáo {duplicate.reportId}{" "}
-                <span className="font-normal text-muted-foreground">
-                  / Minh chứng {duplicate.evidenceId}
-                </span>
-              </p>
-              <p className="text-muted-foreground">
-                {duplicate.sameReporter
-                  ? "Cùng người gửi"
-                  : "Khác hoặc chưa xác định người gửi"}
-              </p>
-              <p className="text-muted-foreground">
-                Cập nhật lần cuối:{" "}
-                <time className="tabular-nums">
-                  {formatEvidenceDate(duplicate.reportUpdatedAt ?? null)}
-                </time>
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <RelatedReportStatus status={duplicate.reportStatus} />
-              <Link
-                href={`/moderator/reports/${duplicate.reportId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={comparisonLinkClass}
-              >
-                Xem báo cáo <ArrowSquareOut size={14} />
-              </Link>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {(active.duplicateCount ?? 0) > (active.duplicates?.length ?? 0) && (
-        <p className="px-3 py-2 text-muted-foreground">
-          Hiển thị {active.duplicates?.length ?? 0}/{active.duplicateCount} kết
-          quả.
-        </p>
-      )}
-    </section>
-  )
-}
-
 export function ReportEvidencePreview({
   evidences,
   reportId,
@@ -277,8 +252,9 @@ export function ReportEvidencePreview({
     }
   }, [reportId, awaitingAnalysis])
   return (
-    <section className="space-y-3 rounded-xl border border-border bg-card p-5">
-      <h2 className="text-sm font-bold">
+    <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <h2 className="flex items-center gap-2 text-base font-semibold">
+        <FileText size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" />
         Bằng chứng đính kèm ({displayed.length})
       </h2>
       {awaitingAnalysis && (
@@ -330,10 +306,7 @@ export function ReportEvidencePreview({
                     </span>
                   </div>
                 )}
-                <div className="grid items-start gap-3 xl:grid-cols-2">
-                  <EvidenceComparison active={evidence} />
-                  <EvidenceSimilarity evidence={evidence} />
-                </div>
+                <EvidenceComparison evidence={evidence} />
               </div>
             )
           })}

@@ -68,11 +68,11 @@ export function ReportDecisionForm({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-slate-700 uppercase dark:text-slate-300">
-        <ShieldWarning size={15} weight="bold" className="text-slate-400" />
-        <span>QUYẾT ĐỊNH KIỂM DUYỆT</span>
-      </div>
+    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <h2 className="flex items-center gap-2 border-b border-border pb-4 text-base font-semibold">
+        <ShieldWarning size={18} className="text-muted-foreground" aria-hidden="true" />
+        Quyết định kiểm duyệt
+      </h2>
 
       <form onSubmit={handleSubmit} className="mt-4">
         <fieldset disabled={isSubmitting} className="space-y-4">
@@ -100,6 +100,55 @@ export function ReportDecisionForm({
               <p className="text-xs text-muted-foreground">Không có danh mục để chọn. Bạn vẫn có thể duyệt với danh mục hiện tại.</p>
             )}
           </div>
+          <fieldset className="space-y-3 rounded-xl border border-border bg-muted/30 px-4 pb-4">
+            <legend className="px-1 text-sm font-semibold">
+              Checklist xác minh báo cáo
+            </legend>
+            <div className="space-y-1 text-sm">
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
+                <span>
+                  <strong>Khớp đối tượng.</strong> Đối chiếu số điện thoại, tên
+                  miền hoặc tài khoản trong minh chứng. Nếu nghi mạo danh,
+                  kiểm tra kênh chính thức của tổ chức.
+                </span>
+              </label>
+              <a
+                href="https://dichvucong.online.gov.vn/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-6 text-xs text-primary underline underline-offset-2"
+              >
+                Cổng thông tin quản lý hoạt động thương mại điện tử
+              </a>
+            </div>
+            <div className="space-y-1 text-sm">
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
+                <span>
+                  <strong>Khớp dấu hiệu.</strong> Chỉ ra hành vi trong minh
+                  chứng và đối chiếu với cảnh báo chính thức.
+                </span>
+              </label>
+              <a
+                href="https://cdannd1.bocongan.gov.vn/api/Resources/File/2023/cam_nang_nhan_dien_va_phong_tranh_ldtt_7493280830.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-6 text-xs text-primary underline underline-offset-2"
+              >
+                Cẩm nang nhận diện và phòng tránh lừa đảo trực tuyến (PDF)
+              </a>
+            </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
+              <span>
+                <strong>Ghi căn cứ quyết định.</strong> Nêu tệp nào thể hiện
+                hành vi gì và liên quan thế nào đến đối tượng. Nếu thiếu căn
+                cứ, ghi rõ thông tin cần bổ sung.
+              </span>
+            </label>
+          </fieldset>
+
           {/* 2 Decision Action Buttons matching UI mockups and backend enum */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
@@ -147,7 +196,7 @@ export function ReportDecisionForm({
                 htmlFor="moderation-reason"
                 className="font-bold text-slate-700 dark:text-slate-300"
               >
-                {decision === "REJECT" ? "LÝ DO TỪ CHỐI *" : "GHI CHÚ"}
+                {decision === "REJECT" ? "Lý do từ chối *" : "Ghi chú"}
               </label>
               <span className="font-semibold text-black tabular-nums dark:text-white">
                 {reason.trim().length}/2000 ký tự
@@ -170,7 +219,7 @@ export function ReportDecisionForm({
                   ? "Nhập lý do từ chối báo cáo..."
                   : "Thêm nhận xét về nội dung hoặc bằng chứng báo cáo..."
               }
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs leading-relaxed text-slate-900 placeholder-slate-400 transition-colors focus:border-slate-400 focus:bg-white focus:outline-hidden dark:border-slate-800 dark:bg-slate-800/40 dark:text-white dark:placeholder-slate-500 dark:focus:border-slate-700 dark:focus:bg-slate-800"
+              className="w-full rounded-lg border border-border bg-background p-3 text-sm leading-relaxed placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
             />
           </div>
 
@@ -178,11 +227,7 @@ export function ReportDecisionForm({
           <button
             type="submit"
             disabled={!canSubmit}
-            className={`w-full rounded-xl py-3 text-xs font-bold shadow-xs transition-all ${
-              canSubmit
-                ? "cursor-pointer bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
-                : "cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600"
-            }`}
+            className="min-h-10 w-full rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:enabled:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:bg-muted disabled:text-muted-foreground sm:w-auto"
           >
             {isSubmitting
               ? "Đang ghi nhận quyết định..."
@@ -190,6 +235,6 @@ export function ReportDecisionForm({
           </button>
         </fieldset>
       </form>
-    </div>
+    </section>
   )
 }

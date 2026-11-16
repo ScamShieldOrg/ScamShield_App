@@ -35,15 +35,18 @@ public interface ReportEvidenceRepository extends JpaRepository<ReportEvidence, 
                       AND bit_count((e.perceptual_hash # CAST(:imageHash AS bigint))::bit(64)) <= :imageDistance)
                    OR (CAST(:textHash AS varchar) IS NOT NULL AND e.ocr_text_hash = :textHash)
                    OR (CAST(:simHash AS bigint) IS NOT NULL AND e.ocr_sim_hash IS NOT NULL
-                      AND bit_count((e.ocr_sim_hash # CAST(:simHash AS bigint))::bit(64)) <= :textDistance))
+                      AND bit_count((e.ocr_sim_hash # CAST(:simHash AS bigint))::bit(64)) <= :textDistance)
+                   OR (CAST(:domain AS text) IS NOT NULL AND strpos(lower(e.ocr_text), :domain) > 0))
             ORDER BY CASE WHEN e.ocr_text_hash = CAST(:textHash AS varchar) THEN 0 ELSE 1 END,
-                     bit_count((e.perceptual_hash # CAST(:imageHash AS bigint))::bit(64)) NULLS LAST,
+                     CASE WHEN bit_count((e.perceptual_hash # CAST(:imageHash AS bigint))::bit(64)) <= :imageDistance
+                          THEN bit_count((e.perceptual_hash # CAST(:imageHash AS bigint))::bit(64)) END NULLS LAST,
                      bit_count((e.ocr_sim_hash # CAST(:simHash AS bigint))::bit(64)) NULLS LAST, e.id DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<AnalysisCandidate> findAnalysisCandidates(@Param("id") Long id, @Param("fileHash") String fileHash,
             @Param("imageHash") Long imageHash, @Param("textHash") String textHash, @Param("simHash") Long simHash,
-            @Param("imageDistance") int imageDistance, @Param("textDistance") int textDistance, @Param("limit") int limit);
+            @Param("imageDistance") int imageDistance, @Param("textDistance") int textDistance,
+            @Param("domain") String domain, @Param("limit") int limit);
     interface DuplicateRow {
         Long getEvidenceId();
         String getFileHash();

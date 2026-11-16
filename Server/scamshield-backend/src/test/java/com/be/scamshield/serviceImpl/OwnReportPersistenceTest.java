@@ -3,8 +3,12 @@ package com.be.scamshield.serviceImpl;
 import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.constant.ReportStatus;
+import com.be.scamshield.config.ReportPrivacyProperties;
+import com.be.scamshield.dto.request.CreateReportRequest;
 import com.be.scamshield.dto.request.UpdateOwnReportRequest;
 import com.be.scamshield.entity.*;
+import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.service.IUserReportTrackingService;
 import com.be.scamshield.support.PostgresIntegrationTest;
@@ -14,25 +18,57 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.LocalDateTime;
+import java.util.List;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest(showSql = false, properties = "spring.test.database.replace=none")
-@Import(OwnReportService.class)
+@Import({OwnReportService.class, ReportServiceImpl.class, ReportPrivacyProperties.class})
 @ActiveProfiles("test")
 class OwnReportPersistenceTest extends PostgresIntegrationTest {
     @Autowired private OwnReportService service;
+    @Autowired private ReportServiceImpl submission;
     @Autowired private EntityManager em;
     @Autowired private ReportRepository reports;
     @MockitoBean private IUserReportTrackingService tracking;
     @MockitoBean private EvidenceAnalysisQueueService evidenceAnalysis;
     @MockitoBean private Clock applicationClock;
+    @MockitoBean private SupabaseStorageService storage;
+    @MockitoBean private ReportAssignmentService assignments;
+
+    @Test
+    void undottedSubmissionIsBlockedBySameReporterPendingDottedPhoneReport() {
+        LocalDateTime now = LocalDateTime.now();
+        User user = User.builder().fullName("Reporter").email("dotted-report@example.test")
+                .phoneNumber("0912345698").passwordHash("test").status("ACTIVE").build();
+        em.persist(user);
+        Indicator indicator = Indicator.builder().type(IndicatorType.PHONE).normalizedValue("098.765.4321")
+                .createdAt(now).updatedAt(now).build();
+        em.persist(indicator);
+        Report report = Report.builder().reporterUser(user).indicator(indicator).status(ReportStatus.PENDING)
+                .createdAt(now).updatedAt(now).build();
+        em.persist(report);
+        em.flush();
+        em.clear();
+
+        var request = CreateReportRequest.builder().threatType("PHONE").targetIdentifier("0987654321")
+                .regionCode("01").category("OTHER").description("Nội dung báo cáo").isConfirmed(true).build();
+        var evidence = new MockMultipartFile("files", "proof.png", "image/png", new byte[]{1});
+        var principal = UserPrincipal.builder().id(user.getId()).build();
+        assertThatThrownBy(() -> submission.createReport(request, List.of(evidence), principal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Bạn đã có báo cáo");
+        verifyNoInteractions(storage);
+    }
 
     @Test
     void realLockQueryAllowsOwnerUpdateAndSoftWithdrawalWithAudit() {
