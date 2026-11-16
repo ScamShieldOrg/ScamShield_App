@@ -252,9 +252,9 @@ export function ReportReviewWorkspace({
   return (
     <div
       data-report-workspace
-      className="flex flex-1 flex-col bg-background text-foreground lg:min-h-0 lg:flex-row"
+      className="flex flex-1 flex-col bg-muted/30 font-sans text-foreground lg:min-h-0 lg:flex-row"
     >
-      <aside className="w-full border-r border-border lg:w-96 lg:shrink-0">
+      <aside aria-label="Danh sách báo cáo" className="w-full border-b border-border lg:w-[clamp(19rem,27vw,24rem)] lg:shrink-0 lg:border-r lg:border-b-0">
         <fieldset
           disabled={busy || detailLoading}
           className="min-w-0 lg:h-full"
@@ -272,7 +272,7 @@ export function ReportReviewWorkspace({
             />
             <div
               key={JSON.stringify([tab, query, page])}
-              className="min-h-0 flex-1 space-y-3 p-4 lg:overflow-y-auto lg:overscroll-contain"
+              className="max-h-[40dvh] min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-4 lg:max-h-none"
               aria-busy={loading}
             >
               {!loading && queueError ? (
@@ -307,12 +307,12 @@ export function ReportReviewWorkspace({
                 ))
               )}
             </div>
-            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border p-4 text-xs">
+            <nav aria-label="Phân trang báo cáo" className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-card p-3 text-xs">
               <button
                 type="button"
                 disabled={loading || page === 0}
                 onClick={() => setPage((value) => value - 1)}
-                className="rounded border border-border p-2 disabled:opacity-40"
+                className="min-h-8 rounded-lg border border-border px-2.5 hover:enabled:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
               >
                 Trang trước
               </button>
@@ -330,11 +330,11 @@ export function ReportReviewWorkspace({
                 type="button"
                 disabled={loading || page + 1 >= pages}
                 onClick={() => setPage((value) => value + 1)}
-                className="rounded border border-border p-2 disabled:opacity-40"
+                className="min-h-8 rounded-lg border border-border px-2.5 hover:enabled:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
               >
                 Trang sau
               </button>
-            </div>
+            </nav>
           </div>
         </fieldset>
       </aside>
@@ -348,11 +348,11 @@ export function ReportReviewWorkspace({
           type="button"
           disabled={busy || loading || detailLoading}
           onClick={() => setRevision((value) => value + 1)}
-          className="m-4 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+          className="mx-4 my-3 inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 sm:mx-6"
         >
           <ArrowClockwiseIcon
             size={18}
-            className={loading || detailLoading ? "animate-spin" : ""}
+            className={loading || detailLoading ? "motion-safe:animate-spin" : ""}
             aria-hidden="true"
           />
           {loading || detailLoading ? "Đang làm mới..." : "Làm mới"}

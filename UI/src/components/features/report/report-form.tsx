@@ -275,14 +275,9 @@ export function ReportForm({
             <div className="flex size-9 items-center justify-center rounded-xl bg-[#0B132B] text-white dark:bg-primary dark:text-primary-foreground">
               <Shield size={20} weight="fill" />
             </div>
-            <div>
-              <h2 className="font-heading text-sm font-bold text-[#131B2E] dark:text-foreground">
-                Biểu Mẫu Tiếp Nhận Báo Cáo
-              </h2>
-              <p className="text-[11px] text-[#45464D] dark:text-muted-foreground">
-                Quy trình 3 bước tinh gọn, bảo mật danh tính người gửi
-              </p>
-            </div>
+            <h2 className="font-heading text-sm font-bold text-[#131B2E] dark:text-foreground">
+              Biểu Mẫu Tiếp Nhận Báo Cáo
+            </h2>
           </div>
         </div>
 

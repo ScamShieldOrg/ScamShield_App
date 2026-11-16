@@ -1,4 +1,6 @@
 "use client"
+import { useRef } from "react"
+import { ClipboardText, Gavel, ShieldWarning } from "@phosphor-icons/react"
 import type {
   ModeratorReportItem,
   ModerationDecisionPayload,
@@ -60,7 +62,7 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
   ]
 
   return (
-    <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       {[
         {
           title: "Đối tượng bị báo cáo",
@@ -74,13 +76,13 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
       ].map(({ title, name, fields }, index) => (
         <section
           key={title}
-          className={`min-w-0 rounded-2xl border p-4 sm:p-5 ${index === 0 ? "border-primary/25 bg-primary/5 ring-1 ring-primary/10" : "border-border bg-muted/30"}`}
+          className={`min-w-0 rounded-2xl border p-4 sm:p-5 ${index === 0 ? "border-sky-900/15 bg-sky-50/55 dark:border-sky-200/15 dark:bg-sky-950/25" : "border-border bg-card"}`}
         >
           <p className="text-xs font-semibold tracking-wide text-muted-foreground">
             {title}
           </p>
           {index === 0 ? (
-            <h1 className="mt-2 font-heading text-2xl font-bold break-words text-primary sm:text-3xl">
+            <h1 className="mt-2 text-2xl font-bold break-words tracking-tight text-foreground sm:text-3xl">
               {name}
             </h1>
           ) : (
@@ -105,7 +107,7 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
             </div>
           )}
           {index === 0 && indicator && (
-            <dl className="mt-4 grid grid-cols-3 gap-2">
+            <dl className="mt-5 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-card">
               {[
                 {
                   label: "Tổng báo cáo",
@@ -125,7 +127,7 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
               ].map(({ label, value, color }) => (
                 <div
                   key={label}
-                  className="rounded-xl border border-border bg-card p-2.5"
+                  className="min-w-0 p-2.5 sm:p-3"
                 >
                   <dt className="text-xs text-muted-foreground">{label}</dt>
                   <dd
@@ -170,32 +172,68 @@ export function ReportQueueDetailView({
   onDirtyChange?: (dirty: boolean) => void
   busy?: boolean
 }) {
+  const decisionRef = useRef<HTMLDivElement>(null)
   if (!item)
     return (
-      <p className="p-8 text-sm text-muted-foreground">
-        Chọn một báo cáo để xem chi tiết.
-      </p>
+      <div className="mx-auto mt-10 flex max-w-sm flex-col items-center gap-3 p-6 text-center text-sm text-muted-foreground">
+        <ClipboardText size={28} aria-hidden="true" />
+        <p>Chọn một báo cáo để xem chi tiết.</p>
+      </div>
     )
   const pending = item.status === "Pending" || item.status === "In Review"
   const canReview = ownsReportReview(item)
+  const showDecision = pending && canReview && reviewActive
   return (
-    <div className="space-y-5 p-5">
-      <header className="rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
-            Mã báo cáo
-            <span className="font-semibold text-foreground tabular-nums">
-              {item.rawId ?? Number(item.id.split("-").at(-1))}
+    <div className="mx-auto max-w-7xl space-y-4 px-4 pb-6 sm:px-6">
+      <header className="z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 lg:sticky lg:top-0">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-800 dark:bg-sky-950/60 dark:text-sky-200">
+              <ClipboardText size={18} aria-hidden="true" />
             </span>
-          </span>
+            <div>
+              <p className="text-xs leading-none text-muted-foreground">
+                Mã báo cáo
+              </p>
+              <p className="mt-1 text-base leading-none font-semibold tabular-nums">
+                {item.rawId ?? Number(item.id.split("-").at(-1))}
+              </p>
+            </div>
+          </div>
           <span
             className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${reportStatusClass[item.status]}`}
           >
             {reportStatusLabel[item.status] ?? item.status}
           </span>
         </div>
-        <ReviewContext item={item} />
-        <dl className="mt-4 grid gap-4 border-t border-border pt-4 text-sm sm:grid-cols-3">
+        {pending && item.canReview === true && !reviewActive && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onStartReview()}
+            className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+          >
+            <Gavel size={16} aria-hidden="true" />
+            {busy ? "Đang bắt đầu duyệt..." : "Kiểm duyệt báo cáo"}
+          </button>
+        )}
+        {showDecision && (
+          <button
+            type="button"
+            onClick={() => {
+              decisionRef.current?.scrollIntoView({ block: "start" })
+              decisionRef.current?.focus({ preventScroll: true })
+            }}
+            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <Gavel size={16} aria-hidden="true" />
+            Đến phần quyết định
+          </button>
+        )}
+      </header>
+      <ReviewContext item={item} />
+      <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <dl className="grid gap-3 border-b border-border pb-4 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-xs text-muted-foreground">Danh mục</dt>
             <dd className="mt-1 font-medium text-foreground">
@@ -219,27 +257,15 @@ export function ReportQueueDetailView({
             </div>
           )}
         </dl>
-      </header>
-      <section className="space-y-4 rounded-xl border border-border bg-card p-5">
         <div>
-          <h2 className="text-sm font-bold">Mô tả hành vi</h2>
+          <h2 className="text-base font-semibold">Mô tả hành vi</h2>
           <p
-            className={`mt-2 text-sm break-words whitespace-pre-wrap ${item.description?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
+            className={`mt-2 max-w-prose text-sm leading-relaxed break-words whitespace-pre-wrap ${item.description?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
           >
             {item.description?.trim() || "Chưa có mô tả."}
           </p>
         </div>
       </section>
-      {pending && item.canReview === true && !reviewActive && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void onStartReview()}
-          className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-        >
-          {busy ? "Đang bắt đầu duyệt..." : "Kiểm duyệt báo cáo"}
-        </button>
-      )}
       {pending &&
         !canReview &&
         !(item.status === "Pending" && item.canReview === true) && (
@@ -253,7 +279,10 @@ export function ReportQueueDetailView({
           role="status"
           className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
         >
-          <h2 className="font-bold">Đối tượng đang thuộc danh sách tin cậy</h2>
+          <h2 className="flex items-center gap-2 font-semibold">
+            <ShieldWarning size={18} className="shrink-0" aria-hidden="true" />
+            Đối tượng đang thuộc danh sách tin cậy
+          </h2>
           {pending && <p className="mt-1">Báo cáo này không thể được phê duyệt.</p>}
 
           <ul className="mt-2 space-y-1">
@@ -274,8 +303,8 @@ export function ReportQueueDetailView({
         evidences={item.evidences ?? []}
         completeness={item.evidenceCompleteness}
       />
-      {pending && canReview && reviewActive && (
-        <>
+      {showDecision && (
+        <div ref={decisionRef} tabIndex={-1} className="scroll-mt-24">
           <ReportDecisionForm
             key={item.id}
             reportId={item.id}
@@ -287,7 +316,7 @@ export function ReportQueueDetailView({
             isSubmitting={busy}
             approvalBlocked={item.whitelisted}
           />
-        </>
+        </div>
       )}
     </div>
   )
