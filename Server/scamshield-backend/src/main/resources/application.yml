@@ -82,6 +82,7 @@ app:
     ai:
       enabled: ${SCAM_CHECK_AI_ENABLED:true}
       base-url: ${SCAM_CHECK_AI_BASE_URL:http://localhost:8000}
+      token: ${SCAM_CHECK_AI_TOKEN:}
       connect-timeout-ms: ${SCAM_CHECK_AI_CONNECT_TIMEOUT_MS:2000}
       request-timeout-ms: ${SCAM_CHECK_AI_REQUEST_TIMEOUT_MS:60000}
     registered-daily-limit: ${SCAM_CHECK_REGISTERED_DAILY_LIMIT:10}
