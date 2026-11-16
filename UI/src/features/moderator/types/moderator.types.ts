@@ -53,6 +53,7 @@ export interface ModeratorReportItem {
     lastSeenAt: string | null
   } | null
   reporterContext?: {
+    userId?: number | null
     email: string | null
     phoneNumber: string | null
     reputationPoints: number | null
