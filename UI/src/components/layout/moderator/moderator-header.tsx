@@ -36,9 +36,9 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
   const roleLabel = role === "ADMINISTRATOR" ? "Quản trị viên" : "Kiểm duyệt viên"
   const initials = Array.from((currentProfile?.fullName?.trim() || currentProfile?.username || currentProfile?.email || user?.email || "").trim()).slice(0, 2).join("").toLocaleUpperCase("vi-VN")
 
-  const isReportsActive =
-    pathname?.includes("/moderator/reports")
+  const isReportsActive = pathname?.includes("/moderator/reports")
   const isDisputesActive = pathname?.includes("/moderator/disputes")
+  const isFlaggedActive = pathname?.includes("/moderator/flagged-accounts")
   const isPartnersActive = pathname?.includes("/moderator/indicators")
 
   return (
@@ -70,8 +70,15 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
 
           {/* Navigation Tabs */}
           <nav className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 p-1 md:flex dark:border-slate-800 dark:bg-slate-800/80">
-            <Link href="/moderator" aria-current={pathname === "/moderator" ? "page" : undefined}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold ${pathname === "/moderator" ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 dark:text-slate-300"}`}>
+            <Link
+              href="/moderator"
+              aria-current={pathname === "/moderator" ? "page" : undefined}
+              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                pathname === "/moderator"
+                  ? "bg-slate-950 text-white shadow-sm dark:bg-white dark:text-slate-950"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
               Tổng quan
             </Link>
             <Link
@@ -82,7 +89,7 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
             >
-              Xử lý báo cáo
+              Hàng chờ kiểm duyệt
             </Link>
             <Link
               href="/moderator/disputes"
@@ -93,6 +100,16 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
               }`}
             >
               Hàng chờ khiếu nại
+            </Link>
+            <Link
+              href="/moderator/flagged-accounts"
+              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                isFlaggedActive
+                  ? "bg-slate-950 text-white shadow-sm dark:bg-white dark:text-slate-950"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              Xử lý lạm dụng
             </Link>
             <Link
               href="/moderator/indicators"
@@ -108,7 +125,13 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
         </div>
 
         {/* Right: Sync Status & Officer Profile */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Sync Status Badge */}
+          <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+            Đồng bộ 24/7
+          </div>
+
           {/* Notification Bell */}
           <button
             type="button"

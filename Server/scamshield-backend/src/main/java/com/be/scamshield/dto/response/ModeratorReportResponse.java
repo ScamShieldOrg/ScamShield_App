@@ -64,7 +64,7 @@ public class ModeratorReportResponse {
     public record IndicatorContext(String blacklistStatus, long reports, long approvedReports, long rejectedReports, long disputes,
                                    LocalDateTime firstSeenAt, LocalDateTime lastSeenAt) { }
 
-    public record ReporterContext(String email, String phoneNumber, Integer reputationPoints,
+    public record ReporterContext(Long userId, String email, String phoneNumber, Integer reputationPoints,
                                   LocalDateTime joinedAt, long reports, long approvedReports, long decidedReports,
                                   long disputes, long approvedDisputes, long decidedDisputes,
                                   long abuseFlags, long openFlags) { }

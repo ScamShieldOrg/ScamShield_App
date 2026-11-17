@@ -1,5 +1,6 @@
 "use client"
-import { useRef } from "react"
+import { useState, useRef } from "react"
+import Link from "next/link"
 import { ClipboardText, Gavel, ShieldWarning } from "@phosphor-icons/react"
 import type {
   ModeratorReportItem,
@@ -13,6 +14,7 @@ import {
 } from "@/features/moderator/report-review"
 import { ReportEvidencePreview } from "./report-evidence-preview"
 import { ReportDecisionForm } from "./report-decision-form"
+import { ModeratorEscalateModal } from "./abuse-escalation/moderator-escalate-modal"
 import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
 
 function contextDate(value: string | null) {
@@ -25,7 +27,13 @@ function approvalRate(approved: number, decided: number) {
     : "Chưa có quyết định"
 }
 
-function ReviewContext({ item }: { item: ModeratorReportItem }) {
+function ReviewContext({
+  item,
+  onOpenEscalate,
+}: {
+  item: ModeratorReportItem
+  onOpenEscalate?: () => void
+}) {
   const { indicatorContext: indicator, reporterContext: reporter } = item
 
   const indicatorFields = indicator && [
@@ -151,6 +159,26 @@ function ReviewContext({ item }: { item: ModeratorReportItem }) {
               ))}
             </dl>
           )}
+          {index === 1 && (
+            <div className="mt-4 border-t border-border pt-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">Phát hiện dấu hiệu lạm dụng?</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onOpenEscalate}
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+                >
+                  Gắn cờ & chuyển Admin
+                </button>
+                <Link
+                  href="/moderator/flagged-accounts"
+                  className="text-xs font-semibold text-muted-foreground hover:underline"
+                >
+                  Xử lý lạm dụng &rarr;
+                </Link>
+              </div>
+            </div>
+          )}
         </section>
       ))}
     </div>
@@ -170,6 +198,7 @@ export function ReportQueueDetailView({
   onDirtyChange?: (dirty: boolean) => void
   busy?: boolean
 }) {
+  const [isEscalateOpen, setIsEscalateOpen] = useState(false)
   const decisionRef = useRef<HTMLDivElement>(null)
   if (!item)
     return (
@@ -228,7 +257,7 @@ export function ReportQueueDetailView({
           </button>
         )}
       </header>
-      <ReviewContext item={item} />
+      <ReviewContext item={item} onOpenEscalate={() => setIsEscalateOpen(true)} />
       <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <dl className="grid gap-3 border-b border-border pb-4 text-sm sm:grid-cols-3">
           <div>
@@ -267,8 +296,9 @@ export function ReportQueueDetailView({
         !canReview &&
         !(item.status === "Pending" && item.canReview === true) && (
           <p className="text-sm text-muted-foreground">
-            Báo cáo này chỉ được xem. Bạn chưa có phiên duyệt hoặc không có
-            quyền duyệt.
+            {item.status === "In Review"
+              ? "Báo cáo này đang được xử lý bởi kiểm duyệt viên khác (chế độ chỉ xem)."
+              : "Báo cáo này chỉ được xem. Bạn chưa có phiên duyệt hoặc không có quyền duyệt."}
           </p>
         )}
       {item.whitelisted && (
@@ -315,6 +345,11 @@ export function ReportQueueDetailView({
           />
         </div>
       )}
+      <ModeratorEscalateModal
+        isOpen={isEscalateOpen}
+        onClose={() => setIsEscalateOpen(false)}
+        report={item}
+      />
     </div>
   )
 }

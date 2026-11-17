@@ -75,9 +75,20 @@ public class ModeratorAbuseEscalationServiceImpl implements IModeratorAbuseEscal
             throw new BadRequestException("Danh sách ID báo cáo không được trùng lặp");
         }
 
+        if (userId.equals(moderator.getId())) {
+            throw new BadRequestException("Bạn không thể tự chuyển hồ sơ lạm dụng cho chính mình");
+        }
+
         // Serialize submissions for this account, including requests from different moderators.
         User target = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản với ID: " + userId));
+        if (target.getRole() != null && ("ADMINISTRATOR".equals(target.getRole().getName())
+                || "MODERATOR".equals(target.getRole().getName()))) {
+            throw new BadRequestException("Chỉ áp dụng chuyển lạm dụng đối với tài khoản người dùng thông thường");
+        }
+        if ("BANNED".equals(target.getStatus())) {
+            throw new BadRequestException("Tài khoản đã bị cấm vĩnh viễn, không cần chuyển hồ sơ lạm dụng");
+        }
         if (abuseFlagRepository.existsByUserIdAndStatus(userId, AbuseFlagStatus.PENDING.name())) {
             throw new AbuseEscalationConflictException("Tài khoản đã có hồ sơ đang chờ quản trị viên xét duyệt");
         }
