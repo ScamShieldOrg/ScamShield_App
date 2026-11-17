@@ -213,7 +213,10 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         }
 
         User moderatorUser = resolveModeratorUser(currentUser);
-        reviewAssignments.requireAssigned(report, currentUser);
+        boolean isAdmin = isAdmin(currentUser);
+        if (!isAdmin) {
+            reviewAssignments.requireAssigned(report, currentUser);
+        }
         LocalDateTime now = LocalDateTime.now();
 
         ReportStatus newReportStatus = switch (request.getDecision()) {
@@ -332,11 +335,6 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             if (existingConfirmedOpt.isPresent()) {
                 ConfirmedIndicator existing = existingConfirmedOpt.get();
                 if (existing.getStatus() == ConfirmedIndicatorStatus.RETRACTED) {
-                    boolean isAdmin = currentUser != null && (
-                            (currentUser.getRole() != null && (currentUser.getRole().equalsIgnoreCase("ADMIN") || currentUser.getRole().equalsIgnoreCase("ROLE_ADMIN"))) ||
-                            (currentUser.getAuthorities() != null && currentUser.getAuthorities().stream()
-                                    .anyMatch(a -> a.getAuthority().equalsIgnoreCase("ROLE_ADMIN") || a.getAuthority().equalsIgnoreCase("ADMIN")))
-                    );
                     if (!isAdmin) {
                         throw new BadRequestException("Chỉ số này đã được gỡ bỏ khỏi Blacklist qua quy trình khiếu nại (Dispute). Để bảo vệ khỏi tình trạng bão báo cáo, việc kích hoạt lại Blacklist yêu cầu thẩm định cấp Quản trị viên (ADMIN) kèm căn cứ vi phạm mới.");
                     }
@@ -374,7 +372,9 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         indicatorRepository.lockForReport(id);
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo"));
-        reviewAssignments.requireAssigned(report, currentUser);
+        if (!isAdmin(currentUser)) {
+            reviewAssignments.requireAssigned(report, currentUser);
+        }
         if (report.getStatus() != ReportStatus.PENDING && report.getStatus() != ReportStatus.IN_REVIEW) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Báo cáo đã kết thúc xử lý");
         }
@@ -402,6 +402,24 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         }
         return userRepository.findById(currentUser.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin tài khoản kiểm duyệt viên với ID: " + currentUser.getId()));
+    }
+
+    private boolean isAdmin(UserPrincipal currentUser) {
+        if (currentUser == null) {
+            return false;
+        }
+        if (currentUser.getRole() != null && (
+                currentUser.getRole().equalsIgnoreCase("ADMINISTRATOR")
+                        || currentUser.getRole().equalsIgnoreCase("ROLE_ADMINISTRATOR")
+                        || currentUser.getRole().equalsIgnoreCase("ADMIN")
+                        || currentUser.getRole().equalsIgnoreCase("ROLE_ADMIN"))) {
+            return true;
+        }
+        return currentUser.getAuthorities() != null && currentUser.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equalsIgnoreCase("ROLE_ADMINISTRATOR")
+                        || a.getAuthority().equalsIgnoreCase("ADMINISTRATOR")
+                        || a.getAuthority().equalsIgnoreCase("ROLE_ADMIN")
+                        || a.getAuthority().equalsIgnoreCase("ADMIN"));
     }
 
     private Specification<Report> createFilterSpecification(ModeratorReportFilterRequest filter) {
@@ -566,7 +584,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .reportedMessage(report.getReportedMessage())
                 .category(categoryName)
                 .categoryId(categoryId)
-                .canReview(assignedToMe && (report.getStatus() == ReportStatus.PENDING || report.getStatus() == ReportStatus.IN_REVIEW))
+                .canReview((assignedToMe || isAdmin(currentUser)) && (report.getStatus() == ReportStatus.PENDING || report.getStatus() == ReportStatus.IN_REVIEW))
                 .assignedToMe(assignedToMe)
                 .whitelisted(!whitelistMatches.isEmpty())
                 .whitelistMatches(whitelistMatches)

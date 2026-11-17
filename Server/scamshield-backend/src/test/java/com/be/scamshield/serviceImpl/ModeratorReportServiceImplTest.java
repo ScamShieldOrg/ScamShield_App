@@ -28,6 +28,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -661,7 +662,7 @@ class ModeratorReportServiceImplTest {
     }
 
     @Test
-    void makeDecision_WhenReactivatingRetractedIndicator_AsAdmin_Success() {
+    void makeDecision_WhenReactivatingRetractedIndicator_AsAdministrator_WithoutAssignment_Success() {
         ConfirmedIndicator retractedIndicator = ConfirmedIndicator.builder()
                 .id(50L)
                 .indicator(testIndicator)
@@ -680,8 +681,12 @@ class ModeratorReportServiceImplTest {
                 .id(1L)
                 .email("admin@scamshield.vn")
                 .username("admin@scamshield.vn")
-                .role("ROLE_ADMIN")
+                .role("ADMINISTRATOR")
+                .authorities(List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR")))
                 .build();
+
+        // testReport is assigned to a different moderator (id 99L), NOT admin (id 1L)
+        testReport.setAssignedModerator(moderatorUser);
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
@@ -695,11 +700,44 @@ class ModeratorReportServiceImplTest {
                 .reason("Quản trị viên xác thực căn cứ vi phạm mới xác đáng sau khi gỡ blacklist")
                 .build();
 
-        service.makeDecision(1891L, adminPrincipal, request);
+        ModeratorReportResponse response = service.makeDecision(1891L, adminPrincipal, request);
 
         assertThat(retractedIndicator.getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
         assertThat(retractedIndicator.getRetractedAt()).isNull();
         assertThat(retractedIndicator.getRetractionReason()).isNull();
         verify(confirmedIndicatorRepository, times(1)).save(retractedIndicator);
+        verify(reviewAssignments, never()).requireAssigned(any(), eq(adminPrincipal));
+    }
+
+    @Test
+    void startReview_WhenAdminNotAssigned_Success() {
+        User adminUser = User.builder()
+                .id(1L)
+                .email("admin@scamshield.vn")
+                .fullName("System Administrator")
+                .build();
+
+        UserPrincipal adminPrincipal = UserPrincipal.builder()
+                .id(1L)
+                .email("admin@scamshield.vn")
+                .username("admin@scamshield.vn")
+                .role("ADMINISTRATOR")
+                .authorities(List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR")))
+                .build();
+
+        testReport.setAssignedModerator(moderatorUser); // assigned to id 99L, not admin
+        testReport.setStatus(ReportStatus.PENDING);
+
+        when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+        when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
+
+        ModeratorReportResponse response = service.startReview(1891L, adminPrincipal);
+
+        assertThat(response.getStatus()).isEqualTo("In Review");
+        assertThat(response.isCanReview()).isTrue();
+        assertThat(response.isAssignedToMe()).isFalse();
+        verify(reviewAssignments, never()).requireAssigned(any(), eq(adminPrincipal));
     }
 }
