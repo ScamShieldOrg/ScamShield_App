@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.ConfirmedIndicatorStatus;
 import com.be.scamshield.constant.IndicatorType;
 
 import com.be.scamshield.constant.ReportEvidenceType;
@@ -630,5 +631,75 @@ class ModeratorReportServiceImplTest {
         assertThatThrownBy(() -> service.startReview(1891L, moderatorPrincipal)).hasMessageContaining("409");
         verify(moderationActionRepository, never()).save(any());
         verify(reportRepository, never()).save(any());
+    }
+
+    @Test
+    void makeDecision_WhenReactivatingRetractedIndicator_NonAdmin_ThrowsBadRequestException() {
+        ConfirmedIndicator retractedIndicator = ConfirmedIndicator.builder()
+                .id(50L)
+                .indicator(testIndicator)
+                .status(ConfirmedIndicatorStatus.RETRACTED)
+                .retractedAt(LocalDateTime.now().minusDays(5))
+                .retractionReason("Dispute accepted")
+                .build();
+
+        when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
+        when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
+        when(userRepository.findByIdForUpdate(testUser.getId())).thenReturn(Optional.of(testUser));
+        when(confirmedIndicatorRepository.findByIndicatorId(100L)).thenReturn(Optional.of(retractedIndicator));
+
+        ModeratorDecisionRequest request = ModeratorDecisionRequest.builder()
+                .decision(ModeratorDecisionRequest.DecisionType.APPROVE)
+                .reason("Báo cáo mới từ bão tố cáo sau khi gỡ blacklist")
+                .build();
+
+        assertThatThrownBy(() -> service.makeDecision(1891L, moderatorPrincipal, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Chỉ số này đã được gỡ bỏ khỏi Blacklist qua quy trình khiếu nại (Dispute)");
+
+        verify(confirmedIndicatorRepository, never()).save(any());
+    }
+
+    @Test
+    void makeDecision_WhenReactivatingRetractedIndicator_AsAdmin_Success() {
+        ConfirmedIndicator retractedIndicator = ConfirmedIndicator.builder()
+                .id(50L)
+                .indicator(testIndicator)
+                .status(ConfirmedIndicatorStatus.RETRACTED)
+                .retractedAt(LocalDateTime.now().minusDays(5))
+                .retractionReason("Dispute accepted")
+                .build();
+
+        User adminUser = User.builder()
+                .id(1L)
+                .email("admin@scamshield.vn")
+                .fullName("System Administrator")
+                .build();
+
+        UserPrincipal adminPrincipal = UserPrincipal.builder()
+                .id(1L)
+                .email("admin@scamshield.vn")
+                .username("admin@scamshield.vn")
+                .role("ROLE_ADMIN")
+                .build();
+
+        when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findByIdForUpdate(testUser.getId())).thenReturn(Optional.of(testUser));
+        when(confirmedIndicatorRepository.findByIndicatorId(100L)).thenReturn(Optional.of(retractedIndicator));
+        when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
+
+        ModeratorDecisionRequest request = ModeratorDecisionRequest.builder()
+                .decision(ModeratorDecisionRequest.DecisionType.APPROVE)
+                .reason("Quản trị viên xác thực căn cứ vi phạm mới xác đáng sau khi gỡ blacklist")
+                .build();
+
+        service.makeDecision(1891L, adminPrincipal, request);
+
+        assertThat(retractedIndicator.getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
+        assertThat(retractedIndicator.getRetractedAt()).isNull();
+        assertThat(retractedIndicator.getRetractionReason()).isNull();
+        verify(confirmedIndicatorRepository, times(1)).save(retractedIndicator);
     }
 }

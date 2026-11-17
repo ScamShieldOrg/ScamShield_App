@@ -331,6 +331,16 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             Optional<ConfirmedIndicator> existingConfirmedOpt = confirmedIndicatorRepository.findByIndicatorId(report.getIndicator().getId());
             if (existingConfirmedOpt.isPresent()) {
                 ConfirmedIndicator existing = existingConfirmedOpt.get();
+                if (existing.getStatus() == ConfirmedIndicatorStatus.RETRACTED) {
+                    boolean isAdmin = currentUser != null && (
+                            (currentUser.getRole() != null && (currentUser.getRole().equalsIgnoreCase("ADMIN") || currentUser.getRole().equalsIgnoreCase("ROLE_ADMIN"))) ||
+                            (currentUser.getAuthorities() != null && currentUser.getAuthorities().stream()
+                                    .anyMatch(a -> a.getAuthority().equalsIgnoreCase("ROLE_ADMIN") || a.getAuthority().equalsIgnoreCase("ADMIN")))
+                    );
+                    if (!isAdmin) {
+                        throw new BadRequestException("Chỉ số này đã được gỡ bỏ khỏi Blacklist qua quy trình khiếu nại (Dispute). Để bảo vệ khỏi tình trạng bão báo cáo, việc kích hoạt lại Blacklist yêu cầu thẩm định cấp Quản trị viên (ADMIN) kèm căn cứ vi phạm mới.");
+                    }
+                }
                 existing.setStatus(ConfirmedIndicatorStatus.ACTIVE);
                 existing.setRetractedAt(null);
                 existing.setRetractionReason(null);
