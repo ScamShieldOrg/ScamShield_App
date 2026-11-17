@@ -312,14 +312,41 @@ export function DisputeSubmissionForm({ onSuccess }: DisputeSubmissionFormProps)
       onSubmit={handleSubmitDispute}
       className="space-y-8 bg-white dark:bg-slate-900 rounded-xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-sm"
     >
-      {/* Intro alert */}
-      <div className="bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-lg p-4 flex items-start gap-3">
-        <Info weight="fill" className="text-blue-600 dark:text-blue-400 text-xl shrink-0 mt-0.5" />
-        <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-          <p className="font-bold text-slate-900 dark:text-white mb-0.5">
-            Lưu ý về quy trình thụ lý & xác minh độc lập:
-          </p>
-          Hệ thống chỉ tiếp nhận khiếu nại cho các chỉ số đang bị cảnh báo trong hệ thống Blacklist của ScamShield. Hồ sơ sẽ được Hội đồng chuyên gia thẩm định đối soát với cơ quan chức năng (A05/NCSC, Cục Viễn thông, Ngân hàng) trong tối đa 48 giờ.
+      {/* Eligibility & Intro alert */}
+      <div className="bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-xl p-5 space-y-3">
+        <div className="flex items-start gap-3">
+          <Info weight="fill" className="text-blue-600 dark:text-blue-400 text-xl shrink-0 mt-0.5" />
+          <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-1">
+            <p className="font-bold text-slate-900 dark:text-white text-sm">
+              Quy định về đối tượng và phạm vi tiếp nhận khiếu nại minh oan (Dispute):
+            </p>
+            <p>
+              Hệ thống chỉ tiếp nhận khiếu nại cho các chỉ số (SĐT, Website, STK, Brandname) đang bị gắn cờ trong danh sách đen (Blacklist). Hồ sơ sẽ được Hội đồng chuyên gia đối soát với cơ quan chức năng (A05/NCSC, Cục Viễn thông, VNNIC, Ngân hàng) trong tối đa 48 giờ.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1 text-xs">
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 p-3">
+            <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 mb-1">
+              <CheckCircle weight="fill" className="text-sm" /> Trường hợp ĐƯỢC khiếu nại:
+            </span>
+            <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 space-y-0.5 text-[11px]">
+              <li>Chủ sở hữu hợp pháp bị người khác báo cáo nhầm số điện thoại / STK.</li>
+              <li>Doanh nghiệp có website chính chủ bị đối tượng xấu mạo danh lừa đảo.</li>
+              <li>Cá nhân/tổ chức có đầy đủ giấy tờ chứng minh quyền sở hữu hợp pháp.</li>
+            </ul>
+          </div>
+          <div className="rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 p-3">
+            <span className="font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5 mb-1">
+              <Info weight="fill" className="text-sm" /> Trường hợp KHÔNG khiếu nại:
+            </span>
+            <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 space-y-0.5 text-[11px]">
+              <li>Nạn nhân bị lừa đảo muốn tố cáo (vui lòng sử dụng tính năng <strong>Báo cáo</strong>).</li>
+              <li>Người dùng thứ ba không có giấy tờ sở hữu hợp pháp đối với chỉ số.</li>
+              <li>Hành vi lừa đảo có thật đang bị cộng đồng và cơ quan chức năng cảnh báo.</li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -492,6 +519,35 @@ export function DisputeSubmissionForm({ onSuccess }: DisputeSubmissionFormProps)
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Đã chọn: <strong className="text-slate-900 dark:text-white">{files.length}</strong>/{MAX_FILES} tệp
           </span>
+        </div>
+
+        {/* Dynamic legal evidence recommendation based on indicatorType */}
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 text-xs">
+          <div className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center gap-1.5">
+            <span>📋 Hồ sơ pháp lý khuyến nghị đối với {activeIndicatorConfig.label}:</span>
+          </div>
+          {indicatorType === "PHONE" && (
+            <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed space-y-1">
+              <p>• <strong>Xác thực chính chủ</strong>: Ảnh chụp màn hình ứng dụng nhà mạng (My Viettel, My VNPT, My MobiFone) hiển thị tên & CCCD đã chuẩn hóa; hoặc ảnh tin nhắn xác thực từ tổng đài <strong>TTTB gửi 1414</strong>.</p>
+              <p>• <strong>Chứng minh không tham gia lừa đảo</strong>: Hợp đồng thuê bao viễn thông, hoặc bản kê chi tiết cước cuộc gọi đi (CDR) từ app nhà mạng để chứng minh số bị kẻ xấu mạo danh hiển thị cuộc gọi (Caller ID Spoofing).</p>
+            </div>
+          )}
+          {indicatorType === "URL" && (
+            <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed space-y-1">
+              <p>• <strong>Sở hữu tên miền</strong>: Giấy chứng nhận quyền sử dụng tên miền từ VNNIC (đối với .vn) hoặc Registrar quốc tế (GoDaddy, Namecheap...) kèm hóa đơn gia hạn.</p>
+              <p>• <strong>Tư cách pháp lý</strong>: Giấy chứng nhận đăng ký kinh doanh (GPKD) / CCCD của chủ sở hữu; xác nhận đăng ký website với Bộ Công Thương (<strong>online.gov.vn</strong>); hoặc xác thực qua bản ghi DNS TXT.</p>
+            </div>
+          )}
+          {indicatorType === "BANK_ACCOUNT" && (
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              • Hợp đồng mở tài khoản ngân hàng chính chủ, xác nhận số dư hoặc ảnh chụp thẻ/app ngân hàng chính chủ trùng khớp CCCD của người nộp.
+            </p>
+          )}
+          {indicatorType === "BRANDNAME" && (
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              • Hợp đồng dịch vụ tin nhắn SMS Brandname ký với nhà mạng viễn thông hoặc Giấy chứng nhận đăng ký tên định danh do Cục An toàn thông tin (Bộ TT&TT) cấp.
+            </p>
+          )}
         </div>
 
         {/* Upload Dropzone */}
