@@ -330,6 +330,19 @@ export function ReportQueueDetailView({
         evidences={item.evidences ?? []}
         completeness={item.evidenceCompleteness}
       />
+      {canReview && item.indicatorContext?.blacklistStatus === "RETRACTED" && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-4 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 flex items-start gap-3">
+          <ShieldWarning size={20} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" weight="fill" />
+          <div className="space-y-1">
+            <p className="font-bold text-slate-900 dark:text-white">
+              Cảnh báo chỉ số nhạy cảm: Đối tượng này đã từng được gỡ khỏi Blacklist qua quy trình khiếu nại (Dispute)
+            </p>
+            <p className="text-[11px] leading-relaxed">
+              Để phòng ngừa rủi ro &quot;bão báo cáo&quot; (spam/phá hoại có chủ đích), hệ thống yêu cầu thẩm định kỹ các tài liệu vi phạm. Quyết định phê duyệt kích hoạt lại Blacklist yêu cầu tài khoản Quản trị viên (ADMIN) kèm căn cứ vi phạm mới.
+            </p>
+          </div>
+        </div>
+      )}
       {canReview && (
         <div ref={decisionRef} tabIndex={-1} className="scroll-mt-24">
           <ReportDecisionForm
