@@ -92,13 +92,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         Sort stableSort = queueSort;
         Specification<Report> prioritized = spec.and((root, query, cb) -> {
             if (query != null && Report.class.equals(query.getResultType())) {
-                var assignee = root.join("assignedModerator", JoinType.LEFT);
-                var priority = cb.<Integer>selectCase()
-                        .when(cb.equal(assignee.get("id"), currentUser.getId()), 0)
-                        .otherwise(1);
-                List<Order> orders = new ArrayList<>();
-                orders.add(cb.asc(priority));
-                orders.addAll(QueryUtils.toOrders(stableSort, root, cb));
+                List<Order> orders = new ArrayList<>(QueryUtils.toOrders(stableSort, root, cb));
                 query.orderBy(orders);
             }
             return cb.conjunction();
@@ -287,7 +281,9 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     int currentPoints = reporter.getReputationPoints() != null ? reporter.getReputationPoints() : 0;
                     int updatedPoints = currentPoints + bonusPoints;
                     reporter.setReputationPoints(updatedPoints);
-                    reputationRankRepository.findRankByPoints(updatedPoints).ifPresent(reporter::setReputationRank);
+                    if (reputationRankRepository != null) {
+                        reputationRankRepository.findRankByPoints(updatedPoints).ifPresent(reporter::setReputationRank);
+                    }
                     userRepository.save(reporter);
 
                     ReputationTransaction tx = ReputationTransaction.builder()
@@ -381,6 +377,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         if (report.getStatus() == ReportStatus.PENDING) {
             User moderator = resolveModeratorUser(currentUser);
             LocalDateTime now = LocalDateTime.now();
+            report.setAssignedModerator(moderator);
             report.setStatus(ReportStatus.IN_REVIEW);
             report.setUpdatedAt(now);
             reportRepository.save(report);
@@ -392,6 +389,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                         .action("IN_REVIEW").previousValue("PENDING").newValue("IN_REVIEW")
                         .reason("Báo cáo đang được kiểm duyệt").createdAt(now).build());
             }
+        } else {
+            reviewAssignments.requireAssigned(report, currentUser);
         }
         return mapToModeratorReportResponse(report, reportEvidenceRepository.findByReportId(id), currentUser);
     }
@@ -498,6 +497,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             var reporter = report.getReporterUser();
             if (reporter != null) {
                 response.setReporterContext(new ModeratorReportResponse.ReporterContext(
+                        reporter.getId(),
                         reporter.getEmail(), reporter.getPhoneNumber(), reporter.getReputationPoints(),
                         reporter.getCreatedAt(), stats.getReporterReports(), stats.getApprovedReports(),
                         stats.getDecidedReports(), stats.getReporterDisputes(), stats.getApprovedDisputes(),
@@ -584,7 +584,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .reportedMessage(report.getReportedMessage())
                 .category(categoryName)
                 .categoryId(categoryId)
-                .canReview((assignedToMe || isAdmin(currentUser)) && (report.getStatus() == ReportStatus.PENDING || report.getStatus() == ReportStatus.IN_REVIEW))
+                .canReview(assignedToMe && (report.getStatus() == ReportStatus.PENDING || report.getStatus() == ReportStatus.IN_REVIEW))
+                .canReview(report.getStatus() == ReportStatus.PENDING || (assignedToMe && report.getStatus() == ReportStatus.IN_REVIEW))
                 .assignedToMe(assignedToMe)
                 .whitelisted(!whitelistMatches.isEmpty())
                 .whitelistMatches(whitelistMatches)
