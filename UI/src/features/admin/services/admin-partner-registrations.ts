@@ -153,7 +153,9 @@ export const adminPartnerRegistrations = {
   },
   resendPasswordLink(id: number) {
     return unwrap<PartnerRegistrationDetail>(
-      authorizeApi.post(`${basePath}/${id}/password-link/resend`)
+      authorizeApi.post(`${basePath}/${id}/password-link/resend`, undefined, {
+        timeout: 25_000,
+      })
     )
   },
   document(partnerId: number, documentId: number) {

@@ -6,7 +6,7 @@ const BE_URL = process.env.NEXT_PUBLIC_BE_URL
 
 const publicApi = axios.create({
     baseURL: BE_URL,
-    timeout: 10000,
+    timeout: 30000,
     headers: {
         "Content-Type": "application/json",
     },
@@ -15,7 +15,7 @@ const publicApi = axios.create({
 
 const authorizeApi = axios.create({
     baseURL: BE_URL,
-    timeout: 10000,
+    timeout: 30000,
     headers: {
         "Content-Type": "application/json",
     },

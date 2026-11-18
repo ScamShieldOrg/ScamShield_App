@@ -13,6 +13,7 @@ import {
   type PartnerDocumentMetadata,
 } from "@/features/admin/services/admin-partner-registrations"
 import { WhitelistStatusBadge } from "./whitelist-status-badge"
+import { BusinessVerificationPanel } from "./business-verification-panel"
 
 const documentLabels: Record<string, string> = {
   BUSINESS_LICENSE: "Giấy phép kinh doanh",
@@ -204,7 +205,6 @@ export function WhitelistReviewDialog({
     }
   }
 
-  const verification = detail?.businessVerification
   const approvalWaiting =
     detail?.documentVerificationStatus === "PENDING_OCR" ||
     detail?.documentVerificationStatus === "RUNNING_OCR" ||
@@ -375,76 +375,10 @@ export function WhitelistReviewDialog({
                   </dl>
                 </section>
 
-                <section
-                  aria-label="Đối soát doanh nghiệp"
-                  className="min-w-0 rounded-lg border border-border p-4"
-                >
-                  <h3 className="font-heading text-sm font-bold">
-                    Đối soát doanh nghiệp
-                  </h3>
-                  {verification ? (
-                    <dl className="mt-4 grid gap-y-3 sm:grid-cols-2 sm:gap-x-8">
-                      <div>
-                        <dt className="text-muted-foreground">Kết quả</dt>
-                        <dd className="font-semibold">
-                          {verification.outcome}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">
-                          Trạng thái hoạt động
-                        </dt>
-                        <dd>{verification.xinvoice.activityStatus}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">
-                          Tên trên XinVoice
-                        </dt>
-                        <dd className="break-words">
-                          {verification.xinvoice.legalName || "—"}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">
-                          MST trên XinVoice
-                        </dt>
-                        <dd>{verification.xinvoice.taxCode || "—"}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">
-                          Khớp tên / MST
-                        </dt>
-                        <dd>
-                          {verification.formNameVsXinvoice} /{" "}
-                          {verification.formTaxCodeVsXinvoice}
-                        </dd>
-                      </div>
-                    </dl>
-                  ) : (
-                    <p className="mt-2 text-muted-foreground">
-                      Chưa có kết quả đối soát được lưu.
-                    </p>
-                  )}
-                  {verification?.ocrEnabled && (
-                    <div className="mt-4 border-t border-border pt-3">
-                      <h4 className="font-semibold">Đối soát OCR giấy phép</h4>
-                      {verification.documents.length ? (
-                        verification.documents.map((document) => (
-                          <p
-                            key={document.fileName}
-                            className="mt-1 text-muted-foreground"
-                          >
-                            {document.fileName}: {document.status}
-                          </p>
-                        ))
-                      ) : (
-                        <p className="mt-1 text-muted-foreground">
-                          Đang chờ kết quả OCR.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </section>
+                <BusinessVerificationPanel
+                  verification={detail.businessVerification}
+                  documentStatus={detail.documentVerificationStatus}
+                />
               </div>
 
               <section aria-label="Tài liệu đính kèm">
