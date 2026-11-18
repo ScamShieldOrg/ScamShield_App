@@ -368,9 +368,6 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         indicatorRepository.lockForReport(id);
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo"));
-        if (!isAdmin(currentUser)) {
-            reviewAssignments.requireAssigned(report, currentUser);
-        }
         if (report.getStatus() != ReportStatus.PENDING && report.getStatus() != ReportStatus.IN_REVIEW) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Báo cáo đã kết thúc xử lý");
         }
@@ -389,7 +386,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                         .action("IN_REVIEW").previousValue("PENDING").newValue("IN_REVIEW")
                         .reason("Báo cáo đang được kiểm duyệt").createdAt(now).build());
             }
-        } else {
+        } else if (!isAdmin(currentUser)) {
             reviewAssignments.requireAssigned(report, currentUser);
         }
         return mapToModeratorReportResponse(report, reportEvidenceRepository.findByReportId(id), currentUser);
@@ -584,8 +581,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .reportedMessage(report.getReportedMessage())
                 .category(categoryName)
                 .categoryId(categoryId)
-                .canReview(assignedToMe && (report.getStatus() == ReportStatus.PENDING || report.getStatus() == ReportStatus.IN_REVIEW))
-                .canReview(report.getStatus() == ReportStatus.PENDING || (assignedToMe && report.getStatus() == ReportStatus.IN_REVIEW))
+                .canReview(report.getStatus() == ReportStatus.PENDING
+                        || ((assignedToMe || isAdmin(currentUser)) && report.getStatus() == ReportStatus.IN_REVIEW))
                 .assignedToMe(assignedToMe)
                 .whitelisted(!whitelistMatches.isEmpty())
                 .whitelistMatches(whitelistMatches)

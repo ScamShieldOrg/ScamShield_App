@@ -711,12 +711,6 @@ class ModeratorReportServiceImplTest {
 
     @Test
     void startReview_WhenAdminNotAssigned_Success() {
-        User adminUser = User.builder()
-                .id(1L)
-                .email("admin@scamshield.vn")
-                .fullName("System Administrator")
-                .build();
-
         UserPrincipal adminPrincipal = UserPrincipal.builder()
                 .id(1L)
                 .email("admin@scamshield.vn")
@@ -725,12 +719,10 @@ class ModeratorReportServiceImplTest {
                 .authorities(List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR")))
                 .build();
 
-        testReport.setAssignedModerator(moderatorUser); // assigned to id 99L, not admin
-        testReport.setStatus(ReportStatus.PENDING);
+        testReport.setAssignedModerator(moderatorUser); // claimed by moderator id 99L, not admin
+        testReport.setStatus(ReportStatus.IN_REVIEW);
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
-        when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
 
         ModeratorReportResponse response = service.startReview(1891L, adminPrincipal);
