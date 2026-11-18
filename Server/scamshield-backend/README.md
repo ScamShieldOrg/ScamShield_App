@@ -22,7 +22,7 @@ if (-not (Test-Path .\.env)) {
 - `JWT_SECRET`: khóa riêng cho JWT, bắt buộc.
 - `FIREBASE_WEB_API_KEY`: API key của Firebase project dùng gửi OTP điện thoại.
 - `MAIL_USERNAME`, `MAIL_PASSWORD`: Gmail và App Password, nếu dùng API OTP email.
-- Railway Free/Trial/Hobby chặn SMTP. Để gửi email qua Resend HTTPS API: xác minh domain gửi trong Resend, tạo API key, rồi đặt `MAIL_PROVIDER=resend`, `RESEND_API_KEY` và `MAIL_FROM_EMAIL=no-reply@<domain-da-xac-minh>` trong biến môi trường backend Railway. Redeploy backend. `MAIL_USERNAME`/`MAIL_PASSWORD` chỉ dùng khi `MAIL_PROVIDER=smtp` (mặc định cho local). Sau khi redeploy, gửi lại link đặt mật khẩu một lần và kiểm tra trạng thái `SENT` cùng nhật ký gửi trong Resend.
+- Để gửi email qua Resend HTTPS API: xác minh domain gửi trong Resend, tạo API key, rồi đặt `MAIL_PROVIDER=resend`, `RESEND_API_KEY` và `MAIL_FROM_EMAIL=no-reply@<domain-da-xac-minh>`. `MAIL_USERNAME`/`MAIL_PASSWORD` chỉ dùng khi `MAIL_PROVIDER=smtp` (mặc định cho local). 
 - Các biến hết hạn `*_EXPIRATION_MS`: giữ giá trị mẫu hoặc đổi theo nhu cầu; đơn vị **mili giây**.
 - `SCAM_CHECK_AI_TOKEN`: cùng một giá trị ngẫu nhiên với `AI_SERVICE_TOKEN` của AI service; bắt buộc khi `SCAM_CHECK_AI_ENABLED=true`.
 
