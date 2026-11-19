@@ -460,8 +460,9 @@ class PartnerRegistrationServiceImplTest {
     @ParameterizedTest
     @ValueSource(strings = {"NAME", "TAX", "NOT_FOUND", "UNAVAILABLE", "NOT_CONFIGURED", "INCONCLUSIVE", "NOT_ACTIVE"})
     void registryFailureBlocksPrecheckBeforeUploadsDraftOrWrites(String failure) {
+        LocalDateTime tokenExpiry = LocalDateTime.now(applicationClock).plusMinutes(5);
         when(verificationStore.findByTokenHash(any())).thenReturn(Optional.of(ContactVerificationEntry.builder()
-                .phoneNumber("0912345678").expiresAt(LocalDateTime.now(applicationClock).plusMinutes(5)).build()));
+                .phoneNumber("0912345678").expiresAt(tokenExpiry).build()));
         var result = registryResult(failure);
         when(businessVerificationService.precheck(any(), any())).thenReturn(result);
         var manifest = List.of(
@@ -494,11 +495,13 @@ class PartnerRegistrationServiceImplTest {
 
     @Test
     void legacyRegistrationRejectsMismatchBeforeStorageUpload() {
+        LocalDateTime tokenExpiry = LocalDateTime.now(applicationClock).plusMinutes(5);
+        var mismatch = registryResult("NAME");
         when(verificationStore.findByTokenHash(any())).thenReturn(Optional.of(ContactVerificationEntry.builder()
-                .phoneNumber("0912345678").expiresAt(LocalDateTime.now(applicationClock).plusMinutes(5)).build()));
+                .phoneNumber("0912345678").expiresAt(tokenExpiry).build()));
         when(roleRepository.findByName(RoleEnum.BUSINESS_PARTNER.name()))
                 .thenReturn(Optional.of(Role.builder().name(RoleEnum.BUSINESS_PARTNER.name()).build()));
-        when(businessVerificationService.precheck(any(), any())).thenReturn(registryResult("NAME"));
+        when(businessVerificationService.precheck(any(), any())).thenReturn(mismatch);
 
         assertThatThrownBy(() -> service.register(request, files, files, null))
                 .isInstanceOf(PartnerBusinessVerificationException.class);
