@@ -81,6 +81,7 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
     public PartnerRegistrationPrecheckResponse.Upload renewUpload(String draftToken, int documentIndex) {
         var draft = draftStore.find(draftToken)
                 .orElseThrow(() -> new BadRequestException("Phiên đăng ký đã hết hạn"));
+        requireRegistryMatch(draft.businessVerification());
         if (documentIndex < 0 || documentIndex >= draft.documents().size()) {
             throw new BadRequestException("Tài liệu không hợp lệ");
         }
@@ -111,6 +112,7 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
         }
         List<PartnerDocumentUploadRequest> manifest = validateManifest(precheckRequest.documents(), request.isLegalRepresentative());
         var verification = businessVerificationService.precheck(request.getLegalName().trim(), taxCode);
+        requireRegistryMatch(verification);
 
         String draftToken = UUID.randomUUID().toString();
         List<PartnerRegistrationPrecheckResponse.Upload> uploads = new ArrayList<>();
@@ -166,6 +168,7 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
 
     private PartnerRegistrationResponse completeRegistration(String draftToken,
                                                                PartnerRegistrationDraftStore.Draft draft) {
+        requireRegistryMatch(draft.businessVerification());
         RegisterPartnerRequest request = draft.registration();
         request.setVerificationToken(draft.verificationToken());
         validateManifest(draft.documents(), request.isLegalRepresentative());
@@ -374,6 +377,7 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
         // External calls run before the write transaction and before consuming the phone token.
         PartnerBusinessVerificationResponse businessVerification = businessVerificationService.precheck(
                 profile.getLegalName(), taxCode);
+        requireRegistryMatch(businessVerification);
         profile.setBusinessVerificationResult(objectMapper.writeValueAsString(businessVerification));
         profile.setDocumentVerificationStatus(businessVerificationService.isOcrEnabled() ? "PENDING_OCR" : "NOT_REQUIRED");
         String passwordHash = passwordEncoder.encode(UUID.randomUUID().toString());
@@ -446,6 +450,15 @@ public class PartnerRegistrationServiceImpl implements IPartnerRegistrationServi
         }
         documentRepository.saveAll(documents);
         return new PartnerRegistrationResponse(profile.getId(), user.getId(), profile.getVerificationStatus(), now, businessVerification);
+    }
+
+    private void requireRegistryMatch(PartnerBusinessVerificationResponse verification) {
+        if (verification == null) {
+            throw new BadRequestException("Hồ sơ chưa được đối soát doanh nghiệp; vui lòng gửi lại đăng ký");
+        }
+        if (verification.outcome() != Outcome.MATCHED) {
+            throw new PartnerBusinessVerificationException(verification);
+        }
     }
 
     private boolean isUniqueViolation(DataIntegrityViolationException ex) {

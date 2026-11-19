@@ -66,7 +66,7 @@ public class OtpServiceImpl implements IOtpService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    @Value("${spring.mail.username:default_email}")
+    @Value("${app.mail.from-email}")
     private String fromEmail;
 
     @Value("${spring.mail.display-name:ScamShield}")

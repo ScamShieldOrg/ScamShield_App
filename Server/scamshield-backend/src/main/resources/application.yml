@@ -68,6 +68,10 @@ google:
 # Application Configurations
 app:
   ui-base-url: ${APP_UI_BASE_URL:http://localhost:3001}
+  mail:
+    provider: ${MAIL_PROVIDER:smtp}
+    resend-api-key: ${RESEND_API_KEY:}
+    from-email: ${MAIL_FROM_EMAIL:${MAIL_USERNAME:your-email@gmail.com}}
   cors:
     allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:3001}
   auth:

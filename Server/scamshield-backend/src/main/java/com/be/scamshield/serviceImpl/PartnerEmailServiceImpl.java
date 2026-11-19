@@ -26,7 +26,7 @@ public class PartnerEmailServiceImpl implements PartnerEmailService {
     private final PartnerProfileRepository profiles;
     private final PartnerPasswordLinkRepository links;
 
-    @Value("${spring.mail.username}")
+    @Value("${app.mail.from-email}")
     private String fromEmail;
 
     @Value("${spring.mail.display-name:ScamShield}")
