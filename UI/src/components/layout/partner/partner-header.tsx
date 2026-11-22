@@ -41,10 +41,6 @@ export function PartnerHeader({
             {account}
           </span>
         </div>
-        <div className="hidden shrink-0 items-center gap-1.5 rounded-full bg-[#e9edff] px-2 py-1 text-[10px] leading-none font-bold xl:flex dark:bg-slate-800">
-          <span className="size-2 rounded-full bg-current" />
-          Đồng bộ A05 &amp; NCSC 24/7
-        </div>
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">

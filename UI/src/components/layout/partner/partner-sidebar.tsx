@@ -64,11 +64,6 @@ export function PartnerSidebar({
               PORTAL B2B
             </div>
           </div>
-          {closeButton ?? (
-            <span className="ml-auto rounded-sm bg-primary px-1 py-0.5 text-[9px] font-bold whitespace-nowrap text-primary-foreground">
-              ĐỐI TÁC C1
-            </span>
-          )}
         </div>
 
         {/* Verified Org Unit */}
