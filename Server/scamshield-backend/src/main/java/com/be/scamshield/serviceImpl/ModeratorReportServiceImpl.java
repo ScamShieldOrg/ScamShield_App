@@ -73,7 +73,6 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     private final ReputationTransactionRepository reputationTransactionRepository;
     private final ReputationRankRepository reputationRankRepository;
     private final WhitelistEntryRepository whitelistEntryRepository;
-    private final AbuseFlagRepository abuseFlagRepository;
     private final ReportAssignmentService reviewAssignments;
     private final EvidenceComparisonService evidenceSimilarities;
 
@@ -576,12 +575,6 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         ModeratorReportResponse.ReporterContext reporterContext = null;
         if (report.getReporterUser() != null) {
             User reporter = report.getReporterUser();
-            long openFlags = abuseFlagRepository != null
-                    ? abuseFlagRepository.countByUserIdAndStatus(reporter.getId(), "PENDING")
-                    : 0;
-            long totalFlags = abuseFlagRepository != null
-                    ? abuseFlagRepository.countByUserId(reporter.getId())
-                    : 0;
             reporterContext = new ModeratorReportResponse.ReporterContext(
                     reporter.getId(),
                     reporter.getEmail(),
@@ -589,8 +582,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                     reporter.getReputationPoints(),
                     reporter.getCreatedAt(),
                     0, 0, 0, 0, 0, 0,
-                    totalFlags,
-                    openFlags
+                    0,
+                    0
             );
         }
 

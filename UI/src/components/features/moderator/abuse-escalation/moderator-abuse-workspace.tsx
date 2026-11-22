@@ -166,10 +166,29 @@ export function ModeratorAbuseWorkspace() {
           index++
         })
 
-        if (suspectList.length > 0) {
-          setSuspects(suspectList)
-          setSelectedId(suspectList[0].id)
-          setSelectedReportIds(suspectList[0].relatedReports.map((r) => r.id))
+        // Check if suspect already has a pending escalation
+        const enrichedSuspects = await Promise.all(
+          suspectList.map(async (suspect) => {
+            try {
+              const esc = await moderatorAbuseService.getEscalations(suspect.userId, {
+                status: "PENDING",
+                size: 1,
+              })
+              const hasPending = (esc.data?.length || 0) > 0
+              if (hasPending) {
+                return { ...suspect, isEscalated: true, badge: "ĐÃ XỬ LÝ" as const }
+              }
+            } catch {
+              // Ignore if cannot load escalations
+            }
+            return suspect
+          })
+        )
+
+        if (enrichedSuspects.length > 0) {
+          setSuspects(enrichedSuspects)
+          setSelectedId(enrichedSuspects[0].id)
+          setSelectedReportIds(enrichedSuspects[0].relatedReports.map((r) => r.id))
         } else {
           setSuspects([])
           setSelectedId("")
@@ -232,10 +251,10 @@ export function ModeratorAbuseWorkspace() {
   async function handleEscalate() {
     if (!selected) return
 
-    // Guard: Prevent escalating sample fallback data when queue request failed
+    // Guard: Prevent escalating when queue request failed
     if (isQueueError) {
       const msg =
-        "Không thể chuyển hồ sơ khi đang ở chế độ xem dữ liệu mẫu do mất kết nối. Vui lòng thử lại kết nối máy chủ."
+        "Không thể chuyển hồ sơ khi danh sách hàng đợi đang bị lỗi kết nối. Vui lòng thử lại kết nối máy chủ."
       setFeedback({
         type: "error",
         message: msg,
@@ -467,6 +486,35 @@ export function ModeratorAbuseWorkspace() {
 
       {/* Center / Right Workspace */}
       <main className="flex-1 min-h-0 overflow-y-auto bg-slate-50/40 p-4 sm:p-6 lg:p-8 dark:bg-slate-950">
+        {/* Explicit error state with retry action when live queue fetch fails */}
+        {isQueueError && (
+          <div
+            role="alert"
+            className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50/90 p-4 text-xs text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+          >
+            <div className="flex items-start gap-2.5">
+              <WarningCircle size={20} weight="fill" className="text-rose-600 shrink-0 mt-0.5 dark:text-rose-400" />
+              <div>
+                <p className="font-bold text-rose-950 dark:text-rose-100">
+                  Không thể tải danh sách hàng đợi trực tiếp từ máy chủ ({queueErrorMessage || "Lỗi kết nối"})
+                </p>
+                <p className="mt-0.5 text-rose-800/90 dark:text-rose-300/90">
+                  Danh sách hàng đợi đã bị xóa do tải thất bại. Vui lòng bấm thử lại để tải lại dữ liệu từ máy chủ.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={isRetrying}
+              onClick={loadQueue}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-rose-700 dark:hover:bg-rose-600"
+            >
+              <ArrowsClockwise size={14} className={cn(isRetrying && "animate-spin")} />
+              {isRetrying ? "Đang kết nối lại..." : "Thử lại kết nối"}
+            </button>
+          </div>
+        )}
+
         {!selected ? (
           <div className="flex h-full min-h-[400px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs text-slate-400 dark:border-slate-800 dark:bg-slate-900">
             Vui lòng chọn một tài khoản từ danh sách để xem chi tiết và thực hiện chuyển xử lý.
@@ -496,35 +544,6 @@ export function ModeratorAbuseWorkspace() {
                                 CẦN KIỂM TRA
                               </span>
                             </header>
-
-                            {/* Explicit error state with retry action when live queue fetch fails */}
-                            {isQueueError && (
-                              <div
-                                role="alert"
-                                className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50/90 p-4 text-xs text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
-                              >
-                                <div className="flex items-start gap-2.5">
-                                  <WarningCircle size={20} weight="fill" className="text-rose-600 shrink-0 mt-0.5 dark:text-rose-400" />
-                                  <div>
-                                    <p className="font-bold text-rose-950 dark:text-rose-100">
-                                      Không thể tải danh sách hàng đợi trực tiếp từ máy chủ ({queueErrorMessage || "Lỗi kết nối"})
-                                    </p>
-                                    <p className="mt-0.5 text-rose-800/90 dark:text-rose-300/90">
-                                      Hệ thống đang hiển thị dữ liệu mẫu ở chế độ chỉ đọc. Tính năng chuyển hồ sơ cho Quản trị viên bị vô hiệu hóa cho đến khi dữ liệu trực tiếp được kết nối lại.
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  disabled={isRetrying}
-                                  onClick={loadQueue}
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-rose-700 dark:hover:bg-rose-600"
-                                >
-                                  <ArrowsClockwise size={14} className={cn(isRetrying && "animate-spin")} />
-                                  {isRetrying ? "Đang kết nối lại..." : "Thử lại kết nối"}
-                                </button>
-                              </div>
-                            )}
 
                             {/* Feedback banners */}
                             {feedback && (
@@ -802,7 +821,7 @@ export function ModeratorAbuseWorkspace() {
                               >
                                 {isSubmitting && <CircleNotch size={16} className="animate-spin" />}
                                 {isQueueError
-                                  ? "Dữ liệu mẫu (chỉ xem) · Vui lòng kết nối lại"
+                                  ? "Mất kết nối máy chủ · Vui lòng thử lại kết nối"
                                   : selected.isEscalated
                                     ? "Hồ sơ đã được chuyển cho Quản trị viên"
                                     : isSubmitting
