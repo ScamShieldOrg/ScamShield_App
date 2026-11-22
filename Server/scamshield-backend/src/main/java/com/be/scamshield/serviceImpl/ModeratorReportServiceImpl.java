@@ -73,6 +73,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     private final ReputationTransactionRepository reputationTransactionRepository;
     private final ReputationRankRepository reputationRankRepository;
     private final WhitelistEntryRepository whitelistEntryRepository;
+    private final AbuseFlagRepository abuseFlagRepository;
     private final ReportAssignmentService reviewAssignments;
     private final EvidenceComparisonService evidenceSimilarities;
 
@@ -572,6 +573,27 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
 
         String uiStatus = mapToUiStatus(report.getStatus() == null ? null : report.getStatus().name());
 
+        ModeratorReportResponse.ReporterContext reporterContext = null;
+        if (report.getReporterUser() != null) {
+            User reporter = report.getReporterUser();
+            long openFlags = abuseFlagRepository != null
+                    ? abuseFlagRepository.countByUserIdAndStatus(reporter.getId(), "PENDING")
+                    : 0;
+            long totalFlags = abuseFlagRepository != null
+                    ? abuseFlagRepository.countByUserId(reporter.getId())
+                    : 0;
+            reporterContext = new ModeratorReportResponse.ReporterContext(
+                    reporter.getId(),
+                    reporter.getEmail(),
+                    reporter.getPhoneNumber(),
+                    reporter.getReputationPoints(),
+                    reporter.getCreatedAt(),
+                    0, 0, 0, 0, 0, 0,
+                    totalFlags,
+                    openFlags
+            );
+        }
+
         return ModeratorReportResponse.builder()
                 .id(formattedCode)
                 .rawId(report.getId())
@@ -593,6 +615,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                         && report.getUpdatedAt() != null
                         ? report.getUpdatedAt().format(DATE_TIME_FORMATTER) : null)
                 .status(uiStatus)
+                .reporterContext(reporterContext)
                 // Theo yêu cầu của người dùng: Hiện tại các trường phán quyết AI để trống trong DTO
                 .aiScore(null)
                 .aiRiskLevel(null)
