@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
+import { toast } from "react-toastify"
 import {
   MagnifyingGlass,
   CheckCircle,
@@ -51,181 +52,207 @@ interface AbuseSuspect {
 
 const DEFAULT_SUSPECTS: AbuseSuspect[] = [
   {
-    id: "AB-2026-0041",
-    userId: 101,
-    userCode: "U-00842",
-    username: "nguyenthanh_vn",
-    fullName: "Nguyễn Thành Trung",
-    email: "nguyenthanh@example.com",
+    id: "AB-2026-0010",
+    userId: 1,
+    userCode: "U-00001",
+    username: "nguyenvana",
+    fullName: "Nguyễn Văn A",
+    email: "nguyenvana@gmail.com",
     userType: "Người dùng thường",
-    joinedAt: "14/02/2025",
-    reputation: 120,
+    joinedAt: "01/01/2025",
+    reputation: 0,
     status: "ACTIVE",
     badge: "CẦN XEM XÉT",
-    summary: "Báo cáo hàng loạt · 12 đối tượng",
-    reports24h: 89,
-    reportsContext: "8.4x mức 30 ngày",
-    rejectedRate: 73,
-    rejectedCount: 65,
-    targetsCount: 12,
-    verifiedTargetsCount: 3,
+    summary: "Gửi báo cáo lặp lại · Đang có báo cáo chờ duyệt",
+    reports24h: 2,
+    reportsContext: "2 báo cáo trong hệ thống",
+    rejectedRate: 50,
+    rejectedCount: 1,
+    targetsCount: 2,
+    verifiedTargetsCount: 1,
     flagType: "BULK_REPORTING",
     alertTitle: "Phát hiện hoạt động báo cáo bất thường",
     alertBody:
       "Hãy xác minh lịch sử và bằng chứng trước khi gắn cờ rồi chuyển hồ sơ đến Quản trị viên.",
-    moderatorName: "Mai Phương",
-    submittedAt: "27/10/2026, 09:42",
+    moderatorName: "Kiểm duyệt viên 1",
+    submittedAt: "Hôm nay, 10:15",
     relatedReports: [
       {
-        id: 10281,
-        code: "CS-2026-10281",
-        target: "Đường dây nóng Vietcombank",
-        result: "Từ chối: trùng bằng chứng",
-        statusTone: "danger",
-        time: "09:12",
-      },
-      {
-        id: 10277,
-        code: "CS-2026-10277",
-        target: "Tên miền BIDV",
-        result: "Từ chối: thiếu căn cứ",
-        statusTone: "danger",
-        time: "08:44",
-      },
-      {
-        id: 10263,
-        code: "CS-2026-10263",
-        target: "Số hỗ trợ Techcombank",
-        result: "Từ chối: thiếu bằng chứng",
-        statusTone: "danger",
-        time: "08:16",
-      },
-      {
-        id: 10258,
-        code: "CS-2026-10258",
-        target: "Tuyển dụng trực tuyến",
+        id: 8,
+        code: "CS-2026-0008",
+        target: "STK: 104889201992 - VPBank (VU HOANG ANH)",
         result: "Đang chờ duyệt",
         statusTone: "warning",
-        time: "07:53",
+        time: "10:15",
+      },
+      {
+        id: 4,
+        code: "CS-2026-0004",
+        target: "http://nhanqua-shopee.vip",
+        result: "Đã thu hồi: thiếu minh chứng",
+        statusTone: "danger",
+        time: "09:30",
       },
     ],
     isEscalated: false,
+  },
+  {
+    id: "AB-2026-0041",
+    userId: 5,
+    userCode: "U-00005",
+    username: "khoi.tran",
+    fullName: "Trần Minh Khôi",
+    email: "khoi.tran@gmail.com",
+    userType: "Người dùng thường",
+    joinedAt: "22/08/2026",
+    reputation: 0,
+    status: "ACTIVE",
+    badge: "ĐÃ XỬ LÝ",
+    summary: "Báo cáo hàng loạt · Đã chuyển Admin xét duyệt",
+    reports24h: 1,
+    reportsContext: "1 báo cáo · Đã chuyển Admin",
+    rejectedRate: 0,
+    rejectedCount: 0,
+    targetsCount: 1,
+    verifiedTargetsCount: 1,
+    flagType: "BULK_REPORTING",
+    alertTitle: "Hồ sơ đã được chuyển cho Quản trị viên",
+    alertBody:
+      "Hồ sơ của tài khoản này đã được gửi lên Quản trị viên và đang trong hàng chờ duyệt.",
+    moderatorName: "Mai Phương",
+    submittedAt: "22/11/2026, 18:39",
+    relatedReports: [
+      {
+        id: 3,
+        code: "CS-2026-0003",
+        target: "http://nhanqua-shopee.vip",
+        result: "Đang chờ duyệt",
+        statusTone: "warning",
+        time: "18:39",
+      },
+    ],
+    isEscalated: true,
   },
   {
     id: "AB-2026-0038",
-    userId: 102,
-    userCode: "U-00719",
-    username: "lehoangha",
-    fullName: "Lê Hoàng Hà",
-    email: "lehoangha@example.com",
+    userId: 6,
+    userCode: "U-00006",
+    username: "ha.le",
+    fullName: "Lê Thanh Hà",
+    email: "ha.le@gmail.com",
     userType: "Người dùng thường",
-    joinedAt: "20/01/2025",
-    reputation: 85,
+    joinedAt: "06/10/2026",
+    reputation: 50,
     status: "ACTIVE",
-    badge: "CHỜ XỬ LÝ",
-    summary: "Tỷ lệ báo cáo bị từ chối cao",
-    reports24h: 42,
-    reportsContext: "42 báo cáo · 24 giờ qua",
-    rejectedRate: 68,
-    rejectedCount: 29,
-    targetsCount: 8,
-    verifiedTargetsCount: 2,
+    badge: "ĐÃ XỬ LÝ",
+    summary: "Tỷ lệ báo cáo bị từ chối cao · Trùng bằng chứng",
+    reports24h: 2,
+    reportsContext: "2 báo cáo · Đã chuyển Admin",
+    rejectedRate: 50,
+    rejectedCount: 1,
+    targetsCount: 1,
+    verifiedTargetsCount: 1,
     flagType: "FALSE_REPORTING",
     alertTitle: "Tỷ lệ báo cáo bị từ chối cao bất thường",
-    alertBody:
-      "Người dùng có hơn 68% báo cáo không hợp lệ trong 24 giờ qua.",
-    moderatorName: "Tuấn Anh",
-    submittedAt: "27/10/2026, 08:30",
+    alertBody: "Hồ sơ đã được chuyển cho Quản trị viên xét duyệt.",
+    moderatorName: "Kiểm duyệt viên 1",
+    submittedAt: "22/11/2026, 17:39",
     relatedReports: [
       {
-        id: 10212,
-        code: "CS-2026-10212",
-        target: "Đầu số 028710...",
-        result: "Từ chối: thiếu căn cứ",
+        id: 5,
+        code: "CS-2026-0005",
+        target: "http://nhanqua-shopee.vip",
+        result: "Từ chối: bằng chứng trùng lặp",
         statusTone: "danger",
-        time: "07:20",
+        time: "17:30",
       },
       {
-        id: 10205,
-        code: "CS-2026-10205",
-        target: "Fanpage mạo danh Shopee",
-        result: "Từ chối: nội dung sai lệch",
-        statusTone: "danger",
-        time: "06:45",
+        id: 2,
+        code: "CS-2026-0002",
+        target: "http://nhanqua-shopee.vip",
+        result: "Đã phê duyệt",
+        statusTone: "neutral",
+        time: "16:00",
       },
     ],
-    isEscalated: false,
+    isEscalated: true,
   },
   {
     id: "AB-2026-0031",
-    userId: 103,
-    userCode: "U-00654",
-    username: "nguyengiabao",
+    userId: 7,
+    userCode: "U-00007",
+    username: "bao.nguyen",
     fullName: "Nguyễn Gia Bảo",
-    email: "giabao@example.com",
+    email: "bao.nguyen@gmail.com",
     userType: "Người dùng thường",
-    joinedAt: "10/11/2024",
-    reputation: 95,
+    joinedAt: "23/07/2026",
+    reputation: 0,
     status: "ACTIVE",
-    badge: "CHỜ XỬ LÝ",
-    summary: "Nhiều báo cáo trùng lặp",
-    reports24h: 18,
-    reportsContext: "18 báo cáo · 7 ngày qua",
-    rejectedRate: 55,
-    rejectedCount: 10,
-    targetsCount: 4,
-    verifiedTargetsCount: 1,
-    flagType: "SPAM",
-    alertTitle: "Nhiều báo cáo trùng lặp lặp lại nhiều lần",
-    alertBody:
-      "Gửi trùng lặp cùng một nội dung báo cáo nhiều lần trong thời gian ngắn.",
+    badge: "ĐÃ XỬ LÝ",
+    summary: "Cần đối chiếu nguồn thông tin báo cáo",
+    reports24h: 1,
+    reportsContext: "1 báo cáo · Đã chuyển Admin",
+    rejectedRate: 0,
+    rejectedCount: 0,
+    targetsCount: 1,
+    verifiedTargetsCount: 0,
+    flagType: "OTHER",
+    alertTitle: "Cần đối chiếu nguồn thông tin",
+    alertBody: "Hồ sơ đang chờ Quản trị viên đánh giá.",
     moderatorName: "Mai Phương",
-    submittedAt: "26/10/2026, 17:15",
+    submittedAt: "22/11/2026, 16:39",
     relatedReports: [
       {
-        id: 10189,
-        code: "CS-2026-10189",
-        target: "Link nhận quà tri ân",
-        result: "Từ chối: trùng lặp",
-        statusTone: "danger",
-        time: "16:40",
+        id: 1,
+        code: "CS-2026-0001",
+        target: "0987.654.321",
+        result: "Đang chờ duyệt",
+        statusTone: "warning",
+        time: "16:39",
       },
     ],
-    isEscalated: false,
+    isEscalated: true,
   },
   {
     id: "AB-2026-0025",
-    userId: 104,
-    userCode: "U-00512",
-    username: "phamngoclinh",
+    userId: 8,
+    userCode: "U-00008",
+    username: "linh.pham",
     fullName: "Phạm Ngọc Linh",
-    email: "ngoclinh@example.com",
+    email: "linh.pham@gmail.com",
     userType: "Người dùng thường",
-    joinedAt: "05/08/2024",
-    reputation: 110,
+    joinedAt: "21/10/2026",
+    reputation: 100,
     status: "ACTIVE",
     badge: "ĐÃ XỬ LÝ",
-    summary: "Đã xem xét - không vi phạm",
-    reports24h: 12,
-    reportsContext: "Đóng hồ sơ · 21/10/2026",
-    rejectedRate: 15,
-    rejectedCount: 2,
-    targetsCount: 3,
-    verifiedTargetsCount: 0,
-    flagType: "OTHER",
-    alertTitle: "Hồ sơ đã được xử lý và đóng",
-    alertBody:
-      "Không phát hiện hành vi lạm dụng có chủ đích. Hồ sơ đã được lưu trữ.",
-    moderatorName: "Hoàng Nam",
-    submittedAt: "21/10/2026, 11:20",
+    summary: "Gửi nhiều báo cáo mới trong thời gian ngắn",
+    reports24h: 2,
+    reportsContext: "2 báo cáo · Đã chuyển Admin",
+    rejectedRate: 0,
+    rejectedCount: 0,
+    targetsCount: 2,
+    verifiedTargetsCount: 1,
+    flagType: "BULK_REPORTING",
+    alertTitle: "Gửi nhiều báo cáo mới trong thời gian ngắn",
+    alertBody: "Hồ sơ đã được chuyển cho Quản trị viên xét duyệt.",
+    moderatorName: "Kiểm duyệt viên 1",
+    submittedAt: "22/11/2026, 15:39",
     relatedReports: [
       {
-        id: 10095,
-        code: "CS-2026-10095",
-        target: "Tin nhắn SMS trúng thưởng",
-        result: "Đã xác nhận",
+        id: 6,
+        code: "CS-2026-0006",
+        target: "http://nhanqua-shopee.vip",
+        result: "Đã phê duyệt",
         statusTone: "neutral",
-        time: "10:15",
+        time: "15:20",
+      },
+      {
+        id: 7,
+        code: "CS-2026-0007",
+        target: "+84 912.443.882",
+        result: "Đã phê duyệt",
+        statusTone: "neutral",
+        time: "15:39",
       },
     ],
     isEscalated: true,
@@ -436,10 +463,12 @@ export function ModeratorAbuseWorkspace() {
         reportIds: selectedReportIds,
       })
 
+      const successMsg = `Đã gắn cờ và chuyển hồ sơ thành công cho Quản trị viên xét duyệt (Mã hồ sơ: ${res.escalationCode})!`
       setFeedback({
         type: "success",
-        message: `Đã gắn cờ và chuyển hồ sơ thành công cho Quản trị viên xét duyệt (Mã hồ sơ: ${res.escalationCode})!`,
+        message: successMsg,
       })
+      toast.success(successMsg)
 
       // Update local state to mark as escalated
       setSuspects((current) =>
@@ -449,12 +478,36 @@ export function ModeratorAbuseWorkspace() {
             : item
         )
       )
+      // Automatically switch to the "Đã chuyển" tab
+      setFilter("ESCALATED")
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Đã xảy ra lỗi khi chuyển hồ sơ."
-      setFeedback({
-        type: "error",
-        message: msg,
-      })
+      if (
+        msg.includes("đã có hồ sơ đang chờ") ||
+        msg.includes("Conflict") ||
+        msg.includes("409")
+      ) {
+        const conflictMsg = "Tài khoản này đã có hồ sơ đang chờ Quản trị viên xét duyệt."
+        toast.info(conflictMsg)
+        setFeedback({
+          type: "success",
+          message: conflictMsg,
+        })
+        setSuspects((current) =>
+          current.map((item) =>
+            item.id === selected.id
+              ? { ...item, isEscalated: true, badge: "ĐÃ XỬ LÝ" }
+              : item
+          )
+        )
+        setFilter("ESCALATED")
+      } else {
+        toast.error(msg)
+        setFeedback({
+          type: "error",
+          message: msg,
+        })
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -876,6 +929,26 @@ export function ModeratorAbuseWorkspace() {
                               <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50/70 p-3 text-xs text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200">
                                 Gắn cờ chỉ ghi nhận để theo dõi; thao tác này không khóa tài khoản.
                               </div>
+
+                              {/* Local Feedback Banner if any */}
+                              {feedback && (
+                                <div
+                                  role="alert"
+                                  className={cn(
+                                    "mt-4 flex items-center gap-2 rounded-lg p-3 text-xs font-medium border",
+                                    feedback.type === "success"
+                                      ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                      : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                                  )}
+                                >
+                                  {feedback.type === "success" ? (
+                                    <CheckCircle size={18} weight="fill" className="text-emerald-600 shrink-0" />
+                                  ) : (
+                                    <WarningCircle size={18} weight="fill" className="text-rose-600 shrink-0" />
+                                  )}
+                                  <span>{feedback.message}</span>
+                                </div>
+                              )}
 
                               {/* Escalate Button */}
                               <button
