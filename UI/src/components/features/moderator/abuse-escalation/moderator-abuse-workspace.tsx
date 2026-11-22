@@ -380,18 +380,16 @@ export function ModeratorAbuseWorkspace() {
           setSelectedId(suspectList[0].id)
           setSelectedReportIds(suspectList[0].relatedReports.map((r) => r.id))
         } else {
-          // Fallback to pre-seeded suspect cases matching the design
-          setSuspects(DEFAULT_SUSPECTS)
-          setSelectedId(DEFAULT_SUSPECTS[0].id)
-          setSelectedReportIds(DEFAULT_SUSPECTS[0].relatedReports.map((r) => r.id))
+          setSuspects([])
+          setSelectedId("")
+          setSelectedReportIds([])
         }
         setIsQueueError(false)
         setQueueErrorMessage(null)
       } catch (err) {
-        // Fallback to sample data on error/network failure in read-only mode
-        setSuspects(DEFAULT_SUSPECTS)
-        setSelectedId(DEFAULT_SUSPECTS[0].id)
-        setSelectedReportIds(DEFAULT_SUSPECTS[0].relatedReports.map((r) => r.id))
+        setSuspects([])
+        setSelectedId("")
+        setSelectedReportIds([])
         setIsQueueError(true)
         const errText =
           err instanceof Error ? err.message : "Không thể tải hàng đợi báo cáo từ máy chủ."
