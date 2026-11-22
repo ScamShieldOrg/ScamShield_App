@@ -39,7 +39,7 @@ public class PartnerProfileController {
 
 
     @PatchMapping
-    @Operation(summary = "Cập nhật người đại diện hoặc email liên hệ")
+    @Operation(summary = "Cập nhật người đại diện hoặc email đăng nhập")
     public ResponseEntity<BaseResponse<PartnerProfileResponse>> updateOwnProfile(
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody UpdatePartnerProfileRequest request) {

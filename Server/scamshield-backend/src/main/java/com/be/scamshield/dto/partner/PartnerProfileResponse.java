@@ -1,6 +1,7 @@
 package com.be.scamshield.dto.partner;
 
 import com.be.scamshield.constant.PartnerVerificationStatus;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.time.LocalDateTime;
 
@@ -17,5 +18,11 @@ public record PartnerProfileResponse(
         String smsBrandName,
         PartnerVerificationStatus verificationStatus,
         LocalDateTime verifiedAt,
-        LocalDateTime updatedAt
-) {}
+        LocalDateTime updatedAt,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String accessToken
+) {
+    @Override
+    public String toString() {
+        return "PartnerProfileResponse";
+    }
+}

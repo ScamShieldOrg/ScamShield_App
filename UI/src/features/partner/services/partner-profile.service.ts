@@ -1,6 +1,7 @@
 import { isAxiosError } from "axios"
 
 import { authorizeApi } from "@/lib/api/instance"
+import { useAuthStore } from "@/store/auth.store"
 
 export interface PartnerProfile {
   legalName: string
@@ -21,7 +22,7 @@ export interface PartnerProfile {
 interface ProfileResponse {
   isSuccess: boolean
   message: string
-  data: PartnerProfile | null
+  data: (PartnerProfile & { accessToken?: string }) | null
 }
 
 const profilePath = "/partner/profile"
@@ -48,11 +49,25 @@ export async function updatePartnerProfile(update: {
   corporateEmail?: string
   currentPassword?: string
 }) {
+  const userId = useAuthStore.getState().user?.userId
   const { data } = await authorizeApi.patch<ProfileResponse>(
     profilePath,
     update
   )
-  return unwrapProfile(data)
+  const { accessToken, ...profile } = unwrapProfile(data)
+  const auth = useAuthStore.getState()
+  if (
+    accessToken &&
+    auth.user &&
+    auth.user.userId === userId &&
+    profile.corporateEmail
+  ) {
+    useAuthStore.setState({
+      token: accessToken,
+      user: { ...auth.user, email: profile.corporateEmail },
+    })
+  }
+  return profile
 }
 
 export function getPartnerProfileError(error: unknown, fallback: string) {

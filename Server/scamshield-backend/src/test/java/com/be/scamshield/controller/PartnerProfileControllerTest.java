@@ -7,6 +7,7 @@ import com.be.scamshield.entity.Role;
 import com.be.scamshield.entity.User;
 import com.be.scamshield.repository.PartnerProfileRepository;
 import com.be.scamshield.repository.ResourceRepository;
+import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistResourceRepository;
 import com.be.scamshield.security.CustomAccessDeniedHandler;
 import com.be.scamshield.security.CustomUserDetailsService;
@@ -57,6 +58,7 @@ class PartnerProfileControllerTest {
 
     @Autowired private MockMvc mvc;
     @MockitoBean private PartnerProfileRepository profiles;
+    @MockitoBean private UserRepository users;
     @MockitoBean private PasswordEncoder passwordEncoder;
     @MockitoBean private ResourceRepository resources;
     @MockitoBean private WhitelistResourceRepository whitelist;
@@ -182,6 +184,13 @@ class PartnerProfileControllerTest {
                 .andExpect(status().isBadRequest());
         assertThat(profile.getCorporateEmail()).isNull();
         assertThat(profile.getRepresentativeNameAndTitle()).isEqualTo("Original representative");
+        when(users.existsByEmailIgnoreCase("taken@example.com")).thenReturn(true);
+        mvc.perform(patch(PROFILE).with(partner).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"corporateEmail":"taken@example.com","currentPassword":"current"}
+                                """))
+                .andExpect(status().isConflict());
+        assertThat(account.getEmail()).isEqualTo("user1@example.com");
         mvc.perform(patch(PROFILE).with(partner).contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"corporateEmail":" New@Example.com ","currentPassword":"current"}
@@ -189,7 +198,7 @@ class PartnerProfileControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.corporateEmail").value("new@example.com"))
                 .andExpect(jsonPath("$.data.accessToken").doesNotHaveJsonPath());
-        assertThat(account.getEmail()).isEqualTo("user1@example.com");
+        assertThat(account.getEmail()).isEqualTo("new@example.com");
     }
 
     private PartnerProfile profile(long id, String name, PartnerVerificationStatus status) {

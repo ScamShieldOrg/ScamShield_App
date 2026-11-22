@@ -18,6 +18,8 @@ import com.be.scamshield.repository.RoleRepository;
 import com.be.scamshield.repository.UserRepository;
 import com.be.scamshield.repository.WhitelistEntryRepository;
 import com.be.scamshield.security.UserPrincipal;
+import com.be.scamshield.dto.LoginRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import com.be.scamshield.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -43,6 +46,7 @@ class PartnerProfilePersistenceTest extends PostgresIntegrationTest {
     @Autowired private WhitelistEntryRepository whitelist;
     @Autowired private IResourceService resources;
     @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private IAuthService authService;
 
     @Test
     void commitsTheRepresentativeChangeWithoutModifyingVerifiedFieldsOrTheAccount() {
@@ -84,7 +88,7 @@ class PartnerProfilePersistenceTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void commitsEmailToTheProfileWithoutChangingTheSignInAddress() {
+    void newEmailCanLogInAfterTheProfileUpdate() {
         String roleName = RoleEnum.BUSINESS_PARTNER.name();
         Role role = roles.findByName(roleName).orElseGet(() -> roles.save(Role.builder().name(roleName).build()));
         User user = users.saveAndFlush(User.builder().role(role).status("ACTIVE")
@@ -99,7 +103,14 @@ class PartnerProfilePersistenceTest extends PostgresIntegrationTest {
 
         String email = "new-profile@example.com";
         assertThat(profiles.findByUserId(user.getId()).orElseThrow().getCorporateEmail()).isEqualTo(email);
-        assertThat(users.findByEmail("old-profile@example.com").orElseThrow().getId()).isEqualTo(user.getId());
-        assertThat(users.findByEmail(email)).isEmpty();
+        assertThat(users.findByEmail("old-profile@example.com")).isEmpty();
+        assertThat(users.findByEmail(email).orElseThrow().getId()).isEqualTo(user.getId());
+        LoginRequest login = new LoginRequest();
+        login.setUsernameOrPhoneNumber(email);
+        login.setPassword("current password");
+        assertThat(authService.login(login, new MockHttpServletResponse()).getAccessToken()).isNotBlank();
+        login.setUsernameOrPhoneNumber("old-profile@example.com");
+        assertThatThrownBy(() -> authService.login(login, new MockHttpServletResponse()))
+                .isInstanceOf(org.springframework.security.core.AuthenticationException.class);
     }
 }
