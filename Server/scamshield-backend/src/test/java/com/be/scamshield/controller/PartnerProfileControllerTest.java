@@ -169,6 +169,8 @@ class PartnerProfileControllerTest {
         profile.setUser(account);
         when(profiles.findByUserId(1L)).thenReturn(Optional.of(profile));
         when(passwordEncoder.matches("current", "hash")).thenReturn(true);
+        when(applicationClock.instant()).thenReturn(Instant.parse("2026-11-22T02:00:00Z"));
+        when(applicationClock.getZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
         mvc.perform(patch(PROFILE).with(partner).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"corporateEmail\":\"new@example.com\"}"))
                 .andExpect(status().isBadRequest());
