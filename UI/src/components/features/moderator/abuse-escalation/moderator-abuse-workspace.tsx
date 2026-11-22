@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { toast } from "react-toastify"
 import {
   MagnifyingGlass,
   CheckCircle,
   WarningCircle,
   CircleNotch,
+  ArrowsClockwise,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { moderatorAbuseService } from "@/features/moderator/services/moderator-abuse.service"
@@ -265,6 +266,9 @@ export function ModeratorAbuseWorkspace() {
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "ESCALATED">("PENDING")
   const [isLoading, setIsLoading] = useState(true)
+  const [isQueueError, setIsQueueError] = useState(false)
+  const [queueErrorMessage, setQueueErrorMessage] = useState<string | null>(null)
+  const [isRetrying, setIsRetrying] = useState(false)
 
   // Selected report IDs for evidence checkbox
   const [selectedReportIds, setSelectedReportIds] = useState<number[]>([])
@@ -278,14 +282,12 @@ export function ModeratorAbuseWorkspace() {
   } | null>(null)
 
   // Fetch real reports from backend and group by reporter
-  useEffect(() => {
-    let active = true
+  const loadQueue = useCallback(async () => {
     setIsLoading(true)
-
-    getModeratorReportQueue({ tab: "ALL", size: 50 })
-      .then((res) => {
-        if (!active) return
-        const reports = res.data || []
+    setIsRetrying(true)
+    try {
+      const res = await getModeratorReportQueue({ tab: "ALL", size: 50 })
+      const reports = res.data || []
 
         // Group reports by reporter userId
         const groups = new Map<number, ModeratorReportItem[]>()
@@ -383,22 +385,26 @@ export function ModeratorAbuseWorkspace() {
           setSelectedId(DEFAULT_SUSPECTS[0].id)
           setSelectedReportIds(DEFAULT_SUSPECTS[0].relatedReports.map((r) => r.id))
         }
-      })
-      .catch(() => {
-        // Keep empty state if error loading
-        // Fallback to sample data on error/empty DB
+        setIsQueueError(false)
+        setQueueErrorMessage(null)
+      } catch (err) {
+        // Fallback to sample data on error/network failure in read-only mode
         setSuspects(DEFAULT_SUSPECTS)
         setSelectedId(DEFAULT_SUSPECTS[0].id)
         setSelectedReportIds(DEFAULT_SUSPECTS[0].relatedReports.map((r) => r.id))
-      })
-      .finally(() => {
-        if (active) setIsLoading(false)
-      })
+        setIsQueueError(true)
+        const errText =
+          err instanceof Error ? err.message : "Không thể tải hàng đợi báo cáo từ máy chủ."
+        setQueueErrorMessage(errText)
+      } finally {
+        setIsLoading(false)
+        setIsRetrying(false)
+      }
+    }, [])
 
-    return () => {
-      active = false
-    }
-  }, [])
+  useEffect(() => {
+    loadQueue()
+  }, [loadQueue])
 
   const selected = useMemo(() => {
     return suspects.find((s) => s.id === selectedId) ?? suspects[0]
@@ -436,6 +442,19 @@ export function ModeratorAbuseWorkspace() {
 
   async function handleEscalate() {
     if (!selected) return
+
+    // Guard: Prevent escalating sample fallback data when queue request failed
+    if (isQueueError) {
+      const msg =
+        "Không thể chuyển hồ sơ khi đang ở chế độ xem dữ liệu mẫu do mất kết nối. Vui lòng thử lại kết nối máy chủ."
+      setFeedback({
+        type: "error",
+        message: msg,
+      })
+      toast.error(msg)
+      return
+    }
+
     if (selectedReportIds.length === 0) {
       setFeedback({
         type: "error",
@@ -688,6 +707,35 @@ export function ModeratorAbuseWorkspace() {
                                 CẦN KIỂM TRA
                               </span>
                             </header>
+
+                            {/* Explicit error state with retry action when live queue fetch fails */}
+                            {isQueueError && (
+                              <div
+                                role="alert"
+                                className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50/90 p-4 text-xs text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+                              >
+                                <div className="flex items-start gap-2.5">
+                                  <WarningCircle size={20} weight="fill" className="text-rose-600 shrink-0 mt-0.5 dark:text-rose-400" />
+                                  <div>
+                                    <p className="font-bold text-rose-950 dark:text-rose-100">
+                                      Không thể tải danh sách hàng đợi trực tiếp từ máy chủ ({queueErrorMessage || "Lỗi kết nối"})
+                                    </p>
+                                    <p className="mt-0.5 text-rose-800/90 dark:text-rose-300/90">
+                                      Hệ thống đang hiển thị dữ liệu mẫu ở chế độ chỉ đọc. Tính năng chuyển hồ sơ cho Quản trị viên bị vô hiệu hóa cho đến khi dữ liệu trực tiếp được kết nối lại.
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isRetrying}
+                                  onClick={loadQueue}
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-rose-700 dark:hover:bg-rose-600"
+                                >
+                                  <ArrowsClockwise size={14} className={cn(isRetrying && "animate-spin")} />
+                                  {isRetrying ? "Đang kết nối lại..." : "Thử lại kết nối"}
+                                </button>
+                              </div>
+                            )}
 
                             {/* Feedback banners */}
                             {feedback && (
@@ -955,6 +1003,7 @@ export function ModeratorAbuseWorkspace() {
                                 type="button"
                                 disabled={
                                   isSubmitting ||
+                                  isQueueError ||
                                   reason.trim().length < 20 ||
                                   selected.isEscalated ||
                                   selectedReportIds.length === 0
@@ -963,11 +1012,13 @@ export function ModeratorAbuseWorkspace() {
                                 className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                               >
                                 {isSubmitting && <CircleNotch size={16} className="animate-spin" />}
-                                {selected.isEscalated
-                                  ? "Hồ sơ đã được chuyển cho Quản trị viên"
-                                  : isSubmitting
-                                    ? "Đang chuyển hồ sơ..."
-                                    : "Gắn cờ & chuyển Quản trị viên"}
+                                {isQueueError
+                                  ? "Dữ liệu mẫu (chỉ xem) · Vui lòng kết nối lại"
+                                  : selected.isEscalated
+                                    ? "Hồ sơ đã được chuyển cho Quản trị viên"
+                                    : isSubmitting
+                                      ? "Đang chuyển hồ sơ..."
+                                      : "Gắn cờ & chuyển Quản trị viên"}
                               </button>
                             </section>
 
