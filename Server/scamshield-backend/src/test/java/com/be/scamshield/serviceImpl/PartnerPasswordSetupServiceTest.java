@@ -29,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -109,7 +110,8 @@ class PartnerPasswordSetupServiceTest {
         var oldLink = PartnerPasswordLink.builder().partner(profile).expiresAt(now.plusMinutes(1)).build();
         when(profiles.findByIdForReview(10L)).thenReturn(Optional.of(profile));
         when(links.findByPartnerIdAndConsumedAtIsNull(10L)).thenReturn(List.of(oldLink));
-        profile.setCorporateEmail("partner@example.com");
+        profile.setCorporateEmail("contact@example.com");
+        profile.getUser().setEmail("account@example.com");
         ReflectionTestUtils.setField(service, "uiBaseUrl", "http://localhost:3001");
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -121,7 +123,7 @@ class PartnerPasswordSetupServiceTest {
             assertThat(saved.getValue().getExpiresAt()).isEqualTo(now.plusMinutes(10));
             verify(emailService, never()).sendPassword(any(), anyString(), anyString(), anyString());
             TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
-            verify(emailService).sendPassword(any(), anyString(), anyString(), anyString());
+            verify(emailService).sendPassword(eq(10L), eq("account@example.com"), anyString(), anyString());
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
