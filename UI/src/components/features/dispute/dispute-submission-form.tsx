@@ -15,6 +15,7 @@ import {
   CircleNotch,
   Info,
   CheckCircle,
+  ShieldCheck,
 } from "@phosphor-icons/react"
 import { toast } from "react-toastify"
 import { cn } from "@/lib/utils"
@@ -38,57 +39,57 @@ const INDICATOR_TYPES: {
   placeholder: string
   icon: React.ElementType
 }[] = [
-  {
-    type: "PHONE",
-    label: "Số điện thoại",
-    sublabel: "Hotline, số di động chính chủ",
-    placeholder: "Ví dụ: 0912348899 hoặc +84912348899",
-    icon: Phone,
-  },
-  {
-    type: "BANK_ACCOUNT",
-    label: "Tài khoản ngân hàng",
-    sublabel: "STK ngân hàng chính chủ",
-    placeholder: "Ví dụ: 190362198888 hoặc STK Vietcombank",
-    icon: Bank,
-  },
-  {
-    type: "URL",
-    label: "Website / Tên miền",
-    sublabel: "Domain, website doanh nghiệp",
-    placeholder: "Ví dụ: domain-chinhhang.vn hoặc https://tencongty.com",
-    icon: Globe,
-  },
-  {
-    type: "BRANDNAME",
-    label: "SMS Brandname",
-    sublabel: "Tên thương hiệu gửi tin SMS",
-    placeholder: "Ví dụ: VIETINBANK, SHOPEE, LAZADA...",
-    icon: Tag,
-  },
-]
+    {
+      type: "PHONE",
+      label: "Số điện thoại",
+      sublabel: "Hotline, số di động chính chủ",
+      placeholder: "Ví dụ: 0912348899 hoặc +84912348899",
+      icon: Phone,
+    },
+    {
+      type: "BANK_ACCOUNT",
+      label: "Tài khoản ngân hàng",
+      sublabel: "STK ngân hàng chính chủ",
+      placeholder: "Ví dụ: 190362198888 hoặc STK Vietcombank",
+      icon: Bank,
+    },
+    {
+      type: "URL",
+      label: "Website / Tên miền",
+      sublabel: "Domain, website doanh nghiệp",
+      placeholder: "Ví dụ: domain-chinhhang.vn hoặc https://tencongty.com",
+      icon: Globe,
+    },
+    {
+      type: "BRANDNAME",
+      label: "SMS Brandname",
+      sublabel: "Tên thương hiệu gửi tin SMS",
+      placeholder: "Ví dụ: VIETINBANK, SHOPEE, LAZADA...",
+      icon: Tag,
+    },
+  ]
 
 const LEGAL_RELATIONSHIPS: {
   value: DisputeLegalRelationship
   title: string
   desc: string
 }[] = [
-  {
-    value: "OWNER",
-    title: "Chủ sở hữu hợp pháp",
-    desc: "Cá nhân hoặc tổ chức trực tiếp sở hữu chỉ số (tên trên hợp đồng / đăng ký).",
-  },
-  {
-    value: "LEGAL_REPRESENTATIVE",
-    title: "Người đại diện theo pháp luật",
-    desc: "Giám đốc, Tổng giám đốc hoặc người đại diện đứng tên trên GPKD.",
-  },
-  {
-    value: "AUTHORIZED_REPRESENTATIVE",
-    title: "Đại diện theo ủy quyền",
-    desc: "Được chủ sở hữu ủy quyền bằng văn bản hoặc giấy ủy quyền hợp lệ.",
-  },
-]
+    {
+      value: "OWNER",
+      title: "Chủ sở hữu hợp pháp",
+      desc: "Cá nhân hoặc tổ chức trực tiếp sở hữu chỉ số (tên trên hợp đồng / đăng ký).",
+    },
+    {
+      value: "LEGAL_REPRESENTATIVE",
+      title: "Người đại diện theo pháp luật",
+      desc: "Giám đốc, Tổng giám đốc hoặc người đại diện đứng tên trên GPKD.",
+    },
+    {
+      value: "AUTHORIZED_REPRESENTATIVE",
+      title: "Đại diện theo ủy quyền",
+      desc: "Được chủ sở hữu ủy quyền bằng văn bản hoặc giấy ủy quyền hợp lệ.",
+    },
+  ]
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const MAX_FILES = 10
@@ -312,14 +313,41 @@ export function DisputeSubmissionForm({ onSuccess }: DisputeSubmissionFormProps)
       onSubmit={handleSubmitDispute}
       className="space-y-8 bg-white dark:bg-slate-900 rounded-xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-sm"
     >
-      {/* Intro alert */}
-      <div className="bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-lg p-4 flex items-start gap-3">
-        <Info weight="fill" className="text-blue-600 dark:text-blue-400 text-xl shrink-0 mt-0.5" />
-        <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-          <p className="font-bold text-slate-900 dark:text-white mb-0.5">
-            Lưu ý về quy trình thụ lý & xác minh độc lập:
-          </p>
-          Hệ thống chỉ tiếp nhận khiếu nại cho các chỉ số đang bị cảnh báo trong hệ thống Blacklist của ScamShield. Hồ sơ sẽ được Hội đồng chuyên gia thẩm định đối soát với cơ quan chức năng (A05/NCSC, Cục Viễn thông, Ngân hàng) trong tối đa 48 giờ.
+      {/* Eligibility & Intro alert */}
+      <div className="bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-xl p-5 space-y-3">
+        <div className="flex items-start gap-3">
+          <Info weight="fill" className="text-blue-600 dark:text-blue-400 text-xl shrink-0 mt-0.5" />
+          <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-1">
+            <p className="font-bold text-slate-900 dark:text-white text-sm">
+              Quy định về đối tượng và phạm vi tiếp nhận khiếu nại minh oan (Dispute):
+            </p>
+            <p>
+              Hệ thống chỉ tiếp nhận khiếu nại cho các chỉ số (SĐT, Website, STK, Brandname) đang bị gắn cờ trong danh sách đen (Blacklist). Hồ sơ sẽ được Hội đồng chuyên gia đối soát với cơ quan chức năng (A05/NCSC, Cục Viễn thông, VNNIC, Ngân hàng) trong tối đa 48 giờ.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1 text-xs">
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 p-3">
+            <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 mb-1">
+              <CheckCircle weight="fill" className="text-sm" /> Trường hợp ĐƯỢC khiếu nại:
+            </span>
+            <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 space-y-0.5 text-[11px]">
+              <li>Chủ sở hữu hợp pháp bị người khác báo cáo nhầm số điện thoại / STK.</li>
+              <li>Doanh nghiệp có website chính chủ bị đối tượng xấu mạo danh lừa đảo.</li>
+              <li>Cá nhân/tổ chức có đầy đủ giấy tờ chứng minh quyền sở hữu hợp pháp.</li>
+            </ul>
+          </div>
+          <div className="rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 p-3">
+            <span className="font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5 mb-1">
+              <Info weight="fill" className="text-sm" /> Trường hợp KHÔNG khiếu nại:
+            </span>
+            <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 space-y-0.5 text-[11px]">
+              <li>Nạn nhân bị lừa đảo muốn tố cáo (vui lòng sử dụng tính năng <strong>Báo cáo</strong>).</li>
+              <li>Người dùng thứ ba không có giấy tờ sở hữu hợp pháp đối với chỉ số.</li>
+              <li>Hành vi lừa đảo có thật đang bị cộng đồng và cơ quan chức năng cảnh báo.</li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -494,6 +522,52 @@ export function DisputeSubmissionForm({ onSuccess }: DisputeSubmissionFormProps)
           </span>
         </div>
 
+        {/* Data Masking & Privacy Policy Banner according to ND 147/2024 & ND 163/2024 */}
+        <div className="rounded-xl bg-violet-50/80 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/40 p-4 text-xs space-y-2">
+          <div className="font-bold text-violet-900 dark:text-violet-200 flex items-center gap-1.5 text-xs">
+            <ShieldCheck weight="fill" className="text-violet-600 dark:text-violet-400 text-base shrink-0" />
+            <span>Quy định bảo vệ dữ liệu cá nhân & Che mờ thông tin (Nghị định 147/2024/NĐ-CP & 163/2024/NĐ-CP):</span>
+          </div>
+          <p className="text-[11px] text-violet-800 dark:text-violet-300 leading-relaxed">
+            Nhằm tuân thủ nguyên tắc <strong>Tối thiểu hóa dữ liệu (Data Minimization)</strong>, Quý khách vui lòng <strong>chủ động che mờ (mask/redact)</strong> các trường dữ liệu định danh cá nhân nhạy cảm trước khi tải lên (gồm: <em>Số CCCD/CMND – chỉ để lộ 3–4 số cuối, ngày tháng năm sinh cụ thể, ảnh chân dung, địa chỉ nhà chi tiết</em>).
+          </p>
+          <div className="text-[11px] text-violet-700 dark:text-violet-300/90 bg-white/70 dark:bg-violet-900/30 rounded-lg p-2.5 border border-violet-100 dark:border-violet-800/30">
+            <strong>Lưu ý đối soát:</strong> Hội đồng thẩm định chỉ đối chiếu <strong>Họ tên chủ thể</strong>, <strong>Số điện thoại/Tên miền</strong> và <strong>Trạng thái xác thực hợp pháp</strong> từ nhà mạng/VNNIC/cơ quan quản lý.
+          </div>
+        </div>
+
+        {/* Dynamic legal evidence recommendation based on indicatorType */}
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 text-xs">
+          <div className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center gap-1.5">
+            <span>Hồ sơ pháp lý khuyến nghị đối với {activeIndicatorConfig.label}:</span>
+          </div>
+          {indicatorType === "PHONE" && (
+            <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
+              <p>• <strong>Xác thực chính chủ an toàn (Không lộ CCCD)</strong>: Ảnh chụp màn hình tin nhắn phản hồi từ tổng đài <strong>TTTB gửi 1414</strong> (đã che mờ số CCCD và ngày sinh; chỉ để lộ số thuê bao, họ tên chủ thuê bao và tình trạng xác thực thành công từ nhà mạng).</p>
+              <p>• <strong>Ứng dụng nhà mạng chính thức</strong>: Ảnh chụp màn hình thông tin thuê bao trên ứng dụng My Viettel, My VNPT, hoặc My MobiFone (chế độ bảo mật tự động ẩn một phần thông tin định danh).</p>
+              <p>• <strong>Chứng minh không tham gia lừa đảo (Caller ID Spoofing)</strong>: Hợp đồng thuê bao viễn thông, hoặc bản kê chi tiết cước cuộc gọi đi (CDR) từ app nhà mạng để chứng minh số thuê bao không phát sinh các cuộc gọi rác / lừa đảo bị tố cáo (bị kẻ xấu làm giả số hiển thị).</p>
+            </div>
+          )}
+          {indicatorType === "URL" && (
+            <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
+              <p>• <strong>Xác thực kỹ thuật (Ưu tiên – Không cần giấy tờ)</strong>: Ảnh chụp cấu hình bản ghi <strong>DNS TXT</strong> của tên miền (chứa mã xác thực khiếu nại do chủ sở hữu tự cấu hình), hoặc văn bản xác nhận quyền quản trị tên miền từ Registrar.</p>
+              <p>• <strong>Sở hữu tên miền hợp pháp</strong>: Giấy chứng nhận quyền sử dụng tên miền từ VNNIC (đối với tên miền <code>.vn</code>) hoặc Registrar quốc tế (kèm hóa đơn gia hạn, đã che mờ thông tin cá nhân của người đại diện).</p>
+              <p>• <strong>Tuân thủ nghĩa vụ thông báo (Nghị định 147/2024/NĐ-CP)</strong>: Ảnh chụp xác nhận thông báo hoạt động tên miền quốc tế trên Cổng thông tin của Bộ Thông tin & Truyền thông (<code>thongbaotenmien.vn</code>).</p>
+              <p>• <strong>Tư cách pháp lý tổ chức/doanh nghiệp</strong>: Giấy chứng nhận đăng ký kinh doanh (GPKD) hoặc Mã số thuế doanh nghiệp (thông tin pháp nhân công khai theo quy định).</p>
+            </div>
+          )}
+          {indicatorType === "BANK_ACCOUNT" && (
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              • Hợp đồng mở tài khoản ngân hàng chính chủ, xác nhận số dư hoặc ảnh chụp thẻ/app ngân hàng chính chủ trùng khớp họ tên người nộp (đã che mờ số CCCD chi tiết).
+            </p>
+          )}
+          {indicatorType === "BRANDNAME" && (
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              • Hợp đồng dịch vụ tin nhắn SMS Brandname ký với nhà mạng viễn thông hoặc Giấy chứng nhận đăng ký tên định danh do Cục An toàn thông tin (Bộ TT&TT) cấp.
+            </p>
+          )}
+        </div>
+
         {/* Upload Dropzone */}
         <div
           onClick={() => fileInputRef.current?.click()}
@@ -565,7 +639,7 @@ export function DisputeSubmissionForm({ onSuccess }: DisputeSubmissionFormProps)
         )}
       </div>
 
-      {/* STEP 5: Cam kết pháp lý */}
+      {/* STEP 5: Cam kết pháp lý & Bảo vệ dữ liệu cá nhân */}
       <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
         <label className="flex items-start gap-3 cursor-pointer">
           <input
@@ -574,11 +648,15 @@ export function DisputeSubmissionForm({ onSuccess }: DisputeSubmissionFormProps)
             onChange={(e) => setAgreeTerms(e.target.checked)}
             className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
           />
-          <div className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
-            <strong className="text-slate-900 dark:text-white">
-              Cam kết trách nhiệm pháp lý:
-            </strong>{" "}
-            Tôi cam kết rằng toàn bộ thông tin kê khai và các tài liệu, con dấu, chữ ký số cung cấp trong hồ sơ này là hoàn toàn trung thực, chính xác và chịu mọi trách nhiệm trước pháp luật về tính pháp lý của hồ sơ khiếu nại.
+          <div className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 font-medium space-y-1">
+            <p>
+              <strong className="text-slate-900 dark:text-white">
+                Cam kết trách nhiệm pháp lý & Tuân thủ bảo vệ dữ liệu cá nhân:
+              </strong>
+            </p>
+            <p className="text-[11px] text-slate-600 dark:text-slate-400">
+              Tôi xác nhận đã chủ động che mờ (mask/redact) các dữ liệu định danh cá nhân nhạy cảm (số CCCD, ngày sinh, địa chỉ nhà) theo đúng quy định tại <strong>Nghị định 147/2024/NĐ-CP & Nghị định 163/2024/NĐ-CP</strong>. Tôi cam kết toàn bộ thông tin kê khai, tài liệu và căn cứ giải trình trong hồ sơ này là hoàn toàn trung thực, hợp pháp và chịu mọi trách nhiệm trước pháp luật.
+            </p>
           </div>
         </label>
       </div>

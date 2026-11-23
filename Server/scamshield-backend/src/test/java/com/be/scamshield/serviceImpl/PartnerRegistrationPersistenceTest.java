@@ -31,6 +31,7 @@ import com.be.scamshield.entity.PartnerDocument;
 import com.be.scamshield.entity.Role;
 import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.exception.PartnerBusinessVerificationException;
 import com.be.scamshield.exception.RegistrationConflictException;
 import com.be.scamshield.exception.SmsProviderException;
 import com.be.scamshield.repository.PartnerDocumentRepository;
@@ -402,19 +403,17 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void inactiveRegistryStoresPendingReviewWithoutRunningOcr() {
+    void inactiveRegistryBlocksRegistrationWithoutRunningOcr() {
         prepareVerification();
         when(xinvoiceBusinessClient.lookup(any())).thenReturn(new BusinessRegistryLookup(SourceStatus.SUCCESS,
                 request.getTaxCode(), request.getLegalName(), "NNT ngừng hoạt động và đã đóng MST", null));
-        PartnerRegistrationResponse response = service.register(request, files, files, null);
-        assertThat(response.getBusinessVerification().outcome()).isEqualTo(Outcome.REVIEW_REQUIRED);
-        assertThat(userRepository.count()).isEqualTo(1);
-        assertThat(profileRepository.count()).isEqualTo(1);
-        assertThat(documentRepository.count()).isEqualTo(2);
-        assertThat(profileRepository.findById(response.getRegistrationId()).orElseThrow()
-                .getDocumentVerificationStatus()).isEqualTo("PENDING_OCR");
+        assertThatThrownBy(() -> service.register(request, files, files, null))
+                .isInstanceOf(PartnerBusinessVerificationException.class);
+        assertThat(userRepository.count()).isZero();
+        assertThat(profileRepository.count()).isZero();
+        assertThat(documentRepository.count()).isZero();
         assertThat(verificationStore.findByTokenHash(contactVerificationService.hashToken(request.getVerificationToken()))
-                .orElseThrow().getUsedAt()).isNotNull();
+                .orElseThrow().getUsedAt()).isNull();
         assertThat(jdbc.queryForObject("select count(*) from whitelist_entries", Long.class)).isZero();
         verifyNoInteractions(businessLicenseOcrClient);
     }
@@ -436,19 +435,18 @@ class PartnerRegistrationPersistenceTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void providerOutageStoresPendingReviewAndRepresentativeIsNotCompared() {
+    void providerOutageBlocksRegistrationAndKeepsPhoneProofUnused() {
         prepareVerification();
         request.setRepresentativeNameAndTitle("Một người khác hoàn toàn");
         when(xinvoiceBusinessClient.lookup(any())).thenReturn(BusinessRegistryLookup.unavailable(SourceStatus.UNAVAILABLE));
-        PartnerRegistrationResponse response = service.register(request, files, files, null);
-        assertThat(response.getBusinessVerification().outcome()).isEqualTo(Outcome.REVIEW_REQUIRED);
-        assertThat(response.getBusinessVerification().xinvoice().status()).isEqualTo(SourceStatus.UNAVAILABLE);
-        assertThat(userRepository.count()).isEqualTo(1);
-        assertThat(profileRepository.count()).isEqualTo(1);
+        assertThatThrownBy(() -> service.register(request, files, files, null))
+                .isInstanceOf(PartnerBusinessVerificationException.class)
+                .satisfies(error -> assertThat(((PartnerBusinessVerificationException) error).getHttpStatus()).isEqualTo(503));
+        assertThat(userRepository.count()).isZero();
+        assertThat(profileRepository.count()).isZero();
+        assertThat(documentRepository.count()).isZero();
         assertThat(verificationStore.findByTokenHash(contactVerificationService.hashToken(request.getVerificationToken()))
-                .orElseThrow().getUsedAt()).isNotNull();
-        assertThat(profileRepository.findById(response.getRegistrationId()).orElseThrow().getBusinessVerificationResult())
-                .doesNotContain("Một người khác hoàn toàn");
+                .orElseThrow().getUsedAt()).isNull();
         verifyNoInteractions(businessLicenseOcrClient);
     }
 

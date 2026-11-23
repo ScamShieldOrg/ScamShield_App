@@ -25,6 +25,7 @@ import com.be.scamshield.entity.PartnerDocument;
 import com.be.scamshield.entity.Role;
 import com.be.scamshield.entity.User;
 import com.be.scamshield.exception.BadRequestException;
+import com.be.scamshield.exception.PartnerBusinessVerificationException;
 import com.be.scamshield.exception.RegistrationConflictException;
 import com.be.scamshield.repository.PartnerDocumentRepository;
 import com.be.scamshield.repository.PartnerProfileRepository;
@@ -163,7 +164,7 @@ class PartnerRegistrationServiceImplTest {
                 new PartnerRegistrationPrecheckResponse.Upload(0, "https://signed.test/0", "pending/draft/0.pdf", 900),
                 new PartnerRegistrationPrecheckResponse.Upload(1, "https://signed.test/1", "pending/draft/1.pdf", 900));
         var draft = new PartnerRegistrationDraftStore.Draft(request, request.getVerificationToken(),
-                manifest, null, uploads, LocalDateTime.now(applicationClock).plusHours(1));
+                manifest, registryResult("MATCHED"), uploads, LocalDateTime.now(applicationClock).plusHours(1));
         when(draftStore.find("draft")).thenReturn(Optional.of(draft));
         when(draftStore.claim("draft")).thenReturn("claim-1");
         when(documentStorage.inspectUploadedDocument("pending/draft/0.pdf", 100, "application/pdf"))
@@ -186,7 +187,7 @@ class PartnerRegistrationServiceImplTest {
                 new PartnerRegistrationPrecheckResponse.Upload(0, "https://signed.test/0", "pending/draft/0.pdf", 900),
                 new PartnerRegistrationPrecheckResponse.Upload(1, "https://signed.test/1", "pending/draft/1.pdf", 900));
         var draft = new PartnerRegistrationDraftStore.Draft(request, request.getVerificationToken(),
-                manifest, null, uploads, LocalDateTime.now(applicationClock).plusHours(1));
+                manifest, registryResult("MATCHED"), uploads, LocalDateTime.now(applicationClock).plusHours(1));
         when(draftStore.find("draft")).thenReturn(Optional.of(draft));
         when(draftStore.claim("draft")).thenReturn("claim-1");
         when(documentStorage.inspectUploadedDocument(any(), anyLong(), any()))
@@ -454,6 +455,92 @@ class PartnerRegistrationServiceImplTest {
                 .isInstanceOf(BadRequestException.class).hasMessageContaining("xác thực điện thoại");
         assertNoWrites();
         verifyNoInteractions(passwordEncoder, otpService, businessVerificationService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"NAME", "TAX", "NOT_FOUND", "UNAVAILABLE", "NOT_CONFIGURED", "INCONCLUSIVE", "NOT_ACTIVE"})
+    void registryFailureBlocksPrecheckBeforeUploadsDraftOrWrites(String failure) {
+        LocalDateTime tokenExpiry = LocalDateTime.now(applicationClock).plusMinutes(5);
+        when(verificationStore.findByTokenHash(any())).thenReturn(Optional.of(ContactVerificationEntry.builder()
+                .phoneNumber("0912345678").expiresAt(tokenExpiry).build()));
+        var result = registryResult(failure);
+        when(businessVerificationService.precheck(any(), any())).thenReturn(result);
+        var manifest = List.of(
+                new PartnerDocumentUploadRequest("BUSINESS_LICENSE", "license.pdf", "application/pdf", 100),
+                new PartnerDocumentUploadRequest("OWNERSHIP_PROOF", "proof.pdf", "application/pdf", 100));
+
+        assertThatThrownBy(() -> service.precheck(new PartnerRegistrationPrecheckRequest(request, manifest)))
+                .isInstanceOf(PartnerBusinessVerificationException.class)
+                .satisfies(error -> assertThat(((PartnerBusinessVerificationException) error).getHttpStatus())
+                        .isEqualTo(failure.equals("UNAVAILABLE") || failure.equals("NOT_CONFIGURED") ? 503 : 422));
+
+        var order = org.mockito.Mockito.inOrder(verificationStore, businessVerificationService);
+        order.verify(verificationStore).findByTokenHash(any());
+        order.verify(businessVerificationService).precheck("Công ty Example", "0100112437");
+        verifyNoInteractions(documentStorage, draftStore);
+        verify(verificationStore, never()).consume(any(), any(), any());
+        assertNoWrites();
+    }
+
+    @Test
+    void invalidPhoneVerificationBlocksRegistryLookup() {
+        var manifest = List.of(
+                new PartnerDocumentUploadRequest("BUSINESS_LICENSE", "license.pdf", "application/pdf", 100),
+                new PartnerDocumentUploadRequest("OWNERSHIP_PROOF", "proof.pdf", "application/pdf", 100));
+        assertThatThrownBy(() -> service.precheck(new PartnerRegistrationPrecheckRequest(request, manifest)))
+                .isInstanceOf(BadRequestException.class);
+        verifyNoInteractions(businessVerificationService, documentStorage, draftStore);
+        assertNoWrites();
+    }
+
+    @Test
+    void legacyRegistrationRejectsMismatchBeforeStorageUpload() {
+        LocalDateTime tokenExpiry = LocalDateTime.now(applicationClock).plusMinutes(5);
+        var mismatch = registryResult("NAME");
+        when(verificationStore.findByTokenHash(any())).thenReturn(Optional.of(ContactVerificationEntry.builder()
+                .phoneNumber("0912345678").expiresAt(tokenExpiry).build()));
+        when(roleRepository.findByName(RoleEnum.BUSINESS_PARTNER.name()))
+                .thenReturn(Optional.of(Role.builder().name(RoleEnum.BUSINESS_PARTNER.name()).build()));
+        when(businessVerificationService.precheck(any(), any())).thenReturn(mismatch);
+
+        assertThatThrownBy(() -> service.register(request, files, files, null))
+                .isInstanceOf(PartnerBusinessVerificationException.class);
+        verifyNoInteractions(documentStorage, passwordEncoder);
+        assertNoWrites();
+    }
+
+    @Test
+    void existingMismatchedDraftCannotRenewUploadOrFinalize() {
+        var draft = new PartnerRegistrationDraftStore.Draft(request, request.getVerificationToken(),
+                List.of(), registryResult("NAME"), List.of(), LocalDateTime.now(applicationClock).plusHours(1));
+        when(draftStore.find("draft")).thenReturn(Optional.of(draft));
+        when(draftStore.claim("draft")).thenReturn("claim-1");
+
+        assertThatThrownBy(() -> service.renewUpload("draft", 0))
+                .isInstanceOf(PartnerBusinessVerificationException.class);
+        assertThatThrownBy(() -> service.finalizeRegistration("draft"))
+                .isInstanceOf(PartnerBusinessVerificationException.class);
+        verifyNoInteractions(documentStorage);
+        assertNoWrites();
+    }
+
+    private PartnerBusinessVerificationResponse registryResult(String failure) {
+        var source = switch (failure) {
+            case "NOT_FOUND" -> PartnerBusinessVerificationResponse.SourceStatus.NOT_FOUND;
+            case "UNAVAILABLE" -> PartnerBusinessVerificationResponse.SourceStatus.UNAVAILABLE;
+            case "NOT_CONFIGURED" -> PartnerBusinessVerificationResponse.SourceStatus.NOT_CONFIGURED;
+            default -> PartnerBusinessVerificationResponse.SourceStatus.SUCCESS;
+        };
+        return new PartnerBusinessVerificationResponse(
+                failure.equals("MATCHED") ? Outcome.MATCHED : Outcome.REVIEW_REQUIRED,
+                LocalDateTime.now(applicationClock), "Công ty Example", "0100112437",
+                new PartnerBusinessVerificationResponse.RegistryResult(source, "Công ty Example", "0100112437",
+                        "NNT ĐANG HOẠT ĐỘNG", failure.equals("NOT_ACTIVE")
+                        ? PartnerBusinessVerificationResponse.ActivityStatus.NOT_ACTIVE
+                        : PartnerBusinessVerificationResponse.ActivityStatus.ACTIVE, null),
+                failure.equals("NAME") ? MatchResult.MISMATCH : failure.equals("INCONCLUSIVE")
+                        ? MatchResult.INCONCLUSIVE : MatchResult.MATCHED,
+                failure.equals("TAX") ? MatchResult.MISMATCH : MatchResult.MATCHED, List.of(), false);
     }
 
     private void prepareAccountPersistence() {

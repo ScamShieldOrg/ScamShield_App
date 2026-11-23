@@ -9,6 +9,7 @@ import {
   FilePdf,
   UserPlus,
   SignIn,
+  Info,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 
@@ -123,11 +124,11 @@ export function ScamActionBar({
         copied
           ? { tone: "success", message: "Đã sao chép liên kết kết quả." }
           : {
-              tone: "error",
-              message:
-                "Trình duyệt không cho phép sao chép tự động. Vui lòng sao " +
-                "chép liên kết trên thanh địa chỉ.",
-            }
+            tone: "error",
+            message:
+              "Trình duyệt không cho phép sao chép tự động. Vui lòng sao " +
+              "chép liên kết trên thanh địa chỉ.",
+          }
       )
     } catch (error) {
       // The user dismissed the native share sheet: nothing was copied.
@@ -137,10 +138,10 @@ export function ScamActionBar({
         copied
           ? { tone: "success", message: "Đã sao chép liên kết kết quả." }
           : {
-              tone: "error",
-              message:
-                "Không thể chia sẻ hoặc sao chép liên kết. Vui lòng thử lại.",
-            }
+            tone: "error",
+            message:
+              "Không thể chia sẻ hoặc sao chép liên kết. Vui lòng thử lại.",
+          }
       )
     } finally {
       setSharing(false)
@@ -254,6 +255,15 @@ export function ScamActionBar({
           </button>
         </div>
       </div>
+
+      {mode === "user" && targetIdentifier && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+          <Info size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" weight="fill" />
+          <div className="flex-1 leading-relaxed">
+            <span className="font-semibold">Bạn là chủ sở hữu hợp pháp của chỉ số này?</span> Nếu số điện thoại, website hoặc tài khoản chính chủ của bạn bị gắn cờ nhầm, bạn có thể nộp <strong>hồ sơ khiếu nại minh oan</strong> kèm bằng chứng xác thực để được xem xét gỡ khỏi danh sách cảnh báo.
+          </div>
+        </div>
+      )}
 
       {feedback && (
         <p
