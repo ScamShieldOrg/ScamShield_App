@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { AnimatePresence, motion } from "motion/react"
 import {
   ArrowCounterClockwise,
   Check,
@@ -87,13 +88,13 @@ function isAbortError(error: unknown) {
 }
 
 const primaryActionClass =
-  "inline-flex h-9 cursor-pointer items-center gap-2 rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-2xs transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-progress disabled:opacity-60"
+  "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-xs transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-progress disabled:opacity-60"
 
 const secondaryActionClass =
-  "inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-semibold text-foreground shadow-2xs transition-[background-color,border-color,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-progress disabled:opacity-60 dark:border-white/12"
+  "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-4 text-xs font-semibold text-foreground shadow-2xs transition-[background-color,border-color,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-progress disabled:opacity-60 dark:border-white/12"
 
 const ghostActionClass =
-  "inline-flex h-9 cursor-pointer items-center gap-2 rounded-md px-3 text-xs font-medium text-muted-foreground transition-[color,background-color] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+  "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-[color,background-color] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
 export function ScamActionBar({
   scanId,
@@ -201,9 +202,13 @@ export function ScamActionBar({
     (riskLevel === "DANGEROUS" || riskLevel === "SUSPICIOUS")
 
   return (
-    <div className="space-y-3">
-      {/* Single-Primary Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
+      className="space-y-3"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {mode === "user" ? (
             <>
@@ -230,7 +235,7 @@ export function ScamActionBar({
                 }
               >
                 <ShareNetwork aria-hidden="true" size={15} weight="bold" />
-                <span>Chia sẻ kết quả</span>
+                <span>Chia sẻ</span>
               </button>
 
               <Link
@@ -239,14 +244,14 @@ export function ScamActionBar({
                 className={secondaryActionClass}
               >
                 <Scales aria-hidden="true" size={15} weight="bold" />
-                <span>Khiếu nại kết quả</span>
+                <span>Khiếu nại</span>
               </Link>
             </>
           ) : (
             <>
               <Link href="/register" className={primaryActionClass}>
                 <UserPlus aria-hidden="true" size={15} weight="bold" />
-                <span>Đăng ký để lưu kết quả</span>
+                <span>Đăng ký lưu kết quả</span>
               </Link>
 
               <button
@@ -257,7 +262,7 @@ export function ScamActionBar({
                 className={secondaryActionClass}
               >
                 <ShareNetwork aria-hidden="true" size={15} weight="bold" />
-                <span>Chia sẻ kết quả</span>
+                <span>Chia sẻ</span>
               </button>
 
               <Link href="/login" className={secondaryActionClass}>
@@ -280,33 +285,37 @@ export function ScamActionBar({
         {onReset && (
           <button type="button" onClick={onReset} className={ghostActionClass}>
             <ArrowCounterClockwise aria-hidden="true" size={15} weight="bold" />
-            <span>Kiểm tra nội dung khác</span>
+            <span>Kiểm tra mới</span>
           </button>
         )}
       </div>
 
-      {/* Inline Share / Copy Feedback */}
-      {feedback && (
-        <p
-          role="status"
-          aria-live="polite"
-          className={cn(
-            "flex items-center gap-1.5 text-xs font-medium",
-            feedback.tone === "success"
-              ? "text-emerald-700 dark:text-emerald-400"
-              : "text-rose-700 dark:text-rose-400"
-          )}
-        >
-          {feedback.tone === "success" ? (
-            <Check aria-hidden="true" size={14} weight="bold" />
-          ) : (
-            <WarningCircle aria-hidden="true" size={14} weight="fill" />
-          )}
-          <span>{feedback.message}</span>
-        </p>
-      )}
+      <AnimatePresence initial={false}>
+        {feedback && (
+          <motion.p
+            role="status"
+            aria-live="polite"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.14 }}
+            className={cn(
+              "flex items-center gap-1.5 text-xs font-medium",
+              feedback.tone === "success"
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-rose-700 dark:text-rose-400"
+            )}
+          >
+            {feedback.tone === "success" ? (
+              <Check aria-hidden="true" size={14} weight="bold" />
+            ) : (
+              <WarningCircle aria-hidden="true" size={14} weight="fill" />
+            )}
+            <span>{feedback.message}</span>
+          </motion.p>
+        )}
+      </AnimatePresence>
 
-      {/* Calm Owner Dispute Guidance */}
       {mode === "user" && targetIdentifier && (
         <div className="flex items-start gap-3 rounded-lg border border-border/80 bg-muted/35 px-4 py-3 text-xs leading-relaxed text-muted-foreground dark:border-white/10">
           <Info
@@ -317,17 +326,14 @@ export function ScamActionBar({
           />
           <p className="max-w-[65ch]">
             <strong className="font-semibold text-foreground">
-              Bạn là chủ sở hữu hợp pháp của chỉ số này?
+              Chủ sở hữu hợp pháp của chỉ số này?
             </strong>{" "}
-            Nếu số điện thoại, website hoặc tài khoản chính chủ bị gắn cờ nhầm,
-            bạn có thể chọn{" "}
-            <strong className="font-semibold text-foreground">
-              Khiếu nại kết quả
-            </strong>{" "}
+            Chọn{" "}
+            <strong className="font-semibold text-foreground">Khiếu nại</strong>{" "}
             kèm bằng chứng xác thực để được xem xét gỡ khỏi danh sách cảnh báo.
           </p>
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }

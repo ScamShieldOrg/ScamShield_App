@@ -1,22 +1,14 @@
 "use client"
 
 import Link from "next/link"
+import { AnimatePresence, motion } from "motion/react"
 import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 
-interface QuotaSnapshot {
+export interface QuotaSnapshot {
   remaining: number
   limit: number
   resetsAt?: string | null
-}
-
-interface ScamQuotaStripProps {
-  mode: "guest" | "user"
-  quota: QuotaSnapshot | null
-  isLoading?: boolean
-  isBusy?: boolean
-  error?: string | null
-  onRefresh: () => void
 }
 
 function formatResetTime(value: string, includeDate: boolean): string {
@@ -30,18 +22,29 @@ function formatResetTime(value: string, includeDate: boolean): string {
   }).format(date)
 }
 
-export function ScamQuotaStrip({
-  mode,
+interface ScamQuotaBadgeProps {
+  quota: QuotaSnapshot | null
+  isLoading?: boolean
+  isBusy?: boolean
+  error?: string | null
+  onRefresh: () => void
+}
+
+/**
+ * Ultra-compact inline quota indicator tucked cleanly into the Omni-Composer
+ * footer so it never competes with the main input surface.
+ */
+export function ScamQuotaBadge({
   quota,
   isLoading = false,
   isBusy = false,
   error = null,
   onRefresh,
-}: ScamQuotaStripProps) {
+}: ScamQuotaBadgeProps) {
   const exhausted = quota != null && quota.remaining <= 0 && !error
   const lowQuota = quota != null && quota.remaining === 1 && !error
 
-  const statusDotClass = error
+  const dotClass = error
     ? "bg-rose-600 dark:bg-rose-400"
     : exhausted
       ? "bg-amber-600 dark:bg-amber-400"
@@ -51,81 +54,92 @@ export function ScamQuotaStrip({
           ? "bg-emerald-600 dark:bg-emerald-400"
           : "bg-muted-foreground/50"
 
+  const titleText = quota
+    ? `Còn ${quota.remaining}/${quota.limit} lượt hôm nay${
+        quota.resetsAt
+          ? ` · Đặt lại ${formatResetTime(quota.resetsAt, false)}`
+          : ""
+      } — Bấm để làm mới`
+    : error
+      ? "Chưa tải được hạn mức — Bấm để thử lại"
+      : "Đang tải hạn mức kiểm tra"
+
   return (
-    <div className="space-y-3">
-      {/* Compact single-line status strip */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/80 bg-card/80 px-4 py-2 text-xs text-muted-foreground dark:border-white/10">
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            aria-hidden="true"
-            className={cn("size-2 shrink-0 rounded-full", statusDotClass)}
-          />
-          {quota ? (
-            <span className="text-foreground">
-              {mode === "guest"
-                ? "Lượt kiểm tra miễn phí hôm nay:"
-                : "Lượt kiểm tra còn lại hôm nay:"}{" "}
-              <strong
-                className={cn(
-                  "font-semibold tabular-nums",
-                  exhausted
-                    ? "text-rose-700 dark:text-rose-400"
-                    : lowQuota
-                      ? "text-amber-700 dark:text-amber-400"
-                      : "text-emerald-700 dark:text-emerald-400"
-                )}
-              >
-                {quota.remaining}/{quota.limit}
-              </strong>
-              {quota.resetsAt && (
-                <span className="ml-2 text-muted-foreground tabular-nums">
-                  · Đặt lại {formatResetTime(quota.resetsAt, mode === "guest")}
-                </span>
+    <button
+      type="button"
+      disabled={isBusy || isLoading}
+      onClick={onRefresh}
+      title={titleText}
+      aria-label={titleText}
+      className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-[color,background-color] duration-120 hover:bg-muted/80 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <span
+        aria-hidden="true"
+        className={cn("size-2 shrink-0 rounded-full", dotClass)}
+      />
+      <span className="whitespace-nowrap tabular-nums">
+        {quota ? (
+          <>
+            <strong
+              className={cn(
+                "font-semibold",
+                exhausted
+                  ? "text-rose-700 dark:text-rose-400"
+                  : lowQuota
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-foreground"
               )}
-            </span>
-          ) : (
-            <span role="status">
-              {isLoading
-                ? "Đang tải hạn mức kiểm tra…"
-                : "Chưa có thông tin hạn mức"}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          {mode === "guest" && lowQuota && (
-            <Link
-              href="/login"
-              className="font-medium text-primary underline-offset-4 transition-colors duration-120 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              Đăng nhập để thêm lượt
-            </Link>
-          )}
-          <button
-            type="button"
-            disabled={isBusy || isLoading}
-            onClick={onRefresh}
-            aria-label="Cập nhật hạn mức kiểm tra"
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-[color,background-color] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <ArrowClockwise
-              aria-hidden="true"
-              size={14}
-              weight="bold"
-              className={
-                isBusy || isLoading ? "motion-safe:animate-spin" : undefined
-              }
-            />
-            <span>Làm mới</span>
-          </button>
-        </div>
-      </div>
+              {quota.remaining}/{quota.limit}
+            </strong>{" "}
+            <span className="hidden sm:inline">lượt</span>
+          </>
+        ) : isLoading ? (
+          "…"
+        ) : (
+          "Hạn mức"
+        )}
+      </span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "inline-flex",
+          (isBusy || isLoading) && "motion-safe:animate-spin"
+        )}
+      >
+        <ArrowClockwise size={12} weight="bold" />
+      </span>
+    </button>
+  )
+}
 
-      {/* Expandable actionable callout ONLY when quota is exhausted */}
+interface ScamQuotaStripProps {
+  mode: "guest" | "user"
+  quota: QuotaSnapshot | null
+  error?: string | null
+}
+
+/**
+ * Surfaces an actionable quota-exhausted notice ONLY when remaining === 0.
+ * Zero visual clutter during normal usage.
+ */
+export function ScamQuotaStrip({
+  mode,
+  quota,
+  error = null,
+}: ScamQuotaStripProps) {
+  const exhausted = quota != null && quota.remaining <= 0 && !error
+
+  return (
+    <AnimatePresence initial={false}>
       {exhausted && (
-        <div
+        <motion.div
           role="alert"
-          className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-950 dark:border-amber-400/25 dark:bg-amber-500/15 dark:text-amber-100"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-col gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-950 sm:flex-row sm:items-start sm:justify-between dark:border-amber-400/25 dark:bg-amber-500/15 dark:text-amber-100"
         >
           <div className="flex min-w-0 flex-1 items-start gap-3">
             <WarningCircle
@@ -142,7 +156,7 @@ export function ScamQuotaStrip({
               </p>
               <p className="text-xs leading-relaxed text-amber-900/90 dark:text-amber-200/90">
                 {mode === "guest"
-                  ? "Đăng nhập hoặc tạo tài khoản miễn phí để tiếp tục kiểm tra với hạn mức cao hơn và lưu lịch sử tra cứu."
+                  ? "Đăng nhập hoặc tạo tài khoản miễn phí để nhận thêm lượt kiểm tra và lưu lịch sử tra cứu."
                   : `Hạn mức sẽ tự động đặt lại lúc ${
                       quota?.resetsAt
                         ? formatResetTime(quota.resetsAt, false)
@@ -156,20 +170,20 @@ export function ScamQuotaStrip({
             <div className="flex shrink-0 items-center gap-2">
               <Link
                 href="/login"
-                className="inline-flex h-8 items-center rounded-md border border-amber-700/25 bg-background px-3 text-xs font-semibold text-foreground transition-colors duration-120 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="inline-flex h-9 items-center rounded-md border border-amber-700/25 bg-background px-3 text-xs font-semibold text-foreground transition-colors duration-120 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 Đăng nhập
               </Link>
               <Link
                 href="/register"
-                className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-opacity duration-120 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-opacity duration-120 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 Tạo tài khoản
               </Link>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </AnimatePresence>
   )
 }

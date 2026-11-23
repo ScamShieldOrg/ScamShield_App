@@ -1,5 +1,6 @@
 "use client"
 
+import { motion } from "motion/react"
 import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react"
 
 interface ScamErrorCalloutProps {
@@ -20,9 +21,13 @@ export function ScamErrorCallout({
   isBusy = false,
 }: ScamErrorCalloutProps) {
   return (
-    <div
+    <motion.div
       role="alert"
-      className="flex flex-col gap-3 rounded-lg border border-rose-500/25 bg-rose-500/10 p-4 text-rose-950 transition-[opacity,transform] duration-180 ease-[cubic-bezier(0.16,1,0.3,1)] sm:flex-row sm:items-start sm:justify-between dark:border-rose-400/25 dark:bg-rose-500/15 dark:text-rose-100"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+      className="flex flex-col gap-3 rounded-xl border border-rose-500/25 bg-rose-500/10 p-4 text-rose-950 sm:flex-row sm:items-start sm:justify-between dark:border-rose-400/25 dark:bg-rose-500/15 dark:text-rose-100"
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <WarningCircle
@@ -51,7 +56,7 @@ export function ScamErrorCallout({
               type="button"
               disabled={isBusy}
               onClick={onRetry}
-              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-rose-700 px-3 text-xs font-semibold text-white transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-rose-800 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-600 dark:hover:bg-rose-500"
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-rose-700 px-3 text-xs font-semibold text-white transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-rose-800 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-600 dark:hover:bg-rose-500"
             >
               <ArrowClockwise aria-hidden="true" size={14} weight="bold" />
               <span>Thử lại</span>
@@ -62,13 +67,13 @@ export function ScamErrorCallout({
               type="button"
               disabled={isBusy}
               onClick={onRefreshQuota}
-              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-rose-700/25 bg-background px-3 text-xs font-semibold text-foreground transition-colors duration-120 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-400/25"
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-rose-700/25 bg-background px-3 text-xs font-semibold text-foreground transition-colors duration-120 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-400/25"
             >
               <span>Cập nhật hạn mức</span>
             </button>
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }

@@ -1,6 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
+import { AnimatePresence, motion } from "motion/react"
 import {
   ArrowRight,
   Bank,
@@ -15,11 +17,16 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
-import type { CheckScanResponse } from "@/features/check/types/check.types"
+import type {
+  CheckScanResponse,
+  SpecialistVote,
+} from "@/features/check/types/check.types"
 
 interface ScamEvidenceCardProps {
   data: CheckScanResponse
 }
+
+type EvidenceTab = "signals" | "council" | "technical"
 
 function FormattedCouncilSynthesis({ text }: { text: string }) {
   const sanitized = text
@@ -57,55 +64,35 @@ function FormattedCouncilSynthesis({ text }: { text: string }) {
     ? consensusMatch[1].replace(/\.$/, "")
     : ""
 
-  const votingMatch = headerRaw.match(/\((Biểu quyết[^)]+|Kích hoạt[^)]+)\)/i)
-  const votingMode = votingMatch
-    ? votingMatch[1].replace(/thành viên/g, "chuyên gia AI")
-    : ""
-
   const specRegex = /-\s*\*\*(.*?)\*\*:\s*([\s\S]*?)(?=(?:-\s*\*\*|$))/g
-  const specialists: {
-    title: string
-    model: string
-    content: string
-    iconType: "bank" | "brain" | "scales"
-  }[] = []
+  const specialists: { title: string; model: string; content: string }[] = []
   let m: RegExpExecArray | null
 
   while ((m = specRegex.exec(bodyRaw)) !== null) {
     const rawRole = m[1].trim()
     const content = m[2].trim().replace(/\*\*/g, "")
-
     const modelMatch = rawRole.match(/^(.*?)\s*\(([^)]+)\)$/)
-    let title = rawRole
-    let model = ""
+    let title = modelMatch ? modelMatch[1].trim() : rawRole
+    const model = modelMatch ? modelMatch[2].trim() : ""
 
-    if (modelMatch) {
-      title = modelMatch[1].trim()
-      model = modelMatch[2].trim()
-    }
-
-    let iconType: "bank" | "brain" | "scales" = "bank"
     if (/Cyber-Financial|Banking Security|Pháp Y|Tài Chính/i.test(title)) {
       title = "Pháp y Tài chính & Dòng tiền"
-      iconType = "bank"
     } else if (
       /Psycholinguistic|Slang Profiler|Tâm Lý|Thao Túng/i.test(title)
     ) {
       title = "Tâm lý & Thao túng xã hội"
-      iconType = "brain"
     } else if (
       /Public Defender|Anti-False-Positive|Biện Hộ|Bảo Vệ/i.test(title)
     ) {
       title = "Phản biện & Chống cảnh báo giả"
-      iconType = "scales"
     }
 
-    specialists.push({ title, model, content, iconType })
+    specialists.push({ title, model, content })
   }
 
   return (
     <div className="mt-3 space-y-3">
-      {(verdictText || consensusRate || votingMode) && (
+      {(verdictText || consensusRate) && (
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {verdictText && (
             <span className="rounded-md bg-muted px-2 py-0.5 font-semibold text-foreground">
@@ -113,46 +100,20 @@ function FormattedCouncilSynthesis({ text }: { text: string }) {
             </span>
           )}
           {consensusRate && (
-            <span className="rounded-md bg-sky-500/10 px-2 py-0.5 font-medium text-sky-800 tabular-nums dark:bg-sky-500/15 dark:text-sky-300">
+            <span className="rounded-md bg-sky-500/10 px-2 py-0.5 font-medium text-sky-800 tabular-nums dark:text-sky-300">
               Đồng thuận: <strong>{consensusRate}</strong>
             </span>
-          )}
-          {votingMode && (
-            <span className="text-muted-foreground">{votingMode}</span>
           )}
         </div>
       )}
 
       <div className="divide-y divide-border/70 border-t border-border/70">
         {specialists.map((spec, idx) => (
-          <div key={idx} className="space-y-1 py-3 text-xs">
+          <div key={idx} className="space-y-1 py-2.5 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                {spec.iconType === "bank" && (
-                  <Bank
-                    aria-hidden="true"
-                    size={14}
-                    className="text-sky-600 dark:text-sky-400"
-                  />
-                )}
-                {spec.iconType === "brain" && (
-                  <Brain
-                    aria-hidden="true"
-                    size={14}
-                    className="text-amber-600 dark:text-amber-400"
-                  />
-                )}
-                {spec.iconType === "scales" && (
-                  <Scales
-                    aria-hidden="true"
-                    size={14}
-                    className="text-emerald-600 dark:text-emerald-400"
-                  />
-                )}
-                <span>{spec.title}</span>
-              </div>
+              <span className="font-semibold text-foreground">{spec.title}</span>
               {spec.model && (
-                <span className="rounded-md border border-border bg-background px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                   {spec.model}
                 </span>
               )}
@@ -167,6 +128,27 @@ function FormattedCouncilSynthesis({ text }: { text: string }) {
   )
 }
 
+function getStanceMeta(stance?: SpecialistVote["stance"]) {
+  if (stance === "SCAM") {
+    return {
+      label: "Cảnh báo lừa đảo",
+      badge: "border-rose-500/25 bg-rose-500/10 text-rose-800 dark:text-rose-200",
+    }
+  }
+  if (stance === "SUSPICIOUS") {
+    return {
+      label: "Đáng ngờ",
+      badge:
+        "border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-200",
+    }
+  }
+  return {
+    label: "Góc nhìn giảm nhẹ",
+    badge:
+      "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
+  }
+}
+
 export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
   const isDangerous = data.verdict.risk_level === "DANGEROUS"
   const isSafe = data.verdict.risk_level === "SAFE"
@@ -177,26 +159,64 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
 
   const features = data.deterministic_features
   const council = data.council_deliberation
-  const steps = data.actionable_steps || data.recommendations || []
   const urgencyKeywords = features?.urgency_indicators?.matched_keywords || []
   const detectedUrls = features?.url_analysis?.detected_urls ?? []
   const detectedPhones = features?.phone_analysis?.detected_phones ?? []
   const riskScore = data.verdict.risk_score
 
-  const councilVotes = council
-    ? [
-        council.cyber_banking_specialist,
-        council.psycho_teencode_specialist,
-        council.public_defender,
-      ].filter(Boolean)
-    : []
-  const hasCouncilReport =
-    councilVotes.length > 0 || Boolean(council?.final_synthesis)
+  const specialistEntries: {
+    id: string
+    title: string
+    subtitle: string
+    icon: typeof Bank
+    iconClass: string
+    vote: SpecialistVote
+    highlightLabel?: string
+    highlightText?: string
+  }[] = []
+
+  if (council?.cyber_banking_specialist) {
+    specialistEntries.push({
+      id: "finance",
+      title: "An ninh Tài chính & Dòng tiền",
+      subtitle: "Rà soát tài khoản thụ hưởng & liên kết ngân hàng",
+      icon: Bank,
+      iconClass:
+        "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+      vote: council.cyber_banking_specialist,
+    })
+  }
+  if (council?.psycho_teencode_specialist) {
+    specialistEntries.push({
+      id: "psycho",
+      title: "Tâm lý & Kịch bản thao túng",
+      subtitle: "Phân tích áp lực cảm xúc & ngôn ngữ dẫn dụ",
+      icon: Brain,
+      iconClass:
+        "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      vote: council.psycho_teencode_specialist,
+      highlightLabel: "Chiêu thức",
+      highlightText: council.psycho_teencode_specialist.manipulation_tactic,
+    })
+  }
+  if (council?.public_defender) {
+    specialistEntries.push({
+      id: "defender",
+      title: "Phản biện & Chống cảnh báo giả",
+      subtitle: "Kiểm định góc nhìn khách quan & yếu tố giảm nhẹ",
+      icon: Scales,
+      iconClass:
+        "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+      vote: council.public_defender,
+      highlightLabel: "Yếu tố giảm nhẹ",
+      highlightText: council.public_defender.exculpatory_evidence,
+    })
+  }
 
   const isTier2 =
     data.tier_executed === 2 &&
     data.execution_provenance === "TIER2_FORENSIC_COUNCIL" &&
-    hasCouncilReport
+    specialistEntries.length > 0
 
   const resolvedType = (data.input_type || "").toUpperCase()
   const isPhoneCheck = resolvedType === "PHONE"
@@ -204,39 +224,6 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
   const isBankCheck = resolvedType === "BANK_ACCOUNT"
   const isMessageCheck = !isPhoneCheck && !isUrlCheck && !isBankCheck
   const curatedOnlyCheck = isPhoneCheck || isBankCheck
-
-  const stepsTitle = (() => {
-    if (isPhoneCheck) {
-      if (isDangerous) return "Việc bạn cần làm ngay với số điện thoại này"
-      if (isSafe) return "Lưu ý an toàn khi liên hệ qua đầu số này"
-      if (isSuspicious) return "Các bước kiểm chứng khi nhận cuộc gọi"
-      return "Khuyến nghị phòng ngừa dành cho bạn"
-    }
-    if (isUrlCheck) {
-      if (isDangerous) return "Việc bạn cần làm ngay để bảo vệ thiết bị"
-      if (isSafe) return "Lưu ý an toàn khi truy cập đường dẫn này"
-      if (isSuspicious) return "Các bước kiểm tra trước khi truy cập"
-      return "Khuyến nghị phòng ngừa dành cho bạn"
-    }
-    if (isBankCheck) {
-      if (isDangerous) return "Việc bạn cần làm ngay để bảo vệ tài khoản"
-      if (isSafe) return "Lưu ý trước khi chuyển tiền đến tài khoản này"
-      if (isSuspicious) return "Các bước kiểm chứng trước khi chuyển tiền"
-      return "Khuyến nghị phòng ngừa dành cho bạn"
-    }
-    if (isDangerous) return "Việc bạn cần làm ngay lúc này"
-    if (isSafe) return "Lưu ý bảo mật quan trọng"
-    if (isSuspicious) return "Các bước kiểm chứng trước khi giao dịch"
-    return "Khuyến nghị phòng ngừa dành cho bạn"
-  })()
-
-  const stepMarkerClass = isDangerous
-    ? "border-rose-500/25 bg-rose-500/10 text-rose-800 dark:border-rose-400/25 dark:bg-rose-500/15 dark:text-rose-200"
-    : isSafe
-      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:border-emerald-400/25 dark:bg-emerald-500/15 dark:text-emerald-200"
-      : isSuspicious
-        ? "border-amber-500/25 bg-amber-500/10 text-amber-900 dark:border-amber-400/25 dark:bg-amber-500/15 dark:text-amber-200"
-        : "border-border bg-muted text-foreground"
 
   const isDirectoryBlacklist =
     Boolean(data.matched_indicator) && data.decided_by_stage === "BLACKLIST"
@@ -247,312 +234,278 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
         detectedUrls.length > 0
     )
 
-  const hasTechnicalDetails = Boolean(
-    data.engine_details?.model_name ||
-      data.execution_time_ms > 0 ||
-      council?.final_synthesis ||
-      (features?.visobert_token_attribution &&
-        features.visobert_token_attribution.length > 0)
+  const signalCount =
+    1 +
+    (!curatedOnlyCheck ? 1 : 0) +
+    (!curatedOnlyCheck && (detectedUrls.length > 0 || detectedPhones.length > 0)
+      ? 1
+      : 0) +
+    (isMessageCheck && features?.brand_identity ? 1 : 0)
+
+  const defaultTab: EvidenceTab = isTier2 ? "council" : "signals"
+  const [activeTab, setActiveTab] = useState<EvidenceTab>(defaultTab)
+  const [openSpecialistId, setOpenSpecialistId] = useState<string | null>(
+    specialistEntries[0]?.id ?? null
   )
 
+  const tabs: { id: EvidenceTab; label: string; badge?: string }[] = [
+    ...(isTier2
+      ? [
+          {
+            id: "council" as const,
+            label: "Chuyên gia AI",
+            badge: `${specialistEntries.length}`,
+          },
+        ]
+      : []),
+    {
+      id: "signals" as const,
+      label: "Tín hiệu",
+      badge: `${signalCount}`,
+    },
+    {
+      id: "technical" as const,
+      label: "Kỹ thuật",
+    },
+  ]
+
+  const currentTab: EvidenceTab = tabs.some((t) => t.id === activeTab)
+    ? activeTab
+    : tabs[0].id
+
   return (
-    <div className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs dark:border-white/10 dark:divide-white/10">
-      {/* ============================================================== */}
-      {/* 1. WORKFLOW FIRST: WHAT SHOULD I DO RIGHT NOW? (14px Readable) */}
-      {/* ============================================================== */}
-      {steps.length > 0 && (
-        <section aria-labelledby="scam-steps-heading" className="p-5 sm:p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <ShieldCheck
-              aria-hidden="true"
-              size={20}
-              weight="fill"
-              className={
-                isDangerous
-                  ? "text-rose-700 dark:text-rose-400"
-                  : isSafe
-                    ? "text-emerald-700 dark:text-emerald-400"
-                    : isSuspicious
-                      ? "text-amber-700 dark:text-amber-400"
-                      : "text-muted-foreground"
-              }
-            />
-            <h3
-              id="scam-steps-heading"
-              className="font-heading text-base font-semibold tracking-[-0.01em] text-foreground"
-            >
-              {stepsTitle}
-            </h3>
-          </div>
-
-          <ol className="divide-y divide-border/60">
-            {steps.map((step, index) => (
-              <li
-                key={index}
-                className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
+    <motion.section
+      aria-label="Chi tiết bằng chứng phân tích"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+      className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xs dark:border-white/10"
+    >
+      {/* Interactive Sliding Tab Bar (Framer Motion layoutId) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/80 bg-muted/30 px-4 py-2 sm:px-5 dark:border-white/10">
+        <div
+          role="tablist"
+          aria-label="Chuyển xem chi tiết phân tích"
+          className="inline-flex items-center gap-1 rounded-lg bg-muted/60 p-1 dark:bg-muted/30"
+        >
+          {tabs.map((tab) => {
+            const selected = currentTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "relative inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  selected
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
               >
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border text-xs font-semibold tabular-nums",
-                    stepMarkerClass
-                  )}
-                >
-                  {index + 1}
+                {selected && (
+                  <motion.span
+                    layoutId={`evidence-tab-pill-${data.scan_id}`}
+                    transition={{
+                      type: "spring",
+                      stiffness: 420,
+                      damping: 32,
+                    }}
+                    className="absolute inset-0 rounded-md bg-background shadow-2xs ring-1 ring-border dark:bg-card dark:ring-white/15"
+                  />
+                )}
+                <span className="relative z-10 whitespace-nowrap">
+                  {tab.label}
                 </span>
-                <p className="max-w-[65ch] text-sm leading-relaxed text-foreground">
-                  {step}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-
-      {/* ============================================================== */}
-      {/* 2. SCANNABLE EVIDENCE SUMMARY (Context-Aware by inputType)     */}
-      {/* ============================================================== */}
-      <section aria-labelledby="scam-evidence-heading" className="p-5 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h3
-            id="scam-evidence-heading"
-            className="font-heading text-base font-semibold tracking-[-0.01em] text-foreground"
-          >
-            {isTier2
-              ? "Nhận định từ các chuyên gia AI"
-              : "Cơ sở đánh giá & dấu hiệu phát hiện"}
-          </h3>
-
-          {isTier2 && council && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/25 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-800 tabular-nums dark:border-sky-400/25 dark:bg-sky-500/15 dark:text-sky-200">
-              <Scales aria-hidden="true" size={14} weight="bold" />
-              <span>
-                {council.consensus_ratio
-                  ? council.consensus_ratio.replace(
-                      /Hội đồng|hội đồng/gi,
-                      "Chuyên gia AI"
-                    )
-                  : `${councilVotes.length} chuyên gia đã thẩm định`}
-              </span>
-            </span>
-          )}
+                {tab.badge && (
+                  <span className="relative z-10 rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
 
-        {/* Single Unified Matched Directory Entry (if matched) */}
-        {data.matched_indicator && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/80 bg-muted/40 p-4 dark:border-white/10">
-            <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Đối chiếu danh bạ
-                </span>
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold",
-                    data.decided_by_stage === "WHITELIST"
-                      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                      : "border-rose-500/25 bg-rose-500/10 text-rose-800 dark:text-rose-300"
-                  )}
-                >
-                  {data.decided_by_stage === "WHITELIST"
-                    ? "Danh bạ xác minh"
-                    : "Danh sách cảnh báo"}
-                </span>
-              </div>
-              <p className="font-mono text-sm font-semibold break-all text-foreground">
-                {data.matched_indicator.value}
-              </p>
-            </div>
-
-            <Link
-              href={{
-                pathname: "/guest/blacklist",
-                query: {
-                  search: data.matched_indicator.value,
-                  tab:
-                    data.decided_by_stage === "WHITELIST"
-                      ? "whitelist"
-                      : "blacklist",
-                },
-              }}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-semibold text-foreground transition-colors duration-120 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dark:border-white/12"
-            >
-              <span>Xem trong Danh bạ</span>
-              <ArrowRight aria-hidden="true" size={14} weight="bold" />
-            </Link>
-          </div>
+        {isTier2 && council?.consensus_ratio && (
+          <span className="hidden items-center gap-1.5 text-xs font-medium text-sky-700 tabular-nums sm:inline-flex dark:text-sky-300">
+            <Scales aria-hidden="true" size={14} weight="bold" />
+            <span>
+              {council.consensus_ratio.replace(
+                /Hội đồng|hội đồng/gi,
+                "Chuyên gia AI"
+              )}
+            </span>
+          </span>
         )}
+      </div>
 
-        {/* CASE A: TIER 2 MULTI-SPECIALIST DELIBERATION */}
-        {isTier2 && council ? (
-          <div className="space-y-4">
-            {(detectedUrls.length > 0 || detectedPhones.length > 0) && (
-              <div className="space-y-2 rounded-lg border border-border/80 bg-muted/35 p-4 text-xs dark:border-white/10">
-                <p className="font-semibold text-foreground">
-                  Thực thể trích xuất trong tin nhắn
-                </p>
-                {detectedUrls.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-muted-foreground">Liên kết:</span>
-                    <code
-                      className={cn(
-                        "rounded-md px-2 py-0.5 font-mono text-xs font-semibold break-all",
-                        features?.url_analysis?.is_in_official_whitelist
-                          ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                          : "bg-rose-500/10 text-rose-800 dark:text-rose-300"
-                      )}
+      {/* Animated Tab Panel Content */}
+      <div className="p-4 sm:p-5">
+        <AnimatePresence mode="wait" initial={false}>
+          {/* TAB A: INTERACTIVE AI SPECIALIST ACCORDIONS (TIER 2) */}
+          {currentTab === "council" && isTier2 && (
+            <motion.div
+              key="panel-council"
+              role="tabpanel"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              className="divide-y divide-border/70"
+            >
+              {specialistEntries.map((spec) => {
+                const Icon = spec.icon
+                const isOpen = openSpecialistId === spec.id
+                const stance = getStanceMeta(spec.vote.stance)
+
+                return (
+                  <div key={spec.id} className="py-3 first:pt-0 last:pb-0">
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      onClick={() =>
+                        setOpenSpecialistId(isOpen ? null : spec.id)
+                      }
+                      className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg py-1 text-left transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
-                      {detectedUrls.join(", ")}
-                    </code>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 font-semibold",
-                        features?.url_analysis?.is_in_official_whitelist
-                          ? "text-emerald-700 dark:text-emerald-400"
-                          : "text-rose-700 dark:text-rose-400"
-                      )}
-                    >
-                      {features?.url_analysis?.is_in_official_whitelist ? (
-                        <>
-                          <Check aria-hidden="true" size={13} weight="bold" />
-                          <span>Thuộc danh bạ chính thức</span>
-                        </>
-                      ) : (
-                        <>
-                          <X aria-hidden="true" size={13} weight="bold" />
-                          <span>Chưa chứng thực</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                )}
-                {detectedPhones.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-muted-foreground">
-                      Số điện thoại:
-                    </span>
-                    <code className="rounded-md bg-amber-500/10 px-2 py-0.5 font-mono text-xs font-semibold text-amber-900 dark:text-amber-200">
-                      {detectedPhones.join(", ")}
-                    </code>
-                    <span className="inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300">
-                      {features?.phone_analysis?.is_official_hotline ? (
-                        <>
-                          <Check aria-hidden="true" size={13} weight="bold" />
-                          <span>Tổng đài chính thức</span>
-                        </>
-                      ) : (
-                        <>
-                          <Warning aria-hidden="true" size={13} weight="bold" />
-                          <span>Đầu số cá nhân</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div
+                          className={cn(
+                            "flex size-9 shrink-0 items-center justify-center rounded-lg border",
+                            spec.iconClass
+                          )}
+                        >
+                          <Icon aria-hidden="true" size={17} weight="fill" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground">
+                            {spec.title}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {spec.subtitle}
+                          </p>
+                        </div>
+                      </div>
 
-            <div className="divide-y divide-border/70">
-              {council.cyber_banking_specialist && (
-                <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300">
-                    <Bank aria-hidden="true" size={18} weight="fill" />
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-foreground">
-                        Góc nhìn An ninh Tài chính & Dòng tiền
-                      </p>
-                      <span className="rounded-md bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-800 dark:text-rose-300">
-                        Rà soát giao dịch
-                      </span>
-                    </div>
-                    <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                      {council.cyber_banking_specialist.rationale}
-                    </p>
-                  </div>
-                </div>
-              )}
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span
+                          className={cn(
+                            "hidden rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap sm:inline-flex",
+                            stance.badge
+                          )}
+                        >
+                          {stance.label}
+                        </span>
+                        <CaretDown
+                          aria-hidden="true"
+                          size={15}
+                          weight="bold"
+                          className={cn(
+                            "text-muted-foreground transition-transform duration-150",
+                            isOpen && "rotate-180"
+                          )}
+                        />
+                      </div>
+                    </button>
 
-              {council.psycho_teencode_specialist && (
-                <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-                    <Brain aria-hidden="true" size={18} weight="fill" />
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{
+                            duration: 0.18,
+                            ease: [0.16, 1, 0.3, 1],
+                          }}
+                          className="overflow-hidden"
+                        >
+                          <div className="space-y-2 pt-3 pl-12">
+                            {spec.highlightText && (
+                              <p className="text-xs font-semibold text-foreground">
+                                {spec.highlightLabel}:{" "}
+                                <span className="font-normal text-muted-foreground">
+                                  {spec.highlightText}
+                                </span>
+                              </p>
+                            )}
+                            <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
+                              {spec.vote.rationale}
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-foreground">
-                        Góc nhìn Tâm lý & Kịch bản thao túng
-                      </p>
-                      <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-200">
-                        Phân tích hành vi
-                      </span>
-                    </div>
-                    {council.psycho_teencode_specialist.manipulation_tactic && (
-                      <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-                        Chiêu thức nhận diện:{" "}
-                        {council.psycho_teencode_specialist.manipulation_tactic}
-                      </p>
+                )
+              })}
+            </motion.div>
+          )}
+
+          {/* TAB B: CONCISE CONTEXT-AWARE SIGNALS */}
+          {currentTab === "signals" && (
+            <motion.div
+              key="panel-signals"
+              role="tabpanel"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              className="divide-y divide-border/70"
+            >
+              {/* Row 1: Directory Lookup */}
+              <div className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-2 size-2 shrink-0 rounded-full",
+                      isDirectoryBlacklist
+                        ? "bg-rose-600 dark:bg-rose-400"
+                        : isDirectoryWhitelist
+                          ? "bg-emerald-600 dark:bg-emerald-400"
+                          : "bg-slate-400 dark:bg-slate-500"
                     )}
-                    <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                      {council.psycho_teencode_specialist.rationale}
+                  />
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      Đối chiếu danh bạ an toàn & cảnh báo
+                    </p>
+                    <p className="max-w-[60ch] text-xs leading-relaxed text-muted-foreground">
+                      {isDirectoryBlacklist
+                        ? `Trùng khớp danh sách cảnh báo (${data.matched_indicator?.value}).`
+                        : isDirectoryWhitelist
+                          ? "Trùng khớp danh bạ tổ chức / ngân hàng chính thức đã xác minh."
+                          : curatedOnlyCheck
+                            ? "Chưa có trong danh sách cảnh báo lẫn danh bạ xác minh (loại này chỉ tra cứu danh bạ, không dùng AI)."
+                            : "Chưa nằm trong danh sách đen quốc gia và không thuộc danh bạ cổng chính thức."}
                     </p>
                   </div>
                 </div>
-              )}
 
-              {council.public_defender && (
-                <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                    <Scales aria-hidden="true" size={18} weight="fill" />
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-foreground">
-                        Góc nhìn Phản biện & Chống cảnh báo giả
-                      </p>
-                      <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                        Kiểm định khách quan
-                      </span>
-                    </div>
-                    {council.public_defender.exculpatory_evidence && (
-                      <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                        Yếu tố giảm nhẹ:{" "}
-                        {council.public_defender.exculpatory_evidence}
-                      </p>
-                    )}
-                    <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                      {council.public_defender.rationale}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          /* CASE B: TIER 1 / CURATED LOOKUP — STRICTLY RELEVANT SIGNALS ONLY */
-          <div className="divide-y divide-border/70">
-            {/* Signal 1: Directory Verification */}
-            <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "mt-2 size-2 shrink-0 rounded-full",
-                  isDirectoryBlacklist
-                    ? "bg-rose-600 dark:bg-rose-400"
-                    : isDirectoryWhitelist
-                      ? "bg-emerald-600 dark:bg-emerald-400"
-                      : "bg-slate-400 dark:bg-slate-500"
-                )}
-              />
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-foreground">
-                    Đối chiếu danh bạ an toàn & cảnh báo
-                  </p>
+                {data.matched_indicator ? (
+                  <Link
+                    href={{
+                      pathname: "/guest/blacklist",
+                      query: {
+                        search: data.matched_indicator.value,
+                        tab:
+                          data.decided_by_stage === "WHITELIST"
+                            ? "whitelist"
+                            : "blacklist",
+                      },
+                    }}
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-semibold text-foreground transition-colors duration-120 hover:bg-muted dark:border-white/12"
+                  >
+                    <span>Danh bạ</span>
+                    <ArrowRight aria-hidden="true" size={13} weight="bold" />
+                  </Link>
+                ) : (
                   <span
                     className={cn(
-                      "rounded-md px-2 py-0.5 text-xs font-semibold",
+                      "shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap",
                       isDirectoryBlacklist
                         ? "bg-rose-500/10 text-rose-800 dark:text-rose-300"
                         : isDirectoryWhitelist
@@ -561,266 +514,231 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
                     )}
                   >
                     {isDirectoryBlacklist
-                      ? "Trùng danh sách cảnh báo"
+                      ? "Cảnh báo"
                       : isDirectoryWhitelist
-                        ? "Thuộc danh bạ xác minh"
-                        : "Chưa có trong danh bạ"}
+                        ? "Đã xác minh"
+                        : "Chưa ghi nhận"}
                   </span>
-                </div>
-                <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                  {isDirectoryBlacklist
-                    ? `Chỉ số (${data.matched_indicator?.value}) đã được cộng đồng hoặc cơ quan chức năng ghi nhận có hành vi lừa đảo.`
-                    : isDirectoryWhitelist
-                      ? "Thông tin trùng khớp với danh bạ chính thức của tổ chức, ngân hàng đã được xác thực."
-                      : curatedOnlyCheck
-                        ? "Chưa ghi nhận trong danh sách cảnh báo cũng như danh bạ tổ chức xác minh. Hệ thống chỉ đối chiếu danh bạ cho loại này — chưa có tên không đồng nghĩa an toàn."
-                        : "Chưa nằm trong danh sách đen đã xác nhận và không thuộc danh bạ cổng chính thức đã đăng ký."}
-                </p>
+                )}
               </div>
-            </div>
 
-            {/* Signal 2: Detected Links / Phones (ONLY for TEXT or URL checks) */}
-            {!curatedOnlyCheck && (
-              <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "mt-2 size-2 shrink-0 rounded-full",
-                    detectedUrls.length > 0
-                      ? features?.url_analysis?.is_in_official_whitelist
-                        ? "bg-emerald-600 dark:bg-emerald-400"
-                        : "bg-rose-600 dark:bg-rose-400"
-                      : isSafe
-                        ? "bg-emerald-600 dark:bg-emerald-400"
-                        : "bg-slate-400 dark:bg-slate-500"
-                  )}
-                />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-foreground">
-                      {isUrlCheck
-                        ? "Kiểm tra tên miền & đường dẫn"
-                        : "Liên kết & số điện thoại trong tin nhắn"}
-                    </p>
-                    <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
-                      {isUrlCheck
-                        ? `${detectedUrls.length} đường dẫn`
-                        : `${detectedUrls.length} liên kết · ${detectedPhones.length} SĐT`}
-                    </span>
-                  </div>
-
-                  {detectedUrls.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <code
-                        className={cn(
-                          "rounded-md px-2 py-0.5 font-mono font-semibold break-all",
-                          features?.url_analysis?.is_in_official_whitelist
-                            ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                            : "bg-rose-500/10 text-rose-800 dark:text-rose-300"
-                        )}
-                      >
-                        {detectedUrls.join(", ")}
-                      </code>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 font-semibold",
-                          features?.url_analysis?.is_in_official_whitelist
-                            ? "text-emerald-700 dark:text-emerald-400"
-                            : "text-rose-700 dark:text-rose-400"
-                        )}
-                      >
-                        {features?.url_analysis?.is_in_official_whitelist ? (
-                          <>
-                            <Check aria-hidden="true" size={13} weight="bold" />
-                            <span>Tên miền chính thống</span>
-                          </>
-                        ) : (
-                          <>
-                            <X aria-hidden="true" size={13} weight="bold" />
-                            <span>Tên miền lạ, chưa chứng thực</span>
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  ) : (
-                    isMessageCheck && (
-                      <p className="text-sm text-muted-foreground">
-                        Không phát hiện đường dẫn website trong tin nhắn.
-                      </p>
-                    )
-                  )}
-
-                  {isMessageCheck && detectedPhones.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <code className="rounded-md bg-amber-500/10 px-2 py-0.5 font-mono font-semibold text-amber-900 dark:text-amber-200">
-                        {detectedPhones.join(", ")}
-                      </code>
-                      <span className="inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300">
-                        {features?.phone_analysis?.is_official_hotline ? (
-                          <>
-                            <Check aria-hidden="true" size={13} weight="bold" />
-                            <span>Tổng đài chính thức</span>
-                          </>
-                        ) : (
-                          <>
-                            <Warning
-                              aria-hidden="true"
-                              size={13}
-                              weight="bold"
-                            />
-                            <span>Đầu số cá nhân (không phải tổng đài)</span>
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Signal 3: Content & Language Analysis (ONLY for non-curated types) */}
-            {!curatedOnlyCheck && (
-              <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "mt-2 size-2 shrink-0 rounded-full",
-                    isDangerous
-                      ? "bg-rose-600 dark:bg-rose-400"
-                      : isSuspicious
-                        ? "bg-amber-500 dark:bg-amber-400"
-                        : isSafe
-                          ? "bg-emerald-600 dark:bg-emerald-400"
-                          : "bg-slate-400 dark:bg-slate-500"
-                  )}
-                />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-foreground">
-                      Đánh giá dấu hiệu nội dung bằng AI
-                    </p>
+              {/* Row 2: Detected URLs / Phones (ONLY for TEXT/URL when present) */}
+              {!curatedOnlyCheck &&
+                (detectedUrls.length > 0 || detectedPhones.length > 0) && (
+                  <div className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
                     <span
+                      aria-hidden="true"
                       className={cn(
-                        "rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums",
-                        isDangerous
-                          ? "bg-rose-500/10 text-rose-800 dark:text-rose-300"
-                          : isSuspicious
-                            ? "bg-amber-500/10 text-amber-900 dark:text-amber-200"
-                            : isSafe
-                              ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                              : "bg-muted text-muted-foreground"
+                        "mt-2 size-2 shrink-0 rounded-full",
+                        detectedUrls.length > 0 &&
+                          !features?.url_analysis?.is_in_official_whitelist
+                          ? "bg-rose-600 dark:bg-rose-400"
+                          : "bg-amber-500 dark:bg-amber-400"
                       )}
-                    >
-                      {riskScore != null
-                        ? `Điểm rủi ro: ${riskScore}/100`
-                        : "Chưa có điểm số"}
-                    </span>
+                    />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <p className="text-sm font-semibold text-foreground">
+                        {isUrlCheck
+                          ? "Đánh giá tên miền"
+                          : "Liên kết & số điện thoại trích xuất"}
+                      </p>
+
+                      {detectedUrls.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <code
+                            className={cn(
+                              "rounded-md px-2 py-0.5 font-mono font-semibold break-all",
+                              features?.url_analysis?.is_in_official_whitelist
+                                ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                                : "bg-rose-500/10 text-rose-800 dark:text-rose-300"
+                            )}
+                          >
+                            {detectedUrls.join(", ")}
+                          </code>
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 font-semibold",
+                              features?.url_analysis?.is_in_official_whitelist
+                                ? "text-emerald-700 dark:text-emerald-400"
+                                : "text-rose-700 dark:text-rose-400"
+                            )}
+                          >
+                            {features?.url_analysis?.is_in_official_whitelist ? (
+                              <>
+                                <Check
+                                  aria-hidden="true"
+                                  size={13}
+                                  weight="bold"
+                                />
+                                <span>Tên miền chính thống</span>
+                              </>
+                            ) : (
+                              <>
+                                <X
+                                  aria-hidden="true"
+                                  size={13}
+                                  weight="bold"
+                                />
+                                <span>Chưa chứng thực</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      )}
+
+                      {isMessageCheck && detectedPhones.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <code className="rounded-md bg-amber-500/10 px-2 py-0.5 font-mono font-semibold text-amber-900 dark:text-amber-200">
+                            {detectedPhones.join(", ")}
+                          </code>
+                          <span className="inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300">
+                            {features?.phone_analysis?.is_official_hotline ? (
+                              <>
+                                <Check
+                                  aria-hidden="true"
+                                  size={13}
+                                  weight="bold"
+                                />
+                                <span>Tổng đài chính thức</span>
+                              </>
+                            ) : (
+                              <>
+                                <Warning
+                                  aria-hidden="true"
+                                  size={13}
+                                  weight="bold"
+                                />
+                                <span>Đầu số cá nhân</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              {/* Row 3: AI Content Assessment (non-curated only) */}
+              {!curatedOnlyCheck && (
+                <div className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "mt-2 size-2 shrink-0 rounded-full",
+                        isDangerous
+                          ? "bg-rose-600 dark:bg-rose-400"
+                          : isSuspicious
+                            ? "bg-amber-500 dark:bg-amber-400"
+                            : isSafe
+                              ? "bg-emerald-600 dark:bg-emerald-400"
+                              : "bg-slate-400 dark:bg-slate-500"
+                      )}
+                    />
+                    <div className="min-w-0 space-y-1.5">
+                      <p className="text-sm font-semibold text-foreground">
+                        Phân tích ngữ cảnh & ngôn ngữ AI
+                      </p>
+                      <p className="max-w-[60ch] text-xs leading-relaxed text-muted-foreground">
+                        {isUnknown
+                          ? data.unknown_reason === "AI_UNAVAILABLE" ||
+                            data.unknown_reason === "AI_INVALID_RESPONSE"
+                            ? "Dịch vụ AI chưa phản hồi hợp lệ ở lượt này — vui lòng thử lại sau."
+                            : "Chưa đủ độ chắc chắn để khẳng định — nên xác minh độc lập."
+                          : isDangerous
+                            ? "Cấu trúc ngôn ngữ tương đồng cao với các kịch bản lừa đảo đã ghi nhận."
+                            : isSuspicious
+                              ? "Phát hiện một số dấu hiệu bất thường cần kiểm chứng thêm."
+                              : "Ngữ cảnh bình thường, không phát hiện yếu tố đe dọa hay trục lợi."}
+                      </p>
+
+                      {urgencyKeywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {urgencyKeywords.map((kw, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-800 dark:text-rose-200"
+                            >
+                              &ldquo;{kw}&rdquo;
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                    {isUnknown
-                      ? data.unknown_reason === "AI_UNAVAILABLE" ||
-                        data.unknown_reason === "AI_INVALID_RESPONSE"
-                        ? "Hệ thống phân tích AI tạm thời chưa phản hồi hợp lệ cho lượt này. Vui lòng thử lại sau."
-                        : "Hệ thống chưa đủ độ chắc chắn để kết luận. Chưa xác định không đồng nghĩa với an toàn."
-                      : isDangerous
-                        ? riskScore != null
-                          ? `Cấu trúc nội dung tương đồng cao với các mẫu lừa đảo đã ghi nhận (mức rủi ro ${riskScore}/100).`
-                          : "Cấu trúc nội dung tương đồng với các mẫu tin nhắn rác hoặc lừa đảo đã ghi nhận."
-                        : isSuspicious
-                          ? riskScore != null
-                            ? `Phát hiện một số dấu hiệu bất thường (mức rủi ro ${riskScore}/100). Nên xác minh thêm qua kênh chính thức.`
-                            : "Phát hiện dấu hiệu bất thường trong nội dung. Nên xác minh thêm nguồn gửi."
-                          : "Nội dung có cấu trúc thông báo thông thường, không phát hiện dấu hiệu đe dọa hay dẫn dụ."}
-                  </p>
-
-                  {urgencyKeywords.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      <p className="text-xs font-semibold text-rose-800 dark:text-rose-300">
-                        Từ ngữ gây áp lực thời gian:
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {urgencyKeywords.map((kw, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-800 dark:text-rose-200"
-                          >
-                            &ldquo;{kw}&rdquo;
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                  {riskScore != null && (
+                    <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 font-mono text-xs font-semibold text-foreground tabular-nums">
+                      {riskScore}/100
+                    </span>
                   )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Signal 4: Sender Identity (ONLY for TEXT checks when present) */}
-            {isMessageCheck && features?.brand_identity && (
-              <div className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "mt-2 size-2 shrink-0 rounded-full",
-                    features.brand_identity.is_registered_brandname
-                      ? "bg-emerald-600 dark:bg-emerald-400"
-                      : "bg-amber-500 dark:bg-amber-400"
-                  )}
-                />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    {features.brand_identity.is_registered_brandname
-                      ? `Đầu số thương hiệu chính danh (${features.brand_identity.sender_header})`
-                      : "Đầu số cá nhân / chưa định danh"}
-                  </p>
-                  <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                    {features.brand_identity.is_registered_brandname
-                      ? "Đầu số thương hiệu đã được các nhà mạng tại Việt Nam định danh chính thức."
-                      : `Tin nhắn gửi từ số lạ (${features.brand_identity.sender_header}), không phải đầu số thương hiệu của ngân hàng hay cơ quan nhà nước.`}
-                  </p>
+              {/* Row 4: Sender Identity (TEXT only) */}
+              {isMessageCheck && features?.brand_identity && (
+                <div className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-2 size-2 shrink-0 rounded-full",
+                      features.brand_identity.is_registered_brandname
+                        ? "bg-emerald-600 dark:bg-emerald-400"
+                        : "bg-amber-500 dark:bg-amber-400"
+                    )}
+                  />
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      {features.brand_identity.is_registered_brandname
+                        ? `Đầu số thương hiệu (${features.brand_identity.sender_header})`
+                        : `Số gửi chưa định danh (${features.brand_identity.sender_header})`}
+                    </p>
+                    <p className="max-w-[60ch] text-xs leading-relaxed text-muted-foreground">
+                      {features.brand_identity.is_registered_brandname
+                        ? "Đầu số đã được nhà mạng tại Việt Nam định danh chính thức."
+                        : "Không phải đầu số thương hiệu chính thức của ngân hàng hay cơ quan nhà nước."}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+              )}
+            </motion.div>
+          )}
 
-      {/* ============================================================== */}
-      {/* 3. PROGRESSIVE DISCLOSURE: TECHNICAL & AUDIT DRAWER (Collapsed) */}
-      {/* ============================================================== */}
-      {hasTechnicalDetails && (
-        <div className="bg-muted/20 px-5 py-4 sm:px-6">
-          <details className="group">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold text-muted-foreground transition-colors duration-120 select-none hover:text-foreground focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-2">
-                <Cpu aria-hidden="true" size={16} className="text-primary" />
-                <span>Chi tiết kỹ thuật & kiểm toán mô hình AI</span>
-              </span>
-              <CaretDown
-                aria-hidden="true"
-                size={14}
-                weight="bold"
-                className="shrink-0 transition-transform duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] group-open:rotate-180"
-              />
-            </summary>
-
-            <div className="mt-4 space-y-4 border-t border-border/70 pt-4 text-xs text-muted-foreground">
+          {/* TAB C: TECHNICAL & AUDIT METADATA */}
+          {currentTab === "technical" && (
+            <motion.div
+              key="panel-technical"
+              role="tabpanel"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-4 text-xs text-muted-foreground"
+            >
               <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div>
-                  <dt className="text-muted-foreground">Hệ thống thực thi</dt>
-                  <dd className="mt-0.5 font-mono font-semibold text-foreground">
+                <div className="rounded-lg border border-border/70 bg-muted/25 p-3 dark:border-white/10">
+                  <dt className="flex items-center gap-1.5 text-muted-foreground">
+                    <Cpu aria-hidden="true" size={14} className="text-primary" />
+                    <span>Mô hình thực thi</span>
+                  </dt>
+                  <dd className="mt-1 font-mono font-semibold text-foreground">
                     {data.engine_details?.model_name || "ScamShield Core"}
                   </dd>
                 </div>
-                <div>
+
+                <div className="rounded-lg border border-border/70 bg-muted/25 p-3 dark:border-white/10">
                   <dt className="text-muted-foreground">Thời gian phản hồi</dt>
-                  <dd className="mt-0.5 font-mono font-semibold text-foreground tabular-nums">
+                  <dd className="mt-1 font-mono font-semibold text-foreground tabular-nums">
                     {Math.round(data.execution_time_ms)} ms
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">Mã phiên kiểm tra</dt>
-                  <dd className="mt-0.5 font-mono font-semibold text-foreground tabular-nums">
+
+                <div className="rounded-lg border border-border/70 bg-muted/25 p-3 dark:border-white/10">
+                  <dt className="flex items-center gap-1.5 text-muted-foreground">
+                    <ShieldCheck aria-hidden="true" size={14} />
+                    <span>Mã phiên quét</span>
+                  </dt>
+                  <dd className="mt-1 font-mono font-semibold text-foreground tabular-nums">
                     {data.scan_id}
                   </dd>
                 </div>
@@ -834,7 +752,7 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
                       size={15}
                       className="text-primary"
                     />
-                    <span>Toàn văn tổng hợp đánh giá AI</span>
+                    <span>Toàn văn tổng hợp AI</span>
                   </div>
                   <FormattedCouncilSynthesis text={council.final_synthesis} />
                 </div>
@@ -844,29 +762,29 @@ export function ScamEvidenceCard({ data }: ScamEvidenceCardProps) {
                 features.visobert_token_attribution.length > 0 && (
                   <div className="space-y-2 border-t border-border/70 pt-3">
                     <p className="font-semibold text-foreground">
-                      Trọng số phân bổ từ khóa (ViSoBERT Attention)
+                      Trọng số từ khóa (ViSoBERT Attention)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {features.visobert_token_attribution.map((item, idx) => (
-                        <div
+                        <span
                           key={idx}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 font-mono text-xs"
                         >
-                          <span className="font-mono text-foreground">
+                          <span className="text-foreground">
                             &ldquo;{item.token}&rdquo;
                           </span>
-                          <span className="rounded bg-rose-500/10 px-1 font-mono font-semibold text-rose-700 tabular-nums dark:text-rose-300">
+                          <span className="rounded bg-rose-500/10 px-1 font-semibold text-rose-700 tabular-nums dark:text-rose-300">
                             +{(item.weight ?? 0).toFixed(2)}
                           </span>
-                        </div>
+                        </span>
                       ))}
                     </div>
                   </div>
                 )}
-            </div>
-          </details>
-        </div>
-      )}
-    </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.section>
   )
 }

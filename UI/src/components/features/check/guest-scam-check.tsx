@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { AnimatePresence, MotionConfig } from "motion/react"
 import { LockSimple } from "@phosphor-icons/react"
 import { ScamCheckInput } from "./scam-check-input"
 import { ScamQuotaStrip } from "./scam-quota-strip"
@@ -117,114 +118,140 @@ export function GuestScamCheck() {
   const activeError = error || quotaError
 
   return (
-    <section className="mx-auto w-full max-w-3xl px-4 pt-8 pb-10 sm:pt-12 sm:pb-12">
-      {/* Focused Hero — Keeps Composer Above the Fold */}
-      <header className="mb-6 space-y-2 text-center sm:mb-8">
-        <h1 className="font-heading text-3xl leading-tight font-bold tracking-[-0.025em] text-balance text-foreground sm:text-4xl">
-          Kiểm tra trước khi tin tưởng
-        </h1>
-        <p className="mx-auto max-w-[60ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
-          Đối chiếu tin nhắn, liên kết lạ, số điện thoại hoặc số tài khoản ngân
-          hàng với danh sách cảnh báo và phân tích AI chuyên sâu.
-        </p>
-      </header>
-
-      <div className="space-y-4">
-        {/* Compact Single-Line Quota Strip */}
-        <ScamQuotaStrip
-          mode="guest"
-          quota={quota}
-          isLoading={quotaLoading}
-          isBusy={busy}
-          error={quotaError}
-          onRefresh={() => void refreshQuota()}
+    <MotionConfig reducedMotion="user">
+      <section className="relative w-full overflow-x-clip">
+        {/* Localized Railway-inspired tactile dot-grid + radial atmospheric wash */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[440px] bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,rgba(14,165,233,0.10),transparent_72%)] dark:bg-[radial-gradient(ellipse_65%_55%_at_50%_0%,rgba(56,189,248,0.14),transparent_72%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[380px] opacity-[0.45] [background-image:radial-gradient(rgba(15,23,42,0.14)_1px,transparent_1px)] [background-size:20px_20px] [mask-image:radial-gradient(ellipse_75%_65%_at_50%_20%,#000_30%,transparent_100%)] dark:opacity-[0.25] dark:[background-image:radial-gradient(rgba(255,255,255,0.22)_1px,transparent_1px)]"
         />
 
-        {/* Unified Single-Surface Composer */}
-        <ScamCheckInput
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          drafts={draftMap}
-          onDraftChange={handleDraftChange}
-          onAnalyze={handleAnalyze}
-          isLoading={busy}
-          quotaExhausted={exhausted}
-          focusSignal={focusSignal}
-        />
+        <div className="relative mx-auto w-full max-w-3xl px-4 pt-10 pb-10 sm:pt-14 sm:pb-12">
+          {/* Focused Hero */}
+          <header className="mb-8 space-y-2 text-center">
+            <h1 className="font-heading text-3xl leading-tight font-bold tracking-[-0.025em] text-balance text-foreground sm:text-4xl">
+              Kiểm tra trước khi tin tưởng
+            </h1>
+            <p className="mx-auto max-w-[54ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Dán tin nhắn, liên kết lạ, số điện thoại hoặc số tài khoản để đối
+              chiếu cảnh báo và phân tích rủi ro tức thì.
+            </p>
+          </header>
 
-        {/* Minimal Privacy & Shortcut Cue When Idle */}
-        {!mappedResult && !busy && !activeError && (
-          <p className="flex items-center justify-center gap-2 px-1 text-center text-xs text-muted-foreground">
-            <LockSimple
-              aria-hidden="true"
-              size={14}
-              weight="bold"
-              className="shrink-0"
-            />
-            <span>
-              Không cần đăng nhập để kiểm tra · Hỗ trợ dán nhanh & tự nhận diện
-              định dạng.
-            </span>
-          </p>
-        )}
+          <div className="space-y-4">
+            {/* Exhausted Quota Alert (Appears ONLY when quota === 0) */}
+            <ScamQuotaStrip mode="guest" quota={quota} error={quotaError} />
 
-        {/* Honest Loading Progress Surface */}
-        {busy && <Tier2LoadingIndicator inputType={resultInputType} />}
-
-        {/* Recoverable Error Callout */}
-        {!busy && activeError && !exhausted && (
-          <ScamErrorCallout
-            title={
-              error
-                ? "Chưa thể hoàn tất kiểm tra"
-                : "Chưa thể tải hạn mức kiểm tra"
-            }
-            message={activeError}
-            preserveDraftHint={Boolean(error)}
-            onRetry={error ? handleRetry : undefined}
-            onRefreshQuota={quotaError ? () => void refreshQuota() : undefined}
-            isBusy={busy}
-          />
-        )}
-
-        {/* Progressive 3-Tier Verdict Flow */}
-        {mappedResult && !busy && (
-          <div
-            ref={resultAnchorRef}
-            aria-live="polite"
-            className="space-y-4 pt-2"
-          >
-            <ScamVerdictBanner
-              verdict={mappedResult.verdict}
-              provenance={mappedResult.execution_provenance}
-              executionTimeMs={mappedResult.execution_time_ms}
-              modelName={mappedResult.engine_details?.model_name}
-              features={mappedResult.deterministic_features}
-              targetBank={mappedResult.target_bank}
-              inputType={mappedResult.input_type}
-              matchedIndicator={mappedResult.matched_indicator}
-              decidedByStage={mappedResult.decided_by_stage}
-              mode="guest"
-              checkedContent={lastSubmittedContent}
-              isStale={isResultStale}
+            {/* Claude-Style Floating Omni-Composer */}
+            <ScamCheckInput
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              drafts={draftMap}
+              onDraftChange={handleDraftChange}
+              onAnalyze={handleAnalyze}
+              isLoading={busy}
+              quotaExhausted={exhausted}
+              focusSignal={focusSignal}
+              quota={quota}
+              quotaLoading={quotaLoading}
+              quotaError={quotaError}
+              onRefreshQuota={() => void refreshQuota()}
+              showStarterChips={!mappedResult}
             />
 
-            <ScamEvidenceCard data={mappedResult} />
+            {/* Minimal Privacy Note (Idle Only) */}
+            {!mappedResult && !busy && !activeError && (
+              <p className="flex items-center justify-center gap-2 pt-1 text-center text-xs text-muted-foreground">
+                <LockSimple
+                  aria-hidden="true"
+                  size={13}
+                  weight="bold"
+                  className="shrink-0"
+                />
+                <span>
+                  Không cần đăng nhập · Tự nhận diện loại nội dung khi dán
+                </span>
+              </p>
+            )}
 
-            <ScamActionBar
-              scanId={mappedResult.scan_id}
-              checkId={mappedResult.check_id}
-              mode="guest"
-              inputType={mappedResult.input_type}
-              targetIdentifier={targetIdentifier}
-              reportedMessage={lastSubmittedContent || null}
-              description={mappedResult.verdict.summary}
-              riskLevel={mappedResult.verdict.risk_level}
-              onReset={handleReset}
-            />
+            {/* Smooth Morphing States: Scanning -> Error -> Unified Verdict */}
+            <AnimatePresence mode="wait">
+              {busy && (
+                <Tier2LoadingIndicator
+                  key="guest-loading"
+                  inputType={resultInputType}
+                />
+              )}
+
+              {!busy && activeError && !exhausted && (
+                <ScamErrorCallout
+                  key="guest-error"
+                  title={
+                    error
+                      ? "Chưa thể hoàn tất kiểm tra"
+                      : "Chưa thể tải hạn mức kiểm tra"
+                  }
+                  message={activeError}
+                  preserveDraftHint={Boolean(error)}
+                  onRetry={error ? handleRetry : undefined}
+                  onRefreshQuota={
+                    quotaError ? () => void refreshQuota() : undefined
+                  }
+                  isBusy={busy}
+                />
+              )}
+
+              {mappedResult && !busy && (
+                <div
+                  key={mappedResult.scan_id}
+                  ref={resultAnchorRef}
+                  aria-live="polite"
+                  className="space-y-4 pt-2"
+                >
+                  <ScamVerdictBanner
+                    verdict={mappedResult.verdict}
+                    provenance={mappedResult.execution_provenance}
+                    executionTimeMs={mappedResult.execution_time_ms}
+                    modelName={mappedResult.engine_details?.model_name}
+                    features={mappedResult.deterministic_features}
+                    targetBank={mappedResult.target_bank}
+                    inputType={mappedResult.input_type}
+                    matchedIndicator={mappedResult.matched_indicator}
+                    decidedByStage={mappedResult.decided_by_stage}
+                    mode="guest"
+                    checkedContent={lastSubmittedContent}
+                    actionableSteps={
+                      mappedResult.actionable_steps ||
+                      mappedResult.recommendations ||
+                      []
+                    }
+                    scanId={mappedResult.scan_id}
+                    isStale={isResultStale}
+                  />
+
+                  <ScamEvidenceCard data={mappedResult} />
+
+                  <ScamActionBar
+                    scanId={mappedResult.scan_id}
+                    checkId={mappedResult.check_id}
+                    mode="guest"
+                    inputType={mappedResult.input_type}
+                    targetIdentifier={targetIdentifier}
+                    reportedMessage={lastSubmittedContent || null}
+                    description={mappedResult.verdict.summary}
+                    riskLevel={mappedResult.verdict.risk_level}
+                    onReset={handleReset}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
           </div>
-        )}
-      </div>
-    </section>
+        </div>
+      </section>
+    </MotionConfig>
   )
 }

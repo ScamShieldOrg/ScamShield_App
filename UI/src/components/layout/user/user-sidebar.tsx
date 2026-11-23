@@ -1,21 +1,22 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
+import { MotionConfig, motion } from "motion/react"
 import {
-  ShieldCheck,
+  Bell,
   ClockCounterClockwise,
   FilePlus,
   FolderSimple,
+  Moon,
   Scales,
-  Bell,
-  Trophy,
-  CaretRight,
+  ShieldCheck,
   SignOut,
   Sun,
-  Moon,
+  Trophy,
+  X,
 } from "@phosphor-icons/react"
 import {
   USER_NAV_ITEMS,
@@ -32,26 +33,56 @@ interface UserSidebarProps {
   onCloseMobile?: () => void
 }
 
+interface NavGroup {
+  label: string
+  hrefs: readonly string[]
+}
+
+const NAV_GROUPS: readonly NavGroup[] = [
+  {
+    label: "Kiểm tra",
+    hrefs: ["/user/check", "/user/history"],
+  },
+  {
+    label: "Đóng góp & Xử lý",
+    hrefs: ["/user/reports/new", "/user/reports", "/user/disputes"],
+  },
+  {
+    label: "Cá nhân",
+    hrefs: ["/user/notifications", "/user/reputation"],
+  },
+]
+
 export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
   const pathname = usePathname()
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const handleLogout = useLogout()
   const { unreadCount, fetchUnreadCount } = useNotificationStore()
+
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => setMounted(true))
+    return () => window.cancelAnimationFrame(id)
+  }, [])
 
   useEffect(() => {
     fetchUnreadCount()
   }, [fetchUnreadCount])
 
-  // Only the most specific matching nav item is highlighted
   const activeHref = getActiveUserNavItem(pathname)?.href
+  const isDark = mounted && resolvedTheme === "dark"
 
   const renderIcon = (iconName: UserNavItem["iconName"], isActive: boolean) => {
     const props = {
+      "aria-hidden": true as const,
       size: 18,
       weight: (isActive ? "fill" : "regular") as "fill" | "regular",
-      className: isActive
-        ? "text-white dark:text-primary-foreground"
-        : "text-[#45464D] dark:text-muted-foreground",
+      className: cn(
+        "shrink-0 transition-colors duration-120",
+        isActive
+          ? "text-primary"
+          : "text-muted-foreground group-hover:text-foreground"
+      ),
     }
 
     switch (iconName) {
@@ -74,119 +105,213 @@ export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
     }
   }
 
+  // Group items cleanly while preserving any future items added to USER_NAV_ITEMS
+  const groupedHrefs = new Set(NAV_GROUPS.flatMap((g) => g.hrefs))
+  const ungroupedItems = USER_NAV_ITEMS.filter(
+    (item) => !groupedHrefs.has(item.href)
+  )
+
+  const sections = [
+    ...NAV_GROUPS.map((group) => ({
+      label: group.label,
+      items: group.hrefs
+        .map((href) => USER_NAV_ITEMS.find((item) => item.href === href))
+        .filter((item): item is UserNavItem => Boolean(item)),
+    })).filter((section) => section.items.length > 0),
+    ...(ungroupedItems.length > 0
+      ? [{ label: "Khác", items: ungroupedItems }]
+      : []),
+  ]
+
   return (
-    <aside
-      className={cn(
-        "flex h-screen w-72 shrink-0 flex-col justify-between border-r border-[#C6C6CE]/40 bg-white select-none dark:border-border dark:bg-card",
-        className
-      )}
-    >
-      {/* Top Section: Brand & Profile & Nav */}
-      <div className="flex flex-col gap-4 overflow-y-auto p-4">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-2.5 px-2 pt-2">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-[#0B132B] text-[#89CEFF] shadow-xs dark:bg-primary dark:text-primary-foreground">
-            <ShieldCheck size={22} weight="fill" />
-          </div>
-          <span className="font-heading text-lg font-bold tracking-tight text-[#131B2E] dark:text-foreground">
-            ScamShield VN
-          </span>
-        </div>
+    <MotionConfig reducedMotion="user">
+      <aside
+        aria-label="Điều hướng cổng người dùng"
+        className={cn(
+          "flex h-screen w-72 shrink-0 flex-col justify-between border-r border-border/80 bg-card font-sans text-card-foreground antialiased select-none dark:border-white/10 dark:bg-sidebar",
+          className
+        )}
+      >
+        {/* Top Section: Brand + Profile/Quota + Grouped Nav */}
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+          {/* Brand Row */}
+          <div className="flex items-center justify-between gap-2 px-1 pt-1">
+            <Link
+              href="/user/check"
+              onClick={onCloseMobile}
+              className="group flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <div className="flex size-9 items-center justify-center rounded-lg border border-black/10 bg-[#0B132B] text-[#89CEFF] shadow-2xs transition-transform duration-120 group-hover:scale-[1.03] dark:border-white/15 dark:bg-primary/15 dark:text-primary">
+                <ShieldCheck aria-hidden="true" size={20} weight="fill" />
+              </div>
+              <span className="font-heading text-base font-bold tracking-[-0.02em] text-foreground">
+                ScamShield VN
+              </span>
+            </Link>
 
-        <UserQuotaCard />
-
-        {/* Navigation Menu */}
-        <nav className="flex flex-col gap-1 pt-1">
-          {USER_NAV_ITEMS.map((item) => {
-            const isActive = item.href === activeHref
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
+            {onCloseMobile && (
+              <button
+                type="button"
                 onClick={onCloseMobile}
-                className={cn(
-                  "flex items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all",
-                  isActive
-                    ? "bg-[#0B132B] text-white shadow-xs dark:bg-primary dark:text-primary-foreground"
-                    : "text-[#45464D] hover:bg-[#F2F3FF] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
-                )}
+                aria-label="Đóng thanh điều hướng"
+                className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-120 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:hidden"
               >
-                <div className="flex items-center gap-2.5">
-                  {renderIcon(item.iconName, isActive)}
-                  <span>{item.title}</span>
-                </div>
+                <X aria-hidden="true" size={18} weight="bold" />
+              </button>
+            )}
+          </div>
 
-                <div className="flex items-center gap-1.5">
-                  {(() => {
-                    const badge =
+          <UserQuotaCard onNavigate={onCloseMobile} />
+
+          {/* Grouped Tactile Navigation */}
+          <nav aria-label="Menu chính" className="flex flex-col gap-4 pt-1">
+            {sections.map((section) => (
+              <div key={section.label} className="space-y-1">
+                <p className="px-3 pb-1 text-xs font-medium text-muted-foreground/80">
+                  {section.label}
+                </p>
+
+                <ul className="space-y-1">
+                  {section.items.map((item) => {
+                    const isActive = item.href === activeHref
+                    const rawBadge =
                       item.href === "/user/notifications"
                         ? unreadCount
                         : item.badge
-                    if (!badge) return null
-                    if (typeof badge === "number" && badge <= 0) return null
+                    const hasBadge =
+                      Boolean(rawBadge) &&
+                      !(typeof rawBadge === "number" && rawBadge <= 0)
                     const displayBadge =
-                      typeof badge === "number" && badge > 99 ? "99+" : badge
+                      typeof rawBadge === "number" && rawBadge > 99
+                        ? "99+"
+                        : rawBadge
+
                     return (
-                      <span
-                        className={cn(
-                          "py-0.2 rounded-full px-1.5 text-[10px] font-bold text-white",
-                          item.badgeVariant === "danger"
-                            ? "bg-[#BA1A1A]"
-                            : "bg-primary"
-                        )}
-                      >
-                        {displayBadge}
-                      </span>
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          onClick={onCloseMobile}
+                          aria-current={isActive ? "page" : undefined}
+                          className={cn(
+                            "group relative flex min-h-10 items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                            isActive
+                              ? "font-semibold text-foreground"
+                              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:hover:bg-white/[0.05]"
+                          )}
+                        >
+                          {isActive && (
+                            <motion.span
+                              layoutId="user-sidebar-active-pill"
+                              transition={{
+                                type: "spring",
+                                stiffness: 420,
+                                damping: 32,
+                              }}
+                              className="absolute inset-0 rounded-lg bg-muted/90 shadow-2xs ring-1 ring-border dark:bg-white/[0.08] dark:shadow-[inset_0_1px_0_rgb(255,255,255,0.08)] dark:ring-white/12"
+                            />
+                          )}
+
+                          <span className="relative z-10 flex min-w-0 items-center gap-3">
+                            {renderIcon(item.iconName, isActive)}
+                            <span className="truncate">{item.title}</span>
+                          </span>
+
+                          {hasBadge && (
+                            <span
+                              className={cn(
+                                "relative z-10 inline-flex min-w-5 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums",
+                                item.badgeVariant === "danger"
+                                  ? "border border-rose-500/25 bg-rose-500/12 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+                                  : "bg-primary/12 text-primary"
+                              )}
+                            >
+                              {displayBadge}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
                     )
-                  })()}
-                  {isActive && (
-                    <CaretRight
-                      size={12}
-                      weight="bold"
-                      className="text-white/80 dark:text-primary-foreground/80"
-                    />
-                  )}
-                </div>
-              </Link>
-            )
-          })}
-        </nav>
-      </div>
+                  })}
+                </ul>
+              </div>
+            ))}
+          </nav>
+        </div>
 
-      {/* Bottom Section: Theme Switch & Logout */}
-      <div className="space-y-2 border-t border-[#C6C6CE]/30 p-4 dark:border-border">
-        {/* Dark/Light toggle switch */}
-        <button
-          type="button"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold text-[#45464D] transition-colors hover:bg-[#F2F3FF] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
-        >
-          <div className="flex items-center gap-2">
-            <Sun size={16} weight="bold" className="hidden dark:block" />
-            <Moon size={16} weight="bold" className="block dark:hidden" />
-            <span>{theme === "dark" ? "Giao diện tối" : "Giao diện sáng"}</span>
-          </div>
-          <div className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-[#D1DE36]/30 transition-colors duration-200 ease-in-out dark:bg-muted">
-            <span
+        {/* Bottom Utility Footer: Segmented Theme Switch + Logout */}
+        <div className="space-y-2 border-t border-border/80 p-4 dark:border-white/10">
+          {/* 2-Segment Light / Dark Switch (Claude / Railway Feel) */}
+          <div
+            role="group"
+            aria-label="Chọn giao diện sáng hoặc tối"
+            className="grid grid-cols-2 gap-1 rounded-lg border border-border/80 bg-muted/40 p-1 dark:border-white/10 dark:bg-white/[0.03]"
+          >
+            <button
+              type="button"
+              aria-pressed={mounted ? !isDark : undefined}
+              onClick={() => setTheme("light")}
               className={cn(
-                "pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out",
-                theme === "dark" ? "translate-x-4 bg-primary" : "translate-x-0"
+                "relative inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                mounted && !isDark
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               )}
-            />
-          </div>
-        </button>
+            >
+              {mounted && !isDark && (
+                <motion.span
+                  layoutId="user-sidebar-theme-pill"
+                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                  className="absolute inset-0 rounded-md bg-background shadow-2xs ring-1 ring-border"
+                />
+              )}
+              <Sun
+                aria-hidden="true"
+                size={14}
+                weight={mounted && !isDark ? "fill" : "regular"}
+                className="relative z-10"
+              />
+              <span className="relative z-10">Sáng</span>
+            </button>
 
-        {/* Secure Logout */}
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-[#BA1A1A] transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
-        >
-          <SignOut size={16} weight="bold" />
-          <span>Đăng xuất</span>
-        </button>
-      </div>
-    </aside>
+            <button
+              type="button"
+              aria-pressed={mounted ? isDark : undefined}
+              onClick={() => setTheme("dark")}
+              className={cn(
+                "relative inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                isDark
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {isDark && (
+                <motion.span
+                  layoutId="user-sidebar-theme-pill"
+                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                  className="absolute inset-0 rounded-md bg-card shadow-2xs ring-1 ring-white/12"
+                />
+              )}
+              <Moon
+                aria-hidden="true"
+                size={14}
+                weight={isDark ? "fill" : "regular"}
+                className="relative z-10"
+              />
+              <span className="relative z-10">Tối</span>
+            </button>
+          </div>
+
+          {/* Logout Action */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex min-h-10 w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-rose-700 transition-colors duration-120 hover:bg-rose-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-rose-400 dark:hover:bg-rose-500/15"
+          >
+            <SignOut aria-hidden="true" size={17} weight="bold" />
+            <span>Đăng xuất</span>
+          </button>
+        </div>
+      </aside>
+    </MotionConfig>
   )
 }

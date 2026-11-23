@@ -1,4 +1,8 @@
-import type { CheckType } from "@/features/check/types/check.types"
+import type {
+  CheckType,
+  DeterministicFeatures,
+  RiskLevel,
+} from "@/features/check/types/check.types"
 
 export interface TabMeta {
   type: CheckType
@@ -13,6 +17,41 @@ export interface TabMeta {
   formatExample: string
 }
 
+export interface QuickScenario {
+  id: string
+  label: string
+  type: CheckType
+  sample: string
+}
+
+export const QUICK_SCENARIOS: readonly QuickScenario[] = [
+  {
+    id: "bank-sms",
+    label: "SMS giả ngân hàng",
+    type: "TEXT",
+    sample:
+      "Vietcombank: Tai khoan cua quy khach se bi khoa trong 24h do chua xac thuc sinh trac hoc. Truy cap https://vcb-xacthuc-vn.xyz ngay de tranh bi phong toa.",
+  },
+  {
+    id: "phishing-url",
+    label: "Liên kết lạ",
+    type: "URL",
+    sample: "https://nhanqua-shopee-2026.xyz/claim",
+  },
+  {
+    id: "unknown-phone",
+    label: "Số điện thoại lạ",
+    type: "PHONE",
+    sample: "0912 345 678",
+  },
+  {
+    id: "bank-account",
+    label: "Tra cứu tài khoản",
+    type: "BANK_ACCOUNT",
+    sample: "1903 6281 9283 01",
+  },
+]
+
 export const CHECK_TAB_ORDER: readonly CheckType[] = [
   "TEXT",
   "URL",
@@ -26,8 +65,8 @@ export const CHECK_TAB_META: Record<CheckType, TabMeta> = {
     label: "Tin nhắn / Văn bản",
     shortLabel: "Tin nhắn",
     placeholder:
-      "Dán nội dung tin nhắn SMS, Zalo, email hoặc lời mời chuyển tiền đáng ngờ...",
-    submitLabel: "Phân tích ngay",
+      "Dán tin nhắn SMS, đường link, số điện thoại hoặc số tài khoản cần kiểm tra…",
+    submitLabel: "Phân tích",
     loadingLabel: "Đang phân tích…",
     scopeNote: null,
     inputMode: "text",
@@ -38,7 +77,7 @@ export const CHECK_TAB_META: Record<CheckType, TabMeta> = {
     type: "URL",
     label: "Đường dẫn (URL)",
     shortLabel: "Đường dẫn",
-    placeholder: "Ví dụ: https://vcb-xacthuc.xyz hoặc example.com",
+    placeholder: "Dán địa chỉ website nghi vấn (ví dụ: https://vcb-xacthuc.xyz)…",
     submitLabel: "Kiểm tra liên kết",
     loadingLabel: "Đang kiểm tra…",
     scopeNote: null,
@@ -50,11 +89,11 @@ export const CHECK_TAB_META: Record<CheckType, TabMeta> = {
     type: "PHONE",
     label: "Số điện thoại",
     shortLabel: "Số điện thoại",
-    placeholder: "Ví dụ: 0912 345 678, +84 912 345 678 hoặc 1900 545413",
+    placeholder: "Nhập số điện thoại hoặc tổng đài (ví dụ: 0912 345 678)…",
     submitLabel: "Tra cứu số này",
     loadingLabel: "Đang tra cứu…",
     scopeNote:
-      "Đối chiếu trực tiếp trong danh sách cảnh báo và danh bạ tổng đài đã xác minh.",
+      "Đối chiếu trực tiếp trong danh sách cảnh báo và danh bạ tổng đài xác minh.",
     inputMode: "tel",
     isMultiline: false,
     formatExample:
@@ -64,11 +103,11 @@ export const CHECK_TAB_META: Record<CheckType, TabMeta> = {
     type: "BANK_ACCOUNT",
     label: "Số tài khoản",
     shortLabel: "Số tài khoản",
-    placeholder: "Ví dụ: 0123 456 789 hoặc 190362819283",
+    placeholder: "Nhập số tài khoản ngân hàng (6–30 chữ số)…",
     submitLabel: "Tra cứu tài khoản",
     loadingLabel: "Đang tra cứu…",
     scopeNote:
-      "Chỉ tra cứu danh sách cảnh báo và danh bạ xác minh — không dùng AI phán đoán. Chưa có trong danh sách không đồng nghĩa với an toàn.",
+      "Chỉ tra cứu danh sách cảnh báo & danh bạ xác minh — không dùng AI phán đoán.",
     inputMode: "numeric",
     isMultiline: false,
     formatExample:
@@ -79,9 +118,12 @@ export const CHECK_TAB_META: Record<CheckType, TabMeta> = {
 const KNOWN_TLDS =
   "com|net|org|info|biz|vn|io|co|me|to|cc|tv|xyz|top|vip|shop|online|site|club|app|link|live|store|asia|tk|ml|ga|cf|gq|icu|cyou|bond|sbs|click|fun|pro|win|bet|best|life|world|today|news|space|website|tech|dev|ly|gl|gd|in|us|uk|cn|ru"
 
+// Full URLs (scheme or www.) match case-insensitively; bare domains require a
+// lowercase TLD so missing spaces after a period ("tri.Co", "khac.Do") are not
+// miscounted as links.
 const MESSAGE_URL_REGEX = new RegExp(
-  `https?:\\/\\/[^\\s<>"']+|www\\.[^\\s<>"']+|(?<![\\w@.])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${KNOWN_TLDS})\\b(?:\\/[^\\s<>"']*)?`,
-  "gi"
+  `[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^\\s<>"']+|[Ww][Ww][Ww]\\.[^\\s<>"']+|(?<![\\w@.])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${KNOWN_TLDS})\\b(?:\\/[^\\s<>"']*)?`,
+  "g"
 )
 
 const MESSAGE_PHONE_REGEX =
@@ -110,19 +152,13 @@ export function countMessageEntities(content: string): {
 }
 
 /**
- * Detects whether a single-token input pasted into the TEXT tab is actually a
- * standalone URL, Vietnamese phone number, or bank account number so the UI can
- * offer a 1-click tab switch without hijacking user intent.
+ * Infers the most accurate CheckType directly from any pasted or typed string.
+ * Used by the Omni-Composer to smoothly auto-detect URL, PHONE, BANK_ACCOUNT, or TEXT.
  */
-export function detectSuggestedCheckType(
-  content: string,
-  activeTab: CheckType
-): CheckType | null {
-  if (activeTab !== "TEXT") return null
+export function inferCheckTypeFromContent(content: string): CheckType {
   const trimmed = content.trim()
-  if (!trimmed || /\r|\n/.test(trimmed)) return null
+  if (!trimmed || /\r|\n/.test(trimmed)) return "TEXT"
 
-  // 1. Standalone URL (no spaces, not an email address)
   if (
     !/\s/.test(trimmed) &&
     !trimmed.includes("@") &&
@@ -140,14 +176,12 @@ export function detectSuggestedCheckType(
     }
   }
 
-  // 2. Standalone phone / hotline (only digits and phone separators)
   if (/^[+\d\s.()-]+$/.test(trimmed)) {
     const normalizedPhone = trimmed.replace(/[\s.()-]/g, "")
     if (STANDALONE_VN_PHONE_REGEX.test(normalizedPhone)) {
       return "PHONE"
     }
 
-    // 3. Standalone bank account (6-30 digits, no '+' or parens)
     if (/^[\d\s.-]+$/.test(trimmed)) {
       const digitsOnly = trimmed.replace(/[\s.-]/g, "")
       if (/^\d{6,30}$/.test(digitsOnly)) {
@@ -156,7 +190,20 @@ export function detectSuggestedCheckType(
     }
   }
 
-  return null
+  return "TEXT"
+}
+
+/**
+ * Detects whether a single-token input pasted into the TEXT tab is actually a
+ * standalone URL, Vietnamese phone number, or bank account number.
+ */
+export function detectSuggestedCheckType(
+  content: string,
+  activeTab: CheckType
+): CheckType | null {
+  if (activeTab !== "TEXT") return null
+  const inferred = inferCheckTypeFromContent(content)
+  return inferred === "TEXT" ? null : inferred
 }
 
 /**
@@ -225,4 +272,185 @@ export function summarizeCheckedContent(
   if (!singleLine) return null
   if (singleLine.length <= maxLength) return singleLine
   return `${singleLine.slice(0, maxLength - 1)}…`
+}
+
+export type AnnotationKind =
+  | "plain"
+  | "url_danger"
+  | "url_safe"
+  | "phone_personal"
+  | "phone_hotline"
+  | "urgency"
+  | "token_risk"
+
+export interface AnnotatedSegment {
+  id: string
+  text: string
+  kind: AnnotationKind
+  label?: string
+  reason?: string
+}
+
+interface RawMatch {
+  start: number
+  end: number
+  priority: number
+  kind: Exclude<AnnotationKind, "plain">
+  label: string
+  reason: string
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+/**
+ * Splits a checked message into non-overlapping highlighted segments strictly
+ * grounded in backend-returned or extracted deterministic features.
+ */
+export function buildAnnotatedSegments(
+  rawText: string,
+  features?: DeterministicFeatures,
+  riskLevel?: RiskLevel
+): AnnotatedSegment[] {
+  if (!rawText) return []
+  const candidates: RawMatch[] = []
+
+  const addMatches = (
+    pattern: RegExp,
+    priority: number,
+    kind: Exclude<AnnotationKind, "plain">,
+    label: string,
+    reason: string
+  ) => {
+    let m: RegExpExecArray | null
+    while ((m = pattern.exec(rawText)) !== null) {
+      if (m[0].length === 0) break
+      candidates.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        priority,
+        kind,
+        label,
+        reason,
+      })
+    }
+  }
+
+  // 1. URLs (highest priority)
+  const urls = features?.url_analysis?.detected_urls ?? []
+  const isOfficialUrl = Boolean(features?.url_analysis?.is_in_official_whitelist)
+  for (const url of urls) {
+    const clean = url.trim()
+    if (!clean) continue
+    addMatches(
+      new RegExp(escapeRegExp(clean), "gi"),
+      4,
+      isOfficialUrl ? "url_safe" : "url_danger",
+      isOfficialUrl ? "Tên miền chính thống" : "Liên kết chưa chứng thực",
+      isOfficialUrl
+        ? "Tên miền thuộc danh bạ tổ chức / ngân hàng chính thức đã xác minh."
+        : "Đường dẫn nằm ngoài danh bạ chính thức — kẻ gian thường dùng tên miền na ná ngân hàng để đánh cắp mật khẩu & OTP."
+    )
+  }
+
+  // 2. Phone numbers
+  const phones = features?.phone_analysis?.detected_phones ?? []
+  const isOfficialHotline = Boolean(features?.phone_analysis?.is_official_hotline)
+  for (const phone of phones) {
+    const digits = phone.replace(/\D/g, "")
+    if (digits.length < 7) continue
+    const flexiblePattern = digits.split("").join("[\\s.\\-()]*")
+    const prefix = phone.trim().startsWith("+") ? "\\+?" : ""
+    addMatches(
+      new RegExp(`${prefix}${flexiblePattern}`, "g"),
+      3,
+      isOfficialHotline ? "phone_hotline" : "phone_personal",
+      isOfficialHotline ? "Đầu số tổng đài" : "Đầu số cá nhân",
+      isOfficialHotline
+        ? "Đầu số 1800/1900 dạng tổng đài chăm sóc khách hàng."
+        : "Số di động cá nhân, không phải đầu số tổng đài chính danh của ngân hàng hay cơ quan nhà nước."
+    )
+  }
+
+  // 3. Urgency keywords
+  const urgencyKeywords = features?.urgency_indicators?.matched_keywords ?? []
+  for (const kw of urgencyKeywords) {
+    const clean = kw.trim()
+    if (clean.length < 2) continue
+    addMatches(
+      new RegExp(escapeRegExp(clean), "gi"),
+      2,
+      "urgency",
+      "Tạo áp lực thời gian",
+      "Cụm từ gây hoảng loạn hoặc thúc ép hành động gấp nhằm khiến người nhận không kịp kiểm chứng."
+    )
+  }
+
+  // 4. High-weight ViSoBERT attribution tokens (only when risky)
+  if (riskLevel && riskLevel !== "SAFE") {
+    const tokens = (features?.visobert_token_attribution ?? []).filter(
+      (item) => (item.weight ?? 0) >= 0.35 && item.token.trim().length >= 2
+    )
+    for (const item of tokens) {
+      addMatches(
+        new RegExp(escapeRegExp(item.token.trim()), "gi"),
+        1,
+        "token_risk",
+        "Từ khóa rủi ro cao",
+        `AI đánh giá cụm từ này đóng góp mạnh (+${item.weight.toFixed(2)}) vào dấu hiệu kịch bản lừa đảo.`
+      )
+    }
+  }
+
+  if (candidates.length === 0) {
+    return [{ id: "plain-0", text: rawText, kind: "plain" }]
+  }
+
+  // Sort by highest priority first, then longest span, then earliest position
+  candidates.sort((a, b) => {
+    if (b.priority !== a.priority) return b.priority - a.priority
+    if (b.end - b.start !== a.end - a.start) return b.end - b.start - (a.end - a.start)
+    return a.start - b.start
+  })
+
+  // Greedily pick non-overlapping spans
+  const accepted: RawMatch[] = []
+  for (const cand of candidates) {
+    const overlaps = accepted.some(
+      (existing) => cand.start < existing.end && cand.end > existing.start
+    )
+    if (!overlaps) accepted.push(cand)
+  }
+  accepted.sort((a, b) => a.start - b.start)
+
+  const segments: AnnotatedSegment[] = []
+  let cursor = 0
+  accepted.forEach((match, idx) => {
+    if (match.start > cursor) {
+      segments.push({
+        id: `plain-${cursor}`,
+        text: rawText.slice(cursor, match.start),
+        kind: "plain",
+      })
+    }
+    segments.push({
+      id: `hl-${idx}-${match.start}`,
+      text: rawText.slice(match.start, match.end),
+      kind: match.kind,
+      label: match.label,
+      reason: match.reason,
+    })
+    cursor = match.end
+  })
+
+  if (cursor < rawText.length) {
+    segments.push({
+      id: `plain-${cursor}`,
+      text: rawText.slice(cursor),
+      kind: "plain",
+    })
+  }
+
+  return segments
 }

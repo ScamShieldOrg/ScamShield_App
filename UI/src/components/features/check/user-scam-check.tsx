@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { AnimatePresence, MotionConfig } from "motion/react"
 import { LockSimple } from "@phosphor-icons/react"
 import { useUserScamCheck } from "@/features/check/hooks/use-user-scam-check"
 import { ScamCheckInput } from "./scam-check-input"
@@ -57,101 +58,122 @@ export function UserScamCheck() {
   const activeError = error || quotaError
 
   return (
-    <div className="space-y-4">
-      {/* Compact Single-Line Quota Strip */}
-      <ScamQuotaStrip
-        mode="user"
-        quota={quota}
-        isLoading={quotaLoading}
-        isBusy={isLoading}
-        error={quotaError}
-        onRefresh={() => void refreshQuota()}
-      />
-
-      {/* Unified Single-Surface Composer */}
-      <ScamCheckInput
-        activeTab={inputType}
-        onTabChange={changeType}
-        drafts={drafts}
-        onDraftChange={changeDraft}
-        onAnalyze={analyze}
-        isLoading={isLoading}
-        quotaExhausted={quotaExhausted}
-        focusSignal={focusSignal}
-      />
-
-      {/* Quiet Minimal Privacy Note When Idle */}
-      {!result && !isLoading && !activeError && (
-        <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-          <LockSimple
-            aria-hidden="true"
-            size={14}
-            weight="bold"
-            className="shrink-0"
-          />
-          <span>
-            Nội dung được đối chiếu bảo mật. Hỗ trợ dán nhanh và chuyển tab tự
-            động theo định dạng.
-          </span>
-        </p>
-      )}
-
-      {/* Honest Loading Progress Surface */}
-      {isLoading && <Tier2LoadingIndicator inputType={resultType} />}
-
-      {/* Recoverable Error Callout (Preserves User Input) */}
-      {!isLoading && activeError && (
-        <ScamErrorCallout
-          title={
-            error
-              ? "Chưa thể hoàn tất kiểm tra"
-              : "Chưa thể tải hạn mức kiểm tra"
-          }
-          message={activeError}
-          preserveDraftHint={Boolean(error)}
-          onRetry={error ? retry : undefined}
-          onRefreshQuota={quotaError ? () => void refreshQuota() : undefined}
-          isBusy={isLoading || quotaLoading}
-        />
-      )}
-
-      {/* Progressive 3-Tier Verdict Flow */}
-      {result && !isLoading && (
+    <MotionConfig reducedMotion="user">
+      <div className="relative space-y-4">
+        {/* Subtle localized top radial depth behind Composer */}
         <div
-          ref={resultAnchorRef}
-          aria-live="polite"
-          className="space-y-4 pt-2"
-        >
-          <ScamVerdictBanner
-            verdict={result.verdict}
-            provenance={result.execution_provenance}
-            executionTimeMs={result.execution_time_ms}
-            modelName={result.engine_details?.model_name}
-            features={result.deterministic_features}
-            targetBank={result.target_bank}
-            inputType={result.input_type}
-            matchedIndicator={result.matched_indicator}
-            decidedByStage={result.decided_by_stage}
-            mode="user"
-            checkedContent={lastSubmittedContent}
-            isStale={isResultStale}
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-x-6 -top-10 h-64 rounded-3xl bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,rgba(14,165,233,0.08),transparent_72%)] dark:bg-[radial-gradient(ellipse_65%_55%_at_50%_0%,rgba(56,189,248,0.12),transparent_72%)]"
+        />
+
+        <div className="relative space-y-4">
+          {/* Exhausted Quota Alert (Appears ONLY when quota === 0) */}
+          <ScamQuotaStrip mode="user" quota={quota} error={quotaError} />
+
+          {/* Claude-Style Floating Omni-Composer */}
+          <ScamCheckInput
+            activeTab={inputType}
+            onTabChange={changeType}
+            drafts={drafts}
+            onDraftChange={changeDraft}
+            onAnalyze={analyze}
+            isLoading={isLoading}
+            quotaExhausted={quotaExhausted}
+            focusSignal={focusSignal}
+            quota={quota}
+            quotaLoading={quotaLoading}
+            quotaError={quotaError}
+            onRefreshQuota={() => void refreshQuota()}
+            showStarterChips={!result}
           />
 
-          <ScamEvidenceCard data={result} />
+          {/* Quiet Minimal Privacy Note When Idle */}
+          {!result && !isLoading && !activeError && (
+            <p className="flex items-center justify-center gap-2 pt-1 text-center text-xs text-muted-foreground">
+              <LockSimple
+                aria-hidden="true"
+                size={13}
+                weight="bold"
+                className="shrink-0"
+              />
+              <span>
+                Tự nhận diện Tin nhắn / URL / SĐT / Tài khoản khi dán · Lịch sử
+                kiểm tra được lưu tự động
+              </span>
+            </p>
+          )}
 
-          <ScamActionBar
-            scanId={result.scan_id}
-            checkId={result.check_id}
-            mode="user"
-            inputType={result.input_type}
-            targetIdentifier={targetIdentifier}
-            reportedMessage={lastSubmittedContent || null}
-            description={result.verdict.summary}
-            riskLevel={result.verdict.risk_level}
-            onReset={handleReset}
-          />
+          {/* Smooth Morphing States */}
+          <AnimatePresence mode="wait">
+            {isLoading && (
+              <Tier2LoadingIndicator
+                key="user-loading"
+                inputType={resultType}
+              />
+            )}
+
+            {!isLoading && activeError && (
+              <ScamErrorCallout
+                key="user-error"
+                title={
+                  error
+                    ? "Chưa thể hoàn tất kiểm tra"
+                    : "Chưa thể tải hạn mức kiểm tra"
+                }
+                message={activeError}
+                preserveDraftHint={Boolean(error)}
+                onRetry={error ? retry : undefined}
+                onRefreshQuota={
+                  quotaError ? () => void refreshQuota() : undefined
+                }
+                isBusy={isLoading || quotaLoading}
+              />
+            )}
+
+            {result && !isLoading && (
+              <div
+                key={result.scan_id}
+                ref={resultAnchorRef}
+                aria-live="polite"
+                className="space-y-4 pt-2"
+              >
+                <ScamVerdictBanner
+                  verdict={result.verdict}
+                  provenance={result.execution_provenance}
+                  executionTimeMs={result.execution_time_ms}
+                  modelName={result.engine_details?.model_name}
+                  features={result.deterministic_features}
+                  targetBank={result.target_bank}
+                  inputType={result.input_type}
+                  matchedIndicator={result.matched_indicator}
+                  decidedByStage={result.decided_by_stage}
+                  mode="user"
+                  checkedContent={lastSubmittedContent}
+                  actionableSteps={
+                    result.actionable_steps || result.recommendations || []
+                  }
+                  scanId={result.scan_id}
+                  isStale={isResultStale}
+                />
+
+                <ScamEvidenceCard data={result} />
+
+                <ScamActionBar
+                  scanId={result.scan_id}
+                  checkId={result.check_id}
+                  mode="user"
+                  inputType={result.input_type}
+                  targetIdentifier={targetIdentifier}
+                  reportedMessage={lastSubmittedContent || null}
+                  description={result.verdict.summary}
+                  riskLevel={result.verdict.risk_level}
+                  onReset={handleReset}
+                />
+              </div>
+            )}
+          </AnimatePresence>
         </div>
-      )}
-    </div>
+      </div>
+    </MotionConfig>
   )
 }
