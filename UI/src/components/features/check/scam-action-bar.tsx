@@ -3,15 +3,19 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
-  ShareNetwork,
+  ArrowCounterClockwise,
+  Check,
+  FilePdf,
+  Info,
   Megaphone,
   Scales,
-  FilePdf,
-  UserPlus,
+  ShareNetwork,
   SignIn,
-  Info,
+  UserPlus,
+  WarningCircle,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
+import type { RiskLevel } from "@/features/check/types/check.types"
 
 /**
  * Hand-off key between the check result action bar (writer) and the report
@@ -60,6 +64,10 @@ interface ScamActionBarProps {
   reportedMessage?: string | null
   /** Optional short description derived from the real verdict. */
   description?: string | null
+  /** Drives single-primary CTA weighting (e.g. elevate Report on high-risk scans). */
+  riskLevel?: RiskLevel
+  /** Optional callback for quick loop back to a fresh check. */
+  onReset?: () => void
 }
 
 type ShareFeedback = { tone: "success" | "error"; message: string } | null
@@ -78,11 +86,14 @@ function isAbortError(error: unknown) {
   return error instanceof Error && error.name === "AbortError"
 }
 
-const secondaryLinkClass =
-  "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#C6C6CE]/60 bg-white px-4 py-2.5 text-xs font-semibold text-[#131B2E] shadow-2xs hover:bg-[#F2F3FF] dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted"
+const primaryActionClass =
+  "inline-flex h-9 cursor-pointer items-center gap-2 rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-2xs transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-progress disabled:opacity-60"
 
-const printButtonClass =
-  "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#0B132B] px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[#131B2E] active:scale-95 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
+const secondaryActionClass =
+  "inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-semibold text-foreground shadow-2xs transition-[background-color,border-color,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-progress disabled:opacity-60 dark:border-white/12"
+
+const ghostActionClass =
+  "inline-flex h-9 cursor-pointer items-center gap-2 rounded-md px-3 text-xs font-medium text-muted-foreground transition-[color,background-color] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 
 export function ScamActionBar({
   scanId,
@@ -92,21 +103,22 @@ export function ScamActionBar({
   targetIdentifier = null,
   reportedMessage = null,
   description = null,
+  riskLevel,
+  onReset,
 }: ScamActionBarProps) {
   const [sharing, setSharing] = useState(false)
   const [feedback, setFeedback] = useState<ShareFeedback>(null)
 
   useEffect(() => {
     if (!feedback) return
-    const timer = setTimeout(() => setFeedback(null), 4000)
-    return () => clearTimeout(timer)
+    const timer = window.setTimeout(() => setFeedback(null), 4000)
+    return () => window.clearTimeout(timer)
   }, [feedback])
 
   const handleShare = async () => {
     if (sharing) return
     setSharing(true)
     setFeedback(null)
-    // Never invent a link: share the page the user is actually looking at.
     const url = window.location.href
     const shareData = {
       title: "Kết quả kiểm tra ScamShield",
@@ -124,24 +136,22 @@ export function ScamActionBar({
         copied
           ? { tone: "success", message: "Đã sao chép liên kết kết quả." }
           : {
-            tone: "error",
-            message:
-              "Trình duyệt không cho phép sao chép tự động. Vui lòng sao " +
-              "chép liên kết trên thanh địa chỉ.",
-          }
+              tone: "error",
+              message:
+                "Trình duyệt không cho phép sao chép tự động. Vui lòng sao chép liên kết trên thanh địa chỉ.",
+            }
       )
     } catch (error) {
-      // The user dismissed the native share sheet: nothing was copied.
       if (isAbortError(error)) return
       const copied = await copyToClipboard(url)
       setFeedback(
         copied
           ? { tone: "success", message: "Đã sao chép liên kết kết quả." }
           : {
-            tone: "error",
-            message:
-              "Không thể chia sẻ hoặc sao chép liên kết. Vui lòng thử lại.",
-          }
+              tone: "error",
+              message:
+                "Không thể chia sẻ hoặc sao chép liên kết. Vui lòng thử lại.",
+            }
       )
     } finally {
       setSharing(false)
@@ -162,8 +172,7 @@ export function ScamActionBar({
     try {
       window.sessionStorage.setItem(REPORT_PREFILL_KEY, JSON.stringify(draft))
     } catch {
-      // Private mode / quota errors: the report form still gets the scanId
-      // from the URL, it just loses the extra context.
+      // Private mode / quota errors: the report form still reads scanId from URL.
     }
   }
 
@@ -173,16 +182,13 @@ export function ScamActionBar({
       scanId,
       checkId,
       inputType,
-      // Only a matched indicator is a real disputed subject; free-form message
-      // text is never an indicator, so it must not be pre-filled as one.
       indicatorValue: targetIdentifier,
       savedAt: new Date().toISOString(),
     }
     try {
       window.sessionStorage.setItem(DISPUTE_PREFILL_KEY, JSON.stringify(draft))
     } catch {
-      // Private mode / quota errors: the dispute page still opens the form
-      // from the query string, it just loses the extra context.
+      // Private mode / quota errors: the dispute page still reads scanId from URL.
     }
   }
 
@@ -190,94 +196,137 @@ export function ScamActionBar({
     window.print()
   }
 
+  const reportIsPrimary =
+    mode === "user" &&
+    (riskLevel === "DANGEROUS" || riskLevel === "SUSPICIOUS")
+
   return (
-    <div className="space-y-2 pt-2">
+    <div className="space-y-3">
+      {/* Single-Primary Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Real share: native sheet first, clipboard fallback. */}
-          <button
-            type="button"
-            onClick={() => void handleShare()}
-            disabled={sharing}
-            aria-busy={sharing}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#006644] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#004d33] active:scale-95 disabled:cursor-progress disabled:opacity-70 dark:bg-emerald-700 dark:hover:bg-emerald-800"
-          >
-            <ShareNetwork size={16} weight="bold" />
-            <span>Chia sẻ kết quả</span>
-          </button>
-
+        <div className="flex flex-wrap items-center gap-2">
           {mode === "user" ? (
-            <Link
-              href={`/user/reports/new?scanId=${encodeURIComponent(scanId)}`}
-              onClick={handleReportClick}
-              className={secondaryLinkClass}
-            >
-              <Megaphone size={16} weight="bold" />
-              <span>Đẩy chỉ số vào Báo cáo của tôi</span>
-            </Link>
+            <>
+              <Link
+                href={`/user/reports/new?scanId=${encodeURIComponent(scanId)}`}
+                onClick={handleReportClick}
+                className={
+                  reportIsPrimary ? primaryActionClass : secondaryActionClass
+                }
+              >
+                <Megaphone aria-hidden="true" size={15} weight="bold" />
+                <span>
+                  {reportIsPrimary ? "Báo cáo lừa đảo" : "Gửi báo cáo"}
+                </span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => void handleShare()}
+                disabled={sharing}
+                aria-busy={sharing}
+                className={
+                  reportIsPrimary ? secondaryActionClass : primaryActionClass
+                }
+              >
+                <ShareNetwork aria-hidden="true" size={15} weight="bold" />
+                <span>Chia sẻ kết quả</span>
+              </button>
+
+              <Link
+                href={`/user/disputes?scanId=${encodeURIComponent(scanId)}`}
+                onClick={handleDisputeClick}
+                className={secondaryActionClass}
+              >
+                <Scales aria-hidden="true" size={15} weight="bold" />
+                <span>Khiếu nại kết quả</span>
+              </Link>
+            </>
           ) : (
-            <Link
-              href="/register"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#006644] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#004d33] active:scale-95 dark:bg-emerald-700 dark:hover:bg-emerald-800"
-            >
-              <UserPlus size={16} weight="bold" />
-              <span>Đăng ký để lưu kết quả này</span>
-            </Link>
-          )}
-        </div>
+            <>
+              <Link href="/register" className={primaryActionClass}>
+                <UserPlus aria-hidden="true" size={15} weight="bold" />
+                <span>Đăng ký để lưu kết quả</span>
+              </Link>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {mode === "user" && (
-            <Link
-              href={`/user/disputes?scanId=${encodeURIComponent(scanId)}`}
-              onClick={handleDisputeClick}
-              className={secondaryLinkClass}
-            >
-              <Scales size={16} weight="bold" />
-              <span>Khiếu nại kết quả phân tích</span>
-            </Link>
-          )}
+              <button
+                type="button"
+                onClick={() => void handleShare()}
+                disabled={sharing}
+                aria-busy={sharing}
+                className={secondaryActionClass}
+              >
+                <ShareNetwork aria-hidden="true" size={15} weight="bold" />
+                <span>Chia sẻ kết quả</span>
+              </button>
 
-          {mode === "guest" && (
-            <Link href="/login" className={secondaryLinkClass}>
-              <SignIn size={16} weight="bold" />
-              <span>Đăng nhập</span>
-            </Link>
+              <Link href="/login" className={secondaryActionClass}>
+                <SignIn aria-hidden="true" size={15} weight="bold" />
+                <span>Đăng nhập</span>
+              </Link>
+            </>
           )}
 
           <button
             type="button"
             onClick={handleExportPdf}
-            className={printButtonClass}
+            className={secondaryActionClass}
           >
-            <FilePdf size={16} weight="bold" />
-            <span>Xuất biên bản thẩm định PDF</span>
+            <FilePdf aria-hidden="true" size={15} weight="bold" />
+            <span>Xuất PDF</span>
           </button>
         </div>
+
+        {onReset && (
+          <button type="button" onClick={onReset} className={ghostActionClass}>
+            <ArrowCounterClockwise aria-hidden="true" size={15} weight="bold" />
+            <span>Kiểm tra nội dung khác</span>
+          </button>
+        )}
       </div>
 
-      {mode === "user" && targetIdentifier && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
-          <Info size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" weight="fill" />
-          <div className="flex-1 leading-relaxed">
-            <span className="font-semibold">Bạn là chủ sở hữu hợp pháp của chỉ số này?</span> Nếu số điện thoại, website hoặc tài khoản chính chủ của bạn bị gắn cờ nhầm, bạn có thể nộp <strong>hồ sơ khiếu nại minh oan</strong> kèm bằng chứng xác thực để được xem xét gỡ khỏi danh sách cảnh báo.
-          </div>
-        </div>
-      )}
-
+      {/* Inline Share / Copy Feedback */}
       {feedback && (
         <p
           role="status"
           aria-live="polite"
           className={cn(
-            "text-xs font-semibold",
+            "flex items-center gap-1.5 text-xs font-medium",
             feedback.tone === "success"
-              ? "text-[#006644] dark:text-emerald-400"
-              : "text-[#BA1A1A] dark:text-rose-400"
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-rose-700 dark:text-rose-400"
           )}
         >
-          {feedback.message}
+          {feedback.tone === "success" ? (
+            <Check aria-hidden="true" size={14} weight="bold" />
+          ) : (
+            <WarningCircle aria-hidden="true" size={14} weight="fill" />
+          )}
+          <span>{feedback.message}</span>
         </p>
+      )}
+
+      {/* Calm Owner Dispute Guidance */}
+      {mode === "user" && targetIdentifier && (
+        <div className="flex items-start gap-3 rounded-lg border border-border/80 bg-muted/35 px-4 py-3 text-xs leading-relaxed text-muted-foreground dark:border-white/10">
+          <Info
+            aria-hidden="true"
+            size={15}
+            weight="bold"
+            className="mt-0.5 shrink-0 text-muted-foreground"
+          />
+          <p className="max-w-[65ch]">
+            <strong className="font-semibold text-foreground">
+              Bạn là chủ sở hữu hợp pháp của chỉ số này?
+            </strong>{" "}
+            Nếu số điện thoại, website hoặc tài khoản chính chủ bị gắn cờ nhầm,
+            bạn có thể chọn{" "}
+            <strong className="font-semibold text-foreground">
+              Khiếu nại kết quả
+            </strong>{" "}
+            kèm bằng chứng xác thực để được xem xét gỡ khỏi danh sách cảnh báo.
+          </p>
+        </div>
       )}
     </div>
   )
