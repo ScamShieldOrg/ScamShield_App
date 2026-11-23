@@ -59,7 +59,7 @@ public class PartnerPasswordSetupServiceImpl implements PartnerPasswordSetupServ
         links.save(PartnerPasswordLink.builder().partner(profile).tokenHash(hash(token))
                 .expiresAt(now.plusMinutes(10)).build());
         profile.setPasswordLinkEmailStatus(PartnerPasswordEmailStatus.PENDING);
-        String email = profile.getCorporateEmail();
+        String email = profile.getUser().getEmail();
         String url = uiBaseUrl.replaceAll("/+$", "") + "/reset-password?token=" + token;
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCommit() {

@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  Gauge,
+  SquaresFour,
   ShieldCheck,
   Megaphone,
   FileText,
@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils"
 import { useLogout } from "@/hooks/use-logout"
 
 const icons = {
-  Gauge,
+  Gauge: SquaresFour,
   ShieldCheck,
   Megaphone,
   FileText,
@@ -29,7 +29,13 @@ const icons = {
   Gear,
 }
 
-export function PartnerSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function PartnerSidebar({
+  onNavigate,
+  closeButton,
+}: {
+  onNavigate?: () => void
+  closeButton?: ReactNode
+}) {
   const pathname = usePathname()
   const active = getActivePartnerNavItem(pathname)
   const logout = useLogout()
@@ -46,42 +52,36 @@ export function PartnerSidebar({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   return (
-    <div className="flex h-full flex-col bg-slate-900 text-slate-100 border-r border-slate-800">
-      {/* Brand Header */}
-      <div className="p-4 border-b border-slate-800">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-black shadow-md">
-            <ShieldWarning size={22} weight="fill" />
+    <div className="flex h-full flex-col bg-[#f2f3ff] text-[#131b2e] dark:bg-slate-900 dark:text-slate-100">
+      <div className="px-4 pt-4">
+        <div className="flex items-center gap-2">
+          <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+            <ShieldWarning size={17} weight="fill" />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-heading text-sm font-bold tracking-tight text-white">
-                ScamShield
-              </span>
-              <span className="rounded bg-slate-800 border border-slate-700 px-1 py-0.5 text-[9px] font-bold tracking-wider text-emerald-400">
-                PORTAL B2B
-              </span>
-            </div>
-            <div className="flex items-center gap-1 text-[10px] text-slate-400">
-              <span className="inline-block size-1.5 rounded-full bg-emerald-400" />
-              <span>ĐỐI TÁC C1</span>
+          <div className="leading-tight">
+            <div className="text-lg font-bold tracking-tight">ScamShield</div>
+            <div className="text-[10px] font-bold tracking-wide text-[#545d7c] dark:text-slate-400">
+              PORTAL B2B
             </div>
           </div>
         </div>
 
         {/* Verified Org Unit */}
-        <div className="mt-3.5 rounded-lg bg-slate-800/80 border border-slate-700/60 p-2.5">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+        <div className="mt-4 rounded-lg bg-[#e9edff] p-2 dark:bg-slate-800">
+          <div className="text-[10px] font-bold tracking-wider text-[#45464d] uppercase dark:text-slate-400">
             Đơn vị xác thực
           </div>
-          <div className="mt-0.5 text-xs font-semibold text-slate-100 truncate">
+          <div className="mt-0.5 truncate text-sm font-semibold">
             VCB Security Sentinel
           </div>
         </div>
       </div>
 
       {/* Nav items */}
-      <nav aria-label="Điều hướng Đối tác B2B" className="flex-1 space-y-1 p-3 overflow-y-auto">
+      <nav
+        aria-label="Điều hướng Đối tác B2B"
+        className="mt-4 flex-1 space-y-1 overflow-y-auto px-2"
+      >
         {PARTNER_NAV_ITEMS.map((item) => {
           const Icon = icons[item.iconName]
           const isSelected = active?.href === item.href
@@ -91,20 +91,22 @@ export function PartnerSidebar({ onNavigate }: { onNavigate?: () => void }) {
               key={item.href}
               href={item.href}
               onClick={onNavigate}
+              aria-current={isSelected ? "page" : undefined}
               className={cn(
-                "group flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+                "flex min-h-[34px] items-center justify-between gap-2 rounded-lg px-4 py-2 text-sm leading-tight font-medium transition-colors",
                 isSelected
-                  ? "bg-slate-800 text-white font-semibold shadow-xs"
-                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-[#45464d] hover:bg-[#e9edff] hover:text-[#131b2e] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
               )}
             >
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <Icon
-                  size={18}
-                  weight={isSelected ? "fill" : "regular"}
+                  size={16}
                   className={cn(
-                    "shrink-0 transition-colors",
-                    isSelected ? "text-emerald-400" : "text-slate-400 group-hover:text-slate-200"
+                    "shrink-0",
+                    !isSelected &&
+                      item.badgeVariant === "urgent" &&
+                      "text-[#ba1a1a] dark:text-red-400"
                   )}
                 />
                 <span>{item.title}</span>
@@ -113,14 +115,20 @@ export function PartnerSidebar({ onNavigate }: { onNavigate?: () => void }) {
               {item.badge && (
                 <span
                   className={cn(
-                    "rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide",
+                    "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold tracking-wide",
                     item.badgeVariant === "urgent"
-                      ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                      : "bg-slate-800 text-slate-300 border border-slate-700"
+                      ? "bg-[#ffdad6] text-[#93000a] dark:bg-red-950 dark:text-red-300"
+                      : "bg-[#d0d9fd] text-[#414b6c] dark:bg-slate-700 dark:text-slate-200"
                   )}
                 >
                   {item.badge}
                 </span>
+              )}
+              {isSelected && !item.badge && (
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 shrink-0 rounded-full bg-current"
+                />
               )}
             </Link>
           )
@@ -128,12 +136,12 @@ export function PartnerSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       {/* Logout Footer */}
-      <div className="p-3 border-t border-slate-800">
+      <div className="border-t border-slate-200/80 p-2 dark:border-slate-800">
         <button
           type="button"
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+          className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-[#45464d] transition-colors hover:bg-[#e9edff] dark:text-slate-400 dark:hover:bg-slate-800"
         >
           <SignOut size={18} className="shrink-0" />
           <span>{isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}</span>
