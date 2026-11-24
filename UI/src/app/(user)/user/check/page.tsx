@@ -9,16 +9,16 @@ export const metadata: Metadata = {
 
 export default function UserCheckPage() {
   return (
-    <div className="space-y-6">
-      {/* Page Title */}
-      <div>
-        <h1 className="font-heading text-2xl font-bold tracking-tight text-[#131B2E] dark:text-foreground">
-          Kiểm Tra & Phân Tích Tin Nhắn Đáng Ngờ
+    <div className="mx-auto w-full max-w-3xl space-y-6 font-sans antialiased">
+      <header className="space-y-2">
+        <h1 className="font-heading text-2xl font-bold tracking-[-0.02em] text-foreground">
+          Kiểm tra nội dung đáng ngờ
         </h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Hệ thống phân tích thông minh kết hợp rà soát nhanh và phân tích chuyên sâu đa chiều từ các chuyên gia AI.
+        <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
+          Đối chiếu tin nhắn, đường dẫn, số điện thoại hoặc số tài khoản với
+          danh sách cảnh báo và hệ thống phân tích AI đa chiều.
         </p>
-      </div>
+      </header>
 
       <UserScamCheck />
     </div>

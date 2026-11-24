@@ -1,55 +1,53 @@
 "use client"
 
+import Link from "next/link"
 import {
-  ShieldWarning,
-  CaretRight,
   AppleLogo,
+  CaretRight,
   GooglePlayLogo,
   QrCode,
-  Sparkle,
+  ShieldWarning,
 } from "@phosphor-icons/react"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { GuestScamCheck } from "@/components/features/check/guest-scam-check"
-// Data mock cho phần "Cảnh báo lừa đảo"
+
 const recentScams = [
   {
-    type: "MẠO DANH CƠ QUAN CHÍNH QUYỀN",
+    type: "Mạo danh cơ quan nhà nước",
     time: "15 phút trước",
     title:
-      "Giả danh cán bộ Cục Thuế / Công an gọi thông báo kích hoạt định danh VNeID mức 2",
+      "Giả danh cán bộ Cục Thuế / Công an yêu cầu kích hoạt VNeID mức 2 qua tệp APK",
     description:
-      "Yêu cầu nạn nhân tải ứng dụng chưa rõ gốc (APK) từ liên kết giả qua Zalo để chiếm quyền điều khiển tài khoản ngân hàng từ xa.",
+      "Dụ nạn nhân tải ứng dụng ngoài kho chính thức qua Zalo để chiếm quyền điều khiển thiết bị và tài khoản ngân hàng.",
     target: "034.777x.xxxx",
-    level: "Cực kỳ nguy hiểm",
-    levelColor: "text-red-600 bg-red-50",
+    level: "Nguy cơ cao",
+    tone: "danger" as const,
   },
   {
-    type: "LỪA ĐẢO ĐẦU TƯ TÀI CHÍNH",
+    type: "Lừa đảo đầu tư tài chính",
     time: "42 phút trước",
-    title: "Sàn đầu tư năng lượng xanh quốc tế cam kết lợi nhuận 30%/ngày",
+    title: "Sàn đầu tư năng lượng xanh cam kết lợi nhuận 30%/ngày",
     description:
-      "Kêu gọi nộp tiền vào ví trung gian, cho rút tiền thử các lần đầu sau đó khóa tài khoản đòi nộp thêm phí bảo hiểm giao dịch.",
+      "Cho rút tiền thử các lần đầu sau đó khóa tài khoản, đòi nộp thêm phí bảo hiểm giao dịch để rút vốn.",
     target: "*.green-fund-vip.xyz",
     level: "Rất rủi ro",
-    levelColor: "text-orange-600 bg-orange-50",
+    tone: "warning" as const,
   },
   {
-    type: "MẠO DANH QUÀ TẶNG TRÚNG THƯỞNG",
+    type: "Mạo danh quà tặng trúng thưởng",
     time: "4 giờ trước",
-    title:
-      "Trạm phát sóng BTS giả mạo gửi tin nhắn trúng thưởng quà tặng Shopee / Tiki",
+    title: "Tin nhắn giả mạo trúng thưởng quà tặng Shopee / Tiki từ trạm BTS giả",
     description:
-      "Dẫn dụ người dùng nhập số thẻ tín dụng hoặc thông tin thẻ ghi nợ kèm mã OTP để trừ toàn bộ hạn mức số dư.",
-    target: "SMS: Brandname giả mạo",
-    level: "Cực kỳ nguy hiểm",
-    levelColor: "text-red-600 bg-red-50",
+      "Dẫn dụ người dùng nhập thông tin thẻ tín dụng kèm mã OTP để trừ toàn bộ hạn mức số dư.",
+    target: "SMS Brandname giả mạo",
+    level: "Nguy cơ cao",
+    tone: "danger" as const,
   },
 ]
 
 export default function GuestCheckPage() {
   return (
-    <div className="flex w-full flex-col items-center">
+    <div className="flex w-full flex-col items-center font-sans antialiased">
       <GuestScamCheck />
       <RecentScamsSection />
       <DownloadAppSection />
@@ -59,58 +57,74 @@ export default function GuestCheckPage() {
 
 function RecentScamsSection() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-4 py-16">
-      <div className="mb-8 flex items-center justify-between">
-        <h2 className="flex items-center gap-3 text-2xl font-bold text-slate-900 dark:text-white">
-          <ShieldWarning weight="fill" className="text-3xl text-red-500" /> Cảnh
-          báo lừa đảo vừa phát hiện
+    <section className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 font-heading text-xl font-bold tracking-[-0.02em] text-foreground">
+          <ShieldWarning
+            aria-hidden="true"
+            size={22}
+            weight="fill"
+            className="text-rose-600 dark:text-rose-400"
+          />
+          <span>Cảnh báo lừa đảo vừa phát hiện</span>
         </h2>
-        <a
-          href="#"
-          className="flex items-center gap-1 text-sm font-bold text-blue-600 hover:underline dark:text-blue-400"
+        <Link
+          href="/guest/alerts"
+          className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline-offset-4 transition-colors duration-120 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          Xem chi tiết <CaretRight weight="bold" />
-        </a>
+          <span>Xem tất cả cảnh báo</span>
+          <CaretRight aria-hidden="true" size={14} weight="bold" />
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {recentScams.map((scam, i) => (
-          <div
+          <article
             key={i}
-            className="group flex h-full flex-col rounded-[24px] border border-slate-100 bg-white p-6 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.05)] transition-all hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)]"
+            className="flex h-full flex-col rounded-lg border border-border bg-card p-5 text-card-foreground shadow-2xs transition-[border-color] duration-120 hover:border-foreground/20 dark:border-white/10 dark:hover:border-white/20"
           >
-            <div className="mb-4 flex items-center justify-between">
-              <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-bold tracking-widest text-slate-600 uppercase">
+            <div className="mb-3 flex items-center justify-between gap-2 text-xs">
+              <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-muted-foreground">
                 {scam.type}
               </span>
-              <span className="text-xs font-medium text-slate-400">
+              <span className="shrink-0 text-muted-foreground tabular-nums">
                 {scam.time}
               </span>
             </div>
-            <h3 className="mb-3 line-clamp-2 text-[15px] leading-snug font-bold text-slate-900 transition-colors group-hover:text-blue-600">
+
+            <h3 className="mb-2 line-clamp-2 font-heading text-sm leading-snug font-semibold text-foreground">
               {scam.title}
             </h3>
-            <p className="mb-6 line-clamp-3 flex-1 text-xs leading-relaxed font-medium text-slate-500">
+
+            <p className="mb-4 line-clamp-3 flex-1 text-xs leading-relaxed text-muted-foreground">
               {scam.description}
             </p>
 
-            <div className="mt-auto flex items-center justify-between border-t border-slate-100/80 pt-4">
-              <div className="text-[11px]">
-                <span className="font-medium text-slate-400">Đầu số/URL: </span>
-                <span className="font-mono font-bold text-slate-700">
-                  {scam.target}
-                </span>
-              </div>
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/80 pt-3 text-xs dark:border-white/10">
+              <span className="truncate font-mono font-medium text-foreground">
+                {scam.target}
+              </span>
               <span
                 className={cn(
-                  "text-[11px] font-bold tracking-wider uppercase",
-                  scam.levelColor.split(" ")[0]
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 font-semibold",
+                  scam.tone === "danger"
+                    ? "border-rose-500/25 bg-rose-500/10 text-rose-800 dark:text-rose-300"
+                    : "border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-200"
                 )}
               >
-                {scam.level}
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    scam.tone === "danger"
+                      ? "bg-rose-600 dark:bg-rose-400"
+                      : "bg-amber-500 dark:bg-amber-400"
+                  )}
+                />
+                <span>{scam.level}</span>
               </span>
             </div>
-          </div>
+          </article>
         ))}
       </div>
     </section>
@@ -119,57 +133,60 @@ function RecentScamsSection() {
 
 function DownloadAppSection() {
   return (
-    <section className="mx-auto mb-16 w-full max-w-6xl px-4 py-8">
-      <div className="relative flex flex-col items-center justify-between gap-10 overflow-hidden rounded-[32px] bg-[#0F172A] p-8 md:flex-row md:p-14">
-        {/* Decorative elements */}
-        <div className="pointer-events-none absolute top-0 right-0 h-[500px] w-[500px] translate-x-1/3 -translate-y-1/2 rounded-full bg-blue-500/20 blur-[80px]"></div>
-        <div className="pointer-events-none absolute bottom-0 left-0 h-[400px] w-[400px] -translate-x-1/4 translate-y-1/3 rounded-full bg-indigo-500/20 blur-[80px]"></div>
-
-        <div className="relative z-10 max-w-xl flex-1 text-center md:text-left">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-bold text-slate-300 backdrop-blur-sm">
-            <Sparkle weight="fill" className="text-blue-400" /> Ứng dụng di động
-            tiện ích
-          </div>
-          <h2 className="mb-6 text-3xl leading-tight font-bold text-white md:text-[40px]">
-            Cài đặt ứng dụng ScamShield VN trực tiếp trên điện thoại
+    <section className="mx-auto mb-12 w-full max-w-5xl px-4 py-4">
+      <div className="flex flex-col items-center justify-between gap-8 rounded-xl border border-slate-800 bg-[#0F172A] p-6 text-slate-100 md:flex-row md:p-10 dark:border-white/12">
+        <div className="max-w-xl flex-1 space-y-4 text-center md:text-left">
+          <h2 className="font-heading text-2xl leading-tight font-bold tracking-[-0.02em] text-balance text-white sm:text-3xl">
+            Cài đặt ứng dụng ScamShield VN trên điện thoại
           </h2>
-          <p className="mx-auto mb-8 max-w-md text-sm leading-relaxed font-medium text-slate-400 md:mx-0 md:text-base">
-            Phát hiện tin nhắn SMS độc hại và kiểm tra tài khoản ngân hàng thụ
-            hưởng tức thì, tiện lợi ngay trên chiếc điện thoại của bạn.
+          <p className="mx-auto max-w-[56ch] text-sm leading-relaxed text-slate-300 md:mx-0">
+            Phát hiện tin nhắn SMS độc hại và tra cứu tài khoản ngân hàng thụ
+            hưởng tức thì ngay trên thiết bị di động của bạn.
           </p>
-          <div className="flex flex-col items-center justify-center gap-4 sm:flex-row md:justify-start">
-            <Button className="flex w-full items-center gap-3 rounded-2xl bg-white px-6 py-7 font-bold text-slate-900 transition-transform hover:scale-105 hover:bg-slate-100 active:scale-95 sm:w-auto">
-              <AppleLogo weight="fill" size={28} />
-              <div className="text-left leading-tight">
-                <div className="mb-0.5 text-[10px] font-semibold tracking-wider uppercase opacity-60">
-                  Tải về cho
-                </div>
-                <div className="text-sm">iOS (App Store)</div>
-              </div>
-            </Button>
-            <Button className="flex w-full items-center gap-3 rounded-2xl border border-slate-700 bg-slate-800/80 px-6 py-7 font-bold text-white backdrop-blur-sm transition-transform hover:scale-105 hover:bg-slate-700 active:scale-95 sm:w-auto">
-              <GooglePlayLogo weight="fill" size={28} />
-              <div className="text-left leading-tight">
-                <div className="mb-0.5 text-[10px] font-semibold tracking-wider uppercase opacity-60">
-                  Tải về cho
-                </div>
-                <div className="text-sm">Android (Google Play)</div>
-              </div>
-            </Button>
+          <div className="flex flex-col items-center justify-center gap-3 pt-2 sm:flex-row md:justify-start">
+            <button
+              type="button"
+              disabled
+              title="Ứng dụng iOS đang hoàn thiện phát hành"
+              className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-lg bg-white px-5 text-left font-semibold text-slate-900 opacity-90 sm:w-auto"
+            >
+              <AppleLogo aria-hidden="true" weight="fill" size={22} />
+              <span className="leading-tight">
+                <span className="block text-xs font-normal text-slate-600">
+                  Sắp ra mắt trên
+                </span>
+                <span className="block text-sm">iOS (App Store)</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              disabled
+              title="Ứng dụng Android đang hoàn thiện phát hành"
+              className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-slate-700 bg-slate-800/80 px-5 text-left font-semibold text-white opacity-90 sm:w-auto"
+            >
+              <GooglePlayLogo aria-hidden="true" weight="fill" size={22} />
+              <span className="leading-tight">
+                <span className="block text-xs font-normal text-slate-300">
+                  Sắp ra mắt trên
+                </span>
+                <span className="block text-sm">Android (Google Play)</span>
+              </span>
+            </button>
           </div>
         </div>
 
-        <div className="relative z-10 flex w-full max-w-[240px] shrink-0 flex-col items-center justify-center gap-4 rounded-[28px] border border-slate-100 bg-white p-7 shadow-2xl md:w-auto">
-          <div className="flex h-40 w-40 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-2">
-            <QrCode size={140} weight="light" className="text-slate-900" />
+        <div className="flex shrink-0 flex-col items-center gap-3 rounded-lg border border-white/10 bg-white p-5 text-slate-900">
+          <div className="flex size-32 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 p-2">
+            <QrCode
+              aria-hidden="true"
+              size={112}
+              weight="light"
+              className="text-slate-900"
+            />
           </div>
           <div className="text-center">
-            <p className="mb-1 text-[13px] font-bold tracking-widest text-slate-900 uppercase">
-              Quét mã QR
-            </p>
-            <p className="text-[11px] font-medium text-slate-500">
-              Tải nhanh ứng dụng
-            </p>
+            <p className="text-xs font-semibold text-slate-900">Quét mã QR</p>
+            <p className="text-xs text-slate-500">Tải nhanh ứng dụng</p>
           </div>
         </div>
       </div>
