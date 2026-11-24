@@ -1,11 +1,18 @@
 "use client"
 
 import { useEffect, useId } from "react"
-import { ShieldStar } from "@phosphor-icons/react"
+import Link from "next/link"
+import { motion } from "motion/react"
+import { ArrowClockwise, ShieldStar } from "@phosphor-icons/react"
 import { useAuthStore } from "@/store/auth.store"
 import { useUserQuotaStore } from "@/features/check/store/user-quota.store"
+import { cn } from "@/lib/utils"
 
-export function UserQuotaCard() {
+interface UserQuotaCardProps {
+  onNavigate?: () => void
+}
+
+export function UserQuotaCard({ onNavigate }: UserQuotaCardProps) {
   const quotaLabelId = useId()
   const token = useAuthStore((state) => state.token)
   const {
@@ -15,6 +22,7 @@ export function UserQuotaCard() {
     error,
     fetchQuota,
   } = useUserQuotaStore()
+
   const quota = sourceToken === token && token ? storedQuota : null
   const fullName = quota?.fullName || "Tài khoản của bạn"
   const initials =
@@ -25,10 +33,30 @@ export function UserQuotaCard() {
       .map((part) => part[0])
       .join("")
       .toLocaleUpperCase("vi-VN") || "?"
-  const percentage =
+
+  const usedRatio =
     quota && quota.limit > 0
-      ? Math.min(100, Math.max(0, (quota.used / quota.limit) * 100))
+      ? Math.min(1, Math.max(0, quota.used / quota.limit))
       : 0
+
+  const exhausted = quota != null && quota.remaining <= 0
+  const lowQuota = quota != null && quota.remaining === 1
+
+  const statusDotClass = error
+    ? "bg-rose-600 dark:bg-rose-400"
+    : exhausted
+      ? "bg-rose-600 dark:bg-rose-400"
+      : lowQuota
+        ? "bg-amber-500 dark:bg-amber-400"
+        : quota
+          ? "bg-emerald-600 dark:bg-emerald-400"
+          : "bg-muted-foreground/50"
+
+  const barClass = exhausted
+    ? "bg-rose-600 dark:bg-rose-400"
+    : lowQuota
+      ? "bg-amber-500 dark:bg-amber-400"
+      : "bg-primary"
 
   useEffect(() => {
     void fetchQuota()
@@ -49,78 +77,94 @@ export function UserQuotaCard() {
   }, [quota, fetchQuota])
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3.5">
-      <div className="flex items-center gap-3">
+    <div className="space-y-3 rounded-xl border border-border/80 bg-muted/35 p-3 text-card-foreground shadow-2xs dark:border-white/10 dark:bg-white/[0.03] dark:shadow-[inset_0_1px_0_rgb(255,255,255,0.06)]">
+      {/* Compact Profile Link Row */}
+      <Link
+        href="/user/profile"
+        onClick={onNavigate}
+        className="group flex items-center gap-3 rounded-lg p-1 -m-1 transition-colors duration-120 hover:bg-muted/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:hover:bg-white/[0.06]"
+      >
         <div
           aria-hidden="true"
-          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary font-heading text-sm font-bold text-primary-foreground"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary font-heading text-xs font-bold text-primary-foreground shadow-2xs"
         >
           {initials}
         </div>
-        <div className="min-w-0 flex-1 space-y-1">
+        <div className="min-w-0 flex-1 space-y-0.5">
           <p
-            className="truncate text-xs font-bold text-foreground"
+            className="truncate text-sm font-semibold text-foreground group-hover:text-primary"
             title={fullName}
           >
             {fullName}
           </p>
-          {quota?.rankName && (
-            <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-foreground">
-              <ShieldStar aria-hidden="true" size={11} weight="fill" />
+          {quota?.rankName ? (
+            <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-sky-500/10 px-1.5 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
+              <ShieldStar aria-hidden="true" size={12} weight="fill" />
               <span className="truncate">{quota.rankName}</span>
             </span>
+          ) : (
+            <p className="text-xs text-muted-foreground">Hồ sơ cá nhân</p>
           )}
-          <p className="text-[11px] text-muted-foreground">Tài khoản bảo vệ</p>
         </div>
-      </div>
-      <div className="space-y-1.5 pt-1" aria-busy={isLoading}>
-        <div className="flex items-center justify-between gap-2 text-[11px]">
-          <span id={quotaLabelId} className="text-muted-foreground">
-            Hạn mức tra cứu AI
-          </span>
-          <span className="font-bold text-foreground">
-            {quota ? `${quota.used}/${quota.limit}` : "—/—"}
+      </Link>
+
+      {/* Inline Daily Quota Progress */}
+      <div
+        className="space-y-2 border-t border-border/70 pt-3 dark:border-white/10"
+        aria-busy={isLoading}
+      >
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className={cn("size-2 shrink-0 rounded-full", statusDotClass)}
+            />
+            <span id={quotaLabelId} className="text-muted-foreground">
+              Lượt còn lại
+            </span>
+          </div>
+
+          <span className="font-semibold text-foreground tabular-nums">
+            {quota ? `${quota.remaining}/${quota.limit}` : "—/—"}
           </span>
         </div>
+
         {quota ? (
-          <>
-            <div
-              role="progressbar"
-              aria-labelledby={quotaLabelId}
-              aria-valuemin={0}
-              aria-valuemax={quota.limit || 1}
-              aria-valuenow={Math.min(quota.used, quota.limit)}
-              aria-valuetext={`Đã dùng ${quota.used}/${quota.limit} lượt hôm nay`}
-              className="h-1.5 w-full overflow-hidden rounded-full bg-border"
-            >
-              <div
-                className="h-full rounded-full bg-primary motion-safe:transition-all motion-safe:duration-300"
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-            <p
-              aria-live="polite"
-              className="text-right text-[10px] text-muted-foreground"
-            >
-              Đã dùng {quota.used}/{quota.limit} lượt hôm nay · Còn{" "}
-              {quota.remaining} lượt
-            </p>
-          </>
+          <div
+            role="progressbar"
+            aria-labelledby={quotaLabelId}
+            aria-valuemin={0}
+            aria-valuemax={quota.limit || 1}
+            aria-valuenow={Math.min(quota.used, quota.limit)}
+            aria-valuetext={`Còn ${quota.remaining} trên ${quota.limit} lượt hôm nay`}
+            className="h-1.5 w-full overflow-hidden rounded-full bg-border/80 dark:bg-white/10"
+          >
+            <motion.div
+              className={cn("h-full w-full origin-left rounded-full", barClass)}
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: usedRatio }}
+              transition={{ type: "spring", stiffness: 220, damping: 28 }}
+            />
+          </div>
         ) : (
-          <p role="status" className="text-[10px] text-muted-foreground">
+          <p role="status" className="text-xs text-muted-foreground">
             {isLoading ? "Đang tải hạn mức…" : "Chưa có thông tin hạn mức"}
           </p>
         )}
+
         {error && (
-          <div className="text-[10px] text-destructive">
-            <p role="status">{error}</p>
+          <div className="flex items-center justify-between gap-2 pt-0.5 text-xs text-rose-700 dark:text-rose-400">
+            <p role="status" className="truncate">
+              {error}
+            </p>
             <button
               type="button"
               disabled={isLoading}
               onClick={() => void fetchQuota()}
-              className="mt-1 rounded underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
             >
-              Thử lại
+              <ArrowClockwise aria-hidden="true" size={12} weight="bold" />
+              <span>Thử lại</span>
             </button>
           </div>
         )}

@@ -572,6 +572,21 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
 
         String uiStatus = mapToUiStatus(report.getStatus() == null ? null : report.getStatus().name());
 
+        ModeratorReportResponse.ReporterContext reporterContext = null;
+        if (report.getReporterUser() != null) {
+            User reporter = report.getReporterUser();
+            reporterContext = new ModeratorReportResponse.ReporterContext(
+                    reporter.getId(),
+                    reporter.getEmail(),
+                    reporter.getPhoneNumber(),
+                    reporter.getReputationPoints(),
+                    reporter.getCreatedAt(),
+                    0, 0, 0, 0, 0, 0,
+                    0,
+                    0
+            );
+        }
+
         return ModeratorReportResponse.builder()
                 .id(formattedCode)
                 .rawId(report.getId())
@@ -593,6 +608,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                         && report.getUpdatedAt() != null
                         ? report.getUpdatedAt().format(DATE_TIME_FORMATTER) : null)
                 .status(uiStatus)
+                .reporterContext(reporterContext)
                 // Theo yêu cầu của người dùng: Hiện tại các trường phán quyết AI để trống trong DTO
                 .aiScore(null)
                 .aiRiskLevel(null)

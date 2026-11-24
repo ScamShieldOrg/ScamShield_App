@@ -2,9 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, Warning, Bell, List } from "@phosphor-icons/react"
+import { Bell, CaretRight, House, List, User, Warning } from "@phosphor-icons/react"
 import { getActiveUserNavItem } from "@/config/navigation/user-nav"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
+import { useAuthStore } from "@/store/auth.store"
 
 const DEFAULT_PAGE_TITLE = "Giám Sát & Phòng Vệ Số"
 
@@ -12,71 +13,95 @@ interface UserHeaderProps {
   onToggleMobileMenu?: () => void
 }
 
+function getInitials(email?: string | null): string | null {
+  const local = (email || "").split("@")[0]?.trim()
+  if (!local) return null
+  const parts = local.split(/[._\-\s]+/).filter(Boolean)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+}
+
 export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
   const pathname = usePathname()
   const pageTitle = getActiveUserNavItem(pathname)?.title ?? DEFAULT_PAGE_TITLE
   const unreadCount = useNotificationStore((state) => state.unreadCount)
+  const user = useAuthStore((state) => state.user)
+  const initials = getInitials(user?.email)
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[#C6C6CE]/40 bg-[#FAF8FF]/90 px-4 backdrop-blur-md sm:px-6 dark:border-border dark:bg-background/90">
-      {/* Left side: Mobile Menu Toggle & Breadcrumbs & Connection Badge */}
-      <div className="flex items-center gap-3 sm:gap-4">
-        {/* Mobile menu button */}
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between gap-3 border-b border-black/10 bg-background/90 px-4 font-sans antialiased backdrop-blur-md sm:px-6 dark:border-white/10">
+      {/* Left: Mobile Menu Toggle & Breadcrumb */}
+      <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={onToggleMobileMenu}
-          className="flex size-9 items-center justify-center rounded-lg border border-[#C6C6CE]/60 text-[#45464D] hover:bg-[#F2F3FF] md:hidden dark:border-border dark:text-muted-foreground dark:hover:bg-muted"
+          className="inline-flex min-h-10 min-w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 bg-card text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:hidden dark:border-white/10"
           aria-label="Mở thanh điều hướng"
         >
-          <List size={20} weight="bold" />
+          <List aria-hidden="true" size={20} weight="bold" />
         </button>
 
-        {/* Breadcrumb path */}
-        <div className="flex items-center gap-2 text-xs font-semibold p-10">
+        <nav
+          aria-label="Đường dẫn trang"
+          className="flex min-w-0 items-center gap-1.5 text-xs font-medium"
+        >
           <Link
             href="/user"
-            className="flex items-center gap-1.5 text-[#45464D] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:text-foreground"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <House size={15} weight="bold" />
+            <House aria-hidden="true" size={15} weight="bold" />
             <span className="hidden sm:inline">Cổng Người Dùng</span>
           </Link>
-          <span className="text-[#C6C6CE]">/</span>
-          <span className="max-w-[140px] truncate font-bold text-[#131B2E] sm:max-w-none dark:text-foreground">
+          <CaretRight
+            aria-hidden="true"
+            size={12}
+            weight="bold"
+            className="shrink-0 text-muted-foreground/60"
+          />
+          <span className="truncate font-semibold text-foreground">
             {pageTitle}
           </span>
-        </div>
+        </nav>
       </div>
 
-      {/* Right side: Quick Action Button & Notification Bell & User Avatar */}
-      <div className="flex items-center gap-3">
-        {/* Quick Alert CTA */}
+      {/* Right: Quick Report CTA, Notifications & Profile */}
+      <div className="flex shrink-0 items-center gap-2">
         <Link
           href="/user/reports/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFDAD6] px-3 py-1.5 text-xs font-bold text-[#93000A] shadow-xs transition-all hover:bg-[#FFDAD6]/80 active:scale-95 dark:bg-rose-950/60 dark:text-rose-300 dark:hover:bg-rose-950/80"
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 text-xs font-semibold text-rose-800 transition-colors duration-120 hover:bg-rose-500/20 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:bg-rose-500/15 dark:text-rose-200 dark:hover:bg-rose-500/25"
         >
-          <Warning size={15} weight="fill" />
-          <span className="xs:inline hidden">Tạo Cảnh Báo Nhanh</span>
+          <Warning aria-hidden="true" size={15} weight="fill" />
+          <span className="hidden sm:inline">Báo cáo nhanh</span>
         </Link>
 
-        {/* Notification Bell */}
         <Link
           href="/user/notifications"
-          className="relative flex size-9 items-center justify-center rounded-lg text-[#45464D] hover:bg-[#F2F3FF] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
-          aria-label="Thông báo"
+          className="relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={
+            unreadCount > 0
+              ? `Thông báo (${unreadCount} chưa đọc)`
+              : "Thông báo"
+          }
         >
-          <Bell size={18} weight="bold" />
+          <Bell aria-hidden="true" size={18} weight="bold" />
           {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-[#BA1A1A] ring-2 ring-[#FAF8FF] dark:ring-background" />
+            <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full border border-rose-500/30 bg-rose-600 px-1 text-xs leading-none font-bold text-white tabular-nums">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
           )}
         </Link>
 
-        {/* User Avatar Circle */}
         <Link
           href="/user/profile"
-          className="flex size-9 items-center justify-center rounded-full bg-[#131A33] font-heading text-xs font-bold text-white shadow-xs ring-2 ring-white/80 hover:opacity-90 dark:ring-border"
+          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-black/10 bg-primary font-heading text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
           aria-label="Hồ sơ người dùng"
+          title={user?.email || "Hồ sơ người dùng"}
         >
-          HV
+          {initials ? (
+            <span>{initials}</span>
+          ) : (
+            <User aria-hidden="true" size={17} weight="bold" />
+          )}
         </Link>
       </div>
     </header>

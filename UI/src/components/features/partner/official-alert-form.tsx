@@ -381,7 +381,7 @@ export function OfficialAlertForm() {
     <div className="space-y-6">
       {/* Header Banner */}
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="flex size-7 items-center justify-center rounded-lg bg-red-600 text-white shadow-xs">
@@ -397,7 +397,7 @@ export function OfficialAlertForm() {
           </div>
 
           {/* Stat pills */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs dark:border-slate-800 dark:bg-slate-900 shadow-2xs">
               <span className="text-slate-500">Đã gửi: </span>
               <span className="font-bold text-slate-900 dark:text-white">{stats.total}</span>
@@ -415,9 +415,9 @@ export function OfficialAlertForm() {
       </div>
 
       {/* Main Grid: Form Left, Fast-Track Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         {/* Left Form: 2 cols */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="min-w-0 space-y-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Section 1 */}
             <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">

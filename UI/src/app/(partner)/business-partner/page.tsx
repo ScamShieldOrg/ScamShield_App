@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation"
+import { PartnerProfileView } from "@/components/features/partner/partner-profile-view"
 
 export default function BusinessPartnerIndexPage() {
-  redirect("/business-partner/alerts")
+  return <PartnerProfileView />
 }
-

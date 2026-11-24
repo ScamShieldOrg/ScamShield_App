@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef } from "react"
+import { X } from "@phosphor-icons/react"
 import { PartnerSidebar } from "./partner-sidebar"
 import { PartnerHeader } from "./partner-header"
 
@@ -9,36 +10,56 @@ export function PartnerDashboardShell({
 }: {
   children: React.ReactNode
 }) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenu = useRef<HTMLDialogElement>(null)
+  const closeMobileMenu = () => mobileMenu.current?.close()
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 64rem)")
+    const closeOnDesktop = () => {
+      if (desktop.matches) mobileMenu.current?.close()
+    }
+    desktop.addEventListener("change", closeOnDesktop)
+    return () => desktop.removeEventListener("change", closeOnDesktop)
+  }, [])
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex">
-      {/* Desktop Sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-60 z-40 md:block">
+    <div className="min-h-screen bg-[#faf8ff] font-sans text-[#131b2e] dark:bg-slate-950 dark:text-slate-100">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[250px] lg:block">
         <PartnerSidebar />
       </aside>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
-          <div
-            className="fixed inset-0 bg-black/50 transition-opacity"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          <div className="relative w-64 max-w-xs flex-1 bg-slate-900 z-50">
-            <PartnerSidebar onNavigate={() => setMobileMenuOpen(false)} />
-          </div>
-        </div>
-      )}
+      <dialog
+        ref={mobileMenu}
+        aria-label="Điều hướng đối tác doanh nghiệp"
+        className="fixed inset-y-0 left-0 m-0 h-dvh max-h-none w-[250px] max-w-full bg-transparent p-0 backdrop:bg-black/50 lg:hidden"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) closeMobileMenu()
+        }}
+      >
+        <PartnerSidebar
+          onNavigate={closeMobileMenu}
+          closeButton={
+            <button
+              type="button"
+              onClick={closeMobileMenu}
+              aria-label="Đóng menu"
+              className="grid size-8 place-items-center rounded-md hover:bg-black/10 dark:hover:bg-white/10"
+            >
+              <X size={18} />
+            </button>
+          }
+        />
+      </dialog>
 
       {/* Main Content Area */}
-      <div className="flex-1 md:pl-60 flex flex-col min-w-0">
-        <PartnerHeader onOpenMobileMenu={() => setMobileMenuOpen(true)} />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+      <div className="min-w-0 lg:pl-[250px]">
+        <PartnerHeader
+          onOpenMobileMenu={() => mobileMenu.current?.showModal()}
+        />
+        <main className="mx-auto w-full max-w-[1440px] p-4 sm:p-6">
           {children}
         </main>
       </div>
     </div>
   )
 }
-

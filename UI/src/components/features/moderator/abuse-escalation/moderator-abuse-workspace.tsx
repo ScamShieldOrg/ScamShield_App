@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
+import { toast } from "react-toastify"
 import {
   MagnifyingGlass,
   CheckCircle,
   WarningCircle,
   CircleNotch,
+  ArrowsClockwise,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { moderatorAbuseService } from "@/features/moderator/services/moderator-abuse.service"
@@ -49,195 +51,15 @@ interface AbuseSuspect {
   isEscalated?: boolean
 }
 
-const DEFAULT_SUSPECTS: AbuseSuspect[] = [
-  {
-    id: "AB-2026-0041",
-    userId: 101,
-    userCode: "U-00842",
-    username: "nguyenthanh_vn",
-    fullName: "Nguyễn Thành Trung",
-    email: "nguyenthanh@example.com",
-    userType: "Người dùng thường",
-    joinedAt: "14/02/2025",
-    reputation: 120,
-    status: "ACTIVE",
-    badge: "CẦN XEM XÉT",
-    summary: "Báo cáo hàng loạt · 12 đối tượng",
-    reports24h: 89,
-    reportsContext: "8.4x mức 30 ngày",
-    rejectedRate: 73,
-    rejectedCount: 65,
-    targetsCount: 12,
-    verifiedTargetsCount: 3,
-    flagType: "BULK_REPORTING",
-    alertTitle: "Phát hiện hoạt động báo cáo bất thường",
-    alertBody:
-      "Hãy xác minh lịch sử và bằng chứng trước khi gắn cờ rồi chuyển hồ sơ đến Quản trị viên.",
-    moderatorName: "Mai Phương",
-    submittedAt: "27/10/2026, 09:42",
-    relatedReports: [
-      {
-        id: 10281,
-        code: "CS-2026-10281",
-        target: "Đường dây nóng Vietcombank",
-        result: "Từ chối: trùng bằng chứng",
-        statusTone: "danger",
-        time: "09:12",
-      },
-      {
-        id: 10277,
-        code: "CS-2026-10277",
-        target: "Tên miền BIDV",
-        result: "Từ chối: thiếu căn cứ",
-        statusTone: "danger",
-        time: "08:44",
-      },
-      {
-        id: 10263,
-        code: "CS-2026-10263",
-        target: "Số hỗ trợ Techcombank",
-        result: "Từ chối: thiếu bằng chứng",
-        statusTone: "danger",
-        time: "08:16",
-      },
-      {
-        id: 10258,
-        code: "CS-2026-10258",
-        target: "Tuyển dụng trực tuyến",
-        result: "Đang chờ duyệt",
-        statusTone: "warning",
-        time: "07:53",
-      },
-    ],
-    isEscalated: false,
-  },
-  {
-    id: "AB-2026-0038",
-    userId: 102,
-    userCode: "U-00719",
-    username: "lehoangha",
-    fullName: "Lê Hoàng Hà",
-    email: "lehoangha@example.com",
-    userType: "Người dùng thường",
-    joinedAt: "20/01/2025",
-    reputation: 85,
-    status: "ACTIVE",
-    badge: "CHỜ XỬ LÝ",
-    summary: "Tỷ lệ báo cáo bị từ chối cao",
-    reports24h: 42,
-    reportsContext: "42 báo cáo · 24 giờ qua",
-    rejectedRate: 68,
-    rejectedCount: 29,
-    targetsCount: 8,
-    verifiedTargetsCount: 2,
-    flagType: "FALSE_REPORTING",
-    alertTitle: "Tỷ lệ báo cáo bị từ chối cao bất thường",
-    alertBody:
-      "Người dùng có hơn 68% báo cáo không hợp lệ trong 24 giờ qua.",
-    moderatorName: "Tuấn Anh",
-    submittedAt: "27/10/2026, 08:30",
-    relatedReports: [
-      {
-        id: 10212,
-        code: "CS-2026-10212",
-        target: "Đầu số 028710...",
-        result: "Từ chối: thiếu căn cứ",
-        statusTone: "danger",
-        time: "07:20",
-      },
-      {
-        id: 10205,
-        code: "CS-2026-10205",
-        target: "Fanpage mạo danh Shopee",
-        result: "Từ chối: nội dung sai lệch",
-        statusTone: "danger",
-        time: "06:45",
-      },
-    ],
-    isEscalated: false,
-  },
-  {
-    id: "AB-2026-0031",
-    userId: 103,
-    userCode: "U-00654",
-    username: "nguyengiabao",
-    fullName: "Nguyễn Gia Bảo",
-    email: "giabao@example.com",
-    userType: "Người dùng thường",
-    joinedAt: "10/11/2024",
-    reputation: 95,
-    status: "ACTIVE",
-    badge: "CHỜ XỬ LÝ",
-    summary: "Nhiều báo cáo trùng lặp",
-    reports24h: 18,
-    reportsContext: "18 báo cáo · 7 ngày qua",
-    rejectedRate: 55,
-    rejectedCount: 10,
-    targetsCount: 4,
-    verifiedTargetsCount: 1,
-    flagType: "SPAM",
-    alertTitle: "Nhiều báo cáo trùng lặp lặp lại nhiều lần",
-    alertBody:
-      "Gửi trùng lặp cùng một nội dung báo cáo nhiều lần trong thời gian ngắn.",
-    moderatorName: "Mai Phương",
-    submittedAt: "26/10/2026, 17:15",
-    relatedReports: [
-      {
-        id: 10189,
-        code: "CS-2026-10189",
-        target: "Link nhận quà tri ân",
-        result: "Từ chối: trùng lặp",
-        statusTone: "danger",
-        time: "16:40",
-      },
-    ],
-    isEscalated: false,
-  },
-  {
-    id: "AB-2026-0025",
-    userId: 104,
-    userCode: "U-00512",
-    username: "phamngoclinh",
-    fullName: "Phạm Ngọc Linh",
-    email: "ngoclinh@example.com",
-    userType: "Người dùng thường",
-    joinedAt: "05/08/2024",
-    reputation: 110,
-    status: "ACTIVE",
-    badge: "ĐÃ XỬ LÝ",
-    summary: "Đã xem xét - không vi phạm",
-    reports24h: 12,
-    reportsContext: "Đóng hồ sơ · 21/10/2026",
-    rejectedRate: 15,
-    rejectedCount: 2,
-    targetsCount: 3,
-    verifiedTargetsCount: 0,
-    flagType: "OTHER",
-    alertTitle: "Hồ sơ đã được xử lý và đóng",
-    alertBody:
-      "Không phát hiện hành vi lạm dụng có chủ đích. Hồ sơ đã được lưu trữ.",
-    moderatorName: "Hoàng Nam",
-    submittedAt: "21/10/2026, 11:20",
-    relatedReports: [
-      {
-        id: 10095,
-        code: "CS-2026-10095",
-        target: "Tin nhắn SMS trúng thưởng",
-        result: "Đã xác nhận",
-        statusTone: "neutral",
-        time: "10:15",
-      },
-    ],
-    isEscalated: true,
-  },
-]
-
 export function ModeratorAbuseWorkspace() {
   const [suspects, setSuspects] = useState<AbuseSuspect[]>([])
   const [selectedId, setSelectedId] = useState<string>("")
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "ESCALATED">("PENDING")
   const [isLoading, setIsLoading] = useState(true)
+  const [isQueueError, setIsQueueError] = useState(false)
+  const [queueErrorMessage, setQueueErrorMessage] = useState<string | null>(null)
+  const [isRetrying, setIsRetrying] = useState(false)
 
   // Selected report IDs for evidence checkbox
   const [selectedReportIds, setSelectedReportIds] = useState<number[]>([])
@@ -251,14 +73,12 @@ export function ModeratorAbuseWorkspace() {
   } | null>(null)
 
   // Fetch real reports from backend and group by reporter
-  useEffect(() => {
-    let active = true
+  const loadQueue = useCallback(async () => {
     setIsLoading(true)
-
-    getModeratorReportQueue({ tab: "ALL", size: 50 })
-      .then((res) => {
-        if (!active) return
-        const reports = res.data || []
+    setIsRetrying(true)
+    try {
+      const res = await getModeratorReportQueue({ tab: "ALL", size: 50 })
+      const reports = res.data || []
 
         // Group reports by reporter userId
         const groups = new Map<number, ModeratorReportItem[]>()
@@ -346,32 +166,53 @@ export function ModeratorAbuseWorkspace() {
           index++
         })
 
-        if (suspectList.length > 0) {
-          setSuspects(suspectList)
-          setSelectedId(suspectList[0].id)
-          setSelectedReportIds(suspectList[0].relatedReports.map((r) => r.id))
-        } else {
-          // Fallback to pre-seeded suspect cases matching the design
-          setSuspects(DEFAULT_SUSPECTS)
-          setSelectedId(DEFAULT_SUSPECTS[0].id)
-          setSelectedReportIds(DEFAULT_SUSPECTS[0].relatedReports.map((r) => r.id))
-        }
-      })
-      .catch(() => {
-        // Keep empty state if error loading
-        // Fallback to sample data on error/empty DB
-        setSuspects(DEFAULT_SUSPECTS)
-        setSelectedId(DEFAULT_SUSPECTS[0].id)
-        setSelectedReportIds(DEFAULT_SUSPECTS[0].relatedReports.map((r) => r.id))
-      })
-      .finally(() => {
-        if (active) setIsLoading(false)
-      })
+        // Check if suspect already has a pending escalation
+        const enrichedSuspects = await Promise.all(
+          suspectList.map(async (suspect) => {
+            try {
+              const esc = await moderatorAbuseService.getEscalations(suspect.userId, {
+                status: "PENDING",
+                size: 1,
+              })
+              const hasPending = (esc.data?.length || 0) > 0
+              if (hasPending) {
+                return { ...suspect, isEscalated: true, badge: "ĐÃ XỬ LÝ" as const }
+              }
+            } catch {
+              // Ignore if cannot load escalations
+            }
+            return suspect
+          })
+        )
 
-    return () => {
-      active = false
-    }
-  }, [])
+        if (enrichedSuspects.length > 0) {
+          setSuspects(enrichedSuspects)
+          setSelectedId(enrichedSuspects[0].id)
+          setSelectedReportIds(enrichedSuspects[0].relatedReports.map((r) => r.id))
+        } else {
+          setSuspects([])
+          setSelectedId("")
+          setSelectedReportIds([])
+        }
+        setIsQueueError(false)
+        setQueueErrorMessage(null)
+      } catch (err) {
+        setSuspects([])
+        setSelectedId("")
+        setSelectedReportIds([])
+        setIsQueueError(true)
+        const errText =
+          err instanceof Error ? err.message : "Không thể tải hàng đợi báo cáo từ máy chủ."
+        setQueueErrorMessage(errText)
+      } finally {
+        setIsLoading(false)
+        setIsRetrying(false)
+      }
+    }, [])
+
+  useEffect(() => {
+    loadQueue()
+  }, [loadQueue])
 
   const selected = useMemo(() => {
     return suspects.find((s) => s.id === selectedId) ?? suspects[0]
@@ -409,6 +250,19 @@ export function ModeratorAbuseWorkspace() {
 
   async function handleEscalate() {
     if (!selected) return
+
+    // Guard: Prevent escalating when queue request failed
+    if (isQueueError) {
+      const msg =
+        "Không thể chuyển hồ sơ khi danh sách hàng đợi đang bị lỗi kết nối. Vui lòng thử lại kết nối máy chủ."
+      setFeedback({
+        type: "error",
+        message: msg,
+      })
+      toast.error(msg)
+      return
+    }
+
     if (selectedReportIds.length === 0) {
       setFeedback({
         type: "error",
@@ -436,10 +290,12 @@ export function ModeratorAbuseWorkspace() {
         reportIds: selectedReportIds,
       })
 
+      const successMsg = `Đã gắn cờ và chuyển hồ sơ thành công cho Quản trị viên xét duyệt (Mã hồ sơ: ${res.escalationCode})!`
       setFeedback({
         type: "success",
-        message: `Đã gắn cờ và chuyển hồ sơ thành công cho Quản trị viên xét duyệt (Mã hồ sơ: ${res.escalationCode})!`,
+        message: successMsg,
       })
+      toast.success(successMsg)
 
       // Update local state to mark as escalated
       setSuspects((current) =>
@@ -449,12 +305,36 @@ export function ModeratorAbuseWorkspace() {
             : item
         )
       )
+      // Automatically switch to the "Đã chuyển" tab
+      setFilter("ESCALATED")
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Đã xảy ra lỗi khi chuyển hồ sơ."
-      setFeedback({
-        type: "error",
-        message: msg,
-      })
+      if (
+        msg.includes("đã có hồ sơ đang chờ") ||
+        msg.includes("Conflict") ||
+        msg.includes("409")
+      ) {
+        const conflictMsg = "Tài khoản này đã có hồ sơ đang chờ Quản trị viên xét duyệt."
+        toast.info(conflictMsg)
+        setFeedback({
+          type: "success",
+          message: conflictMsg,
+        })
+        setSuspects((current) =>
+          current.map((item) =>
+            item.id === selected.id
+              ? { ...item, isEscalated: true, badge: "ĐÃ XỬ LÝ" }
+              : item
+          )
+        )
+        setFilter("ESCALATED")
+      } else {
+        toast.error(msg)
+        setFeedback({
+          type: "error",
+          message: msg,
+        })
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -606,6 +486,35 @@ export function ModeratorAbuseWorkspace() {
 
       {/* Center / Right Workspace */}
       <main className="flex-1 min-h-0 overflow-y-auto bg-slate-50/40 p-4 sm:p-6 lg:p-8 dark:bg-slate-950">
+        {/* Explicit error state with retry action when live queue fetch fails */}
+        {isQueueError && (
+          <div
+            role="alert"
+            className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50/90 p-4 text-xs text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+          >
+            <div className="flex items-start gap-2.5">
+              <WarningCircle size={20} weight="fill" className="text-rose-600 shrink-0 mt-0.5 dark:text-rose-400" />
+              <div>
+                <p className="font-bold text-rose-950 dark:text-rose-100">
+                  Không thể tải danh sách hàng đợi trực tiếp từ máy chủ ({queueErrorMessage || "Lỗi kết nối"})
+                </p>
+                <p className="mt-0.5 text-rose-800/90 dark:text-rose-300/90">
+                  Danh sách hàng đợi đã bị xóa do tải thất bại. Vui lòng bấm thử lại để tải lại dữ liệu từ máy chủ.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={isRetrying}
+              onClick={loadQueue}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-rose-700 dark:hover:bg-rose-600"
+            >
+              <ArrowsClockwise size={14} className={cn(isRetrying && "animate-spin")} />
+              {isRetrying ? "Đang kết nối lại..." : "Thử lại kết nối"}
+            </button>
+          </div>
+        )}
+
         {!selected ? (
           <div className="flex h-full min-h-[400px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs text-slate-400 dark:border-slate-800 dark:bg-slate-900">
             Vui lòng chọn một tài khoản từ danh sách để xem chi tiết và thực hiện chuyển xử lý.
@@ -877,11 +786,32 @@ export function ModeratorAbuseWorkspace() {
                                 Gắn cờ chỉ ghi nhận để theo dõi; thao tác này không khóa tài khoản.
                               </div>
 
+                              {/* Local Feedback Banner if any */}
+                              {feedback && (
+                                <div
+                                  role="alert"
+                                  className={cn(
+                                    "mt-4 flex items-center gap-2 rounded-lg p-3 text-xs font-medium border",
+                                    feedback.type === "success"
+                                      ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                      : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                                  )}
+                                >
+                                  {feedback.type === "success" ? (
+                                    <CheckCircle size={18} weight="fill" className="text-emerald-600 shrink-0" />
+                                  ) : (
+                                    <WarningCircle size={18} weight="fill" className="text-rose-600 shrink-0" />
+                                  )}
+                                  <span>{feedback.message}</span>
+                                </div>
+                              )}
+
                               {/* Escalate Button */}
                               <button
                                 type="button"
                                 disabled={
                                   isSubmitting ||
+                                  isQueueError ||
                                   reason.trim().length < 20 ||
                                   selected.isEscalated ||
                                   selectedReportIds.length === 0
@@ -890,11 +820,13 @@ export function ModeratorAbuseWorkspace() {
                                 className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                               >
                                 {isSubmitting && <CircleNotch size={16} className="animate-spin" />}
-                                {selected.isEscalated
-                                  ? "Hồ sơ đã được chuyển cho Quản trị viên"
-                                  : isSubmitting
-                                    ? "Đang chuyển hồ sơ..."
-                                    : "Gắn cờ & chuyển Quản trị viên"}
+                                {isQueueError
+                                  ? "Mất kết nối máy chủ · Vui lòng thử lại kết nối"
+                                  : selected.isEscalated
+                                    ? "Hồ sơ đã được chuyển cho Quản trị viên"
+                                    : isSubmitting
+                                      ? "Đang chuyển hồ sơ..."
+                                      : "Gắn cờ & chuyển Quản trị viên"}
                               </button>
                             </section>
 

@@ -8,7 +8,7 @@ export interface PartnerNavItem {
 
 export const PARTNER_NAV_ITEMS: PartnerNavItem[] = [
   {
-    title: "Tổng quan / Dashboard",
+    title: "Hồ sơ đối tác",
     href: "/business-partner",
     iconName: "Gauge",
   },
