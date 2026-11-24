@@ -19,6 +19,9 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
                    cast(i.type as string) AS resourceType,
                    COALESCE(i.displayValue, i.normalizedValue) AS title,
                    ci.publicReason AS description,
+                   sc.code AS categoryCode,
+                   sc.name AS categoryName,
+                   sc.description AS categoryDescription,
                    (SELECT COUNT(r)
                       FROM Report r
                      WHERE r.indicator = i
@@ -27,6 +30,7 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
                    COALESCE(i.updatedAt, ci.confirmedAt) AS updatedAt
             FROM ConfirmedIndicator ci
             JOIN ci.indicator i
+            LEFT JOIN ci.category sc
             WHERE ci.status = com.be.scamshield.constant.ConfirmedIndicatorStatus.ACTIVE
               AND (:resourceType IS NULL OR cast(i.type as string) = :resourceType)
               AND (:keyword IS NULL
@@ -57,6 +61,9 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
         String getResourceType();
         String getTitle();
         String getDescription();
+        String getCategoryCode();
+        String getCategoryName();
+        String getCategoryDescription();
         Long getWarningCount();
         LocalDateTime getConfirmedAt();
         LocalDateTime getUpdatedAt();

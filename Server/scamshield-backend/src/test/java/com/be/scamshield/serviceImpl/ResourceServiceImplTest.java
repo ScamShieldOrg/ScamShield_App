@@ -68,6 +68,29 @@ class ResourceServiceImplTest {
     }
 
     @Test
+    void blacklistReturnsCategoryAndUsesItsDescriptionWhenPublicReasonIsBlank() {
+        var filter = new BlacklistResourceFilterRequest();
+        var categorizedRow = mock(BlacklistResourceProjection.class);
+        var confirmedRow = mock(BlacklistResourceProjection.class);
+        when(categorizedRow.getCategoryCode()).thenReturn("IMPERSONATION");
+        when(categorizedRow.getCategoryName()).thenReturn("Giả danh");
+        when(categorizedRow.getCategoryDescription()).thenReturn("Giả danh để yêu cầu chuyển tiền.");
+        when(categorizedRow.getDescription()).thenReturn(" ");
+        when(confirmedRow.getCategoryDescription()).thenReturn("Mô tả chung.");
+        when(confirmedRow.getDescription()).thenReturn("Lý do công khai đã xác minh.");
+        when(resourceRepository.findBlackListResources(eq(null), eq(null), eq(PageRequest.of(filter.getPage(), filter.getSize()))))
+                .thenReturn(new PageImpl<>(List.of(categorizedRow, confirmedRow)));
+
+        var items = service.getBlackListResources(filter).getData();
+
+        assertThat(items.get(0).getCategoryCode()).isEqualTo("IMPERSONATION");
+        assertThat(items.get(0).getCategoryName()).isEqualTo("Giả danh");
+        assertThat(items.get(0).getCategoryDescription()).isEqualTo("Giả danh để yêu cầu chuyển tiền.");
+        assertThat(items.get(0).getDescription()).isEqualTo("Giả danh để yêu cầu chuyển tiền.");
+        assertThat(items.get(1).getDescription()).isEqualTo("Lý do công khai đã xác minh.");
+    }
+
+    @Test
     void whitelistGroupsVerifiedEntriesByPartnerWithoutLosingPagination() {
         var filter = new WhitelistResourceFilterRequest();
         filter.setPage(1);

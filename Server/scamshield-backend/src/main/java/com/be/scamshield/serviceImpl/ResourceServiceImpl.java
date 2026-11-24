@@ -98,17 +98,26 @@ public class ResourceServiceImpl implements IResourceService {
                 .indicatorId(row.getIndicatorId())
                 .resourceType(row.getResourceType())
                 .title(row.getTitle())
+                .categoryCode(row.getCategoryCode())
+                .categoryName(row.getCategoryName())
+                .categoryDescription(row.getCategoryDescription())
                 .severity(severity.name())
                 .severityLabel(severity.label)
-                .description(StringUtils.hasText(row.getDescription())
-                        ? row.getDescription()
-                        : "ScamShield confirmed this resource as unsafe.")
+                .description(blacklistDescription(row))
                 .warningCount(row.getWarningCount())
                 .confirmedAt(row.getConfirmedAt())
                 .updatedAt(row.getUpdatedAt())
                 .build();
     }
 
+    private String blacklistDescription(BlacklistResourceProjection row) {
+        if (StringUtils.hasText(row.getDescription())) {
+            return row.getDescription();
+        }
+        return StringUtils.hasText(row.getCategoryDescription())
+                ? row.getCategoryDescription()
+                : "ScamShield confirmed this resource as unsafe.";
+    }
 
     private String keyword(String value) {
         return StringUtils.hasText(value) ? "%" + value.trim().toLowerCase(Locale.ROOT) + "%" : null;
