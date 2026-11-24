@@ -126,14 +126,10 @@ public class ScamCheckAiClient {
 
 
     public Result scan(Long checkId, String inputType, String content) {
-        return scan(checkId, inputType, content, null, null, false);
+        return scan(checkId, inputType, content, false);
     }
 
-    public Result scan(Long checkId, String inputType, String content, String normalizedContent, List<?> candidates) {
-        return scan(checkId, inputType, content, normalizedContent, candidates, false);
-    }
-
-    public Result scan(Long checkId, String inputType, String content, String normalizedContent, List<?> candidates, boolean forceTier2) {
+    public Result scan(Long checkId, String inputType, String content, boolean forceTier2) {
 
         long started = System.nanoTime();
 
@@ -171,25 +167,11 @@ public class ScamCheckAiClient {
 
             body.put("content", content);
 
-            body.put("raw_input", content);
-
-            if (normalizedContent != null && !normalizedContent.isBlank()) {
-
-                body.put("normalized_content", normalizedContent);
-
-            }
-
             body.put("check_type", type);
 
             body.put("core_check_id", checkId);
 
             body.put("force_tier2", forceTier2);
-
-            if (candidates != null && !candidates.isEmpty()) {
-
-                body.put("extracted_entities", candidates);
-
-            }
 
 
 

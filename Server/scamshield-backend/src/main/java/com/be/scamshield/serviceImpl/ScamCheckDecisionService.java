@@ -112,7 +112,7 @@ public class ScamCheckDecisionService {
         }
         log.info("Scam check routed to AI: checkId={}, inputType={}, reason=NO_DECISIVE_CURATED_MATCH",
                 check.getId(), check.getInputType());
-        var result = aiClient.scan(check.getId(), check.getInputType(), check.getRawInput(), check.getNormalizedInput(), candidates, forceTier2);
+        var result = aiClient.scan(check.getId(), check.getInputType(), check.getRawInput(), forceTier2);
         verdict.setVerdict(result.verdict());
         verdict.setDecidedByStage(result.stage());
         verdict.setConfidence(result.confidence());

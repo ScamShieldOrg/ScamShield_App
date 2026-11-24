@@ -166,6 +166,7 @@ public class ScamCheckInputProcessor {
 
     private String mask(String text) {
         return text.replaceAll("(?iu)[\\p{L}0-9._%+-]+@[\\p{L}0-9.-]+\\.[\\p{L}]{2,}", "[EMAIL]")
+                .replaceAll("(?iu)(\\b(?:mã\\s*otp|ma\\s*otp|otp|mã\\s*xác\\s*thực|ma\\s*xac\\s*thuc|mã\\s*xác\\s*nhận|ma\\s*xac\\s*nhan|mã\\s*bảo\\s*mật|ma\\s*bao\\s*mat)\\s*(?:của\\s*bạn|cua\\s*ban)?\\s*(?:là|la|:|#|-|\\s)\\s*)[A-Za-z0-9]{4,8}\\b", "$1[OTP]")
                 .replaceAll("(?<!\\w)\\+?[0-9][0-9 .()-]{4,}[0-9](?!\\w)", "[NUMBER]")
                 .replaceAll("[0-9]{6,}", "[NUMBER]")
                 .replaceAll("([?&][^=\\s&]+)=[^&\\s]+", "$1=[MASKED]");

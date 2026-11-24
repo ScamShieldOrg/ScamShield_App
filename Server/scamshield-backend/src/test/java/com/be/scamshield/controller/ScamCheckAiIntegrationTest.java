@@ -22,7 +22,6 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,7 +50,7 @@ class ScamCheckAiIntegrationTest extends PostgresIntegrationTest {
                 Map.of("urgency", new BigDecimal("80")), List.of("Xác minh qua kênh chính thức"),
                 new ScamCheckAiDetails.CouncilAudit("3/3", "model-a", false, true,
                         List.of(new ScamCheckAiDetails.AgentFinding("reviewer", "SCAM_RISK", new BigDecimal("68")))));
-        when(aiClient.scan(any(), eq("MESSAGE"), eq("Nhắn tin cho tôi"), any(), anyList(), anyBoolean())).thenReturn(
+        when(aiClient.scan(any(), eq("MESSAGE"), eq("Nhắn tin cho tôi"), anyBoolean())).thenReturn(
                 new ScamCheckAiClient.Result("SCAM_RISK", "LLM", new BigDecimal("0.9"),
                         "Đáng ngờ", "Xác minh qua kênh chính thức", null, "SC-123", details));
 
@@ -73,7 +72,7 @@ class ScamCheckAiIntegrationTest extends PostgresIntegrationTest {
         var other = sessions.createOrGetSession(null, null).getSessionToken();
         mvc.perform(get("/api/scam-checks/{id}", id).header("X-Guest-Session", other))
                 .andExpect(status().isNotFound());
-        verify(aiClient).scan(eq(id), eq("MESSAGE"), eq("Nhắn tin cho tôi"), any(), anyList(), eq(false));
+        verify(aiClient).scan(eq(id), eq("MESSAGE"), eq("Nhắn tin cho tôi"), eq(false));
     }
 
     @Test
@@ -85,7 +84,7 @@ class ScamCheckAiIntegrationTest extends PostgresIntegrationTest {
                         BigDecimal.ZERO, "Chưa có đủ bằng chứng để kết luận URL an toàn hay nguy hiểm."),
                 Map.of("suspicious_channel", new BigDecimal("20")),
                 List.of("Kiểm tra lại qua kênh chính thức."), null);
-        when(aiClient.scan(any(), eq("URL"), eq(url), any(), anyList(), anyBoolean())).thenReturn(
+        when(aiClient.scan(any(), eq("URL"), eq(url), anyBoolean())).thenReturn(
                 new ScamCheckAiClient.Result("UNKNOWN", "URL_REPUTATION", BigDecimal.ZERO,
                         details.verdict().summary(), "Kiểm tra lại qua kênh chính thức.",
                         "AI_UNCERTAIN", "SC-URL", details));
@@ -104,6 +103,6 @@ class ScamCheckAiIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.aiDetails.scanId").value("SC-URL"))
                 .andExpect(jsonPath("$.data.aiDetails.verdict.riskScore").value(nullValue()));
-        verify(aiClient).scan(eq(id), eq("URL"), eq(url), any(), anyList(), eq(false));
+        verify(aiClient).scan(eq(id), eq("URL"), eq(url), eq(false));
     }
 }

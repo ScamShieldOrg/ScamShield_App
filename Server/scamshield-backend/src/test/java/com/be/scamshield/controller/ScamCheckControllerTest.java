@@ -9,7 +9,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyList;
 
 import com.be.scamshield.support.PostgresIntegrationTest;
 
@@ -69,7 +68,7 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        when(scamCheckAiClient.scan(any(), any(), any(), any(), anyList(), anyBoolean()))
+        when(scamCheckAiClient.scan(any(), any(), any(), anyBoolean()))
                 .thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
         owner = account();
         guest = sessions.createOrGetSession(null, null).getSessionToken();

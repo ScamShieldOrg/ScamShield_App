@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
@@ -70,7 +69,7 @@ class ScamCheckDecisionServiceTest {
     @Test
     void trustedLinkInsideMessageStillRequiresAnalysis() {
         when(indicators.findByTypeAndNormalizedValueInOrderByIdAsc(any(IndicatorType.class), anyCollection())).thenReturn(List.of(indicator));
-        when(aiClient.scan(any(), anyString(), any(), any(), anyList(), anyBoolean())).thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
+        when(aiClient.scan(any(), anyString(), any(), anyBoolean())).thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
         var decision = service.decide(check("MESSAGE"), candidates);
         assertThat(decision.verdict().getVerdict()).isEqualTo("UNKNOWN");
         assertThat(decision.verdict().getUnknownReason()).isEqualTo("AI_UNAVAILABLE");
@@ -79,7 +78,7 @@ class ScamCheckDecisionServiceTest {
 
     @Test
     void noKnownIndicatorReturnsAnExplicitAiPlaceholder() {
-        when(aiClient.scan(any(), anyString(), any(), any(), anyList(), anyBoolean())).thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
+        when(aiClient.scan(any(), anyString(), any(), anyBoolean())).thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
         var decision = service.decide(check("MESSAGE"), List.of());
         assertThat(decision.verdict().getVerdict()).isEqualTo("UNKNOWN");
         assertThat(decision.verdict().getUnknownReason()).isEqualTo("AI_UNAVAILABLE");
@@ -100,12 +99,12 @@ class ScamCheckDecisionServiceTest {
 
     @Test
     void sendsOriginalMessageContentToAi() {
-        when(aiClient.scan(any(), anyString(), any(), any(), anyList(), anyBoolean())).thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
+        when(aiClient.scan(any(), anyString(), any(), anyBoolean())).thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
         var check = check("MESSAGE");
         check.setRawInput("Số 0912345678");
         check.setMaskedInput("Số [NUMBER]");
         service.decide(check, List.of());
-        verify(aiClient).scan(null, "MESSAGE", "Số 0912345678", null, List.of(), false);
+        verify(aiClient).scan(null, "MESSAGE", "Số 0912345678", false);
     }
 
     private CheckRequest check(String inputType) {
