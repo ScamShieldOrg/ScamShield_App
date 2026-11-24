@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -60,9 +61,9 @@ class ScamCheckFailureQuotaTest {
             return check;
         });
         if (stage == FailureStage.AI_DECISION) {
-            when(decisions.decide(any(), anyList())).thenThrow(failure);
+            when(decisions.decide(any(), anyList(), anyBoolean())).thenThrow(failure);
         } else if (stage == FailureStage.VERDICT_SAVE) {
-            when(decisions.decide(any(), anyList())).thenReturn(new ScamCheckDecisionService.Decision(
+            when(decisions.decide(any(), anyList(), anyBoolean())).thenReturn(new ScamCheckDecisionService.Decision(
                     CheckVerdict.builder().verdict("UNKNOWN").build(), List.of()));
             when(checks.findById(1L)).thenAnswer(invocation -> Optional.of(saved.get()));
             when(verdicts.saveAndFlush(any())).thenThrow(failure);
