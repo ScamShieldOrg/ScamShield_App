@@ -1,3 +1,5 @@
+import { AdminRateLimitsDashboard } from "@/components/features/admin/rate-limits/admin-rate-limits-dashboard"
+
 export default function AdminRateLimitsPage() {
-  return <div>This is admin rate limits page</div>
+  return <AdminRateLimitsDashboard />
 }

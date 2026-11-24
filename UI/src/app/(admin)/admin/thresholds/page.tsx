@@ -1,3 +1,5 @@
+import { AdminThresholdsDashboard } from "@/components/features/admin/thresholds/admin-thresholds-dashboard"
+
 export default function AdminThresholdsPage() {
-  return <div>This is admin thresholds page</div>
+  return <AdminThresholdsDashboard />
 }
