@@ -1,12 +1,15 @@
 "use client"
 
 import { RecentReportsTable } from "./recent-reports-table"
-import { useState } from "react"
+import { buildReportPageRange, getNextTabIndex } from "./report-helpers"
+import { useRef, useState } from "react"
+import { motion } from "motion/react"
 import {
   MagnifyingGlass,
   CaretDown,
   CalendarBlank,
   ArrowsClockwise,
+  X,
 } from "@phosphor-icons/react"
 import {
   TrackingReportItem,
@@ -53,7 +56,6 @@ export function ReportTrackingTable({
   currentPage: controlledCurrentPage,
   totalPages = 1,
   totalItems = 0,
-
   onPageChange,
   onRefresh,
 }: ReportTrackingTableProps) {
@@ -64,6 +66,7 @@ export function ReportTrackingTable({
   const [internalCategory, setInternalCategory] = useState("all")
   const [internalDays, setInternalDays] = useState("30")
   const [internalPage, setInternalPage] = useState(1)
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
 
   const search =
     controlledSearch !== undefined ? controlledSearch : internalSearch
@@ -111,66 +114,86 @@ export function ReportTrackingTable({
       status: "ALL",
       label: "Tất cả",
       count: statusCounts?.all ?? totalItems ?? items.length,
-      dotColor: "bg-white",
+      dotColor: "bg-foreground/70",
     },
     {
       status: "PENDING",
       label: "Đang chờ duyệt",
       count: statusCounts?.pending ?? 0,
-      dotColor: "bg-[#F59E0B]",
+      dotColor: "bg-amber-500 dark:bg-amber-400",
     },
     {
       status: "IN_REVIEW",
       label: "Đang kiểm duyệt",
       count: statusCounts?.inReview ?? 0,
-      dotColor: "bg-blue-500",
+      dotColor: "bg-sky-500 dark:bg-sky-400",
     },
     {
       status: "APPROVED",
       label: "Đã vào Blacklist",
       count: statusCounts?.approvedBlacklist ?? 0,
-      dotColor: "bg-[#10B981]",
+      dotColor: "bg-emerald-500 dark:bg-emerald-400",
     },
     {
       status: "WITHDRAWN",
       label: "Đã thu hồi",
       count: statusCounts?.withdrawn ?? 0,
-      dotColor: "bg-slate-400",
+      dotColor: "bg-muted-foreground/70",
     },
     {
       status: "REJECTED",
       label: "Bị từ chối",
       count: statusCounts?.rejected ?? 0,
-      dotColor: "bg-[#EF4444]",
+      dotColor: "bg-rose-500 dark:bg-rose-400",
     },
   ]
+
+  const pageTokens = buildReportPageRange(currentPage, totalPages)
 
   return (
     <div className="space-y-4">
       {/* Search Bar & Dropdown Filters */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
         {/* Search */}
-        <div className="relative sm:col-span-6 lg:col-span-7">
+        <div className="relative sm:col-span-12 lg:col-span-6">
           <MagnifyingGlass
+            aria-hidden="true"
             size={16}
             weight="bold"
-            className="absolute top-1/2 left-3.5 -translate-y-1/2 text-[#45464D] dark:text-muted-foreground"
+            className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground"
           />
           <input
             type="text"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && search) {
+                handleSearchChange("")
+              }
+            }}
+            aria-label="Tìm kiếm báo cáo"
             placeholder="Tìm số điện thoại, tài khoản ngân hàng, tên miền..."
-            className="w-full rounded-xl border border-[#C6C6CE]/50 bg-white py-2.5 pr-4 pl-9 text-xs text-[#131B2E] placeholder:text-muted-foreground/70 focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-card dark:text-foreground"
+            className="min-h-10 w-full rounded-lg border border-black/10 bg-card py-2 pr-9 pl-10 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => handleSearchChange("")}
+              aria-label="Xóa từ khóa tìm kiếm"
+              className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X aria-hidden="true" size={14} weight="bold" />
+            </button>
+          )}
         </div>
 
         {/* Category select */}
-        <div className="lg:col-span-2.5 relative sm:col-span-3">
+        <div className="relative sm:col-span-6 lg:col-span-3">
           <select
             value={selectedCategory}
             onChange={(e) => handleCategoryChange(e.target.value)}
-            className="w-full appearance-none rounded-xl border border-[#C6C6CE]/50 bg-white py-2.5 pr-8 pl-3.5 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-card dark:text-foreground"
+            aria-label="Lọc theo danh mục thủ đoạn"
+            className="min-h-10 w-full appearance-none rounded-lg border border-black/10 bg-card py-2 pr-9 pl-3.5 text-sm font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
           >
             <option value="all">Tất cả danh mục thủ đoạn</option>
             {categories.map((cat) => (
@@ -180,18 +203,20 @@ export function ReportTrackingTable({
             ))}
           </select>
           <CaretDown
-            size={13}
+            aria-hidden="true"
+            size={14}
             weight="bold"
-            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[#45464D] dark:text-muted-foreground"
+            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground"
           />
         </div>
 
         {/* Time select */}
-        <div className="lg:col-span-2.5 relative sm:col-span-3">
+        <div className="relative sm:col-span-6 lg:col-span-3">
           <select
             value={selectedDays}
             onChange={(e) => handleDaysChange(e.target.value)}
-            className="w-full appearance-none rounded-xl border border-[#C6C6CE]/50 bg-white py-2.5 pr-8 pl-3.5 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-card dark:text-foreground"
+            aria-label="Lọc theo khoảng thời gian"
+            className="min-h-10 w-full appearance-none rounded-lg border border-black/10 bg-card py-2 pr-9 pl-3.5 text-sm font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
           >
             <option value="30">30 ngày qua</option>
             <option value="7">7 ngày qua</option>
@@ -199,40 +224,65 @@ export function ReportTrackingTable({
             <option value="all">Toàn bộ thời gian</option>
           </select>
           <CalendarBlank
+            aria-hidden="true"
             size={15}
             weight="bold"
-            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[#45464D] dark:text-muted-foreground"
+            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground"
           />
         </div>
       </div>
 
-      {/* Filter Pills */}
-      <div className="flex flex-wrap items-center gap-2">
-        {filterPills.map((pill) => {
+      {/* Sliding Status Filter Tabs */}
+      <div
+        role="tablist"
+        aria-label="Lọc báo cáo theo trạng thái"
+        className="flex flex-wrap items-center gap-1.5 rounded-xl border border-black/10 bg-muted/40 p-1.5 dark:border-white/10"
+      >
+        {filterPills.map((pill, idx) => {
           const isActive = selectedStatus === pill.status
           return (
             <button
               key={pill.status}
+              ref={(el) => {
+                tabRefs.current[idx] = el
+              }}
+              role="tab"
               type="button"
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => handleStatusChange(pill.status)}
+              onKeyDown={(e) => {
+                const nextIdx = getNextTabIndex(idx, filterPills.length, e.key)
+                if (nextIdx !== null) {
+                  e.preventDefault()
+                  handleStatusChange(filterPills[nextIdx].status)
+                  tabRefs.current[nextIdx]?.focus()
+                }
+              }}
               className={cn(
-                "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold shadow-2xs transition-all",
+                "relative inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                 isActive
-                  ? "border-[#0B132B] bg-[#0B132B] text-white dark:bg-primary dark:text-primary-foreground"
-                  : "border-[#C6C6CE]/50 bg-white text-[#131B2E] hover:bg-[#FAF8FF] dark:border-border dark:bg-card dark:text-foreground"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className={cn("size-2 rounded-full", pill.dotColor)} />
-              <span>{pill.label}</span>
+              {isActive && (
+                <motion.span
+                  layoutId="report-status-tab-indicator"
+                  transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                  className="absolute inset-0 rounded-lg border border-black/10 bg-card shadow-xs dark:border-white/12"
+                />
+              )}
               <span
+                aria-hidden="true"
                 className={cn(
-                  "py-0.2 rounded-full px-1.5 text-[10px] font-bold",
-                  isActive
-                    ? "bg-white/20 text-white"
-                    : "bg-[#F2F3FF] text-[#45464D] dark:bg-muted dark:text-muted-foreground"
+                  "relative z-10 size-2 shrink-0 rounded-full",
+                  pill.dotColor
                 )}
-              >
-                {pill.count}
+              />
+              <span className="relative z-10">{pill.label}</span>
+              <span className="relative z-10 rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+                {pill.count.toLocaleString("vi-VN")}
               </span>
             </button>
           )
@@ -240,26 +290,28 @@ export function ReportTrackingTable({
       </div>
 
       {/* Main Table Card */}
-      <div className="overflow-hidden rounded-2xl border border-[#C6C6CE]/40 bg-white shadow-xs dark:border-border dark:bg-card">
+      <div className="overflow-hidden rounded-xl border border-black/10 bg-card shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)] dark:border-white/10 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]">
         {/* Table Title Bar */}
-        <div className="flex items-center justify-between border-b border-[#C6C6CE]/30 px-5 py-3.5 dark:border-border">
-          <div className="flex items-center gap-2">
-            <h3 className="font-heading text-sm font-bold text-[#131B2E] dark:text-foreground">
-              Bảng Quản Lý Tiến Trình Phê Duyệt
-            </h3>
+        <div className="flex items-center justify-between border-b border-border/70 px-5 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <h2 className="font-heading text-sm font-bold tracking-[-0.02em] text-foreground">
+              Tiến trình phê duyệt báo cáo
+            </h2>
+            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+              {totalItems.toLocaleString("vi-VN")} mục
+            </span>
           </div>
           {onRefresh && (
             <button
               type="button"
               onClick={onRefresh}
-              className="flex size-7 cursor-pointer items-center justify-center rounded-lg text-[#45464D] hover:bg-[#F2F3FF] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:bg-muted"
-              aria-label="Làm mới"
+              disabled={isLoading}
+              className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+              aria-label="Làm mới danh sách"
             >
-              <ArrowsClockwise
-                size={16}
-                weight="bold"
-                className={cn(isLoading && "animate-spin")}
-              />
+              <div className={cn(isLoading && "motion-safe:animate-spin")}>
+                <ArrowsClockwise aria-hidden="true" size={16} weight="bold" />
+              </div>
             </button>
           )}
         </div>
@@ -286,42 +338,53 @@ export function ReportTrackingTable({
         />
 
         {/* Footer Pagination */}
-        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#C6C6CE]/30 px-5 py-3 dark:border-border">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 px-5 py-3.5">
+          <p className="text-xs text-muted-foreground tabular-nums">
+            Trang {currentPage} / {totalPages}
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
               disabled={currentPage <= 1 || isLoading}
-              className="rounded-lg border border-[#C6C6CE]/50 bg-white px-2.5 py-1 text-xs font-semibold text-[#45464D] hover:bg-[#FAF8FF] disabled:cursor-not-allowed disabled:opacity-40 dark:border-border dark:bg-card dark:text-muted-foreground"
+              className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-border bg-background px-4 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40"
             >
               Trang trước
             </button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, idx) => {
-              const p = idx + 1
-              return (
+            {pageTokens.map((token) =>
+              typeof token === "number" ? (
                 <button
-                  key={p}
+                  key={token}
                   type="button"
-                  onClick={() => handlePageChange(p)}
+                  onClick={() => handlePageChange(token)}
                   disabled={isLoading}
+                  aria-current={currentPage === token ? "page" : undefined}
                   className={cn(
-                    "flex size-7 cursor-pointer items-center justify-center rounded-lg text-xs font-bold shadow-2xs transition-all",
-                    currentPage === p
-                      ? "bg-[#0B132B] text-white dark:bg-primary dark:text-primary-foreground"
-                      : "border border-[#C6C6CE]/50 bg-white text-[#131B2E] hover:bg-[#FAF8FF] dark:border-border dark:bg-card dark:text-foreground"
+                    "inline-flex min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                    currentPage === token
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border bg-background text-foreground hover:bg-muted"
                   )}
                 >
-                  {p}
+                  {token}
                 </button>
+              ) : (
+                <span
+                  key={token}
+                  aria-hidden="true"
+                  className="px-1.5 text-xs text-muted-foreground"
+                >
+                  …
+                </span>
               )
-            })}
+            )}
             <button
               type="button"
               onClick={() =>
                 handlePageChange(Math.min(totalPages, currentPage + 1))
               }
               disabled={currentPage >= totalPages || isLoading}
-              className="rounded-lg border border-[#C6C6CE]/50 bg-white px-2.5 py-1 text-xs font-semibold text-[#45464D] hover:bg-[#FAF8FF] disabled:cursor-not-allowed disabled:opacity-40 dark:border-border dark:bg-card dark:text-muted-foreground"
+              className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-border bg-background px-4 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40"
             >
               Trang sau
             </button>

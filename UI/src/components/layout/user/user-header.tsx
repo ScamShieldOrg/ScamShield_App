@@ -6,6 +6,7 @@ import { Bell, CaretRight, House, List, User, Warning } from "@phosphor-icons/re
 import { getActiveUserNavItem } from "@/config/navigation/user-nav"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 import { useAuthStore } from "@/store/auth.store"
+import { ExpandableIconLink } from "@/components/shared/expandable-icon-action"
 
 const DEFAULT_PAGE_TITLE = "Giám Sát & Phòng Vệ Số"
 
@@ -29,13 +30,13 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
   const initials = getInitials(user?.email)
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between gap-3 border-b border-black/10 bg-background/90 px-4 font-sans antialiased backdrop-blur-md sm:px-6 dark:border-white/10">
+    <header className="sticky top-0 z-30 flex h-16 w-full shrink-0 items-center justify-between gap-3 border-b border-black/10 bg-background/90 px-4 font-sans antialiased backdrop-blur-md sm:px-6 dark:border-white/10">
       {/* Left: Mobile Menu Toggle & Breadcrumb */}
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={onToggleMobileMenu}
-          className="inline-flex min-h-10 min-w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 bg-card text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:hidden dark:border-white/10"
+          className="inline-flex min-h-10 min-w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-card text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:hidden dark:border-white/10"
           aria-label="Mở thanh điều hướng"
         >
           <List aria-hidden="true" size={20} weight="bold" />
@@ -66,17 +67,16 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
 
       {/* Right: Quick Report CTA, Notifications & Profile */}
       <div className="flex shrink-0 items-center gap-2">
-        <Link
+        <ExpandableIconLink
           href="/user/reports/new"
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 text-xs font-semibold text-rose-800 transition-colors duration-120 hover:bg-rose-500/20 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:bg-rose-500/15 dark:text-rose-200 dark:hover:bg-rose-500/25"
-        >
-          <Warning aria-hidden="true" size={15} weight="fill" />
-          <span className="hidden sm:inline">Báo cáo nhanh</span>
-        </Link>
+          icon={<Warning aria-hidden="true" size={16} weight="fill" />}
+          label="Báo cáo nhanh"
+          variant="danger"
+        />
 
         <Link
           href="/user/notifications"
-          className="relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           aria-label={
             unreadCount > 0
               ? `Thông báo (${unreadCount} chưa đọc)`
@@ -93,7 +93,7 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
 
         <Link
           href="/user/profile"
-          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-black/10 bg-primary font-heading text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
+          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-black/10 bg-primary font-heading text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
           aria-label="Hồ sơ người dùng"
           title={user?.email || "Hồ sơ người dùng"}
         >

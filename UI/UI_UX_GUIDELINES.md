@@ -28,10 +28,15 @@ Kết hợp **5 trụ cột chất lượng** (*Clear → Precise → Efficient 
 
 ### 2.2. Hệ Lưới & Bo Góc
 - **Lưới `4px / 8px`:** Mọi padding, gap, margin đều là bội số của `4px` (`4, 8, 12, 16, 20, 24, 32, 48px`).
-- **Thống nhất 3 mức bo góc:**
-  - `rounded-md` (`6px`): badge, chip nhỏ, `<kbd>`, nút phụ gọn.
-  - `rounded-lg` (`8px`): nút chính, nav item, callout, ô thông tin nhỏ.
+- **Thống nhất bo góc theo vai trò phần tử:**
+  - `rounded-md` (`6px`): badge, chip nhỏ, `<kbd>`.
+  - `rounded-lg` (`8px`): nav item, callout, ô input/select/textarea, tab, ô thông tin nhỏ.
   - `rounded-xl` (`12px`): card chính, composer nổi, popover/dropdown, modal.
+  - `rounded-full` (pill-shaped): **tất cả các nút hành động (Action Buttons)** — bao gồm Primary CTA, Secondary/Dialog buttons, và `ExpandableIconButton`/`ExpandableIconLink` (tròn `40×40px` khi thu gọn, bung thành viên thuốc khi hover/focus-visible hoặc loading/feedback).
+
+### 2.2.1. Nút Icon Mở Rộng & Sidebar Thu Gọn
+- **Nút hành động phụ / Header / Toolbar:** Ưu tiên dùng `ExpandableIconButton` / `ExpandableIconLink` (`components/shared/expandable-icon-action.tsx`) dạng tròn icon-only (`40×40px`, có `aria-label`/`title`), mở rộng chữ mượt `200ms` bằng CSS Grid (`0fr → 1fr`) khi hover/`focus-visible`, và tự bung chữ khi `expanded={true}` (loading hoặc feedback như *"Đang xuất..."*, *"Đã chép"*). Giữ chữ cố định cho nút Submit chính, Dialog xác nhận, Tabs và nút chọn lựa (Phê duyệt/Từ chối).
+- **Sidebar thu gọn (Claude Web Icon Rail):** Hỗ trợ fold xuống `64px` (`w-16`) lưu trạng thái `localStorage`, không nhồi thẻ thông tin user thừa trên sidebar; khi fold, nội dung `<main>` tự động căn giữa cân đối.
 
 ### 2.3. Chiều Sâu Bề Mặt (Claude + Railway Tactile Depth)
 - **Light Mode:** Nền dịu (tránh trắng gắt toàn trang) + viền `1px` sắc nét `border-black/10` + đổ bóng đa tầng mềm cho bề mặt trọng tâm:

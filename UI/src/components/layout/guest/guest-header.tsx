@@ -82,7 +82,7 @@ export function GuestHeader() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <header className="sticky top-0 z-40 w-full border-b border-black/10 bg-background/90 font-sans antialiased backdrop-blur-md dark:border-white/10">
+      <header className="sticky top-0 z-40 w-full shrink-0 border-b border-black/10 bg-background/90 font-sans antialiased backdrop-blur-md dark:border-white/10">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           {/* Left: Brand & Desktop Navigation */}
           <div className="flex min-w-0 items-center gap-5">

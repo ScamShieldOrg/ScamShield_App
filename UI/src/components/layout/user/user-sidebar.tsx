@@ -13,6 +13,7 @@ import {
   Moon,
   Scales,
   ShieldCheck,
+  SidebarSimple,
   SignOut,
   Sun,
   Trophy,
@@ -26,10 +27,11 @@ import {
 import { useLogout } from "@/hooks/use-logout"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 import { cn } from "@/lib/utils"
-import { UserQuotaCard } from "./user-quota-card"
 
 interface UserSidebarProps {
   className?: string
+  collapsed?: boolean
+  onToggleCollapse?: () => void
   onCloseMobile?: () => void
 }
 
@@ -53,7 +55,12 @@ const NAV_GROUPS: readonly NavGroup[] = [
   },
 ]
 
-export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
+export function UserSidebar({
+  className,
+  collapsed = false,
+  onToggleCollapse,
+  onCloseMobile,
+}: UserSidebarProps) {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -105,7 +112,6 @@ export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
     }
   }
 
-  // Group items cleanly while preserving any future items added to USER_NAV_ITEMS
   const groupedHrefs = new Set(NAV_GROUPS.flatMap((g) => g.hrefs))
   const ungroupedItems = USER_NAV_ITEMS.filter(
     (item) => !groupedHrefs.has(item.href)
@@ -128,48 +134,95 @@ export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
       <aside
         aria-label="Điều hướng cổng người dùng"
         className={cn(
-          "flex h-screen w-72 shrink-0 flex-col justify-between border-r border-border/80 bg-card font-sans text-card-foreground antialiased select-none dark:border-white/10 dark:bg-sidebar",
+          "flex h-screen shrink-0 flex-col justify-between border-r border-border/80 bg-card font-sans text-card-foreground antialiased select-none transition-[width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none dark:border-white/10 dark:bg-sidebar",
+          collapsed ? "w-16" : "w-64",
           className
         )}
       >
-        {/* Top Section: Brand + Profile/Quota + Grouped Nav */}
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-          {/* Brand Row */}
-          <div className="flex items-center justify-between gap-2 px-1 pt-1">
+        {/* Top Brand & Fold Toggle (aligned with h-16 UserHeader) */}
+        <div
+          className={cn(
+            "flex h-16 shrink-0 items-center border-b border-border/70 dark:border-white/10",
+            collapsed ? "justify-center px-2" : "justify-between gap-2 px-4"
+          )}
+        >
+          {!collapsed && (
             <Link
               href="/user/check"
               onClick={onCloseMobile}
-              className="group flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="group flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              <div className="flex size-9 items-center justify-center rounded-lg border border-black/10 bg-[#0B132B] text-[#89CEFF] shadow-2xs transition-transform duration-120 group-hover:scale-[1.03] dark:border-white/15 dark:bg-primary/15 dark:text-primary">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-black/10 bg-[#0B132B] text-[#89CEFF] shadow-2xs transition-transform duration-120 group-hover:scale-[1.03] dark:border-white/15 dark:bg-primary/15 dark:text-primary">
                 <ShieldCheck aria-hidden="true" size={20} weight="fill" />
               </div>
-              <span className="font-heading text-base font-bold tracking-[-0.02em] text-foreground">
+              <span className="truncate font-heading text-base font-bold tracking-[-0.02em] text-foreground">
                 ScamShield VN
               </span>
             </Link>
+          )}
 
-            {onCloseMobile && (
-              <button
-                type="button"
-                onClick={onCloseMobile}
-                aria-label="Đóng thanh điều hướng"
-                className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-120 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:hidden"
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              aria-label={
+                collapsed
+                  ? "Mở rộng thanh điều hướng"
+                  : "Thu gọn thanh điều hướng"
+              }
+              title={
+                collapsed
+                  ? "Mở rộng thanh điều hướng"
+                  : "Thu gọn thanh điều hướng"
+              }
+              className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors duration-120 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <SidebarSimple
+                aria-hidden="true"
+                size={18}
+                weight={collapsed ? "fill" : "regular"}
+              />
+            </button>
+          )}
+
+          {onCloseMobile && (
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              aria-label="Đóng thanh điều hướng"
+              className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors duration-120 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:hidden"
+            >
+              <X aria-hidden="true" size={18} weight="bold" />
+            </button>
+          )}
+        </div>
+
+        {/* Grouped Tactile Navigation */}
+        <div
+          className={cn(
+            "flex flex-1 flex-col overflow-y-auto py-4",
+            collapsed ? "px-2" : "px-3"
+          )}
+        >
+          <nav
+            aria-label="Menu chính"
+            className={cn("flex flex-col", collapsed ? "gap-3" : "gap-4")}
+          >
+            {sections.map((section, sectionIdx) => (
+              <div
+                key={section.label}
+                className={cn(
+                  "space-y-1",
+                  collapsed &&
+                    sectionIdx > 0 &&
+                    "border-t border-border/60 pt-3 dark:border-white/10"
+                )}
               >
-                <X aria-hidden="true" size={18} weight="bold" />
-              </button>
-            )}
-          </div>
-
-          <UserQuotaCard onNavigate={onCloseMobile} />
-
-          {/* Grouped Tactile Navigation */}
-          <nav aria-label="Menu chính" className="flex flex-col gap-4 pt-1">
-            {sections.map((section) => (
-              <div key={section.label} className="space-y-1">
-                <p className="px-3 pb-1 text-xs font-medium text-muted-foreground/80">
-                  {section.label}
-                </p>
+                {!collapsed && (
+                  <p className="px-3 pb-1 text-xs font-medium text-muted-foreground/80">
+                    {section.label}
+                  </p>
+                )}
 
                 <ul className="space-y-1">
                   {section.items.map((item) => {
@@ -192,8 +245,13 @@ export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
                           href={item.href}
                           onClick={onCloseMobile}
                           aria-current={isActive ? "page" : undefined}
+                          aria-label={collapsed ? item.title : undefined}
+                          title={collapsed ? item.title : undefined}
                           className={cn(
-                            "group relative flex min-h-10 items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                            "group relative flex min-h-10 items-center rounded-lg text-sm font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                            collapsed
+                              ? "mx-auto size-10 justify-center px-0"
+                              : "justify-between gap-2 px-3 py-2",
                             isActive
                               ? "font-semibold text-foreground"
                               : "text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:hover:bg-white/[0.05]"
@@ -211,23 +269,36 @@ export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
                             />
                           )}
 
-                          <span className="relative z-10 flex min-w-0 items-center gap-3">
+                          <span
+                            className={cn(
+                              "relative z-10 flex min-w-0 items-center",
+                              collapsed ? "justify-center" : "gap-3"
+                            )}
+                          >
                             {renderIcon(item.iconName, isActive)}
-                            <span className="truncate">{item.title}</span>
+                            {!collapsed && (
+                              <span className="truncate">{item.title}</span>
+                            )}
                           </span>
 
-                          {hasBadge && (
-                            <span
-                              className={cn(
-                                "relative z-10 inline-flex min-w-5 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums",
-                                item.badgeVariant === "danger"
-                                  ? "border border-rose-500/25 bg-rose-500/12 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
-                                  : "bg-primary/12 text-primary"
-                              )}
-                            >
-                              {displayBadge}
-                            </span>
-                          )}
+                          {hasBadge &&
+                            (collapsed ? (
+                              <span
+                                aria-hidden="true"
+                                className="absolute top-2 right-2 z-10 size-2 rounded-full bg-rose-600 ring-2 ring-card dark:ring-sidebar"
+                              />
+                            ) : (
+                              <span
+                                className={cn(
+                                  "relative z-10 inline-flex min-w-5 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums",
+                                  item.badgeVariant === "danger"
+                                    ? "border border-rose-500/25 bg-rose-500/12 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+                                    : "bg-primary/12 text-primary"
+                                )}
+                              >
+                                {displayBadge}
+                              </span>
+                            ))}
                         </Link>
                       </li>
                     )
@@ -238,78 +309,121 @@ export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
           </nav>
         </div>
 
-        {/* Bottom Utility Footer: Segmented Theme Switch + Logout */}
-        <div className="space-y-2 border-t border-border/80 p-4 dark:border-white/10">
-          {/* 2-Segment Light / Dark Switch (Claude / Railway Feel) */}
-          <div
-            role="group"
-            aria-label="Chọn giao diện sáng hoặc tối"
-            className="grid grid-cols-2 gap-1 rounded-lg border border-border/80 bg-muted/40 p-1 dark:border-white/10 dark:bg-white/[0.03]"
-          >
-            <button
-              type="button"
-              aria-pressed={mounted ? !isDark : undefined}
-              onClick={() => setTheme("light")}
-              className={cn(
-                "relative inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                mounted && !isDark
-                  ? "font-semibold text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {mounted && !isDark && (
-                <motion.span
-                  layoutId="user-sidebar-theme-pill"
-                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
-                  className="absolute inset-0 rounded-md bg-background shadow-2xs ring-1 ring-border"
-                />
-              )}
-              <Sun
-                aria-hidden="true"
-                size={14}
-                weight={mounted && !isDark ? "fill" : "regular"}
-                className="relative z-10"
-              />
-              <span className="relative z-10">Sáng</span>
-            </button>
+        {/* Bottom Utility Footer: Theme Switch + Logout */}
+        <div
+          className={cn(
+            "space-y-2 border-t border-border/80 dark:border-white/10",
+            collapsed ? "flex flex-col items-center p-2.5" : "p-3"
+          )}
+        >
+          {collapsed ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                aria-label={
+                  isDark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"
+                }
+                title={isDark ? "Giao diện sáng" : "Giao diện tối"}
+                className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full border border-border/80 bg-muted/40 text-muted-foreground transition-colors duration-120 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
+              >
+                {isDark ? (
+                  <Sun aria-hidden="true" size={17} weight="fill" />
+                ) : (
+                  <Moon aria-hidden="true" size={17} weight="fill" />
+                )}
+              </button>
 
-            <button
-              type="button"
-              aria-pressed={mounted ? isDark : undefined}
-              onClick={() => setTheme("dark")}
-              className={cn(
-                "relative inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                isDark
-                  ? "font-semibold text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {isDark && (
-                <motion.span
-                  layoutId="user-sidebar-theme-pill"
-                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
-                  className="absolute inset-0 rounded-md bg-card shadow-2xs ring-1 ring-white/12"
-                />
-              )}
-              <Moon
-                aria-hidden="true"
-                size={14}
-                weight={isDark ? "fill" : "regular"}
-                className="relative z-10"
-              />
-              <span className="relative z-10">Tối</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                aria-label="Đăng xuất"
+                title="Đăng xuất"
+                className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full text-rose-700 transition-colors duration-120 hover:bg-rose-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-rose-400 dark:hover:bg-rose-500/15"
+              >
+                <SignOut aria-hidden="true" size={18} weight="bold" />
+              </button>
+            </>
+          ) : (
+            <>
+              <div
+                role="group"
+                aria-label="Chọn giao diện sáng hoặc tối"
+                className="grid grid-cols-2 gap-1 rounded-full border border-border/80 bg-muted/40 p-1 dark:border-white/10 dark:bg-white/[0.03]"
+              >
+                <button
+                  type="button"
+                  aria-pressed={mounted ? !isDark : undefined}
+                  onClick={() => setTheme("light")}
+                  className={cn(
+                    "relative inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                    mounted && !isDark
+                      ? "font-semibold text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {mounted && !isDark && (
+                    <motion.span
+                      layoutId="user-sidebar-theme-pill"
+                      transition={{
+                        type: "spring",
+                        stiffness: 450,
+                        damping: 32,
+                      }}
+                      className="absolute inset-0 rounded-full bg-background shadow-2xs ring-1 ring-border"
+                    />
+                  )}
+                  <Sun
+                    aria-hidden="true"
+                    size={14}
+                    weight={mounted && !isDark ? "fill" : "regular"}
+                    className="relative z-10"
+                  />
+                  <span className="relative z-10">Sáng</span>
+                </button>
 
-          {/* Logout Action */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex min-h-10 w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-rose-700 transition-colors duration-120 hover:bg-rose-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-rose-400 dark:hover:bg-rose-500/15"
-          >
-            <SignOut aria-hidden="true" size={17} weight="bold" />
-            <span>Đăng xuất</span>
-          </button>
+                <button
+                  type="button"
+                  aria-pressed={mounted ? isDark : undefined}
+                  onClick={() => setTheme("dark")}
+                  className={cn(
+                    "relative inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                    isDark
+                      ? "font-semibold text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {isDark && (
+                    <motion.span
+                      layoutId="user-sidebar-theme-pill"
+                      transition={{
+                        type: "spring",
+                        stiffness: 450,
+                        damping: 32,
+                      }}
+                      className="absolute inset-0 rounded-full bg-card shadow-2xs ring-1 ring-white/12"
+                    />
+                  )}
+                  <Moon
+                    aria-hidden="true"
+                    size={14}
+                    weight={isDark ? "fill" : "regular"}
+                    className="relative z-10"
+                  />
+                  <span className="relative z-10">Tối</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex min-h-10 w-full cursor-pointer items-center gap-3 rounded-full px-3.5 py-2 text-sm font-medium text-rose-700 transition-colors duration-120 hover:bg-rose-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-rose-400 dark:hover:bg-rose-500/15"
+              >
+                <SignOut aria-hidden="true" size={17} weight="bold" />
+                <span>Đăng xuất</span>
+              </button>
+            </>
+          )}
         </div>
       </aside>
     </MotionConfig>

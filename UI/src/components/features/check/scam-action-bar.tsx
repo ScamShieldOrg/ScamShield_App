@@ -17,6 +17,10 @@ import {
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import type { RiskLevel } from "@/features/check/types/check.types"
+import {
+  ExpandableIconButton,
+  ExpandableIconLink,
+} from "@/components/shared/expandable-icon-action"
 
 /**
  * Hand-off key between the check result action bar (writer) and the report
@@ -88,13 +92,7 @@ function isAbortError(error: unknown) {
 }
 
 const primaryActionClass =
-  "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-xs transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-progress disabled:opacity-60"
-
-const secondaryActionClass =
-  "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-4 text-xs font-semibold text-foreground shadow-2xs transition-[background-color,border-color,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-progress disabled:opacity-60 dark:border-white/12"
-
-const ghostActionClass =
-  "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-[color,background-color] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+  "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-primary px-5 text-xs font-semibold text-primary-foreground shadow-xs transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-progress disabled:opacity-60"
 
 export function ScamActionBar({
   scanId,
@@ -212,40 +210,57 @@ export function ScamActionBar({
         <div className="flex flex-wrap items-center gap-2">
           {mode === "user" ? (
             <>
-              <Link
-                href={`/user/reports/new?scanId=${encodeURIComponent(scanId)}`}
-                onClick={handleReportClick}
-                className={
-                  reportIsPrimary ? primaryActionClass : secondaryActionClass
-                }
-              >
-                <Megaphone aria-hidden="true" size={15} weight="bold" />
-                <span>
-                  {reportIsPrimary ? "Báo cáo lừa đảo" : "Gửi báo cáo"}
-                </span>
-              </Link>
+              {reportIsPrimary ? (
+                <Link
+                  href={`/user/reports/new?scanId=${encodeURIComponent(scanId)}`}
+                  onClick={handleReportClick}
+                  className={primaryActionClass}
+                >
+                  <Megaphone aria-hidden="true" size={15} weight="bold" />
+                  <span>Báo cáo lừa đảo</span>
+                </Link>
+              ) : (
+                <ExpandableIconLink
+                  href={`/user/reports/new?scanId=${encodeURIComponent(scanId)}`}
+                  onClick={handleReportClick}
+                  icon={<Megaphone aria-hidden="true" size={16} weight="bold" />}
+                  label="Gửi báo cáo"
+                  variant="outline"
+                />
+              )}
 
-              <button
-                type="button"
-                onClick={() => void handleShare()}
-                disabled={sharing}
-                aria-busy={sharing}
-                className={
-                  reportIsPrimary ? secondaryActionClass : primaryActionClass
-                }
-              >
-                <ShareNetwork aria-hidden="true" size={15} weight="bold" />
-                <span>Chia sẻ</span>
-              </button>
+              {reportIsPrimary ? (
+                <ExpandableIconButton
+                  onClick={() => void handleShare()}
+                  disabled={sharing}
+                  aria-busy={sharing}
+                  expanded={sharing}
+                  icon={
+                    <ShareNetwork aria-hidden="true" size={16} weight="bold" />
+                  }
+                  label={sharing ? "Đang chia sẻ..." : "Chia sẻ"}
+                  variant="outline"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleShare()}
+                  disabled={sharing}
+                  aria-busy={sharing}
+                  className={primaryActionClass}
+                >
+                  <ShareNetwork aria-hidden="true" size={15} weight="bold" />
+                  <span>Chia sẻ</span>
+                </button>
+              )}
 
-              <Link
+              <ExpandableIconLink
                 href={`/user/disputes?scanId=${encodeURIComponent(scanId)}`}
                 onClick={handleDisputeClick}
-                className={secondaryActionClass}
-              >
-                <Scales aria-hidden="true" size={15} weight="bold" />
-                <span>Khiếu nại</span>
-              </Link>
+                icon={<Scales aria-hidden="true" size={16} weight="bold" />}
+                label="Khiếu nại"
+                variant="outline"
+              />
             </>
           ) : (
             <>
@@ -254,39 +269,48 @@ export function ScamActionBar({
                 <span>Đăng ký lưu kết quả</span>
               </Link>
 
-              <button
-                type="button"
+              <ExpandableIconButton
                 onClick={() => void handleShare()}
                 disabled={sharing}
                 aria-busy={sharing}
-                className={secondaryActionClass}
-              >
-                <ShareNetwork aria-hidden="true" size={15} weight="bold" />
-                <span>Chia sẻ</span>
-              </button>
+                expanded={sharing}
+                icon={
+                  <ShareNetwork aria-hidden="true" size={16} weight="bold" />
+                }
+                label={sharing ? "Đang chia sẻ..." : "Chia sẻ"}
+                variant="outline"
+              />
 
-              <Link href="/login" className={secondaryActionClass}>
-                <SignIn aria-hidden="true" size={15} weight="bold" />
-                <span>Đăng nhập</span>
-              </Link>
+              <ExpandableIconLink
+                href="/login"
+                icon={<SignIn aria-hidden="true" size={16} weight="bold" />}
+                label="Đăng nhập"
+                variant="outline"
+              />
             </>
           )}
 
-          <button
-            type="button"
+          <ExpandableIconButton
             onClick={handleExportPdf}
-            className={secondaryActionClass}
-          >
-            <FilePdf aria-hidden="true" size={15} weight="bold" />
-            <span>Xuất PDF</span>
-          </button>
+            icon={<FilePdf aria-hidden="true" size={16} weight="bold" />}
+            label="Xuất PDF"
+            variant="outline"
+          />
         </div>
 
         {onReset && (
-          <button type="button" onClick={onReset} className={ghostActionClass}>
-            <ArrowCounterClockwise aria-hidden="true" size={15} weight="bold" />
-            <span>Kiểm tra mới</span>
-          </button>
+          <ExpandableIconButton
+            onClick={onReset}
+            icon={
+              <ArrowCounterClockwise
+                aria-hidden="true"
+                size={16}
+                weight="bold"
+              />
+            }
+            label="Kiểm tra mới"
+            variant="ghost"
+          />
         )}
       </div>
 

@@ -163,14 +163,21 @@ export function getSeverityMeta(
   severity?: string | null,
   severityLabel?: string | null
 ): SeverityMeta {
-  const normalized = (severity || "").toUpperCase()
+  const normalized = (severity || "").trim().toUpperCase()
   const label = severityLabel?.trim() || severity || "Cảnh báo"
+  const normalizedLabel = label.toUpperCase()
 
-  if (
+  const isDanger =
     normalized === "CRITICAL" ||
     normalized === "URGENT" ||
-    normalized === "HIGH"
-  ) {
+    normalized === "HIGH" ||
+    normalized === "DANGEROUS" ||
+    normalized === "DANGER" ||
+    normalized === "SEVERE" ||
+    normalizedLabel.includes("NGUY HIỂM") ||
+    normalizedLabel.includes("KHẨN CẤP")
+
+  if (isDanger) {
     return {
       label,
       dotClass: "bg-rose-600 dark:bg-rose-400",
@@ -179,7 +186,15 @@ export function getSeverityMeta(
     }
   }
 
-  if (normalized === "MEDIUM" || normalized === "WARNING") {
+  const isWarning =
+    normalized === "MEDIUM" ||
+    normalized === "WARNING" ||
+    normalized === "SUSPICIOUS" ||
+    normalizedLabel.includes("CẢNH BÁO") ||
+    normalizedLabel.includes("NGHI VẤN") ||
+    normalizedLabel.includes("TRUNG BÌNH")
+
+  if (isWarning) {
     return {
       label,
       dotClass: "bg-amber-600 dark:bg-amber-400",

@@ -60,12 +60,6 @@ export function UserScamCheck() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative space-y-4">
-        {/* Subtle localized top radial depth behind Composer */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -inset-x-6 -top-10 h-64 rounded-3xl bg-[radial-gradient(ellipse_65%_50%_at_50%_0%,rgba(14,165,233,0.08),transparent_72%)] dark:bg-[radial-gradient(ellipse_65%_55%_at_50%_0%,rgba(56,189,248,0.12),transparent_72%)]"
-        />
-
         <div className="relative space-y-4">
           {/* Exhausted Quota Alert (Appears ONLY when quota === 0) */}
           <ScamQuotaStrip mode="user" quota={quota} error={quotaError} />

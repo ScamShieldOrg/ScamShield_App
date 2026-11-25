@@ -35,7 +35,7 @@ export function ReportThreatTypeSelector({
     },
     {
       type: "BANK_ACCOUNT",
-      label: "Tài khoản ngân hàng (STK)",
+      label: "Tài khoản ngân hàng",
       subLabel: "STK thụ hưởng nhận tiền",
       icon: Bank,
     },
@@ -60,28 +60,32 @@ export function ReportThreatTypeSelector({
             data-invalid={invalid || undefined}
             onClick={() => onSelect(option.type)}
             className={cn(
-              "flex cursor-pointer items-center gap-3.5 rounded-xl border p-3.5 text-left transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary data-[invalid=true]:border-destructive",
+              "flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border p-3.5 text-left transition-[background-color,border-color,transform] duration-120 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring data-[invalid=true]:border-rose-500/60",
               isSelected
-                ? "border-[#0B132B] bg-[#E2E7FF]/50 ring-1 ring-[#0B132B]/30 dark:border-primary dark:bg-primary/10 dark:ring-primary/40"
-                : "border-[#C6C6CE]/50 bg-white hover:bg-[#FAF8FF] dark:border-border dark:bg-card dark:hover:bg-muted/40"
+                ? "border-primary bg-primary/10 ring-1 ring-primary/25 dark:bg-primary/15"
+                : "border-black/10 bg-background hover:bg-muted/50 dark:border-white/10"
             )}
           >
             <div
               className={cn(
-                "flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+                "flex size-10 shrink-0 items-center justify-center rounded-lg transition-colors",
                 isSelected
-                  ? "bg-[#0B132B] text-white dark:bg-primary dark:text-primary-foreground"
-                  : "bg-[#F2F3FF] text-[#45464D] dark:bg-muted dark:text-muted-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
               )}
             >
-              <Icon size={20} weight={isSelected ? "fill" : "regular"} />
+              <Icon
+                aria-hidden="true"
+                size={20}
+                weight={isSelected ? "fill" : "regular"}
+              />
             </div>
 
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-[#131B2E] dark:text-foreground">
+            <div className="min-w-0 space-y-0.5">
+              <p className="truncate text-sm font-semibold text-foreground">
                 {option.label}
               </p>
-              <p className="truncate text-[11px] text-[#45464D] dark:text-muted-foreground">
+              <p className="truncate text-xs text-muted-foreground">
                 {option.subLabel}
               </p>
             </div>

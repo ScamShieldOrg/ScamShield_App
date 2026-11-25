@@ -125,7 +125,7 @@ export function UserHistoryDetail({ checkId }: { checkId: number }) {
         <header className="space-y-3">
           <Link
             href="/user/history"
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-black/10 bg-card px-3.5 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
+            className="inline-flex min-h-10 items-center gap-2 rounded-full border border-black/10 bg-card px-4 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
           >
             <ArrowLeft aria-hidden="true" size={15} weight="bold" />
             <span>Quay lại lịch sử kiểm tra</span>

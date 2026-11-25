@@ -75,6 +75,12 @@ test("getSeverityMeta returns Calm Authority badge styles without solid loud fil
   assert.ok(critical.badgeClass.includes("bg-rose-500/10"))
   assert.ok(!critical.badgeClass.includes("text-white"))
 
+  const dangerous = getSeverityMeta("DANGEROUS", "NGUY HIỂM")
+  assert.ok(dangerous.badgeClass.includes("bg-rose-500/10"))
+
+  const vietnameseDanger = getSeverityMeta(null, "NGUY HIỂM")
+  assert.ok(vietnameseDanger.badgeClass.includes("bg-rose-500/10"))
+
   const medium = getSeverityMeta("MEDIUM", "Trung bình")
   assert.ok(medium.badgeClass.includes("bg-amber-500/10"))
 })

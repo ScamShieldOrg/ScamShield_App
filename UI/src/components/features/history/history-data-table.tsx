@@ -4,7 +4,6 @@ import Link from "next/link"
 import { AnimatePresence, motion } from "motion/react"
 import {
   ArrowCounterClockwise,
-  ArrowRight,
   ArrowsClockwise,
   Bank,
   Car,
@@ -12,6 +11,7 @@ import {
   CircleNotch,
   ClockCounterClockwise,
   CurrencyBtc,
+  Eye,
   FileText,
   Link as LinkIcon,
   PhoneCall,
@@ -21,6 +21,7 @@ import {
 } from "@phosphor-icons/react"
 import type { HistoryItem } from "@/features/history/types/history.types"
 import { cn } from "@/lib/utils"
+import { ExpandableIconLink } from "@/components/shared/expandable-icon-action"
 import {
   getHistoryRiskMeta,
   getHistoryTargetMeta,
@@ -141,7 +142,7 @@ export function HistoryDataTable({
               transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
               onClick={onDeleteSelected}
               disabled={isDeleting}
-              className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 text-xs font-semibold text-rose-800 transition-colors duration-120 hover:bg-rose-500/20 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-500/15 dark:text-rose-200 dark:hover:bg-rose-500/25"
+              className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border border-rose-500/25 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-800 transition-colors duration-120 hover:bg-rose-500/20 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-500/15 dark:text-rose-200 dark:hover:bg-rose-500/25"
             >
               {isDeleting ? (
                 <div className="motion-safe:animate-spin">
@@ -289,13 +290,12 @@ export function HistoryDataTable({
 
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                       <RiskVerdictCell item={item} />
-                      <Link
+                      <ExpandableIconLink
                         href={`/user/history/${item.id}`}
-                        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-black/10 bg-background px-3.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
-                      >
-                        <span>Xem chi tiết</span>
-                        <ArrowRight aria-hidden="true" size={14} weight="bold" />
-                      </Link>
+                        icon={<Eye aria-hidden="true" size={16} weight="bold" />}
+                        label="Chi tiết"
+                        variant="outline"
+                      />
                     </div>
                   </li>
                 )
@@ -407,13 +407,12 @@ export function HistoryDataTable({
                         </td>
 
                         <td className="px-4 py-4 text-right align-top">
-                          <Link
+                          <ExpandableIconLink
                             href={`/user/history/${item.id}`}
-                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-black/10 bg-background px-3 text-xs font-semibold whitespace-nowrap text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
-                          >
-                            <span>Chi tiết</span>
-                            <ArrowRight aria-hidden="true" size={13} weight="bold" />
-                          </Link>
+                            icon={<Eye aria-hidden="true" size={16} weight="bold" />}
+                            label="Chi tiết"
+                            variant="outline"
+                          />
                         </td>
                       </tr>
                     )

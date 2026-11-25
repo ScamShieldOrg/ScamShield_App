@@ -1,8 +1,6 @@
 "use client"
 
-import Link from "next/link"
 import {
-  ArrowRight,
   Broadcast,
   CalendarBlank,
   CreditCard,
@@ -13,6 +11,7 @@ import {
 } from "@phosphor-icons/react"
 import type { BlackItem } from "@/types/resource"
 import { cn } from "@/lib/utils"
+import { ExpandableIconButton } from "@/components/shared/expandable-icon-action"
 import {
   formatResourceDate,
   getResourceTypeMeta,
@@ -22,7 +21,7 @@ import {
 
 interface BlacklistItemRowProps {
   item: BlackItem
-  checkHref: string
+  checkHref?: string
   onSelectDetail: (item: BlackItem) => void
 }
 
@@ -49,7 +48,6 @@ function ResourceTypeIcon({
 
 export function BlacklistItemRow({
   item,
-  checkHref,
   onSelectDetail,
 }: BlacklistItemRowProps) {
   const typeMeta = getResourceTypeMeta(item.resourceType)
@@ -120,22 +118,13 @@ export function BlacklistItemRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
-        <button
-          type="button"
+      <div className="flex shrink-0 items-center lg:justify-end">
+        <ExpandableIconButton
           onClick={() => onSelectDetail(item)}
-          className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-black/10 bg-background px-3.5 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
-        >
-          <span>Chi tiết hồ sơ</span>
-          <ArrowRight aria-hidden="true" size={14} weight="bold" />
-        </button>
-
-        <Link
-          href={checkHref}
-          className="inline-flex min-h-10 items-center rounded-lg px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          Kiểm tra AI
-        </Link>
+          icon={<Eye aria-hidden="true" size={16} weight="bold" />}
+          label="Chi tiết hồ sơ"
+          variant="outline"
+        />
       </div>
     </li>
   )
