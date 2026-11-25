@@ -19,12 +19,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Set;
 
 @RestController
@@ -83,7 +87,7 @@ public class ModeratorReportController {
                 moderatorReportService.startReview(id, currentUser)));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Kiểm duyệt viên ra quyết định thẩm định ca báo cáo",
             description = "Chỉ xử lý một báo cáo IN_REVIEW. Đồng bộ trạng thái mọi bằng chứng; REJECT bắt buộc lý do từ 20 đến 2000 ký tự.")
     public ResponseEntity<BaseResponse<ModeratorReportResponse>> submitDecision(
@@ -94,6 +98,32 @@ public class ModeratorReportController {
 
         ModeratorReportResponse response = moderatorReportService.makeDecision(id, currentUser, request);
         return ResponseEntity.ok(new BaseResponse<>(true, "Xác nhận quyết định kiểm duyệt thành công", response));
+    }
+
+    @GetMapping("/{id}/evidence/{evidenceId}/image-source")
+    @Operation(summary = "Tải ảnh minh chứng để rà soát trước khi công khai")
+    public ResponseEntity<BaseResponse<String>> getEvidenceImageSource(
+            @PathVariable Long id, @PathVariable Long evidenceId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new BaseResponse<>(true, "Đã tải ảnh minh chứng",
+                        moderatorReportService.getEvidenceImageSource(id, evidenceId, currentUser)));
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Phê duyệt báo cáo kèm ảnh minh chứng đã rà soát")
+    public ResponseEntity<BaseResponse<ModeratorReportResponse>> submitDecisionWithImage(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal currentUser,
+            @Valid @RequestPart("request") ModeratorDecisionRequest request,
+            @RequestParam("publicEvidenceId") List<Long> publicEvidenceIds,
+            @RequestParam("publicImageConfirmed") boolean publicImageConfirmed,
+            @RequestPart("publicImage") List<MultipartFile> publicImages) {
+        if (!publicImageConfirmed) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cần xác nhận đã rà soát thông tin nhạy cảm trong ảnh");
+        }
+        return ResponseEntity.ok(new BaseResponse<>(true, "Xác nhận quyết định kiểm duyệt thành công",
+                moderatorReportService.makeDecision(id, currentUser, request, publicEvidenceIds, publicImages)));
     }
 
     private Pageable createPageable(ModeratorReportFilterRequest filter) {

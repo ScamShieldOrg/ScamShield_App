@@ -124,18 +124,46 @@ export async function startModeratorReportReview(
     throw actionError(error)
   }
 }
+export async function getEvidenceImageSource(reportId: string | number, evidenceId: number, signal: AbortSignal): Promise<string> {
+  try {
+    const { data } = await authorizeApi.get<BaseApiResponse<string>>(
+      `/moderator/reports/${parseReportNumericId(reportId)}/evidence/${evidenceId}/image-source`,
+      { signal }
+    )
+    const source = unpack(data)
+    if (!/^data:image\/(png|jpeg);base64,/.test(source)) {
+      throw new ModerationApiError("Ảnh minh chứng không hợp lệ.")
+    }
+    return source
+  } catch (error) {
+    throw actionError(error)
+  }
+}
+
 export async function submitModerationDecision(
   payload: ModerationDecisionPayload
 ): Promise<{ success: boolean; message: string; data: ModeratorReportItem }> {
   try {
+    const request = {
+      decision: payload.decision,
+      reason: payload.reason.trim() || undefined,
+      categoryId: payload.categoryId,
+    }
+    let body: FormData | typeof request = request
+    if (payload.publicImages?.length) {
+      const form = new FormData()
+      form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }))
+      form.append("publicImageConfirmed", "true")
+      for (const { evidenceId, file } of payload.publicImages) {
+        form.append("publicEvidenceId", String(evidenceId))
+        form.append("publicImage", file)
+      }
+      body = form
+    }
     const response = (
       await authorizeApi.put<BaseApiResponse<ModeratorReportItem>>(
         `/moderator/reports/${parseReportNumericId(payload.rawId ?? payload.reportId)}`,
-        {
-          decision: payload.decision,
-          reason: payload.reason.trim() || undefined,
-          categoryId: payload.categoryId,
-        }
+        body
       )
     ).data
     const data = normalizeReport(unpack(response))

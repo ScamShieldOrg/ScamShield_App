@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { CheckCircle, XCircle, ShieldWarning } from "@phosphor-icons/react"
-import { ModerationDecisionPayload } from "@/features/moderator/types/moderator.types"
+import type { ModerationDecisionPayload } from "@/features/moderator/types/moderator.types"
 
 import { getReportCategories } from "@/features/report/services/report.service"
 import type { ScamCategoryItem } from "@/features/report/types/report.types"
@@ -11,6 +11,8 @@ interface ReportDecisionFormProps {
   currentCategoryId?: number
   currentCategoryName: string
   reportId: string | number
+  imageDraftActive?: boolean
+  publicImages?: ModerationDecisionPayload["publicImages"]
   selectedTaxonomies: string[]
   onSubmit: (payload: ModerationDecisionPayload) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
@@ -24,6 +26,8 @@ export function ReportDecisionForm({
   currentCategoryId,
   currentCategoryName,
   reportId,
+  imageDraftActive,
+  publicImages,
   selectedTaxonomies,
   onSubmit,
   onDirtyChange,
@@ -32,7 +36,6 @@ export function ReportDecisionForm({
 }: ReportDecisionFormProps) {
   const [decision, setDecision] = useState<DecisionType | null>(null)
   const [reason, setReason] = useState<string>("")
-
   const [categories, setCategories] = useState<ScamCategoryItem[] | null>(null)
   const [categoryId, setCategoryId] = useState<number>()
 
@@ -52,6 +55,7 @@ export function ReportDecisionForm({
     decision !== null &&
     !(decision === "APPROVE" && approvalBlocked) &&
     isReasonValid &&
+    (decision !== "APPROVE" || !imageDraftActive || Boolean(publicImages)) &&
     !isSubmitting
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,6 +68,7 @@ export function ReportDecisionForm({
       reason: reason.trim(),
       selectedTaxonomies,
       categoryId: categoryId === currentCategoryId ? undefined : categoryId,
+      publicImages: decision === "APPROVE" ? publicImages : undefined,
     })
   }
 
@@ -78,7 +83,7 @@ export function ReportDecisionForm({
         <fieldset disabled={isSubmitting} className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="moderation-category" className="block text-xs font-bold">
-              Xác nhận lại loại thủ đoạn
+              Xác nhận lại loại lừa đảo
             </label>
             <select
               id="moderation-category"
@@ -108,7 +113,7 @@ export function ReportDecisionForm({
               <label className="flex items-start gap-2">
                 <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
                 <span>
-                  <strong>Khớp đối tượng.</strong> Đối chiếu số điện thoại, tên
+                  <strong>Khớp đối tượng:</strong> Đối chiếu số điện thoại, tên
                   miền hoặc tài khoản trong minh chứng. Nếu nghi mạo danh,
                   kiểm tra kênh chính thức của tổ chức.
                 </span>
@@ -126,7 +131,7 @@ export function ReportDecisionForm({
               <label className="flex items-start gap-2">
                 <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
                 <span>
-                  <strong>Khớp dấu hiệu.</strong> Chỉ ra hành vi trong minh
+                  <strong>Khớp dấu hiệu:</strong> Chỉ ra hành vi trong minh
                   chứng và đối chiếu với cảnh báo chính thức.
                 </span>
               </label>
@@ -142,7 +147,7 @@ export function ReportDecisionForm({
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1 size-4 shrink-0 accent-primary" />
               <span>
-                <strong>Ghi căn cứ quyết định.</strong> Nêu tệp nào thể hiện
+                <strong>Ghi căn cứ quyết định:</strong> Nêu tệp nào thể hiện
                 hành vi gì và liên quan thế nào đến đối tượng. Nếu thiếu căn
                 cứ, ghi rõ thông tin cần bổ sung.
               </span>
@@ -224,6 +229,11 @@ export function ReportDecisionForm({
           </div>
 
           {/* Submit Confirmation Button */}
+          {decision === "APPROVE" && imageDraftActive && !publicImages && (
+            <p className="text-sm text-muted-foreground">
+              Xác nhận hoặc hủy chỉnh ảnh đang mở trong phần Bằng chứng đính kèm để tiếp tục.
+            </p>
+          )}
           <button
             type="submit"
             disabled={!canSubmit}

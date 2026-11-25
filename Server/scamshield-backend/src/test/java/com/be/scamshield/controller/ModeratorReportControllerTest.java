@@ -23,7 +23,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -31,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,6 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest({ModeratorReportController.class, ModeratorEvidenceAnalysisController.class})
@@ -246,6 +250,42 @@ class ModeratorReportControllerTest {
     void getReportById_WhenUnauthenticated_ReturnsUnauthorized() throws Exception {
         mvc.perform(get(BASE_URL + "/1891"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void submitDecisionWithImageRequiresExplicitConfirmation() throws Exception {
+        var decision = new MockMultipartFile("request", "request.json", MediaType.APPLICATION_JSON_VALUE,
+                "{\"decision\":\"APPROVE\"}".getBytes(StandardCharsets.UTF_8));
+        var image = new MockMultipartFile("publicImage", "proof.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[]{1});
+
+        mvc.perform(multipart(HttpMethod.PUT, BASE_URL + "/1891")
+                        .file(decision).file(image).param("publicEvidenceId", "22")
+                        .param("publicImageConfirmed", "false").with(authentication(moderatorAuth)))
+                .andExpect(status().isBadRequest());
+
+        var secondImage = new MockMultipartFile("publicImage", "proof-2.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[]{2});
+        when(moderatorReportService.makeDecision(eq(1891L), any(), any(ModeratorDecisionRequest.class), eq(List.of(22L, 23L)), any()))
+                .thenReturn(mockReportResponse);
+        mvc.perform(multipart(HttpMethod.PUT, BASE_URL + "/1891")
+                        .file(decision).file(image).file(secondImage).param("publicEvidenceId", "22", "23")
+                        .param("publicImageConfirmed", "true").with(authentication(moderatorAuth)))
+                .andExpect(status().isOk());
+
+        verify(moderatorReportService).makeDecision(eq(1891L), any(), any(ModeratorDecisionRequest.class),
+                eq(List.of(22L, 23L)), eq(List.of(image, secondImage)));
+    }
+
+    @Test
+    void evidenceImageSourceIsRestrictedToModeratorsAndIsNotCached() throws Exception {
+        String path = BASE_URL + "/1891/evidence/22/image-source";
+        mvc.perform(get(path).with(authentication(userAuth))).andExpect(status().isForbidden());
+
+        when(moderatorReportService.getEvidenceImageSource(eq(1891L), eq(22L), any()))
+                .thenReturn("data:image/jpeg;base64,AAAA");
+        mvc.perform(get(path).with(authentication(moderatorAuth)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.data").value("data:image/jpeg;base64,AAAA"));
     }
 
     @Test

@@ -122,6 +122,7 @@ export interface ModerationDecisionPayload {
   reason: string
   categoryId?: number
   selectedTaxonomies?: string[]
+  publicImages?: { evidenceId: number; file: File }[]
 }
 
 export interface BaseApiResponse<T> {

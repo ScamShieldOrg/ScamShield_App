@@ -13,10 +13,10 @@ export function UserDashboardShell({ children }: UserDashboardShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#FAF8FF] text-foreground dark:bg-background">
+    <div className="flex min-h-dvh bg-[#FAF8FF] text-foreground dark:bg-background">
       <NotificationRealtime />
       {/* Desktop Sticky Sidebar */}
-      <UserSidebar className="hidden md:flex" />
+      <UserSidebar className="sticky top-0 hidden self-start md:flex" />
 
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
@@ -31,8 +31,7 @@ export function UserDashboardShell({ children }: UserDashboardShellProps) {
         </div>
       )}
 
-      {/* Main Scrollable Dashboard Content */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-w-0 flex-1 flex-col">
         <UserHeader
           onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
         />

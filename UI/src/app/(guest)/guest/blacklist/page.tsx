@@ -1,5 +1,7 @@
 "use client"
 
+import { BlacklistEvidenceImage } from "@/components/features/resources/blacklist-evidence-image"
+
 import { Suspense, useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -1043,7 +1045,7 @@ function GuestBlacklistContent({
       {/* Blacklist Investigation Detail Modal */}
       {selectedBlacklistItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="relative w-full max-w-xl rounded-2xl border border-rose-200 bg-white p-6 shadow-2xl dark:border-destructive/30 dark:bg-card">
+          <div className="relative max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-rose-200 bg-white p-6 shadow-2xl dark:border-destructive/30 dark:bg-card">
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-border/60 pb-4">
               <div className="flex items-center gap-3">
@@ -1092,6 +1094,10 @@ function GuestBlacklistContent({
                   {selectedBlacklistItem.title}
                 </p>
               </div>
+
+              {selectedBlacklistItem.hasPublicImage && (
+                <BlacklistEvidenceImage key={selectedBlacklistItem.id} itemId={selectedBlacklistItem.id} />
+              )}
 
               {/* Technical Dossier Grid */}
               <div className="grid grid-cols-2 gap-3">

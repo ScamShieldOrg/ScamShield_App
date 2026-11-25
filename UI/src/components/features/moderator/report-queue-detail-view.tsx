@@ -1,5 +1,5 @@
 "use client"
-import { useState, useRef } from "react"
+import { useCallback, useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { ClipboardText, Gavel, ShieldWarning } from "@phosphor-icons/react"
 import type {
@@ -199,6 +199,19 @@ export function ReportQueueDetailView({
   busy?: boolean
 }) {
   const [isEscalateOpen, setIsEscalateOpen] = useState(false)
+  const [formDirty, setFormDirty] = useState(false)
+  const [imageDraftActive, setImageDraftActive] = useState(false)
+  const [publicImages, setPublicImages] = useState<ModerationDecisionPayload["publicImages"]>()
+  const updatePublicationDraft = useCallback(
+    (active: boolean, images?: ModerationDecisionPayload["publicImages"]) => {
+      setImageDraftActive(active)
+      setPublicImages(images)
+    },
+    []
+  )
+  useEffect(() => {
+    onDirtyChange?.(formDirty || imageDraftActive)
+  }, [formDirty, imageDraftActive, onDirtyChange])
   const decisionRef = useRef<HTMLDivElement>(null)
   if (!item)
     return (
@@ -260,9 +273,11 @@ export function ReportQueueDetailView({
       <ReviewContext item={item} onOpenEscalate={() => setIsEscalateOpen(true)} />
       <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <dl className="grid gap-3 border-b border-border pb-4 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-xs text-muted-foreground">Danh mục</dt>
-            <dd className="mt-1 font-medium text-foreground">
+          <div className="min-w-0 rounded-xl border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-950/50">
+            <dt className="text-xs font-semibold text-red-700 dark:text-red-300">
+              Loại lừa đảo
+            </dt>
+            <dd className="mt-1 text-base font-bold wrap-anywhere text-red-950 dark:text-red-100">
               {item.category}
             </dd>
           </div>
@@ -329,6 +344,8 @@ export function ReportQueueDetailView({
         reportId={item.rawId ?? item.id}
         evidences={item.evidences ?? []}
         completeness={item.evidenceCompleteness}
+        busy={busy}
+        onPublicationDraftChange={canReview && !item.whitelisted ? updatePublicationDraft : undefined}
       />
       {canReview && item.indicatorContext?.blacklistStatus === "RETRACTED" && (
         <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-4 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 flex items-start gap-3">
@@ -347,12 +364,14 @@ export function ReportQueueDetailView({
         <div ref={decisionRef} tabIndex={-1} className="scroll-mt-24">
           <ReportDecisionForm
             key={item.id}
-            reportId={item.id}
+            reportId={item.rawId ?? item.id}
+            imageDraftActive={imageDraftActive}
+            publicImages={publicImages}
             currentCategoryId={item.categoryId}
             currentCategoryName={item.category}
             selectedTaxonomies={item.taxonomies ?? []}
             onSubmit={onDecisionSubmitted}
-            onDirtyChange={onDirtyChange}
+            onDirtyChange={setFormDirty}
             isSubmitting={busy}
             approvalBlocked={item.whitelisted}
           />

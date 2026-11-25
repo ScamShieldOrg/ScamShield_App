@@ -1,6 +1,13 @@
 package com.be.scamshield.serviceImpl;
 
 import com.be.scamshield.constant.NotificationType;
+import com.be.scamshield.constant.ReportEvidenceType;
+import com.be.scamshield.external.SupabaseStorageService;
+import com.be.scamshield.util.ReportPublicationImage;
+import java.io.IOException;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.be.scamshield.constant.ConfirmedIndicatorStatus;
 
@@ -75,6 +82,9 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
     private final WhitelistEntryRepository whitelistEntryRepository;
     private final ReportAssignmentService reviewAssignments;
     private final EvidenceComparisonService evidenceSimilarities;
+    private final SupabaseStorageService evidenceStorage;
+
+    private static final String PUBLIC_APPROVAL_REASON = "Báo cáo về đối tượng này đã được ScamShield xác minh.";
 
     @Override
     @Transactional
@@ -185,7 +195,22 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             Long reportId,
             UserPrincipal currentUser,
             ModeratorDecisionRequest request) {
+        return makeDecision(reportId, currentUser, request, List.of(), List.of());
+    }
 
+    @Override
+    @Transactional
+    public ModeratorReportResponse makeDecision(Long reportId, UserPrincipal currentUser, ModeratorDecisionRequest request,
+                                                  Long publicEvidenceId, MultipartFile publicImage) {
+        return makeDecision(reportId, currentUser, request,
+                publicEvidenceId == null ? List.of() : List.of(publicEvidenceId),
+                publicImage == null ? List.of() : List.of(publicImage));
+    }
+
+    @Override
+    @Transactional
+    public ModeratorReportResponse makeDecision(Long reportId, UserPrincipal currentUser, ModeratorDecisionRequest request,
+                                                 List<Long> publicEvidenceIds, List<MultipartFile> publicImages) {
         if (request == null || request.getDecision() == null) throw new BadRequestException("Quyết định không được để trống");
         String reason = request.getReason();
         if (request.getDecision() == ModeratorDecisionRequest.DecisionType.REJECT
@@ -221,6 +246,21 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 && !whitelistEntryRepository.findVerifiedForCheck(List.of(report.getIndicator().getId()),
                         PartnerVerificationStatus.VERIFIED, now).isEmpty()) {
             throw new BadRequestException("Không thể phê duyệt báo cáo vì đối tượng đang thuộc danh sách tin cậy.");
+        }
+
+        if (publicEvidenceIds.size() != publicImages.size()
+                || new HashSet<>(publicEvidenceIds).size() != publicEvidenceIds.size()) {
+            throw new BadRequestException("Mỗi ảnh công khai phải tương ứng với một minh chứng riêng");
+        }
+        Map<ReportEvidence, byte[]> publicationImages = new LinkedHashMap<>();
+        if (!publicImages.isEmpty()) {
+            if (newReportStatus != ReportStatus.APPROVED || report.getIndicator() == null) {
+                throw new BadRequestException("Chỉ công khai ảnh khi phê duyệt báo cáo có đối tượng xác định");
+            }
+            for (int index = 0; index < publicImages.size(); index++) {
+                ReportEvidence evidence = requireReportImage(reportId, publicEvidenceIds.get(index));
+                publicationImages.put(evidence, ReportPublicationImage.sanitize(publicImages.get(index)));
+            }
         }
 
         // Determine optional matched ScamCategory from categoryId
@@ -342,7 +382,7 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 existing.setConfirmedByUser(moderatorUser);
                 existing.setSourceReport(report);
                 existing.setCategory(report.getCategory());
-                existing.setPublicReason(reason);
+                existing.setPublicReason(PUBLIC_APPROVAL_REASON);
                 confirmedIndicatorRepository.save(existing);
             } else {
                 ConfirmedIndicator newConfirmed = ConfirmedIndicator.builder()
@@ -352,14 +392,75 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                         .confirmedByUser(moderatorUser)
                         .sourceReport(report)
                         .confirmedAt(now)
-                        .publicReason(reason)
+                        .publicReason(PUBLIC_APPROVAL_REASON)
                         .build();
                 confirmedIndicatorRepository.save(newConfirmed);
             }
         }
 
+        for (var publication : publicationImages.entrySet()) {
+            ReportEvidence evidenceToPublish = publication.getKey();
+            String objectKey = evidenceStorage.storeReportPublicationImage(publication.getValue());
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_ROLLED_BACK) {
+                        try {
+                            evidenceStorage.deleteReportPublicationImage(objectKey);
+                        } catch (RuntimeException ex) {
+                            log.warn("Could not remove rolled-back publication image {}", objectKey, ex);
+                        }
+                    }
+                }
+            });
+            evidenceToPublish.setPublicImageObjectKey(objectKey);
+            auditLogRepository.save(AuditLog.builder()
+                    .actorUser(moderatorUser).entityType("REPORT_EVIDENCE").entityId(evidenceToPublish.getId())
+                    .action("PUBLISH_REPORT_IMAGE").newValue("PUBLISHED")
+                    .reason("Đã xác nhận rà soát thông tin nhạy cảm trong ảnh").createdAt(now).build());
+        }
         List<ReportEvidence> evidences = reportEvidenceRepository.findByReportId(reportId);
         return mapToModeratorReportResponse(report, evidences, currentUser);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getEvidenceImageSource(Long reportId, Long evidenceId, UserPrincipal currentUser) {
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo"));
+        if (report.getStatus() != ReportStatus.IN_REVIEW) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ảnh chỉ được chuẩn bị khi báo cáo đang kiểm duyệt");
+        }
+        resolveModeratorUser(currentUser);
+        if (!isAdmin(currentUser)) {
+            reviewAssignments.requireAssigned(report, currentUser);
+        }
+        ReportEvidence evidence = requireReportImage(reportId, evidenceId);
+        String key = StringUtils.hasText(evidence.getStorageObjectKey())
+                ? evidence.getStorageObjectKey() : evidenceStorage.evidenceKeyFromUrl(evidence.getFileUrl());
+        if (key == null) {
+            throw new ResourceNotFoundException("Ảnh minh chứng không có trong kho lưu trữ của hệ thống");
+        }
+        try {
+            byte[] image = evidenceStorage.readEvidence(key, ReportPublicationImage.MAX_BYTES);
+            return ReportPublicationImage.toPreviewDataUrl(image);
+        } catch (IOException | RuntimeException ex) {
+            if (ex instanceof BadRequestException invalidImage) throw invalidImage;
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Không thể tải ảnh minh chứng. Vui lòng thử lại.", ex);
+        }
+    }
+
+    private ReportEvidence requireReportImage(Long reportId, Long evidenceId) {
+        if (evidenceId == null || evidenceId <= 0) {
+            throw new BadRequestException("Cần chọn ảnh minh chứng thuộc báo cáo");
+        }
+        ReportEvidence evidence = reportEvidenceRepository.findById(evidenceId)
+                .filter(item -> reportId.equals(item.getReport().getId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ảnh minh chứng trong báo cáo"));
+        if (evidence.getEvidenceType() != ReportEvidenceType.JPG && evidence.getEvidenceType() != ReportEvidenceType.PNG) {
+            throw new BadRequestException("Chỉ hỗ trợ công khai ảnh PNG hoặc JPG");
+        }
+        return evidence;
     }
 
     @Override

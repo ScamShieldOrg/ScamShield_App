@@ -23,6 +23,7 @@ public class BlacklistResourceResponse {
     private String severityLabel;
     private String description;
     private Long warningCount;
+    private boolean hasPublicImage;
     private LocalDateTime confirmedAt;
     private LocalDateTime updatedAt;
 }

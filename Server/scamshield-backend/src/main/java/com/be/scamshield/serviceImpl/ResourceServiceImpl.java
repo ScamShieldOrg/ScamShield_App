@@ -6,6 +6,8 @@ import com.be.scamshield.dto.request.WhitelistResourceFilterRequest;
 import com.be.scamshield.dto.response.BlacklistResourceResponse;
 import com.be.scamshield.dto.response.WhitelistResourceResponse;
 import com.be.scamshield.entity.PartnerProfile;
+import com.be.scamshield.exception.ResourceNotFoundException;
+import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.repository.ResourceRepository;
@@ -31,6 +33,23 @@ import java.util.stream.Collectors;
 public class ResourceServiceImpl implements IResourceService {
     private final ResourceRepository resourceRepository;
     private final WhitelistResourceRepository whitelistResourceRepository;
+    private final SupabaseStorageService evidenceStorage;
+
+    @Override
+    public String getBlackListImageUrl(Long id) {
+        String key = resourceRepository.findBlackListImageKey(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ảnh minh chứng công khai"));
+        return evidenceStorage.createReportPublicationImageUrl(key);
+    }
+
+    @Override
+    public List<String> getBlackListImageUrls(Long id) {
+        List<String> keys = resourceRepository.findBlackListImageKeys(id);
+        if (keys.isEmpty()) {
+            throw new ResourceNotFoundException("Không tìm thấy ảnh minh chứng công khai");
+        }
+        return keys.stream().map(evidenceStorage::createReportPublicationImageUrl).toList();
+    }
 
     @Override
     public PaginatedResponse<BlacklistResourceResponse> getBlackListResources(BlacklistResourceFilterRequest filter) {
@@ -105,6 +124,7 @@ public class ResourceServiceImpl implements IResourceService {
                 .severityLabel(severity.label)
                 .description(blacklistDescription(row))
                 .warningCount(row.getWarningCount())
+                .hasPublicImage(row.getPublicImageCount() != null && row.getPublicImageCount() > 0)
                 .confirmedAt(row.getConfirmedAt())
                 .updatedAt(row.getUpdatedAt())
                 .build();

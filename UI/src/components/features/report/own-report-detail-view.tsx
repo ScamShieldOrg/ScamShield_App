@@ -39,10 +39,8 @@ import type {
 } from "@/features/report/types/report.types"
 import { dashboardService } from "@/features/dashboard/services/dashboard.service"
 import type { DashboardRegionOption } from "@/features/dashboard/types/dashboard.types"
-import {
-  REPORT_FILE_ACCEPT,
-  validateReportFiles,
-} from "@/features/report/utils/report-upload"
+import { IMAGE_REVIEW_REQUIRED, useReportAttachments } from "@/features/report/hooks/use-report-attachments"
+import { ReportFileUpload } from "./report-file-upload"
 
 const statusNames: Record<string, string> = {
   PENDING: "Đang chờ duyệt",
@@ -141,7 +139,8 @@ export function OwnReportDetailView({
   const [region, setRegion] = useState("")
   const [evidence, setEvidence] = useState<OwnReportEvidence[]>([])
   const [evidenceChanged, setEvidenceChanged] = useState(false)
-  const [files, setFiles] = useState<File[]>([])
+  const attachmentUpload = useReportAttachments()
+  const files = attachmentUpload.attachments.map(item => item.file)
   const confirmDialog = useRef<HTMLDialogElement>(null)
   const load = useCallback(async () => {
     if (!Number.isSafeInteger(id) || id <= 0) {
@@ -203,7 +202,7 @@ export function OwnReportDetailView({
     setRegion(report.regionCode ?? "")
     setEvidence(report.evidences)
     setEvidenceChanged(false)
-    setFiles([])
+    attachmentUpload.clear()
     setEditing(true)
   }
   async function save(event: React.FormEvent<HTMLFormElement>) {
@@ -212,12 +211,10 @@ export function OwnReportDetailView({
       toast.error("Vui lòng nhập mô tả.")
       return
     }
-    if (files.length) {
-      const validation = validateReportFiles(files)
-      if (validation) {
-        toast.error(validation)
-        return
-      }
+    if (attachmentUpload.editingId || attachmentUpload.attachments.some(item => !item.reviewed)) {
+      attachmentUpload.setError(IMAGE_REVIEW_REQUIRED)
+      toast.warn(IMAGE_REVIEW_REQUIRED, { toastId: "report-evidence-image-review" })
+      return
     }
     if (evidence.length + files.length > 20) {
       toast.error("Tối đa 20 bằng chứng.")
@@ -241,7 +238,7 @@ export function OwnReportDetailView({
       const uploaded = files.length ? await uploadOwnReportEvidence(files) : []
       if (uploaded.length) {
         setEvidence([...evidence, ...uploaded])
-        setFiles([])
+        attachmentUpload.clear()
         setEvidenceChanged(true)
       }
       const replacement =
@@ -557,25 +554,17 @@ export function OwnReportDetailView({
                           </button>
                         </div>
                       ))}
-                      <label className="block space-y-2">
-                        <span>
-                          Thêm ảnh hoặc PDF (tối đa 5 tệp/lần, 5 MB/tệp)
-                        </span>
-                        <input
-                          type="file"
-                          multiple
-                          accept={REPORT_FILE_ACCEPT}
-                          onChange={(e) =>
-                            setFiles(Array.from(e.target.files ?? []))
-                          }
-                          className={fieldClass}
-                        />
-                      </label>
-                      {files.length > 0 && (
-                        <p className="text-sm">
-                          Đã chọn: {files.map((f) => f.name).join(", ")}
-                        </p>
-                      )}
+                      <ReportFileUpload
+                        optional
+                        attachments={attachmentUpload.attachments}
+                        error={attachmentUpload.error}
+                        disabled={busy}
+                        onAdd={attachmentUpload.add}
+                        onRemove={attachmentUpload.remove}
+                        onReview={attachmentUpload.markReviewed}
+                        editingId={attachmentUpload.editingId}
+                        onEdit={attachmentUpload.setEditingId}
+                      />
                     </div>
                   </fieldset>
                   <div className="flex flex-wrap gap-3">
@@ -586,7 +575,10 @@ export function OwnReportDetailView({
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => setEditing(false)}
+                      onClick={() => {
+                        attachmentUpload.clear()
+                        setEditing(false)
+                      }}
                       className={secondaryButton}
                     >
                       Hủy chỉnh sửa

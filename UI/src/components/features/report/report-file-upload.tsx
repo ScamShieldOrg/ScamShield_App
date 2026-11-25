@@ -1,19 +1,15 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { CloudArrowUp, FilePdf, X } from "@phosphor-icons/react"
+import { CloudArrowUp, FilePdf, ShieldCheck, Warning, X } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
+import type { ReportAttachment } from "@/features/report/hooks/use-report-attachments"
+import { EvidenceImageEditor } from "./evidence-image-editor"
 import {
   formatReportFileSize,
   MAX_REPORT_FILES,
   REPORT_FILE_ACCEPT,
 } from "@/features/report/utils/report-upload"
-
-export interface ReportAttachment {
-  id: string
-  file: File
-  previewUrl: string
-}
 
 interface ReportFileUploadProps {
   attachments: ReportAttachment[]
@@ -21,6 +17,10 @@ interface ReportFileUploadProps {
   error: string | null
   onAdd: (files: File[]) => void
   onRemove: (id: string) => void
+  onReview: (id: string, file: File) => void
+  editingId: string | null
+  onEdit: (id: string | null) => void
+  optional?: boolean
 }
 
 export function ReportFileUpload({
@@ -29,10 +29,15 @@ export function ReportFileUpload({
   error,
   onAdd,
   onRemove,
+  onReview,
+  editingId,
+  onEdit,
+  optional = false,
 }: ReportFileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
   const [isDragging, setIsDragging] = useState(false)
+  const editing = attachments.find(item => item.id === editingId)
 
   return (
     <div className="space-y-2">
@@ -41,13 +46,13 @@ export function ReportFileUpload({
         className="text-xs font-bold text-[#131B2E] dark:text-foreground"
       >
         Tệp minh chứng (Ảnh chụp đoạn chat, biên lai){" "}
-        <span className="text-destructive">*</span>
+        {!optional && <span className="text-destructive">*</span>}
       </label>
       <input
         ref={inputRef}
         id="report-evidence-files"
         type="file"
-        aria-required="true"
+        aria-required={!optional}
         aria-invalid={Boolean(error)}
         accept={REPORT_FILE_ACCEPT}
         multiple
@@ -116,7 +121,7 @@ export function ReportFileUpload({
               PNG, JPG hoặc PDF · Tối đa {MAX_REPORT_FILES} tệp, 5 MB mỗi tệp
             </span>
             <span className="block text-[11px] text-muted-foreground">
-              Hãy che thông tin cá nhân không liên quan trước khi tải tệp lên.
+              Rà soát từng ảnh trước khi gửi. Với PDF, hãy che thông tin nhạy cảm trước khi chọn tệp.
             </span>
           </span>
         </button>
@@ -137,57 +142,95 @@ export function ReportFileUpload({
             {formatReportFileSize(
               attachments.reduce((total, item) => total + item.file.size, 0)
             )}
-            . Tệp sẽ được tải lên khi gửi báo cáo.
+            . {optional ? "Tệp sẽ được tải lên khi lưu thay đổi." : "Tệp sẽ được tải lên khi gửi báo cáo."}
           </p>
           <ul className="grid gap-2 sm:grid-cols-2">
-            {attachments.map(({ id, file, previewUrl }) => (
+            {attachments.map(({ id, file, previewUrl, reviewed }) => (
               <li
                 key={id}
-                className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-muted/20 p-2.5"
+                className={cn(
+                  "min-w-0 space-y-2 rounded-xl border p-2.5",
+                  editing?.id === id
+                    ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+                    : "border-border bg-muted/20"
+                )}
               >
-                <a
-                  href={previewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
-                  aria-label={`Xem tệp ${file.name} trong thẻ mới`}
-                >
-                  {file.name.toLowerCase().endsWith(".pdf") ? (
-                    <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
-                      <FilePdf size={26} />
+                <div className="flex min-w-0 items-center gap-3">
+                  <a
+                    href={previewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
+                    aria-label={`Xem tệp ${file.name} trong thẻ mới`}
+                  >
+                    {file.name.toLowerCase().endsWith(".pdf") ? (
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                        <FilePdf size={26} />
+                      </div>
+                    ) : (
+                      <div
+                        role="img"
+                        aria-label={`Ảnh xem trước ${file.name}`}
+                        className="size-12 shrink-0 rounded-lg bg-muted bg-contain bg-center bg-no-repeat"
+                        style={{ backgroundImage: `url("${previewUrl}")` }}
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <p
+                        className="truncate text-xs font-semibold text-foreground"
+                        title={file.name}
+                      >
+                        {file.name}
+                      </p>
+                      {editing?.id === id && (
+                        <span className="inline-block rounded-md bg-sky-100 px-1.5 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/60 dark:text-sky-200">
+                          Đang chỉnh sửa
+                        </span>
+                      )}
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatReportFileSize(file.size)} · Xem tệp
+                      </p>
                     </div>
-                  ) : (
-                    <div
-                      role="img"
-                      aria-label={`Ảnh xem trước ${file.name}`}
-                      className="size-12 shrink-0 rounded-lg bg-muted bg-contain bg-center bg-no-repeat"
-                      style={{ backgroundImage: `url("${previewUrl}")` }}
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <p
-                      className="truncate text-xs font-semibold text-foreground"
-                      title={file.name}
-                    >
-                      {file.name}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {formatReportFileSize(file.size)} · Xem tệp
-                    </p>
-                  </div>
-                </a>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onRemove(id)}
-                  aria-label={`Xóa tệp ${file.name}`}
-                  className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                >
-                  <X size={15} weight="bold" />
-                </button>
+                  </a>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onRemove(id)}
+                    aria-label={`Xóa tệp ${file.name}`}
+                    className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  >
+                    <X size={15} weight="bold" />
+                  </button>
+                </div>
+                {!file.name.toLowerCase().endsWith(".pdf") && (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onEdit(id)}
+                    className={cn(
+                      "mt-1 flex min-h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50",
+                      reviewed
+                        ? "border-border bg-background hover:bg-muted"
+                        : "border-amber-300 bg-amber-100 text-amber-950 hover:bg-amber-200 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
+                    )}
+                  >
+                    {reviewed ? <ShieldCheck size={16} aria-hidden="true" /> : <Warning size={16} aria-hidden="true" />}
+                    {reviewed ? "Đã rà soát" : "Che thông tin nhạy cảm"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
+          {editing && (
+            <EvidenceImageEditor
+              key={editing.id}
+              source={editing.previewUrl}
+              fileName={editing.file.name}
+              saveLabel="Xác nhận"
+              onSave={file => onReview(editing.id, file)}
+              onCancel={() => onEdit(null)}
+            />
+          )}
         </>
       )}
     </div>

@@ -8,6 +8,7 @@ import com.be.scamshield.constant.ReportEvidenceType;
 import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.request.ModeratorReportFilterRequest;
 import com.be.scamshield.entity.*;
+import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.support.PostgresIntegrationTest;
 import jakarta.persistence.EntityManager;
@@ -31,6 +32,7 @@ class ModeratorQueueBatchPersistenceTest extends PostgresIntegrationTest {
     @Autowired EntityManager em;
     @Autowired ModeratorReportServiceImpl service;
     @MockitoBean ReportAssignmentService assignments;
+    @MockitoBean SupabaseStorageService storage;
 
     @Test
     void queueUsesConstantQueryCountAndMatchesSingleReportDuplicateDetails() {

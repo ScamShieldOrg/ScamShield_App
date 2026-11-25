@@ -5,7 +5,6 @@ import { ReportSubmissionError } from "@/components/features/report/report-submi
 import { useState, useEffect } from "react"
 import { toast } from "react-toastify"
 import { ReportForm } from "@/components/features/report/report-form"
-import { ReportPrivacyNotice } from "@/components/features/report/report-privacy-notice"
 import { RecentReportsTable } from "@/components/features/report/recent-reports-table"
 import {
   submitScamReport,
@@ -77,7 +76,7 @@ export default function UserReportsNewPage() {
           Báo Cáo Đối Tượng Lừa Đảo
         </h1>
         <p className="pt-1 text-xs text-[#45464D] dark:text-muted-foreground">
-          Chung tay làm sạch không gian mạng. <ReportPrivacyNotice />
+          Chung tay làm sạch không gian mạng.
         </p>
       </div>
 

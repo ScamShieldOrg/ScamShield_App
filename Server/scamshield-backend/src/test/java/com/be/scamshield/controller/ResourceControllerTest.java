@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ResourceController.class)
@@ -43,6 +44,15 @@ class ResourceControllerTest {
     private JwtTokenProvider tokenProvider;
     @MockitoBean
     private CustomUserDetailsService userDetailsService;
+
+    @Test
+    void blacklistImageUrlIsAvailableWithoutAuthenticationAndIsNotCached() throws Exception {
+        when(service.getBlackListImageUrl(4L)).thenReturn("https://example.test/signed.jpg");
+        mvc.perform(get("/api/resources/blacklist/4/image"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.data").value("https://example.test/signed.jpg"));
+    }
 
     @Test
     void blacklistBindsFiltersAndReturnsPaginatedItemsWithoutAuthentication() throws Exception {

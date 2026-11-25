@@ -6,6 +6,8 @@ import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.dto.request.BlacklistResourceFilterRequest;
 import com.be.scamshield.dto.request.WhitelistResourceFilterRequest;
 import com.be.scamshield.entity.Indicator;
+import com.be.scamshield.exception.ResourceNotFoundException;
+import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.repository.ResourceRepository;
@@ -18,8 +20,10 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
@@ -32,12 +36,30 @@ class ResourceServiceImplTest {
     private ResourceRepository resourceRepository;
     private WhitelistResourceRepository whitelistRepository;
     private ResourceServiceImpl service;
+    private SupabaseStorageService evidenceStorage;
 
     @BeforeEach
     void setUp() {
         resourceRepository = mock(ResourceRepository.class);
         whitelistRepository = mock(WhitelistResourceRepository.class);
-        service = new ResourceServiceImpl(resourceRepository, whitelistRepository);
+        evidenceStorage = mock(SupabaseStorageService.class);
+        service = new ResourceServiceImpl(resourceRepository, whitelistRepository, evidenceStorage);
+    }
+
+    @Test
+    void blacklistOnlySignsAnImageWhenAnActiveEntryHasAnApprovedPublicationKey() {
+        when(resourceRepository.findBlackListImageKey(4L)).thenReturn(Optional.of("published-reports/sample.jpg"));
+        when(evidenceStorage.createReportPublicationImageUrl("published-reports/sample.jpg"))
+                .thenReturn("https://example.test/signed.jpg");
+
+        assertThat(service.getBlackListImageUrl(4L)).isEqualTo("https://example.test/signed.jpg");
+    }
+
+    @Test
+    void blacklistDoesNotReturnAnImageWhenNoPublicationKeyIsEligible() {
+        assertThatThrownBy(() -> service.getBlackListImageUrl(4L))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(evidenceStorage);
     }
 
     @Test
@@ -51,6 +73,7 @@ class ResourceServiceImplTest {
         when(row.getId()).thenReturn(4L);
         when(row.getTitle()).thenReturn("Scam number");
         when(row.getWarningCount()).thenReturn(500L);
+        when(row.getPublicImageCount()).thenReturn(1L);
         when(resourceRepository.findBlackListResources("%scam%", "PHONE", PageRequest.of(1, 2)))
                 .thenReturn(new PageImpl<>(List.of(row), PageRequest.of(1, 2), 5));
 
@@ -61,6 +84,7 @@ class ResourceServiceImplTest {
         assertThat(result.isHasNext()).isTrue();
         assertThat(result.getData()).singleElement().satisfies(item -> {
             assertThat(item.getTitle()).isEqualTo("Scam number");
+            assertThat(item.isHasPublicImage()).isTrue();
             assertThat(item.getSeverity()).isEqualTo("URGENT");
             assertThat(item.getDescription()).isEqualTo("ScamShield confirmed this resource as unsafe.");
         });

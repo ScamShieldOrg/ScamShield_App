@@ -10,6 +10,7 @@ import type { DashboardRegionOption } from "@/features/dashboard/types/dashboard
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { ReportSubmissionError } from "./report-submission-error"
+import { ReportPrivacyNotice } from "./report-privacy-notice"
 import { toast } from "react-toastify"
 import { cn } from "@/lib/utils"
 import {
@@ -25,8 +26,8 @@ import {
   MapPin,
 } from "@phosphor-icons/react"
 import { ReportThreatTypeSelector } from "./report-threat-type-selector"
-import { ReportFileUpload, type ReportAttachment } from "./report-file-upload"
-import { validateReportFiles } from "@/features/report/utils/report-upload"
+import { ReportFileUpload } from "./report-file-upload"
+import { IMAGE_REVIEW_REQUIRED, useReportAttachments } from "@/features/report/hooks/use-report-attachments"
 import {
   ScamCategoryItem,
   ReportThreatType,
@@ -179,8 +180,8 @@ function ReportFormContent({
   }, [])
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
-  const [attachments, setAttachments] = useState<ReportAttachment[]>([])
-  const [fileError, setFileError] = useState<string | null>(null)
+  const attachmentUpload = useReportAttachments()
+  const { attachments, error: fileError } = attachmentUpload
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isConfirmed, setIsConfirmed] = useState(false)
@@ -192,7 +193,6 @@ function ReportFormContent({
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const fileSectionRef = useRef<HTMLDivElement>(null)
   const confirmationRef = useRef<HTMLInputElement>(null)
-  const objectUrls = useRef(new Map<string, string>())
   const submittingRef = useRef(false)
   const activeRef = useRef(true)
   const isBusy = Boolean(isLoading || isSubmitting)
@@ -271,11 +271,8 @@ function ReportFormContent({
 
   useEffect(() => {
     activeRef.current = true
-    const urls = objectUrls.current
     return () => {
       activeRef.current = false
-      urls.forEach((url) => URL.revokeObjectURL(url))
-      urls.clear()
     }
   }, [])
 
@@ -284,32 +281,6 @@ function ReportFormContent({
     const timer = setTimeout(() => setIsSuccess(false), 3500)
     return () => clearTimeout(timer)
   }, [isSuccess])
-
-  const handleRemoveAttachment = (id: string) => {
-    if (submittingRef.current || isLoading) return
-    const url = objectUrls.current.get(id)
-    if (url) URL.revokeObjectURL(url)
-    objectUrls.current.delete(id)
-    setAttachments((prev) => prev.filter((item) => item.id !== id))
-    setFileError(null)
-  }
-
-  const handleAddAttachments = (files: File[]) => {
-    if (submittingRef.current || isLoading || !files.length) return
-    const error = validateReportFiles([
-      ...attachments.map((item) => item.file),
-      ...files,
-    ])
-    setFileError(error)
-    if (error) return
-    const added = files.map((file) => {
-      const id = crypto.randomUUID()
-      const previewUrl = URL.createObjectURL(file)
-      objectUrls.current.set(id, previewUrl)
-      return { id, file, previewUrl }
-    })
-    setAttachments([...attachments, ...added])
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -320,6 +291,11 @@ function ReportFormContent({
       setHasAttemptedSubmit(true)
       setTargetTouched(true)
       targetRef.current?.focus()
+      return
+    }
+    if (attachmentUpload.editingId || attachments.some(item => !item.reviewed)) {
+      attachmentUpload.setError(IMAGE_REVIEW_REQUIRED)
+      toast.warn(IMAGE_REVIEW_REQUIRED, { toastId: "report-evidence-image-review" })
       return
     }
     if (!isComplete || !threatType) {
@@ -390,10 +366,7 @@ function ReportFormContent({
       setCategory("")
       setRegionName("")
       setDescription("")
-      setAttachments([])
-      objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
-      objectUrls.current.clear()
-      setFileError(null)
+      attachmentUpload.clear()
       setIsConfirmed(false)
       setHasAttemptedSubmit(false)
       setIsSuccess(true)
@@ -716,7 +689,7 @@ function ReportFormContent({
           </div>
 
           {/* Evidence Attachments Upload Zone */}
-          <div ref={fileSectionRef}>
+          <div ref={fileSectionRef} className="space-y-3">
             <ReportFileUpload
               attachments={attachments}
               disabled={isBusy}
@@ -726,9 +699,21 @@ function ReportFormContent({
                   ? "Vui lòng đính kèm ít nhất một tệp minh chứng."
                   : null)
               }
-              onAdd={handleAddAttachments}
-              onRemove={handleRemoveAttachment}
+              onAdd={fileList => {
+                if (!submittingRef.current) attachmentUpload.add(fileList)
+              }}
+              onRemove={attachmentUpload.remove}
+              onReview={attachmentUpload.markReviewed}
+              editingId={attachmentUpload.editingId}
+              onEdit={attachmentUpload.setEditingId}
             />
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+              <p className="mb-1">
+                <strong>Che thông tin nhạy cảm trước khi gửi.</strong>{" "}
+                Rà soát từng ảnh đính kèm. Với PDF, hãy che thông tin trước khi chọn tệp.
+              </p>
+              <ReportPrivacyNotice />
+            </div>
           </div>
         </div>
 

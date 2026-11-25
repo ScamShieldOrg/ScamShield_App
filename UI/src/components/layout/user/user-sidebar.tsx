@@ -77,7 +77,7 @@ export function UserSidebar({ className, onCloseMobile }: UserSidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-screen w-72 shrink-0 flex-col justify-between border-r border-[#C6C6CE]/40 bg-white select-none dark:border-border dark:bg-card",
+        "flex h-dvh w-72 shrink-0 flex-col justify-between border-r border-[#C6C6CE]/40 bg-white select-none dark:border-border dark:bg-card",
         className
       )}
     >

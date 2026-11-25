@@ -9,6 +9,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Long> {
@@ -26,6 +28,11 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
                       FROM Report r
                      WHERE r.indicator = i
                        AND r.status = com.be.scamshield.constant.ReportStatus.APPROVED) AS warningCount,
+                   (SELECT COUNT(e)
+                      FROM ReportEvidence e
+                     WHERE e.report = ci.sourceReport
+                       AND e.report.status = com.be.scamshield.constant.ReportStatus.APPROVED
+                       AND e.publicImageObjectKey IS NOT NULL) AS publicImageCount,
                    ci.confirmedAt AS confirmedAt,
                    COALESCE(i.updatedAt, ci.confirmedAt) AS updatedAt
             FROM ConfirmedIndicator ci
@@ -55,7 +62,24 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
             @Param("resourceType") String resourceType,
             Pageable pageable);
 
+    @Query("""
+            SELECT e.publicImageObjectKey
+              FROM ConfirmedIndicator ci, ReportEvidence e
+             WHERE ci.id = :id
+               AND ci.status = com.be.scamshield.constant.ConfirmedIndicatorStatus.ACTIVE
+               AND e.report = ci.sourceReport
+               AND e.report.status = com.be.scamshield.constant.ReportStatus.APPROVED
+               AND e.publicImageObjectKey IS NOT NULL
+             ORDER BY e.id
+            """)
+    List<String> findBlackListImageKeys(@Param("id") Long id);
+
+    default Optional<String> findBlackListImageKey(Long id) {
+        return findBlackListImageKeys(id).stream().findFirst();
+    }
+
     interface BlacklistResourceProjection {
+        Long getPublicImageCount();
         Long getId();
         Long getIndicatorId();
         String getResourceType();

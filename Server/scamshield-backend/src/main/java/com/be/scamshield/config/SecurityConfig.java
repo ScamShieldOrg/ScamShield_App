@@ -104,7 +104,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/scam-checks").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/scam-checks/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/summary", "/api/dashboard/filters").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/resources/blacklist", "/api/resources/whitelist").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/resources/blacklist", "/api/resources/blacklist/*/image",
+                                "/api/resources/blacklist/*/images", "/api/resources/whitelist").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/education-hub", "/api/education-hub/filters",
                                 "/api/education-hub/contents", "/api/education-hub/contents/*").permitAll()
                         .requestMatchers(
