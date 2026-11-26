@@ -556,12 +556,18 @@ public class ScamCheckAiClient {
                 features = json.convertValue(featNode, Map.class);
             }
 
+            boolean cacheHit = "CACHE".equalsIgnoreCase(verdict.path("decided_by").asText(""))
+                    || "CACHE_HIT_TIER_2".equalsIgnoreCase(data.path("telemetry").path("routing_path").asText(""));
+            String stage = cacheHit ? "CACHE_TIER2"
+                    : "URL".equals(inputType) ? "URL_REPUTATION"
+                    : tier == 1 ? "VISOBERT" : "LLM";
+
             var details = new ScamCheckAiDetails(scanId, createdAt, tier,
                     new ScamCheckAiDetails.AiVerdict(risk, "UNKNOWN".equals(risk) ? null : riskScore.decimalValue(),
                             scamType, confidence.decimalValue(), summary),
                     radar.isEmpty() ? null : radar, advice, council, deliberation, features);
 
-            return new Result(risk, "URL".equals(inputType) ? "URL_REPUTATION" : tier == 1 ? "VISOBERT" : "LLM",
+            return new Result(risk, stage,
 
                     confidence.decimalValue(), summary, guidance.toString(),
 

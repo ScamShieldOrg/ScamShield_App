@@ -119,6 +119,7 @@ public class ScamCheckHistoryServiceImpl implements IScamCheckHistoryService {
                 .verdictLabel(raw.verdictLabel() != null ? raw.verdictLabel() : "Chưa Đủ Dữ Liệu")
                 .verdictStatus(raw.verdictStatus() != null ? raw.verdictStatus() : "UNKNOWN")
                 .riskScore(raw.riskScore())
+                .decidedByStage(raw.decidedByStage())
                 .build();
     }
 

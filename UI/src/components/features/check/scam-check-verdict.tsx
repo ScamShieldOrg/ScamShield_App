@@ -73,6 +73,7 @@ export function ScamCheckVerdict({ result }: { result: ScamCheckResult }) {
   const isAi =
     isVisoBert ||
     result.decidedByStage === "LLM" ||
+    result.decidedByStage === "CACHE_TIER2" ||
     result.decidedByStage === "URL_REPUTATION"
   const confidence =
     result.confidence != null &&
@@ -98,6 +99,7 @@ export function ScamCheckVerdict({ result }: { result: ScamCheckResult }) {
       WHITELIST: "Thông tin đối tác đã xác minh",
       VISOBERT: "Phân tích AI",
       LLM: "Phân tích AI chuyên sâu",
+      CACHE_TIER2: "AI chuyên gia đã kiểm tra",
       URL_REPUTATION: "Đánh giá URL",
       NONE: "Chưa hoàn tất phân tích",
     }[result.decidedByStage] || "Phân tích nội dung"
