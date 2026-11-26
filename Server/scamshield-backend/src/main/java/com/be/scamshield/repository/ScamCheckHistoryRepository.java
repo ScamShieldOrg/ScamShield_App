@@ -206,8 +206,7 @@ public class ScamCheckHistoryRepository {
         }
 
         if (search != null && !search.isBlank()) {
-            sql.append(" AND (LOWER(COALESCE(raw_input, '')) LIKE :searchPattern "
-                    + "OR LOWER(COALESCE(normalized_input, '')) LIKE :searchPattern "
+            sql.append(" AND (LOWER(COALESCE(masked_input, '')) LIKE :searchPattern "
                     + "OR LOWER(COALESCE(indicator_value, '')) LIKE :searchPattern "
                     + "OR LOWER(COALESCE(indicator_display, '')) LIKE :searchPattern "
                     + "OR LOWER(COALESCE(category_name, '')) LIKE :searchPattern) ");

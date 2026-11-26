@@ -83,7 +83,7 @@ public class ScamCheckServiceImpl implements IScamCheckService {
                 reservation.set(quotas.reserve(owner.user(), owner.guest()));
                 LocalDateTime now = now();
                 return checks.save(CheckRequest.builder().user(owner.user()).guestSession(owner.guest())
-                        .inputType(request.getInputType()).rawInput(request.getContent())
+                        .inputType(request.getInputType()).rawInput(input.raw())
                         .normalizedInput(input.normalized()).maskedInput(input.masked()).inputHash(input.hash())
                         .status("PROCESSING").createdAt(now).retentionExpiresAt(now.plusDays(retentionDays)).build());
             });
@@ -95,7 +95,8 @@ public class ScamCheckServiceImpl implements IScamCheckService {
                 check.getId(), check.getInputType(), userId == null ? "GUEST" : "USER", input.candidates().size());
         CheckVerdict saved;
         try {
-            var decision = decisions.decide(check, input.candidates());
+            boolean forceTier2 = Boolean.TRUE.equals(request.getForceTier2());
+            var decision = decisions.decide(check, input.candidates(), forceTier2);
             saved = transactions.execute(status -> {
                 LocalDateTime now = now();
                 CheckRequest managedCheck = checks.findById(check.getId()).orElseThrow(this::notFound);

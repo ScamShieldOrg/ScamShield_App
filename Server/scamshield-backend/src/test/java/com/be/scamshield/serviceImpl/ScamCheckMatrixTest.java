@@ -41,7 +41,7 @@ class ScamCheckMatrixTest {
                 : new ScamCheckAiClient.Result(expected, "VISOBERT", new BigDecimal("0.8"),
                 "Kết quả phân tích tin nhắn tiếng Việt", "Xác minh qua kênh chính thức",
                 "UNKNOWN".equals(expected) ? "AI_UNCERTAIN" : null, null, null);
-        when(ai.scan(42L, "MESSAGE", SMS)).thenReturn(result);
+        when(ai.scan(42L, "MESSAGE", SMS, false)).thenReturn(result);
         var check = CheckRequest.builder().id(42L).inputType("MESSAGE").rawInput(SMS)
                 .createdAt(LocalDateTime.of(2026, 11, 3, 12, 0)).build();
         var verdict = service.decide(check, List.of()).verdict();

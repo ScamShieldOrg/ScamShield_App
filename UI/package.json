@@ -10,6 +10,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "test:check-service": "node --test tests/check-service.test.mjs",
     "test:google-registration": "node --test tests/google-registration.test.mjs",
     "test:report-upload": "node --test tests/report-upload.test.mjs"
   },
