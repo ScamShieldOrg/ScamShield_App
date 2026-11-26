@@ -1,7 +1,8 @@
 "use client"
 
 import { Popover } from "@base-ui/react/popover"
-import { Info, ShieldCheck, X } from "@phosphor-icons/react"
+import { ArrowSquareOut, Info, ShieldCheck, X } from "@phosphor-icons/react"
+import Link from "next/link"
 
 export function ReportPrivacyNotice({ forPublication = false }: { forPublication?: boolean }) {
   return (
@@ -85,6 +86,18 @@ export function ReportPrivacyNotice({ forPublication = false }: { forPublication
               Báo cáo vẫn gắn với tài khoản của bạn để theo dõi xử lý. Hãy lưu
               ảnh sau khi che và kiểm tra lại tệp đính kèm trước khi gửi.
             </p>}
+            {!forPublication && (
+              <Link
+                href="https://csrc.nist.gov/pubs/sp/800/122/final"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-sm text-xs font-semibold text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-sky-400"
+              >
+                Tham khảo hướng dẫn bảo vệ PII của NIST
+                <ArrowSquareOut size={14} aria-hidden="true" />
+                <span className="sr-only"> (mở trong thẻ mới)</span>
+              </Link>
+            )}
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>

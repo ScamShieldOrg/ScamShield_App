@@ -528,30 +528,53 @@ export function OwnReportDetailView({
                       {evidence.map((item, index) => (
                         <div
                           key={item.id ?? index}
-                          className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3"
+                          className="relative flex flex-wrap items-center gap-3 rounded-lg border border-border p-3 transition-colors has-[a:hover]:border-primary/40 has-[a:hover]:bg-muted/50"
                         >
-                          <span>Bằng chứng {index + 1}</span>
-                          <span
-                            className="rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground"
-                            aria-label={`Định dạng tệp: ${item.evidenceType}`}
-                          >
-                            {item.evidenceType}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEvidence(
-                                evidence.filter((_, i) => i !== index)
-                              )
-                              setEvidenceChanged(true)
-                            }}
-                            className={cn(
-                              dangerButton,
-                              "min-h-8 px-3 py-1 text-xs"
+                          {safeUrl(item.fileUrl) ? (
+                            <a
+                              href={safeUrl(item.fileUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="min-w-0 flex-[1_1_8rem] text-sm font-semibold break-all hover:underline after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+                            >
+                              {item.fileName || `Bằng chứng ${index + 1}`}
+                              <span className="sr-only"> (mở trong thẻ mới)</span>
+                            </a>
+                          ) : (
+                            <span className="min-w-0 flex-[1_1_8rem] text-sm font-semibold break-all">
+                              {item.fileName || `Bằng chứng ${index + 1}`}
+                            </span>
+                          )}
+                          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                            {safeUrl(item.fileUrl) && (
+                              <ArrowSquareOut
+                                size={14}
+                                className="pointer-events-none shrink-0 text-muted-foreground"
+                                aria-hidden="true"
+                              />
                             )}
-                          >
-                            Bỏ bằng chứng
-                          </button>
+                            <span
+                              className="rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground"
+                              aria-label={`Định dạng tệp: ${item.evidenceType}`}
+                            >
+                              {item.evidenceType}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEvidence(
+                                  evidence.filter((_, i) => i !== index)
+                                )
+                                setEvidenceChanged(true)
+                              }}
+                              className={cn(
+                                dangerButton,
+                                "relative z-10 min-h-8 px-3 py-1 text-xs"
+                              )}
+                            >
+                              Bỏ bằng chứng
+                            </button>
+                          </div>
                         </div>
                       ))}
                       <ReportFileUpload

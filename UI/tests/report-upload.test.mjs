@@ -35,6 +35,68 @@ function loadTypeScript(relativePath, mocks = {}) {
 }
 
 const upload = loadTypeScript("src/features/report/utils/report-upload.ts")
+const { findEvidenceSuggestions, suggestEvidenceMasks } = loadTypeScript("src/features/report/utils/evidence-ocr.ts")
+
+test("OCR masks cover the number and email without covering surrounding words", () => {
+  const words = (texts, y) => texts.map((text, index) => ({
+    text,
+    bbox: { x0: index * 25, y0: y, x1: index * 25 + 20, y1: y + 12 },
+  }))
+  assert.deepEqual(findEvidenceSuggestions([
+    words(["OTP:", "135790"], 1),
+    words(["123456", "là", "mã", "OTP"], 20),
+    words(["Email", "user@example.test", "để", "liên hệ"], 38),
+    words(["SĐT", "090", "123", "4567"], 56),
+  ], 100, 70), [
+    { label: "Mã OTP", mask: { x: 22, y: 0, width: 26, height: 16 } },
+    { label: "Mã OTP", mask: { x: 0, y: 17, width: 23, height: 18 } },
+    { label: "Email", mask: { x: 22, y: 35, width: 26, height: 18 } },
+    { label: "Số điện thoại, tài khoản hoặc giấy tờ", mask: { x: 22, y: 53, width: 76, height: 17 } },
+  ])
+})
+
+test("OCR does not flag short numbers without context", () => {
+  assert.deepEqual(findEvidenceSuggestions([
+    [{ text: "1234", bbox: { x0: 0, y0: 0, x1: 20, y1: 10 } }],
+  ], 100, 70), [])
+})
+
+test("OCR uses OTP context from the adjacent line and masks only the code", () => {
+  assert.deepEqual(findEvidenceSuggestions([
+    [{ text: "OTP:", bbox: { x0: 20, y0: 0, x1: 45, y1: 10 } }],
+    [{ text: "123456", bbox: { x0: 0, y0: 20, x1: 40, y1: 30 } }],
+  ], 100, 70), [{ label: "Mã OTP", mask: { x: 0, y: 17, width: 43, height: 16 } }])
+})
+
+test("OCR abort terminates the worker even while language data is loading", async () => {
+  const originalWorker = globalThis.Worker
+  const originalWindow = globalThis.window
+  const controller = new AbortController()
+  let terminated = false
+  globalThis.window = { location: { origin: "http://localhost" } }
+  globalThis.Worker = class {
+    postMessage({ action, jobId }) {
+      queueMicrotask(() => {
+        if (action === "load") this.onmessage({ data: { jobId, status: "resolve" } })
+        if (action === "loadLanguage") controller.abort()
+      })
+    }
+    terminate() {
+      terminated = true
+    }
+  }
+
+  try {
+    await assert.rejects(suggestEvidenceMasks({
+      toBlob: callback => callback(new Blob(["demo"], { type: "image/png" })),
+    }, controller.signal), { name: "AbortError" })
+    assert.equal(terminated, true)
+  } finally {
+    globalThis.Worker = originalWorker
+    globalThis.window = originalWindow
+  }
+})
+
 const image = () =>
   new File(
     [

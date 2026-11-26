@@ -17,6 +17,7 @@ import {
   Phone,
   Globe,
   Bank,
+  CaretDown,
   ShieldCheck,
   PaperPlaneTilt,
   Shield,
@@ -467,6 +468,7 @@ function ReportFormContent({
                   id="report-target-identifier"
                   type="text"
                   required
+                  disabled={!threatType}
                   aria-invalid={targetMissing || Boolean(showTypeWarning)}
                   aria-describedby={
                     targetMissing
@@ -484,14 +486,14 @@ function ReportFormContent({
                   onBlur={() => setTargetTouched(true)}
                   placeholder={
                     !threatType
-                      ? "Nhập số điện thoại, URL hoặc tài khoản cần báo cáo..."
+                      ? "Chọn loại đối tượng báo cáo trước"
                       : threatType === "PHONE"
                         ? "Nhập số điện thoại kẻ lừa đảo..."
                         : threatType === "WEBSITE"
                           ? "Nhập URL website giả mạo..."
                           : "Nhập số tài khoản ngân hàng thụ hưởng..."
                   }
-                  className={reportInputClass}
+                  className={`${reportInputClass} disabled:cursor-not-allowed disabled:opacity-70`}
                 />
               </div>
               {showTypeWarning && (
@@ -598,32 +600,40 @@ function ReportFormContent({
               >
                 Danh mục thủ đoạn <span className="text-[#BA1A1A]">*</span>
               </label>
-              <select
-                ref={categoryRef}
-                id="report-category"
-                disabled={
-                  isBusy || categoriesLoading || categories.length === 0
-                }
-                required
-                aria-invalid={categoryMissing}
-                aria-describedby={
-                  categoryMissing ? "report-category-error" : undefined
-                }
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-xl border border-[#C6C6CE]/50 bg-[#FAF8FF] px-3 py-2.5 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-muted/30 dark:text-foreground"
-              >
-                <option value="" disabled>
-                  {categoriesLoading
-                    ? "Đang tải danh mục..."
-                    : "Chọn thủ đoạn"}
-                </option>
-                {categories.map((item) => (
-                  <option key={item.id} value={item.code}>
-                    {item.name}
+              <div className="relative">
+                <select
+                  ref={categoryRef}
+                  id="report-category"
+                  disabled={
+                    isBusy || categoriesLoading || categories.length === 0
+                  }
+                  required
+                  aria-invalid={categoryMissing}
+                  aria-describedby={
+                    categoryMissing ? "report-category-error" : undefined
+                  }
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-[#C6C6CE]/50 bg-[#FAF8FF] py-2.5 pr-10 pl-3 text-xs font-semibold text-[#131B2E] focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:border-border dark:bg-muted/30 dark:text-foreground forced-colors:appearance-auto forced-colors:pr-3"
+                >
+                  <option value="" disabled>
+                    {categoriesLoading
+                      ? "Đang tải danh mục..."
+                      : "Chọn thủ đoạn"}
                   </option>
-                ))}
-              </select>
+                  {categories.map((item) => (
+                    <option key={item.id} value={item.code}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+                <CaretDown
+                  size={16}
+                  weight="bold"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-[#45464D] dark:text-muted-foreground forced-colors:hidden"
+                />
+              </div>
               {!categoriesLoading && categories.length === 0 && (
                 <p className="text-xs text-destructive" role="alert">
                   Không tải được danh mục hoặc chưa có danh mục hoạt động.{" "}
