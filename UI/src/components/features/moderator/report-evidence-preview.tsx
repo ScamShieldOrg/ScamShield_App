@@ -252,10 +252,10 @@ export function ReportEvidencePreview({
     }
   }, [reportId, awaitingAnalysis])
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <h2 className="flex items-center gap-2 text-base font-semibold">
+    <section className="space-y-4 rounded-xl border border-black/10 bg-card p-5 shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)] sm:p-6 dark:border-white/10 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]">
+      <h2 className="flex items-center gap-2 font-heading text-base font-bold tracking-[-0.02em] text-foreground">
         <FileText size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" />
-        Bằng chứng đính kèm ({displayed.length})
+        <span>Bằng chứng đính kèm ({displayed.length})</span>
       </h2>
       {awaitingAnalysis && (
         <p role="status" className="text-xs text-muted-foreground">
@@ -267,26 +267,26 @@ export function ReportEvidencePreview({
           Không có bằng chứng đính kèm.
         </p>
       ) : (
-        <div className="space-y-4">
+        <div className="divide-y divide-border/70">
           {displayed.map((evidence) => {
             const url = safeEvidenceUrl(evidence.url)
             const content = (
               <>
                 <EvidenceThumbnail key={evidence.url} evidence={evidence} />
-                <span className="min-w-0 space-y-2">
-                  <span className="inline-flex rounded-md border border-border bg-muted/40 px-2 py-1 font-semibold text-foreground tabular-nums">
-                    Minh chứng {evidence.rawId ?? evidence.id}
+                <span className="min-w-0 space-y-1.5">
+                  <span className="inline-flex rounded-md border border-border bg-muted/40 px-2 py-0.5 font-mono text-xs font-semibold text-foreground tabular-nums">
+                    Minh chứng #{evidence.rawId ?? evidence.id}
                   </span>
-                  <span className="block font-semibold">{evidence.name}</span>
+                  <span className="block text-sm font-semibold">{evidence.name}</span>
                 </span>
               </>
             )
-            const cardClass =
-              "flex max-w-full items-center gap-3 rounded-xl border border-border bg-white p-3 text-left text-xs break-all text-foreground dark:bg-card"
+            const rowClass =
+              "flex max-w-full items-center gap-3 rounded-lg bg-muted/25 p-3 text-left text-xs break-all text-foreground"
             return (
               <div
                 key={evidence.id}
-                className="min-w-0 space-y-3 rounded-xl border border-border/70 p-3"
+                className="min-w-0 space-y-3 py-4 first:pt-0 last:pb-0"
               >
                 {url ? (
                   <a
@@ -294,12 +294,12 @@ export function ReportEvidencePreview({
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`Mở tệp gốc: ${evidence.name}`}
-                    className={`${cardClass} cursor-pointer transition-all hover:border-primary/40 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none`}
+                    className={`${rowClass} cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
                   >
                     {content}
                   </a>
                 ) : (
-                  <div className={cardClass}>
+                  <div className={rowClass}>
                     {content}
                     <span className="text-muted-foreground">
                       Tệp không khả dụng

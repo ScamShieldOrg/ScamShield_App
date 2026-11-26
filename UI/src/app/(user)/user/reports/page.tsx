@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
-import { DownloadSimple, Plus } from "@phosphor-icons/react"
+import { MotionConfig } from "motion/react"
+import { CircleNotch, DownloadSimple, Plus } from "@phosphor-icons/react"
 import { toast } from "react-toastify"
 import { ReportMetricsCards } from "@/components/features/report/report-metrics-cards"
 import { ReportTrackingTable } from "@/components/features/report/report-tracking-table"
+import { ScamErrorCallout } from "@/components/features/check/scam-error-callout"
+import { ExpandableIconButton } from "@/components/shared/expandable-icon-action"
 import {
   getReportSummaryMetrics,
   getReportStatusCounts,
@@ -27,7 +30,9 @@ export default function UserReportsPage() {
   const [metrics, setMetrics] = useState<ReportSummaryMetrics>(
     DEFAULT_SUMMARY_METRICS
   )
-  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true)
+  const [metricsRevision, setMetricsRevision] = useState(0)
+  const [settledMetricsRevision, setSettledMetricsRevision] = useState(-1)
+  const isLoadingMetrics = settledMetricsRevision !== metricsRevision
 
   const [statusCounts, setStatusCounts] = useState<ReportStatusCounts>(
     DEFAULT_STATUS_COUNTS
@@ -36,6 +41,7 @@ export default function UserReportsPage() {
 
   const [reports, setReports] = useState<TrackingReportItem[]>([])
   const [isLoadingReports, setIsLoadingReports] = useState(true)
+  const [reportsError, setReportsError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
 
   const [search, setSearch] = useState("")
@@ -49,32 +55,34 @@ export default function UserReportsPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
 
-  // Load summary metrics, status counts & categories on mount
   useEffect(() => {
-    async function loadInitialData() {
-      setIsLoadingMetrics(true)
-      try {
-        const [metricData, countData, catData] = await Promise.all([
-          getReportSummaryMetrics(),
-          getReportStatusCounts(),
-          getReportCategories(),
-        ])
+    let active = true
+    void Promise.all([
+      getReportSummaryMetrics(),
+      getReportStatusCounts(),
+      getReportCategories(),
+    ])
+      .then(([metricData, countData, catData]) => {
+        if (!active) return
         setMetrics(metricData)
         setStatusCounts(countData)
         setCategories(catData)
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error("Lỗi khi tải dữ liệu ban đầu:", err)
-      } finally {
-        setIsLoadingMetrics(false)
-      }
+      })
+      .finally(() => {
+        if (active) setSettledMetricsRevision(metricsRevision)
+      })
+    return () => {
+      active = false
     }
-    loadInitialData()
-  }, [])
+  }, [metricsRevision])
 
-  // Load tracking reports with debounce / filter dependencies
   const fetchReports = useCallback(
     async (pageToLoad: number) => {
       setIsLoadingReports(true)
+      setReportsError(null)
       try {
         const catId =
           selectedCategory !== "all" ? Number(selectedCategory) : undefined
@@ -94,7 +102,11 @@ export default function UserReportsPage() {
         setTotalPages(Math.max(1, res.totalPages))
         setTotalItems(res.totalItems)
       } catch (err) {
-        console.error("Lỗi khi tải danh sách báo cáo tiến trình:", err)
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Không thể tải danh sách báo cáo tiến trình. Vui lòng thử lại."
+        setReportsError(message)
         setReports([])
       } finally {
         setIsLoadingReports(false)
@@ -105,12 +117,11 @@ export default function UserReportsPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchReports(currentPage)
+      void fetchReports(currentPage)
     }, 250)
     return () => clearTimeout(timer)
   }, [fetchReports, currentPage])
 
-  // Reset page to 1 when filters change
   const handleSearchChange = (val: string) => {
     setSearch(val)
     setCurrentPage(1)
@@ -154,8 +165,7 @@ export default function UserReportsPage() {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
       toast.success("Xuất đối soát CSV thành công!")
-    } catch (err) {
-      console.error("Lỗi khi xuất CSV:", err)
+    } catch {
       toast.error("Không thể xuất file CSV. Vui lòng thử lại sau!")
     } finally {
       setIsExporting(false)
@@ -163,66 +173,92 @@ export default function UserReportsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-bold tracking-tight text-[#131B2E] dark:text-foreground">
-            Báo Cáo & Theo Dõi Tiến Trình
-          </h1>
-        </div>
+    <MotionConfig reducedMotion="user">
+      <div className="space-y-6 font-sans antialiased">
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="font-heading text-2xl font-bold tracking-[-0.025em] text-foreground">
+              Báo cáo & theo dõi tiến trình
+            </h1>
+            <p className="max-w-[60ch] text-sm text-muted-foreground">
+              Theo dõi trạng thái kiểm duyệt, điểm uy tín và lịch sử các báo cáo
+              bạn đã gửi.
+            </p>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={isExporting}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-[#C6C6CE]/60 bg-white px-3.5 py-2 text-xs font-semibold text-[#131B2E] shadow-2xs hover:bg-[#FAF8FF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-card dark:text-foreground"
-          >
-            <DownloadSimple
-              size={15}
-              weight="bold"
-              className={isExporting ? "animate-bounce" : ""}
+          <div className="flex flex-wrap items-center gap-2">
+            <ExpandableIconButton
+              onClick={handleExportCsv}
+              disabled={isExporting}
+              expanded={isExporting}
+              variant="outline"
+              icon={
+                isExporting ? (
+                  <div className="motion-safe:animate-spin">
+                    <CircleNotch aria-hidden="true" size={16} weight="bold" />
+                  </div>
+                ) : (
+                  <DownloadSimple aria-hidden="true" size={16} weight="bold" />
+                )
+              }
+              label={
+                isExporting ? "Đang xuất CSV..." : "Xuất đối soát (CSV)"
+              }
             />
-            <span>
-              {isExporting ? "Đang xuất CSV..." : "Xuất đối soát (CSV)"}
-            </span>
-          </button>
 
-          <Link
-            href="/user/reports/new"
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#0B132B] px-4 py-2 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#131B2E] active:scale-95 dark:bg-primary dark:text-primary-foreground"
-          >
-            <Plus size={15} weight="bold" />
-            <span>Gửi Báo Cáo Mới</span>
-          </Link>
+            <Link
+              href="/user/reports/new"
+              className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-xs transition-[opacity,transform] duration-120 hover:bg-primary/90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <Plus aria-hidden="true" size={16} weight="bold" />
+              <span>Gửi báo cáo mới</span>
+            </Link>
+          </div>
         </div>
+
+        {/* 4 Overview Metric Cards */}
+        <ReportMetricsCards metrics={metrics} isLoading={isLoadingMetrics} />
+
+        {/* Recoverable Error Callout (Zero Dead-End) */}
+        {reportsError && (
+          <ScamErrorCallout
+            title="Chưa thể tải danh sách báo cáo"
+            message={reportsError}
+            preserveDraftHint={false}
+            isBusy={isLoadingReports}
+            onRetry={() => {
+              setMetricsRevision((v) => v + 1)
+              void fetchReports(currentPage)
+            }}
+          />
+        )}
+
+        {/* Report Tracking Filter & Table */}
+        <ReportTrackingTable
+          items={reports}
+          statusCounts={statusCounts}
+          categories={categories}
+          isLoading={isLoadingReports}
+          search={search}
+          onSearchChange={handleSearchChange}
+          selectedStatus={selectedStatus}
+          onStatusChange={handleStatusChange}
+          selectedCategory={selectedCategory}
+          onCategoryChange={handleCategoryChange}
+          selectedDays={selectedDays}
+          onDaysChange={handleDaysChange}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={10}
+          onPageChange={setCurrentPage}
+          onRefresh={() => {
+            setMetricsRevision((v) => v + 1)
+            void fetchReports(currentPage)
+          }}
+        />
       </div>
-
-      {/* 4 Overview Metric Cards */}
-      <ReportMetricsCards metrics={metrics} isLoading={isLoadingMetrics} />
-
-      {/* Report Tracking Filter & Table */}
-      <ReportTrackingTable
-        items={reports}
-        statusCounts={statusCounts}
-        categories={categories}
-        isLoading={isLoadingReports}
-        search={search}
-        onSearchChange={handleSearchChange}
-        selectedStatus={selectedStatus}
-        onStatusChange={handleStatusChange}
-        selectedCategory={selectedCategory}
-        onCategoryChange={handleCategoryChange}
-        selectedDays={selectedDays}
-        onDaysChange={handleDaysChange}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        pageSize={10}
-        onPageChange={setCurrentPage}
-        onRefresh={() => fetchReports(currentPage)}
-      />
-    </div>
+    </MotionConfig>
   )
 }

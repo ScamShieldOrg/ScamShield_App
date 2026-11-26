@@ -35,13 +35,13 @@ export function ReportFileUpload({
   const [isDragging, setIsDragging] = useState(false)
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <label
         htmlFor="report-evidence-files"
-        className="text-xs font-bold text-[#131B2E] dark:text-foreground"
+        className="block text-xs font-semibold text-foreground"
       >
         Tệp minh chứng (Ảnh chụp đoạn chat, biên lai){" "}
-        <span className="text-destructive">*</span>
+        <span className="text-rose-600 dark:text-rose-400">*</span>
       </label>
       <input
         ref={inputRef}
@@ -91,87 +91,90 @@ export function ReportFileUpload({
           disabled={disabled || attachments.length >= MAX_REPORT_FILES}
           onClick={() => inputRef.current?.click()}
           className={cn(
-            "flex w-full cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[#C6C6CE] bg-[#FAF8FF]/60 p-4 text-left transition-colors hover:border-[#008CC7] hover:bg-sky-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#008CC7] disabled:cursor-not-allowed disabled:opacity-60 dark:border-border dark:bg-muted/20 dark:hover:border-primary dark:hover:bg-primary/10",
+            "flex min-h-20 w-full cursor-pointer items-center gap-3.5 rounded-xl border border-dashed border-black/20 bg-muted/25 p-4 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/15 dark:bg-muted/20 dark:hover:border-primary/60 dark:hover:bg-primary/10",
             isDragging &&
               !disabled &&
-              "border-[#008CC7] bg-sky-50 ring-2 ring-sky-200 dark:border-primary dark:bg-primary/10 dark:ring-primary/30",
-            error && "border-destructive"
+              "border-primary bg-primary/10 ring-2 ring-primary/25",
+            error && "border-rose-500/60"
           )}
         >
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#E2E7FF] text-[#008CC7] dark:bg-primary/20 dark:text-primary">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-sky-500/20 bg-sky-500/10 text-sky-700 dark:border-sky-400/20 dark:bg-sky-500/15 dark:text-sky-300">
             <CloudArrowUp size={22} weight="fill" aria-hidden="true" />
           </span>
           <span className="min-w-0 space-y-1">
-            <span className="block text-xs font-bold text-[#131B2E] dark:text-foreground">
+            <span className="block text-sm font-semibold text-foreground">
               {attachments.length >= MAX_REPORT_FILES
                 ? `Đã chọn đủ ${MAX_REPORT_FILES} tệp. Xóa bớt tệp để chọn thêm.`
                 : isDragging
                   ? "Thả tệp vào đây"
-                  : "Nhấn vào đây để chọn hoặc kéo thả tệp minh chứng"}
+                  : "Nhấn để chọn hoặc kéo thả tệp minh chứng"}
             </span>
             <span
               id="report-upload-help"
-              className="block text-[11px] text-[#45464D] dark:text-muted-foreground"
+              className="block text-xs text-muted-foreground"
             >
-              PNG, JPG hoặc PDF · Tối đa {MAX_REPORT_FILES} tệp, 5 MB mỗi tệp
-            </span>
-            <span className="block text-[11px] text-muted-foreground">
-              Hãy che thông tin cá nhân không liên quan trước khi tải tệp lên.
+              PNG, JPG hoặc PDF · Tối đa {MAX_REPORT_FILES} tệp, 5 MB mỗi tệp.
+              Hãy che thông tin cá nhân không liên quan trước khi tải lên.
             </span>
           </span>
         </button>
       </div>
 
-      <p
-        id="report-upload-error"
-        role={error ? "alert" : undefined}
-        className="text-xs text-destructive"
-      >
-        {error}
-      </p>
+      {error && (
+        <p
+          id="report-upload-error"
+          role="alert"
+          className="text-xs font-medium text-rose-700 dark:text-rose-300"
+        >
+          {error}
+        </p>
+      )}
 
       {attachments.length > 0 && (
         <>
-          <p role="status" className="text-[11px] text-muted-foreground">
+          <p
+            role="status"
+            className="text-xs text-muted-foreground tabular-nums"
+          >
             Đã chọn {attachments.length}/{MAX_REPORT_FILES} tệp ·{" "}
             {formatReportFileSize(
               attachments.reduce((total, item) => total + item.file.size, 0)
             )}
             . Tệp sẽ được tải lên khi gửi báo cáo.
           </p>
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid gap-2.5 sm:grid-cols-2">
             {attachments.map(({ id, file, previewUrl }) => (
               <li
                 key={id}
-                className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-muted/20 p-2.5"
+                className="flex min-w-0 items-center gap-3 rounded-xl border border-black/10 bg-muted/25 p-2.5 dark:border-white/10"
               >
                 <a
                   href={previewUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   aria-label={`Xem tệp ${file.name} trong thẻ mới`}
                 >
                   {file.name.toLowerCase().endsWith(".pdf") ? (
-                    <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
-                      <FilePdf size={26} />
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-700 dark:border-rose-400/20 dark:bg-rose-500/15 dark:text-rose-300">
+                      <FilePdf aria-hidden="true" size={24} />
                     </div>
                   ) : (
                     <div
                       role="img"
                       aria-label={`Ảnh xem trước ${file.name}`}
-                      className="size-12 shrink-0 rounded-lg bg-muted bg-contain bg-center bg-no-repeat"
+                      className="size-12 shrink-0 rounded-lg border border-border bg-muted bg-contain bg-center bg-no-repeat"
                       style={{ backgroundImage: `url("${previewUrl}")` }}
                     />
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 space-y-0.5">
                     <p
                       className="truncate text-xs font-semibold text-foreground"
                       title={file.name}
                     >
                       {file.name}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground tabular-nums">
                       {formatReportFileSize(file.size)} · Xem tệp
                     </p>
                   </div>
@@ -181,9 +184,9 @@ export function ReportFileUpload({
                   disabled={disabled}
                   onClick={() => onRemove(id)}
                   aria-label={`Xóa tệp ${file.name}`}
-                  className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 dark:hover:text-rose-300"
                 >
-                  <X size={15} weight="bold" />
+                  <X aria-hidden="true" size={16} weight="bold" />
                 </button>
               </li>
             ))}

@@ -12,6 +12,9 @@ interface ReportMetricsCardsProps {
   isLoading?: boolean
 }
 
+const cardSurfaceClass =
+  "flex flex-col justify-between space-y-3 rounded-xl border border-black/10 bg-card p-5 shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)] dark:border-white/10 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]"
+
 export function ReportMetricsCards({
   metrics,
   isLoading = false,
@@ -20,16 +23,13 @@ export function ReportMetricsCards({
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className="animate-pulse space-y-3 rounded-2xl border border-[#C6C6CE]/40 bg-white p-5 shadow-xs dark:border-border dark:bg-card"
-          >
+          <div key={i} className={`${cardSurfaceClass} motion-safe:animate-pulse`}>
             <div className="flex items-center justify-between">
-              <div className="h-3 w-28 rounded-md bg-slate-200 dark:bg-slate-700" />
-              <div className="size-9 rounded-xl bg-slate-100 dark:bg-slate-800" />
+              <div className="h-3.5 w-28 rounded-md bg-muted" />
+              <div className="size-9 rounded-lg bg-muted/80" />
             </div>
-            <div className="h-8 w-20 rounded-md bg-slate-200 dark:bg-slate-700" />
-            <div className="h-4 w-36 rounded-md bg-slate-100 dark:bg-slate-800" />
+            <div className="h-8 w-20 rounded-md bg-muted" />
+            <div className="h-5 w-36 rounded-md bg-muted/70" />
           </div>
         ))}
       </div>
@@ -39,95 +39,102 @@ export function ReportMetricsCards({
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {/* Card 1: Tổng báo cáo */}
-      <div className="space-y-3 rounded-2xl border border-[#C6C6CE]/40 bg-white p-5 shadow-xs dark:border-border dark:bg-card">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold tracking-wider text-[#45464D] uppercase dark:text-muted-foreground">
+      <div className={cardSurfaceClass}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-muted-foreground">
             Tổng báo cáo đã gửi
           </span>
-          <div className="flex size-9 items-center justify-center rounded-xl bg-[#FAF8FF] text-[#008CC7] dark:bg-muted dark:text-primary">
-            <FileText size={18} weight="fill" />
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-sky-500/20 bg-sky-500/10 text-sky-700 dark:border-sky-400/20 dark:bg-sky-500/15 dark:text-sky-300">
+            <FileText aria-hidden="true" size={18} weight="fill" />
           </div>
         </div>
 
-        <div className="font-heading text-3xl font-extrabold text-[#131B2E] dark:text-foreground">
-          {metrics.totalReports}
+        <div className="font-heading text-3xl font-bold tracking-[-0.025em] text-foreground tabular-nums">
+          {metrics.totalReports.toLocaleString("vi-VN")}
         </div>
 
-        <div className="inline-block min-h-6 rounded-lg bg-[#E2E7FF]/60 px-2.5 py-0.5 text-[11px] leading-5 font-semibold text-[#131B2E] dark:bg-muted dark:text-foreground">
-          <span className="font-bold text-[#008CC7] dark:text-primary">
-            +{metrics.recentReports7Days}
-          </span>{" "}
-          báo cáo trong 7 ngày qua
+        <div className="inline-flex w-fit items-center gap-1 rounded-md border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-900 dark:border-sky-400/20 dark:bg-sky-500/15 dark:text-sky-200">
+          <span className="font-semibold tabular-nums">
+            +{metrics.recentReports7Days.toLocaleString("vi-VN")}
+          </span>
+          <span>trong 7 ngày qua</span>
         </div>
       </div>
 
       {/* Card 2: Đã duyệt vào Blacklist */}
-      <div className="space-y-3 rounded-2xl border border-[#C6C6CE]/40 bg-white p-5 shadow-xs dark:border-border dark:bg-card">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold tracking-wider text-[#45464D] uppercase dark:text-muted-foreground">
+      <div className={cardSurfaceClass}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-muted-foreground">
             Đã duyệt vào Blacklist
           </span>
-          <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-[#00875A] dark:bg-emerald-950/40 dark:text-emerald-300">
-            <ShieldCheck size={18} weight="fill" />
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-500/15 dark:text-emerald-300">
+            <ShieldCheck aria-hidden="true" size={18} weight="fill" />
           </div>
         </div>
 
-        <div className="font-heading text-3xl font-extrabold text-[#00875A] dark:text-emerald-400">
-          {metrics.blacklistedCount}
+        <div className="font-heading text-3xl font-bold tracking-[-0.025em] text-emerald-700 tabular-nums dark:text-emerald-400">
+          {metrics.blacklistedCount.toLocaleString("vi-VN")}
         </div>
 
-        <div className="flex min-h-6 items-center gap-1.5 text-[11px] font-medium text-[#45464D] dark:text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Shield
-            size={13}
+            aria-hidden="true"
+            size={14}
             weight="fill"
-            className="text-[#00875A] dark:text-emerald-400"
+            className="shrink-0 text-emerald-600 dark:text-emerald-400"
           />
-          <span>
-            Bảo vệ ước tính ~{metrics.queriesProtected.toLocaleString()} lượt
-            truy vấn
+          <span className="tabular-nums">
+            Bảo vệ ~{metrics.queriesProtected.toLocaleString("vi-VN")} lượt tra
+            cứu
           </span>
         </div>
       </div>
 
       {/* Card 3: Tỷ lệ chính xác */}
-      <div className="space-y-3 rounded-2xl border border-[#C6C6CE]/40 bg-white p-5 shadow-xs dark:border-border dark:bg-card">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold tracking-wider text-[#45464D] uppercase dark:text-muted-foreground">
+      <div className={cardSurfaceClass}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-muted-foreground">
             Tỷ lệ chính xác
           </span>
-          <div className="flex size-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300">
-            <TrendUp size={18} weight="bold" />
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/60 text-foreground">
+            <TrendUp aria-hidden="true" size={18} weight="bold" />
           </div>
         </div>
 
-        <div className="font-heading text-3xl font-extrabold text-[#131B2E] dark:text-foreground">
+        <div className="font-heading text-3xl font-bold tracking-[-0.025em] text-foreground tabular-nums">
           {metrics.accuracyRate}%
         </div>
 
-        <div className="flex min-h-6 items-center gap-2 text-[11px]">
-          <span className="text-[#45464D] dark:text-muted-foreground">
-            Độ tin cậy xếp hạng:
-          </span>
-          <span className="rounded-md bg-[#0B132B] px-2 py-0.5 font-heading text-[10px] font-bold text-white dark:bg-primary dark:text-primary-foreground">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">Hạng tin cậy:</span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-400/25 dark:bg-emerald-500/15 dark:text-emerald-200">
+            <span
+              aria-hidden="true"
+              className="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"
+            />
             {metrics.rankTitle}
           </span>
         </div>
       </div>
 
       {/* Card 4: Điểm uy tín tích lũy */}
-      <div className="space-y-3 rounded-2xl border border-[#C6C6CE]/40 bg-white p-5 shadow-xs dark:border-border dark:bg-card">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold tracking-wider text-[#45464D] uppercase dark:text-muted-foreground">
+      <div className={cardSurfaceClass}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-muted-foreground">
             Điểm uy tín tích lũy
           </span>
-          <div className="flex size-9 items-center justify-center rounded-xl bg-[#0B132B] text-white dark:bg-primary dark:text-primary-foreground">
-            <Medal size={18} weight="fill" />
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-800 dark:border-amber-400/25 dark:bg-amber-500/15 dark:text-amber-300">
+            <Medal aria-hidden="true" size={18} weight="fill" />
           </div>
         </div>
 
-        <div className="font-heading text-3xl font-extrabold text-[#131B2E] dark:text-foreground">
+        <div className="font-heading text-3xl font-bold tracking-[-0.025em] text-foreground tabular-nums">
           {metrics.reputationPoints.toLocaleString("vi-VN")}
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          Cộng dồn từ báo cáo được xác minh
+        </p>
       </div>
     </div>
   )

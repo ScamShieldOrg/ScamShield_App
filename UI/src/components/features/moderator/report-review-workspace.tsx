@@ -1,5 +1,7 @@
 "use client"
+
 import { useCallback, useEffect, useRef, useState } from "react"
+import { MotionConfig } from "motion/react"
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 import { toast } from "react-toastify"
 import type {
@@ -16,6 +18,8 @@ import {
   submitModerationDecision,
   ModerationApiError,
 } from "@/features/moderator/services/moderator-report.service"
+import { ScamErrorCallout } from "@/components/features/check/scam-error-callout"
+import { ExpandableIconButton } from "@/components/shared/expandable-icon-action"
 import { ReportQueueFilters } from "./report-queue-filters"
 import { ReportQueueItemCard } from "./report-queue-item-card"
 import { ModeratorDashboard } from "@/components/features/moderator/moderator-dashboard"
@@ -30,6 +34,7 @@ export function ReportReviewWorkspace({
 }) {
   const [items, setItems] = useState<ModeratorReportItem[]>([])
   const [selected, setSelected] = useState("")
+  const [pendingSelectId, setPendingSelectId] = useState<string | null>(null)
   const [detailResult, setDetailResult] = useState<{
     key: string
     data: ModeratorReportItem | null
@@ -50,6 +55,7 @@ export function ReportReviewWorkspace({
   const [resolvedQueueKey, setResolvedQueueKey] = useState("")
   const [busy, setBusy] = useState(false)
   const [queueError, setQueueError] = useState("")
+
   const queueKey = JSON.stringify([tab, query, page, revision])
   const detailKey = JSON.stringify([selected, revision])
   const loading = resolvedQueueKey !== queueKey
@@ -59,10 +65,15 @@ export function ReportReviewWorkspace({
   const detailError = detailResult.key === detailKey ? detailResult.error : ""
   const setDetail = (data: ModeratorReportItem | null) =>
     setDetailResult({ key: detailKey, data, error: "" })
+
   const actionInFlight = useRef(false)
+  const formDirty = useRef(false)
+  const leaveDialogRef = useRef<HTMLDialogElement>(null)
+
   useEffect(() => {
     const navigation = performance.getEntriesByType("navigation")[0] as
-      PerformanceNavigationTiming | undefined
+      | PerformanceNavigationTiming
+      | undefined
     if (!initialId || navigation?.type === "reload") return
     let active = true
     queueMicrotask(() => {
@@ -72,18 +83,35 @@ export function ReportReviewWorkspace({
       active = false
     }
   }, [initialId])
-  const formDirty = useRef(false)
+
   const handleDirtyChange = useCallback((dirty: boolean) => {
     formDirty.current = dirty
   }, [])
-  const leaveMessage =
-    "Thông tin đang cập nhật có thể bị mất. Bạn có muốn tiếp tục?"
-  const leaveReview = () => {
-    if (actionInFlight.current) return false
-    if (formDirty.current && !window.confirm(leaveMessage)) return false
-    formDirty.current = false
-    return true
+
+  const requestSelectReport = (nextId: string) => {
+    if (actionInFlight.current) return
+    if (formDirty.current) {
+      setPendingSelectId(nextId)
+      leaveDialogRef.current?.showModal()
+      return
+    }
+    setSelected(nextId)
   }
+
+  const confirmLeaveDirtyForm = () => {
+    formDirty.current = false
+    leaveDialogRef.current?.close()
+    if (pendingSelectId !== null) {
+      setSelected(pendingSelectId)
+      setPendingSelectId(null)
+    }
+  }
+
+  const cancelLeaveDirtyForm = () => {
+    setPendingSelectId(null)
+    leaveDialogRef.current?.close()
+  }
+
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (!formDirty.current) return
@@ -109,6 +137,7 @@ export function ReportReviewWorkspace({
       pageHide()
     }
   }, [])
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(search)
@@ -116,6 +145,7 @@ export function ReportReviewWorkspace({
     }, 350)
     return () => clearTimeout(timer)
   }, [search])
+
   useEffect(() => {
     let active = true
     void Promise.all([
@@ -149,6 +179,7 @@ export function ReportReviewWorkspace({
       active = false
     }
   }, [tab, query, page, revision, queueKey])
+
   useEffect(() => {
     if (!selected) return
     let active = true
@@ -156,7 +187,6 @@ export function ReportReviewWorkspace({
       .then(async (result) => {
         if (!active) return
         const report = result
-        if (!active) return
         if (report.status !== "In Review" || report.canReview !== true) {
           formDirty.current = false
         }
@@ -171,25 +201,28 @@ export function ReportReviewWorkspace({
           .catch(() => {})
       })
       .catch((e) => {
-        if (active)
+        if (active) {
           setDetailResult({
             key: detailKey,
             data: null,
             error: e instanceof Error ? e.message : "Không thể tải chi tiết",
           })
+        }
       })
     return () => {
       active = false
     }
   }, [selected, revision, detailKey])
+
   const startReview = async () => {
     if (
       !detail ||
       detail.status !== "Pending" ||
       detail.canReview !== true ||
       actionInFlight.current
-    )
+    ) {
       return
+    }
     actionInFlight.current = true
     setBusy(true)
     try {
@@ -207,20 +240,19 @@ export function ReportReviewWorkspace({
       setBusy(false)
     }
   }
+
   const act = async (decision: ModerationDecisionPayload) => {
     if (!detail || actionInFlight.current) return
     actionInFlight.current = true
     setBusy(true)
     try {
-      {
-        const result = await submitModerationDecision({
-          ...decision,
-          rawId: detail.rawId,
-        })
-        setDetail(result.data)
-        formDirty.current = false
-        toast.success(result.message)
-      }
+      const result = await submitModerationDecision({
+        ...decision,
+        rawId: detail.rawId,
+      })
+      setDetail(result.data)
+      formDirty.current = false
+      toast.success(result.message)
       setRevision((value) => value + 1)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Thao tác thất bại")
@@ -234,134 +266,199 @@ export function ReportReviewWorkspace({
       setBusy(false)
     }
   }
+
   return (
-    <div
-      data-report-workspace
-      className="flex flex-1 flex-col bg-muted/30 font-sans text-foreground lg:min-h-0 lg:flex-row"
-    >
-      <aside aria-label="Danh sách báo cáo" className="w-full border-b border-border lg:w-[clamp(19rem,27vw,24rem)] lg:shrink-0 lg:border-r lg:border-b-0">
-        <fieldset
-          disabled={busy || detailLoading}
-          className="min-w-0 lg:h-full"
+    <MotionConfig reducedMotion="user">
+      <div
+        data-report-workspace
+        className="flex flex-1 flex-col bg-muted/30 font-sans text-foreground antialiased lg:min-h-0 lg:flex-row"
+      >
+        <aside
+          aria-label="Danh sách báo cáo"
+          className="w-full border-b border-border/70 lg:w-[clamp(19rem,27vw,24rem)] lg:shrink-0 lg:border-r lg:border-b-0"
         >
-          <div className="flex flex-col lg:h-full">
-            <ReportQueueFilters
-              currentTab={tab}
-              onTabChange={(value) => {
-                setTab(value)
-                setPage(0)
-              }}
-              searchQuery={search}
-              onSearchChange={setSearch}
-              counts={counts}
-            />
-            <div
-              key={JSON.stringify([tab, query, page])}
-              className="max-h-[40dvh] min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-4 lg:max-h-none"
-              aria-busy={loading}
-            >
-              {!loading && queueError ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {queueError}
-                </p>
-              ) : loading ? (
-                <p className="text-sm text-muted-foreground">
-                  Đang tải hàng đợi...
-                </p>
-              ) : items.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Không có báo cáo phù hợp.
-                </p>
-              ) : (
-                items.map((item) => (
-                  <ReportQueueItemCard
-                    key={item.id}
-                    item={item}
-                    isSelected={
-                      selected === item.id || String(item.rawId) === selected
-                    }
-                    onSelect={async (value) => {
-                      if (
-                        value.id === selected ||
-                        String(value.rawId) === selected
-                      )
-                        return
-                      if (await leaveReview()) setSelected(value.id)
-                    }}
-                  />
-                ))
-              )}
-            </div>
-            <nav aria-label="Phân trang báo cáo" className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-card p-3 text-xs">
-              <button
-                type="button"
-                disabled={loading || page === 0}
-                onClick={() => setPage((value) => value - 1)}
-                className="min-h-8 rounded-lg border border-border px-2.5 hover:enabled:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+          <fieldset
+            disabled={busy || detailLoading}
+            className="min-w-0 lg:h-full"
+          >
+            <div className="flex flex-col lg:h-full">
+              <ReportQueueFilters
+                currentTab={tab}
+                onTabChange={(value) => {
+                  setTab(value)
+                  setPage(0)
+                }}
+                searchQuery={search}
+                onSearchChange={setSearch}
+                counts={counts}
+              />
+              <div
+                key={JSON.stringify([tab, query, page])}
+                className="max-h-[40dvh] min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-4 lg:max-h-none"
+                aria-busy={loading}
               >
-                Trang trước
-              </button>
-              <div className="text-center tabular-nums">
-                <p>
-                  Trang {pages ? page + 1 : 0}/{pages}
-                </p>
-                {!loading && !queueError && (
-                  <p className="mt-1 text-muted-foreground">
-                    {items.length}/{REPORT_PAGE_SIZE} báo cáo
+                {!loading && queueError ? (
+                  <ScamErrorCallout
+                    title="Chưa thể tải hàng đợi"
+                    message={queueError}
+                    preserveDraftHint={false}
+                    isBusy={loading}
+                    onRetry={() => setRevision((v) => v + 1)}
+                  />
+                ) : loading ? (
+                  <p className="text-sm text-muted-foreground">
+                    Đang tải hàng đợi...
                   </p>
+                ) : items.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Không có báo cáo phù hợp.
+                  </p>
+                ) : (
+                  items.map((item) => (
+                    <ReportQueueItemCard
+                      key={item.id}
+                      item={item}
+                      isSelected={
+                        selected === item.id || String(item.rawId) === selected
+                      }
+                      onSelect={(value) => {
+                        if (
+                          value.id === selected ||
+                          String(value.rawId) === selected
+                        ) {
+                          return
+                        }
+                        requestSelectReport(value.id)
+                      }}
+                    />
+                  ))
                 )}
               </div>
-              <button
-                type="button"
-                disabled={loading || page + 1 >= pages}
-                onClick={() => setPage((value) => value + 1)}
-                className="min-h-8 rounded-lg border border-border px-2.5 hover:enabled:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+              <nav
+                aria-label="Phân trang báo cáo"
+                className="flex shrink-0 items-center justify-between gap-2 border-t border-border/70 bg-card p-3 text-xs"
               >
-                Trang sau
-              </button>
-            </nav>
-          </div>
-        </fieldset>
-      </aside>
-      <section
-        className="min-w-0 flex-1 lg:overflow-y-auto lg:overscroll-contain"
-        aria-label="Chi tiết báo cáo"
-        aria-busy={busy || detailLoading}
-        tabIndex={0}
-      >
-        <button
-          type="button"
-          disabled={busy || loading || detailLoading}
-          onClick={() => setRevision((value) => value + 1)}
-          className="mx-4 my-3 inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 sm:mx-6"
+                <button
+                  type="button"
+                  disabled={loading || page === 0}
+                  onClick={() => setPage((value) => value - 1)}
+                  className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-background px-3.5 font-semibold text-foreground transition-colors hover:enabled:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10"
+                >
+                  Trang trước
+                </button>
+                <div className="text-center tabular-nums">
+                  <p className="font-semibold text-foreground">
+                    Trang {pages ? page + 1 : 0}/{pages}
+                  </p>
+                  {!loading && !queueError && (
+                    <p className="mt-0.5 text-muted-foreground">
+                      {items.length}/{REPORT_PAGE_SIZE} báo cáo
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={loading || page + 1 >= pages}
+                  onClick={() => setPage((value) => value + 1)}
+                  className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-background px-3.5 font-semibold text-foreground transition-colors hover:enabled:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10"
+                >
+                  Trang sau
+                </button>
+              </nav>
+            </div>
+          </fieldset>
+        </aside>
+
+        <section
+          className="min-w-0 flex-1 lg:overflow-y-auto lg:overscroll-contain"
+          aria-label="Chi tiết báo cáo"
+          aria-busy={busy || detailLoading}
+          tabIndex={0}
         >
-          <ArrowClockwiseIcon
-            size={18}
-            className={loading || detailLoading ? "motion-safe:animate-spin" : ""}
-            aria-hidden="true"
-          />
-          {loading || detailLoading ? "Đang làm mới..." : "Làm mới"}
-        </button>
-        {detailError && (
-          <p role="alert" className="px-5 text-sm text-destructive">
-            {detailError}
+          <div className="mx-4 my-3 sm:mx-6">
+            <ExpandableIconButton
+              disabled={busy || loading || detailLoading}
+              expanded={loading || detailLoading}
+              onClick={() => setRevision((value) => value + 1)}
+              variant="ghost"
+              icon={
+                <div
+                  className={
+                    loading || detailLoading ? "motion-safe:animate-spin" : ""
+                  }
+                >
+                  <ArrowClockwiseIcon size={17} aria-hidden="true" />
+                </div>
+              }
+              label={loading || detailLoading ? "Đang làm mới..." : "Làm mới"}
+            />
+          </div>
+
+          {detailError && (
+            <div className="px-4 pb-4 sm:px-6">
+              <ScamErrorCallout
+                title="Chưa thể tải hồ sơ báo cáo"
+                message={detailError}
+                preserveDraftHint={false}
+                isBusy={detailLoading}
+                onRetry={() => setRevision((v) => v + 1)}
+              />
+            </div>
+          )}
+
+          {!selected ? (
+            <ModeratorDashboard key={revision} />
+          ) : detailLoading ? (
+            <p className="p-5 text-sm text-muted-foreground">
+              Đang tải hồ sơ...
+            </p>
+          ) : (
+            <ReportQueueDetailView
+              key={detail?.id ?? selected}
+              item={detail}
+              busy={busy}
+              onStartReview={startReview}
+              onDirtyChange={handleDirtyChange}
+              onDecisionSubmitted={(payload) => act(payload)}
+            />
+          )}
+        </section>
+
+        {/* In-App Confirmation Dialog replacing window.confirm */}
+        <dialog
+          ref={leaveDialogRef}
+          aria-labelledby="leave-review-title"
+          onCancel={cancelLeaveDirtyForm}
+          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-black/10 bg-card p-6 text-foreground shadow-[0_16px_44px_rgb(15,23,42,0.18)] backdrop:bg-black/45 dark:border-white/12 dark:shadow-[0_24px_64px_rgb(0,0,0,0.65),inset_0_1px_0_rgb(255,255,255,0.08)]"
+        >
+          <h2
+            id="leave-review-title"
+            className="font-heading text-lg font-bold tracking-[-0.02em]"
+          >
+            Rời khỏi báo cáo đang duyệt?
+          </h2>
+          <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+            Các thay đổi hoặc ghi chú kiểm duyệt bạn vừa nhập chưa được lưu và
+            sẽ bị mất nếu chuyển sang hồ sơ khác.
           </p>
-        )}
-        {!selected ? (
-          <ModeratorDashboard key={revision} />
-        ) : detailLoading ? (
-          <p className="p-5 text-sm text-muted-foreground">Đang tải hồ sơ...</p>
-        ) : (
-          <ReportQueueDetailView
-            key={detail?.id ?? selected}
-            item={detail}
-            busy={busy}
-            onStartReview={startReview}
-            onDirtyChange={handleDirtyChange}
-            onDecisionSubmitted={(payload) => act(payload)}
-          />
-        )}
-      </section>
-    </div>
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={cancelLeaveDirtyForm}
+              className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-background px-5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
+            >
+              Ở lại tiếp tục
+            </button>
+            <button
+              type="button"
+              onClick={confirmLeaveDirtyForm}
+              className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              Chuyển hồ sơ
+            </button>
+          </div>
+        </dialog>
+      </div>
+    </MotionConfig>
   )
 }

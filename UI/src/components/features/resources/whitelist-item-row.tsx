@@ -1,16 +1,17 @@
 "use client"
 
 import {
-  ArrowRight,
   Buildings,
   CalendarBlank,
   Check,
   Copy,
+  Eye,
   Globe,
   PhoneCall,
   ShieldCheck,
 } from "@phosphor-icons/react"
 import type { WhitelistViewItem } from "./resource-helpers"
+import { ExpandableIconButton } from "@/components/shared/expandable-icon-action"
 
 interface WhitelistItemRowProps {
   item: WhitelistViewItem
@@ -132,14 +133,12 @@ export function WhitelistItemRow({
       </div>
 
       <div className="flex shrink-0 items-center lg:justify-end">
-        <button
-          type="button"
+        <ExpandableIconButton
           onClick={() => onSelectDetail(item)}
-          className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-black/10 bg-background px-3.5 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
-        >
-          <span>Hồ sơ xác minh</span>
-          <ArrowRight aria-hidden="true" size={14} weight="bold" />
-        </button>
+          icon={<Eye aria-hidden="true" size={16} weight="bold" />}
+          label="Hồ sơ xác minh"
+          variant="outline"
+        />
       </div>
     </li>
   )

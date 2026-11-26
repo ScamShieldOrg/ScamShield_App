@@ -15,7 +15,10 @@ import type { BlackItem } from "@/types/resource"
 import { useAuthStore } from "@/store/auth.store"
 import { cn } from "@/lib/utils"
 import { ScamErrorCallout } from "@/components/features/check/scam-error-callout"
-import { ResourcesFilterBar } from "./resources-filter-bar"
+import {
+  ResourcesFilterBar,
+  ResourcesTabSwitcher,
+} from "./resources-filter-bar"
 import { BlacklistItemRow } from "./blacklist-item-row"
 import { WhitelistItemRow } from "./whitelist-item-row"
 import { ResourceDetailModal } from "./resource-detail-modal"
@@ -300,48 +303,35 @@ export function ResourcesDirectory({
   return (
     <MotionConfig reducedMotion="user">
       <div className="min-h-screen bg-background font-sans text-foreground antialiased">
-        {/* Subtle Header Region */}
-        <section className="relative overflow-hidden border-b border-black/10 bg-muted/30 px-4 pt-10 pb-14 sm:px-6 lg:px-8 dark:border-white/10">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-64 max-w-3xl rounded-full bg-primary/5 blur-3xl dark:bg-primary/10"
-          />
-
-          <div className="relative mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2">
-              <h1 className="font-heading text-3xl font-bold tracking-[-0.025em] text-foreground sm:text-4xl">
+        <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 pb-20 sm:px-6 lg:px-8">
+          {/* Seamless Page Header with Tab Switcher */}
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-1.5">
+              <h1 className="font-heading text-2xl font-bold tracking-[-0.025em] text-foreground sm:text-3xl">
                 Tra cứu tài nguyên
               </h1>
-              <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
+              <p className="max-w-[58ch] text-sm leading-relaxed text-muted-foreground">
                 Đối chiếu nhanh số điện thoại, đường dẫn, tài khoản ngân hàng
-                trong danh sách cảnh báo (Blacklist) hoặc xác nhận kênh liên hệ
-                chính thống đã kiểm duyệt (Whitelist).
+                trong danh sách đen hoặc danh bạ đã xác minh.
               </p>
             </div>
 
-            <Link
-              href={checkHref}
-              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-xs transition-[opacity,transform] duration-120 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            >
-              <ShieldPlus aria-hidden="true" size={18} weight="bold" />
-              <span>Kiểm tra tin nhắn / URL với AI</span>
-            </Link>
-          </div>
-        </section>
+            <ResourcesTabSwitcher
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              blacklistTotal={blacklistTotal}
+              whitelistTotal={whitelistTotal}
+            />
+          </header>
 
-        {/* Main Directory Content */}
-        <div className="mx-auto -mt-6 max-w-6xl space-y-6 px-4 pb-20 sm:px-6 lg:px-8">
           <ResourcesFilterBar
             activeTab={activeTab}
-            onTabChange={handleTabChange}
             searchQuery={searchQuery}
             onSearchChange={handleSearchChange}
             selectedCategory={selectedCategory}
             onCategoryChange={handleCategoryChange}
             sortOrder={sortOrder}
             onSortOrderChange={handleSortOrderChange}
-            blacklistTotal={blacklistTotal}
-            whitelistTotal={whitelistTotal}
             hasActiveFilters={hasActiveFilters}
             onResetFilters={handleResetFilters}
           />
