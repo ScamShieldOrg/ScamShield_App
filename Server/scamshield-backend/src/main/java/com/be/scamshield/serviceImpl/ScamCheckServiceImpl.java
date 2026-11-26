@@ -83,7 +83,7 @@ public class ScamCheckServiceImpl implements IScamCheckService {
                 reservation.set(quotas.reserve(owner.user(), owner.guest()));
                 LocalDateTime now = now();
                 return checks.save(CheckRequest.builder().user(owner.user()).guestSession(owner.guest())
-                        .inputType(request.getInputType()).rawInput(request.getContent())
+                        .inputType(request.getInputType()).rawInput(input.raw())
                         .normalizedInput(input.normalized()).maskedInput(input.masked()).inputHash(input.hash())
                         .status("PROCESSING").createdAt(now).retentionExpiresAt(now.plusDays(retentionDays)).build());
             });

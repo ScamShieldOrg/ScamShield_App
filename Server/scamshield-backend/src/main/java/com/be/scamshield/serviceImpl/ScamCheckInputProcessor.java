@@ -29,16 +29,26 @@ public class ScamCheckInputProcessor {
                     + "|(?:1900|1800)[ .()-]*(?:[0-9][ .()-]*){3,6}[0-9])(?![\\w\\d])");
     private static final Pattern BANK = Pattern.compile(
             "(?iu)(?:STK|số tài khoản|tài khoản ngân hàng)\\s*[:#-]?\\s*([0-9][0-9 .-]{4,30}[0-9])");
+    // Possessive whitespace quantifiers and disjoint separator branches prevent catastrophic backtracking
+    // on long whitespace runs while preserving both punctuated ("OTP: 1234") and space-separated ("OTP 1234") forms.
+    private static final Pattern OTP = Pattern.compile(
+            "(?iu)(\\b(?:mã\\s*+otp|ma\\s*+otp|otp|mã\\s*+xác\\s*+thực|ma\\s*+xac\\s*+thuc"
+                    + "|mã\\s*+xác\\s*+nhận|ma\\s*+xac\\s*+nhan|mã\\s*+bảo\\s*+mật|ma\\s*+bao\\s*+mat)"
+                    + "(?:\\s++(?:của\\s++bạn|cua\\s++ban))?"
+                    + "(?:\\s*+[:#-]\\s*+|\\s++(?:(?:là|la)(?:\\s*+[:#-]\\s*+|\\s++))?))"
+                    + "[A-Za-z0-9]{4,8}\\b");
 
     public record Candidate(String type, String value, List<String> aliases, int start, int end) { }
-    public record Prepared(String normalized, String masked, String hash, List<Candidate> candidates) { }
+    public record Prepared(String raw, String normalized, String masked, String hash, List<Candidate> candidates) { }
 
     public Prepared prepare(ScamCheckRequest request) {
         if (request == null || request.getContent() == null || request.getContent().isBlank()
                 || request.getContent().length() > 10000 || request.getInputType() == null) {
             throw new BadRequestException("Nội dung kiểm tra phải có từ 1 đến 10.000 ký tự");
         }
-        String normalized = Normalizer.normalize(request.getContent(), Normalizer.Form.NFC)
+        String nfcContent = Normalizer.normalize(request.getContent(), Normalizer.Form.NFC);
+        String raw = maskOtp(nfcContent);
+        String normalized = nfcContent
                 .replace("\r\n", "\n").replace('\u00a0', ' ').strip();
         Map<String, Candidate> candidates = new LinkedHashMap<>();
         switch (request.getInputType()) {
@@ -58,8 +68,9 @@ public class ScamCheckInputProcessor {
             case "MESSAGE", "CALL_TRANSCRIPT" -> extract(normalized, candidates);
             default -> throw new BadRequestException("Loại nội dung kiểm tra chưa được hỗ trợ");
         }
+        normalized = maskOtp(normalized);
         String masked = mask(normalized);
-        return new Prepared(normalized, masked, sha256(request.getInputType() + ":" + normalized),
+        return new Prepared(raw, normalized, masked, sha256(request.getInputType() + ":" + normalized),
                 List.copyOf(candidates.values()));
     }
 
@@ -164,9 +175,12 @@ public class ScamCheckInputProcessor {
                 previous == null ? start : previous.start(), previous == null ? end : previous.end()));
     }
 
+    public String maskOtp(String text) {
+        return OTP.matcher(text).replaceAll("$1[OTP]");
+    }
+
     private String mask(String text) {
-        return text.replaceAll("(?iu)[\\p{L}0-9._%+-]+@[\\p{L}0-9.-]+\\.[\\p{L}]{2,}", "[EMAIL]")
-                .replaceAll("(?iu)(\\b(?:mã\\s*otp|ma\\s*otp|otp|mã\\s*xác\\s*thực|ma\\s*xac\\s*thuc|mã\\s*xác\\s*nhận|ma\\s*xac\\s*nhan|mã\\s*bảo\\s*mật|ma\\s*bao\\s*mat)\\s*(?:của\\s*bạn|cua\\s*ban)?\\s*(?:là|la|:|#|-|\\s)\\s*)[A-Za-z0-9]{4,8}\\b", "$1[OTP]")
+        return maskOtp(text.replaceAll("(?iu)[\\p{L}0-9._%+-]+@[\\p{L}0-9.-]+\\.[\\p{L}]{2,}", "[EMAIL]"))
                 .replaceAll("(?<!\\w)\\+?[0-9][0-9 .()-]{4,}[0-9](?!\\w)", "[NUMBER]")
                 .replaceAll("[0-9]{6,}", "[NUMBER]")
                 .replaceAll("([?&][^=\\s&]+)=[^&\\s]+", "$1=[MASKED]");
