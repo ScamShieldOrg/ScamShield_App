@@ -450,6 +450,18 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public String getPublishedEvidenceImage(Long reportId, Long evidenceId, UserPrincipal currentUser) {
+        ModeratorReportScope.requireViewer(currentUser);
+        ReportEvidence evidence = requireReportImage(reportId, evidenceId);
+        String key = evidence.getPublicImageObjectKey();
+        if (evidence.getReport().getStatus() != ReportStatus.APPROVED || !StringUtils.hasText(key)) {
+            throw new ResourceNotFoundException("Minh chứng này chưa có ảnh công khai");
+        }
+        return evidenceStorage.createReportPublicationImageUrl(key);
+    }
+
     private ReportEvidence requireReportImage(Long reportId, Long evidenceId) {
         if (evidenceId == null || evidenceId <= 0) {
             throw new BadRequestException("Cần chọn ảnh minh chứng thuộc báo cáo");
@@ -737,6 +749,8 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
                 .rawId(ev.getId())
                 .name(name)
                 .type(type)
+                .hasPublishedImage(StringUtils.hasText(ev.getPublicImageObjectKey())
+                        && ev.getReport().getStatus() == ReportStatus.APPROVED)
                 .duplicateCheckAvailable(StringUtils.hasText(ev.getFileHash()))
                 .duplicateCount(duplicateCount)
                 .duplicates(duplicates)

@@ -86,6 +86,17 @@ class ReportAssignmentPersistenceTest extends PostgresIntegrationTest {
         assertThat(resources.findBlackListResources(null, null, PageRequest.of(0, 5)).getContent())
                 .singleElement().satisfies(row -> assertThat(row.getPublicImageCount()).isEqualTo(2));
 
+        String firstUrl = "https://storage.example/published-first";
+        String secondUrl = "https://storage.example/published-second";
+        when(storage.createReportPublicationImageUrl(key)).thenReturn(firstUrl);
+        when(storage.createReportPublicationImageUrl(secondKey)).thenReturn(secondUrl);
+        assertThat(moderatorReports.getReportById(report.getId(), principal).getEvidences())
+                .hasSize(2).allMatch(item -> item.isHasPublishedImage());
+        assertThat(moderatorReports.getPublishedEvidenceImage(report.getId(), evidence.getId(), principal))
+                .isEqualTo(firstUrl);
+        assertThat(moderatorReports.getPublishedEvidenceImage(report.getId(), secondEvidence.getId(), principal))
+                .isEqualTo(secondUrl);
+
         entry.setStatus(ConfirmedIndicatorStatus.RETRACTED);
         em.flush();
         assertThat(resources.findBlackListImageKeys(entry.getId())).isEmpty();

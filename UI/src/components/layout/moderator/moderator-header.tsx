@@ -89,7 +89,7 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
             >
-              Hàng chờ kiểm duyệt
+              Hàng chờ báo cáo
             </Link>
             <Link
               href="/moderator/disputes"

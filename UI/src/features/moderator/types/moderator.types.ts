@@ -11,6 +11,7 @@ export interface QueueEvidence {
   rawId?: number
   name: string
   type: "image" | "video" | "pdf" | string
+  hasPublishedImage?: boolean
   duplicateCheckAvailable?: boolean
   duplicateCount?: number
   analysisStatus?:

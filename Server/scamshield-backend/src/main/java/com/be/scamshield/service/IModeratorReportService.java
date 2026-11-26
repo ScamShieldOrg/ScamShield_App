@@ -27,6 +27,8 @@ public interface IModeratorReportService {
 
     String getEvidenceImageSource(Long reportId, Long evidenceId, UserPrincipal currentUser);
 
+    String getPublishedEvidenceImage(Long reportId, Long evidenceId, UserPrincipal currentUser);
+
     ModeratorReportResponse makeDecision(Long reportId, UserPrincipal currentUser, ModeratorDecisionRequest request,
                                          Long publicEvidenceId, MultipartFile publicImage);
 

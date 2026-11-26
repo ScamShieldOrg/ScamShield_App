@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useId, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import Link from "next/link"
 import { ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, Eye, FileText, PencilSimple } from "@phosphor-icons/react"
 import type { ModerationDecisionPayload, QueueEvidence } from "@/features/moderator/types/moderator.types"
@@ -9,7 +10,7 @@ import {
   analysisStatusLabels,
   similarityPercentage,
 } from "@/features/moderator/evidence-analysis"
-import { getEvidenceImageSource, getModeratorReportById } from "@/features/moderator/services/moderator-report.service"
+import { getEvidenceImageSource, getModeratorReportById, getPublishedEvidenceImage } from "@/features/moderator/services/moderator-report.service"
 
 import { EvidenceImageEditor } from "@/components/features/report/evidence-image-editor"
 import { ReportPrivacyNotice } from "@/components/features/report/report-privacy-notice"
@@ -206,6 +207,75 @@ function EvidenceThumbnail({ evidence }: { evidence: QueueEvidence }) {
   )
 }
 
+function PublishedEvidenceImage({
+  reportId,
+  evidenceId,
+  children,
+}: {
+  reportId: string | number
+  evidenceId: number
+  children: ReactNode
+}) {
+  const previewId = useId()
+  const [open, setOpen] = useState(false)
+  const [source, setSource] = useState<string>()
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    void getPublishedEvidenceImage(reportId, evidenceId, controller.signal)
+      .then(url => {
+        if (!controller.signal.aborted) setSource(url)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true)
+      })
+    return () => controller.abort()
+  }, [open, reportId, evidenceId])
+
+  function toggleImage() {
+    setSource(undefined)
+    setFailed(false)
+    setOpen(!open)
+  }
+
+  return (
+    <>
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+        {children}
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={previewId}
+          onClick={toggleImage}
+          className="mb-1 ml-2 inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-expanded:bg-blue-100 sm:mr-2 sm:mb-0 sm:ml-0 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/60 dark:aria-expanded:bg-blue-900/60"
+        >
+          <Eye size={16} aria-hidden="true" />
+          {open ? "Ẩn bản công khai" : "Xem bản công khai"}
+        </button>
+      </div>
+      <div id={previewId} hidden={!open} className="rounded-lg border border-border bg-card p-3 text-sm">
+        {open && failed && (
+          <p role="alert" className="text-destructive">Không thể mở ảnh công khai. Vui lòng đóng và mở lại.</p>
+        )}
+        {open && !failed && !source && (
+          <p role="status" className="text-muted-foreground">Đang tải ảnh công khai…</p>
+        )}
+        {open && !failed && source && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={source}
+            alt={`Bản đã công khai của minh chứng ${evidenceId}`}
+            className="mx-auto max-h-[70vh] max-w-full rounded-lg object-contain"
+            onError={() => setFailed(true)}
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
 function formatEvidenceDate(value: string | null): string {
   if (!value) return "Chưa có thông tin"
   const date = new Date(value)
@@ -349,30 +419,35 @@ export function ReportEvidencePreview({
             const canCheckImage = onPublicationDraftChange && evidence.type === "image" && evidence.rawId != null
             const confirmedImage = evidence.rawId == null ? undefined : confirmedImages[evidence.rawId]
             const showConfirmedImage = visibleImageId === evidence.rawId
+            const fileDetails = url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Mở tệp gốc: ${evidence.name}`}
+                className={`${cardClass} cursor-pointer transition-all hover:border-primary/40 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none`}
+              >
+                {content}
+              </a>
+            ) : (
+              <div className={cardClass}>
+                {content}
+                <span className="text-muted-foreground">
+                  Tệp không khả dụng
+                </span>
+              </div>
+            )
             return (
               <div
                 key={evidence.id}
                 className="min-w-0 space-y-3 rounded-xl border border-border/70 p-3"
               >
                 <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-2">
-                  {url ? (
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`Mở tệp gốc: ${evidence.name}`}
-                      className={`${cardClass} cursor-pointer transition-all hover:border-primary/40 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none`}
-                    >
-                      {content}
-                    </a>
-                  ) : (
-                    <div className={cardClass}>
-                      {content}
-                      <span className="text-muted-foreground">
-                        Tệp không khả dụng
-                      </span>
-                    </div>
-                  )}
+                  {evidence.hasPublishedImage && reportId != null && evidence.rawId != null ? (
+                    <PublishedEvidenceImage key={reportId} reportId={reportId} evidenceId={evidence.rawId}>
+                      {fileDetails}
+                    </PublishedEvidenceImage>
+                  ) : fileDetails}
                   {canCheckImage && evidenceId !== evidence.rawId && !confirmedImage && (
                     <button
                       type="button"

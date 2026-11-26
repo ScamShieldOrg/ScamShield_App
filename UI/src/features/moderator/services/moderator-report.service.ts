@@ -124,6 +124,22 @@ export async function startModeratorReportReview(
     throw actionError(error)
   }
 }
+export async function getPublishedEvidenceImage(
+  reportId: string | number,
+  evidenceId: number,
+  signal: AbortSignal
+): Promise<string> {
+  try {
+    const { data } = await authorizeApi.get<BaseApiResponse<string>>(
+      `/moderator/reports/${parseReportNumericId(reportId)}/evidence/${evidenceId}/published-image`,
+      { signal }
+    )
+    return unpack(data)
+  } catch (error) {
+    throw actionError(error)
+  }
+}
+
 export async function getEvidenceImageSource(reportId: string | number, evidenceId: number, signal: AbortSignal): Promise<string> {
   try {
     const { data } = await authorizeApi.get<BaseApiResponse<string>>(

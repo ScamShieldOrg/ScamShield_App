@@ -1,7 +1,7 @@
 "use client"
 import { useCallback, useEffect, useState, useRef } from "react"
 import Link from "next/link"
-import { ClipboardText, Gavel, ShieldWarning } from "@phosphor-icons/react"
+import { ArrowRight, ClipboardText, Flag, Gavel, ShieldWarning } from "@phosphor-icons/react"
 import type {
   ModeratorReportItem,
   ModerationDecisionPayload,
@@ -160,21 +160,26 @@ function ReviewContext({
             </dl>
           )}
           {index === 1 && (
-            <div className="mt-4 border-t border-border pt-3 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[11px] text-muted-foreground">Phát hiện dấu hiệu lạm dụng?</span>
-              <div className="flex items-center gap-2">
+            <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
+              <p className="flex items-center gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                <ShieldWarning size={17} className="shrink-0" aria-hidden="true" />
+                Phát hiện dấu hiệu lạm dụng?
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <button
                   type="button"
                   onClick={onOpenEscalate}
-                  className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+                  className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-2.5 text-xs font-semibold text-amber-950 transition-colors hover:bg-amber-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-amber-800 dark:bg-amber-900/50 dark:text-amber-100 dark:hover:bg-amber-900/80"
                 >
-                  Gắn cờ & chuyển Admin
+                  <Flag size={15} className="shrink-0" aria-hidden="true" />
+                  Gắn cờ và chuyển Admin
                 </button>
                 <Link
                   href="/moderator/flagged-accounts"
-                  className="text-xs font-semibold text-muted-foreground hover:underline"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-1 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
-                  Xử lý lạm dụng &rarr;
+                  Xử lý lạm dụng
+                  <ArrowRight size={14} className="shrink-0" aria-hidden="true" />
                 </Link>
               </div>
             </div>

@@ -110,6 +110,16 @@ public class ModeratorReportController {
                         moderatorReportService.getEvidenceImageSource(id, evidenceId, currentUser)));
     }
 
+    @GetMapping("/{id}/evidence/{evidenceId}/published-image")
+    @Operation(summary = "Mở bản ảnh minh chứng đã công khai")
+    public ResponseEntity<BaseResponse<String>> getPublishedEvidenceImage(
+            @PathVariable Long id, @PathVariable Long evidenceId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new BaseResponse<>(true, "Đã tải ảnh minh chứng công khai",
+                        moderatorReportService.getPublishedEvidenceImage(id, evidenceId, currentUser)));
+    }
+
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Phê duyệt báo cáo kèm ảnh minh chứng đã rà soát")
     public ResponseEntity<BaseResponse<ModeratorReportResponse>> submitDecisionWithImage(
