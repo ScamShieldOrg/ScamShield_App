@@ -110,15 +110,15 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
 
     @Test
     void authenticatedIdentityWinsOverGuestHeaderAndOtherUsersCannotReadResult() throws Exception {
-        JsonNode result = data(submit("MESSAGE", "Liên hệ example@private.test, số 0912345678, OTP: 1234", guest, owner)
+        JsonNode result = data(submit("MESSAGE", "Liên hệ example@private.test, số 0912345678, OTP: 7492", guest, owner)
                 .andExpect(status().isOk()));
         long id = result.path("checkId").asLong();
         CheckRequest stored = checks.findById(id).orElseThrow();
         assertThat(stored.getUser().getId()).isEqualTo(owner.getId());
         assertThat(stored.getGuestSession()).isNull();
-        assertThat(stored.getRawInput()).contains("OTP: [OTP]").doesNotContain("1234");
-        assertThat(stored.getNormalizedInput()).contains("OTP: [OTP]").doesNotContain("1234");
-        assertThat(stored.getMaskedInput()).contains("OTP: [OTP]").doesNotContain("example@private.test", "0912345678", "1234");
+        assertThat(stored.getRawInput()).contains("OTP: [OTP]").doesNotContain("7492");
+        assertThat(stored.getNormalizedInput()).contains("OTP: [OTP]").doesNotContain("7492");
+        assertThat(stored.getMaskedInput()).contains("OTP: [OTP]").doesNotContain("example@private.test", "0912345678", "7492");
         mvc.perform(get("/api/scam-checks/{id}", id).with(user(UserPrincipal.create(owner))))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/scam-checks/{id}", id).with(user(UserPrincipal.create(account()))))
