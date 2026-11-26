@@ -214,4 +214,61 @@ class ScamCheckAiClientTest {
             server.stop(0);
         }
     }
+
+    @Test
+    void mapsTier2CacheHitToCacheTier2StageWhilePreservingTier2Details() throws Exception {
+        String body = """
+                {
+                  "status": "success",
+                  "data": {
+                    "scan_id": "SC-CACHE-001",
+                    "timestamp": "2026-11-25T08:00:00+00:00",
+                    "tier_executed": 2,
+                    "verdict": {
+                      "risk_level": "UNKNOWN",
+                      "risk_score": null,
+                      "scam_category": "Chưa đủ cơ sở kết luận",
+                      "confidence": 0.55,
+                      "summary": "Tái sử dụng kết quả phân tích chuyên sâu trước đó.",
+                      "decided_by": "CACHE"
+                    },
+                    "council_breakdown": {
+                      "consensus_ratio": "0/3",
+                      "lead_model": "ForensicCouncil-v1.1 (FullPanel)",
+                      "early_exit": false,
+                      "defender_intervened": true,
+                      "agents": [
+                        {"role": "Linguistic", "verdict": "UNKNOWN", "score": 55.0}
+                      ]
+                    },
+                    "actionable_recommendations": ["Xác minh qua kênh chính thức."],
+                    "telemetry": {
+                      "routing_path": "CACHE_HIT_TIER_2",
+                      "total_cost_usd": 0.0
+                    }
+                  },
+                  "error": null
+                }
+                """;
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/scan", exchange -> {
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var client = new ScamCheckAiClient(json, "http://127.0.0.1:" + server.getAddress().getPort(), 1000, 1000, true, "test-service-token");
+            var result = client.scan(10L, "MESSAGE", "Chao Nam Moi 2026");
+            assertThat(result.verdict()).isEqualTo("UNKNOWN");
+            assertThat(result.stage()).isEqualTo("CACHE_TIER2");
+            assertThat(result.unknownReason()).isEqualTo("AI_UNCERTAIN");
+            assertThat(result.aiDetails()).isNotNull();
+            assertThat(result.aiDetails().tierExecuted()).isEqualTo(2);
+            assertThat(result.aiDetails().councilAudit()).isNotNull();
+        } finally {
+            server.stop(0);
+        }
+    }
 }

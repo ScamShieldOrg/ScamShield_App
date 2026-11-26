@@ -373,6 +373,19 @@ export function ScamVerdictBanner({
               <span>{statusPill.label}</span>
             </span>
 
+            {decidedByStage === "CACHE_TIER2" && (
+              <span
+                title="Tái sử dụng kết quả phân tích chuyên sâu trước đó"
+                className="inline-flex items-center gap-1.5 rounded-md border border-indigo-500/25 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-indigo-800 dark:border-indigo-400/25 dark:bg-indigo-400/15 dark:text-indigo-200"
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 shrink-0 rounded-full bg-indigo-500"
+                />
+                <span>AI chuyên gia đã kiểm tra</span>
+              </span>
+            )}
+
             {matchedIndicator && (
               <Link
                 href={{

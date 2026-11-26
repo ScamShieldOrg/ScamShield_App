@@ -1,13 +1,16 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { AnimatePresence, motion } from "motion/react"
+import { toast } from "react-toastify"
 import {
   ArrowCounterClockwise,
   ArrowsClockwise,
   Bank,
   Car,
   ChatDots,
+  Check,
   CircleNotch,
   ClockCounterClockwise,
   CurrencyBtc,
@@ -21,7 +24,6 @@ import {
 } from "@phosphor-icons/react"
 import type { HistoryItem } from "@/features/history/types/history.types"
 import { cn } from "@/lib/utils"
-import { ExpandableIconLink } from "@/components/shared/expandable-icon-action"
 import {
   getHistoryRiskMeta,
   getHistoryTargetMeta,
@@ -65,6 +67,70 @@ function TargetIcon({ iconKey }: { iconKey: HistoryTargetMeta["iconKey"] }) {
   }
 }
 
+function TargetCopyButton({
+  item,
+  targetMeta,
+  className,
+}: {
+  item: HistoryItem
+  targetMeta: HistoryTargetMeta
+  className?: string
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    const textToCopy = (item.snippet || item.targetValue || "").trim()
+    if (!textToCopy) return
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy)
+      } else {
+        const textarea = document.createElement("textarea")
+        textarea.value = textToCopy
+        textarea.style.position = "fixed"
+        textarea.style.opacity = "0"
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand("copy")
+        document.body.removeChild(textarea)
+      }
+      setCopied(true)
+      toast.success("Đã sao chép nội dung tra cứu")
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      toast.error("Không thể sao chép nội dung")
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={`Sao chép nội dung: ${targetMeta.label}`}
+      title={copied ? "Đã sao chép!" : `${targetMeta.label} — Nhấn để sao chép nội dung`}
+      className={cn(
+        "group/tip relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border transition-all duration-120 hover:border-primary/40 hover:bg-primary/5 active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        copied
+          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-400/15 dark:text-emerald-300"
+          : targetMeta.surfaceClass,
+        className
+      )}
+    >
+      {copied ? (
+        <Check aria-hidden="true" size={18} weight="bold" />
+      ) : (
+        <TargetIcon iconKey={targetMeta.iconKey} />
+      )}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute -top-9 left-0 z-20 rounded-md border border-black/10 bg-popover px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-popover-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100 dark:border-white/12"
+      >
+        {copied ? "Đã sao chép!" : "Sao chép nội dung"}
+      </span>
+    </button>
+  )
+}
+
 function RiskVerdictCell({ item }: { item: HistoryItem }) {
   const meta = getHistoryRiskMeta(item.verdictStatus)
   const scoreStr =
@@ -84,6 +150,14 @@ function RiskVerdictCell({ item }: { item: HistoryItem }) {
         />
         <span>{item.verdictLabel || meta.label}</span>
       </span>
+      {item.decidedByStage === "CACHE_TIER2" && (
+        <span
+          title="Tái sử dụng kết quả phân tích chuyên sâu trước đó"
+          className="inline-flex items-center gap-1 rounded-md border border-indigo-500/25 bg-indigo-500/10 px-2 py-0.5 text-[11px] font-medium text-indigo-800 dark:border-indigo-400/25 dark:bg-indigo-400/15 dark:text-indigo-200"
+        >
+          <span>AI chuyên gia đã kiểm tra</span>
+        </span>
+      )}
       {scoreStr != null && (
         <span
           className={cn(
@@ -243,15 +317,7 @@ export function HistoryDataTable({
                           aria-label={`Chọn bản ghi ${item.targetValue}`}
                           className="mt-1 size-4 shrink-0 cursor-pointer rounded-md border-border accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         />
-                        <div
-                          className={cn(
-                            "flex size-9 shrink-0 items-center justify-center rounded-lg border",
-                            targetMeta.surfaceClass
-                          )}
-                          title={targetMeta.label}
-                        >
-                          <TargetIcon iconKey={targetMeta.iconKey} />
-                        </div>
+                        <TargetCopyButton item={item} targetMeta={targetMeta} />
                         <div className="min-w-0 space-y-1">
                           <p
                             className={cn(
@@ -290,12 +356,20 @@ export function HistoryDataTable({
 
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                       <RiskVerdictCell item={item} />
-                      <ExpandableIconLink
+                      <Link
                         href={`/user/history/${item.id}`}
-                        icon={<Eye aria-hidden="true" size={16} weight="bold" />}
-                        label="Chi tiết"
-                        variant="outline"
-                      />
+                        aria-label="Xem chi tiết"
+                        title="Xem chi tiết"
+                        className="group/tip relative inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-card text-foreground shadow-2xs transition-colors duration-120 hover:bg-muted active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
+                      >
+                        <Eye aria-hidden="true" size={16} weight="bold" />
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute -top-9 right-0 z-20 rounded-md border border-black/10 bg-popover px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-popover-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100 dark:border-white/12"
+                        >
+                          Xem chi tiết
+                        </span>
+                      </Link>
                     </div>
                   </li>
                 )
@@ -364,15 +438,11 @@ export function HistoryDataTable({
 
                         <td className="px-4 py-4 align-top">
                           <div className="flex items-start gap-3">
-                            <div
-                              className={cn(
-                                "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border",
-                                targetMeta.surfaceClass
-                              )}
-                              title={targetMeta.label}
-                            >
-                              <TargetIcon iconKey={targetMeta.iconKey} />
-                            </div>
+                            <TargetCopyButton
+                              item={item}
+                              targetMeta={targetMeta}
+                              className="mt-0.5"
+                            />
                             <div className="min-w-0 space-y-1">
                               <p
                                 className={cn(
@@ -407,12 +477,20 @@ export function HistoryDataTable({
                         </td>
 
                         <td className="px-4 py-4 text-right align-top">
-                          <ExpandableIconLink
+                          <Link
                             href={`/user/history/${item.id}`}
-                            icon={<Eye aria-hidden="true" size={16} weight="bold" />}
-                            label="Chi tiết"
-                            variant="outline"
-                          />
+                            aria-label="Xem chi tiết"
+                            title="Xem chi tiết"
+                            className="group/tip relative inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-card text-foreground shadow-2xs transition-colors duration-120 hover:bg-muted active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
+                          >
+                            <Eye aria-hidden="true" size={16} weight="bold" />
+                            <span
+                              role="tooltip"
+                              className="pointer-events-none absolute -top-9 right-0 z-20 rounded-md border border-black/10 bg-popover px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-popover-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100 dark:border-white/12"
+                            >
+                              Xem chi tiết
+                            </span>
+                          </Link>
                         </td>
                       </tr>
                     )

@@ -35,8 +35,21 @@ public class ScamCheckHistoryRepository {
             String verdictStatus,
             String verdictLabel,
             Integer riskScore,
-            boolean isRetroactive
-    ) {}
+            boolean isRetroactive,
+            String decidedByStage
+    ) {
+        public RawCheckHistoryItem(
+                Long id, LocalDateTime createdAt, String inputType, String rawInput,
+                String normalizedInput, String maskedInput, String inputHash,
+                String indicatorType, String indicatorValue, String indicatorDisplay,
+                String categoryName, String categoryCode, String partnerBrand,
+                String verdictStatus, String verdictLabel, Integer riskScore, boolean isRetroactive
+        ) {
+            this(id, createdAt, inputType, rawInput, normalizedInput, maskedInput, inputHash,
+                    indicatorType, indicatorValue, indicatorDisplay, categoryName, categoryCode,
+                    partnerBrand, verdictStatus, verdictLabel, riskScore, isRetroactive, null);
+        }
+    }
 
     private static final String BASE_CTE = """
             WITH ranked_checks AS (
@@ -57,6 +70,7 @@ public class ScamCheckHistoryRepository {
                          ELSE COALESCE(sc_ci.code, sc_r.code) END AS category_code,
                     cv.verdict AS saved_verdict,
                     cv.risk_score AS saved_risk_score,
+                    cv.decided_by_stage AS decided_by_stage,
                     pp.brand_name AS partner_brand,
                     ci.confirmed_at AS confirmed_at,
                     we.id AS whitelist_id,
@@ -130,7 +144,8 @@ public class ScamCheckHistoryRepository {
                         WHEN report_id IS NOT NULL THEN 68
                         ELSE 15
                     END AS risk_score,
-                    (saved_verdict IS NULL AND confirmed_id IS NOT NULL AND confirmed_at > created_at) AS is_retroactive
+                    (saved_verdict IS NULL AND confirmed_id IS NOT NULL AND confirmed_at > created_at) AS is_retroactive,
+                    decided_by_stage
                 FROM ranked_checks
                 WHERE rn = 1
             )
@@ -271,7 +286,8 @@ public class ScamCheckHistoryRepository {
                 rs.getString("verdict_status"),
                 rs.getString("verdict_label"),
                 rs.getObject("risk_score", Integer.class),
-                rs.getBoolean("is_retroactive")
+                rs.getBoolean("is_retroactive"),
+                rs.getString("decided_by_stage")
         );
     }
 }
