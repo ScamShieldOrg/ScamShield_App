@@ -43,7 +43,7 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
 
   return (
     <header
-      className={`w-full border-b border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 ${className}`}
+      className={`w-full shrink-0 border-b border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 ${className}`}
     >
       <div className="mx-auto flex h-16 w-full items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Left: Brand + Navigation Tabs */}
