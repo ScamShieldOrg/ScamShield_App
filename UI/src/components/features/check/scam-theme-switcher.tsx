@@ -79,7 +79,7 @@ export function ScamThemePicker({
                 theme.swatch
               )}
             />
-            <span className="truncate font-semibold">{theme.shortLabel}</span>
+            <span className="truncate font-semibold">Chủ đề</span>
           </span>
           <CaretUpDown
             aria-hidden="true"
@@ -97,8 +97,8 @@ export function ScamThemePicker({
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={menuId}
-          aria-label={`Chọn bảng màu (${theme.shortLabel})`}
-          title={`Bảng màu: ${theme.shortLabel}`}
+          aria-label="Chủ đề"
+          title="Chủ đề"
           onClick={() => setOpen((prev) => !prev)}
           className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full border border-border/80 bg-muted/40 text-muted-foreground transition-colors duration-120 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
         >
@@ -119,8 +119,8 @@ export function ScamThemePicker({
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={menuId}
-          aria-label={`Chọn bảng màu (${theme.shortLabel})`}
-          title={`Bảng màu: ${theme.shortLabel}`}
+          aria-label="Chủ đề"
+          title="Chủ đề"
           onClick={() => setOpen((prev) => !prev)}
           className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-black/10 bg-card px-3 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
         >
@@ -137,9 +137,7 @@ export function ScamThemePicker({
             weight="bold"
             className="text-muted-foreground sm:hidden"
           />
-          <span className="hidden whitespace-nowrap sm:inline">
-            {theme.shortLabel}
-          </span>
+          <span className="hidden whitespace-nowrap sm:inline">Chủ đề</span>
         </button>
       )}
 
@@ -161,7 +159,7 @@ export function ScamThemePicker({
             )}
           >
             <p className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">
-              Bảng màu chống lừa đảo
+              Chủ đề
             </p>
             <div className="space-y-0.5">
               {SCAM_CHECK_THEME_ORDER.map((id) => {
