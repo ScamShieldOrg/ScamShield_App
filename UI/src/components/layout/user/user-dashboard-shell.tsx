@@ -21,7 +21,7 @@ interface UserDashboardShellProps {
 
 export function UserDashboardShell({ children }: UserDashboardShellProps) {
   const pathname = usePathname()
-  const isFullBleedCheck = pathname === "/user/check"
+  const isFullBleedCheck = pathname === "/user" || pathname === "/user/check"
   const { theme: antiScamTheme } = useScamCheckTheme()
   const { glowLayerRef, handlePointerMove, handlePointerLeave } =
     useChromePointerGlow()
