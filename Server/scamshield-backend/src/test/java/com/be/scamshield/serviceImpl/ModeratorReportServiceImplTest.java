@@ -652,8 +652,9 @@ class ModeratorReportServiceImplTest {
         when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
 
-        service.makeDecision(1891L, moderatorPrincipal, ModeratorDecisionRequest.builder()
-                .decision(ModeratorDecisionRequest.DecisionType.APPROVE).build());
+        var request = ModeratorDecisionRequest.builder()
+                .decision(ModeratorDecisionRequest.DecisionType.APPROVE).build();
+        service.makeDecision(1891L, moderatorPrincipal, request);
 
         assertThat(testReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
         assertThat(existing.getSourceReport()).isSameAs(firstReport);

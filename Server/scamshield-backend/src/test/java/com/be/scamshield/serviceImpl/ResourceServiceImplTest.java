@@ -17,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -60,6 +62,33 @@ class ResourceServiceImplTest {
         assertThatThrownBy(() -> service.getBlackListImageUrl(4L))
                 .isInstanceOf(ResourceNotFoundException.class);
         verifyNoInteractions(evidenceStorage);
+    }
+
+    @Test
+    void blacklistReturnsMetadataAndOtherImagesWhenOneImageCannotBeSigned() {
+        var filter = new BlacklistResourceFilterRequest();
+        var row = mock(BlacklistResourceProjection.class);
+        when(row.getId()).thenReturn(4L);
+        when(row.getSourceReportId()).thenReturn(12L);
+        when(resourceRepository.findBlackListResources(null, null, PageRequest.of(filter.getPage(), filter.getSize())))
+                .thenReturn(new PageImpl<>(List.of(row)));
+        var unavailable = mock(ResourceRepository.PublicEvidenceRow.class);
+        when(unavailable.getBlacklistId()).thenReturn(4L);
+        when(unavailable.getObjectKey()).thenReturn("unavailable.jpg");
+        var available = mock(ResourceRepository.PublicEvidenceRow.class);
+        when(available.getBlacklistId()).thenReturn(4L);
+        when(available.getObjectKey()).thenReturn("available.jpg");
+        when(resourceRepository.findPublicEvidenceForBlacklistIds(List.of(4L))).thenReturn(List.of(unavailable, available));
+        when(evidenceStorage.createReportPublicationImageUrl("unavailable.jpg"))
+                .thenThrow(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE));
+        when(evidenceStorage.createReportPublicationImageUrl("available.jpg"))
+                .thenReturn("https://example.test/signed.jpg");
+
+        assertThat(service.getBlackListResources(filter).getData()).singleElement().satisfies(item -> {
+            assertThat(item.getId()).isEqualTo(4L);
+            assertThat(item.getSourceReport().getId()).isEqualTo(12L);
+            assertThat(item.getSourceReport().getPublicEvidenceUrls()).containsExactly("https://example.test/signed.jpg");
+        });
     }
 
     @Test

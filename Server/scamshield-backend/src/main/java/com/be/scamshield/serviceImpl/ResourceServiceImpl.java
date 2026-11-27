@@ -16,19 +16,23 @@ import com.be.scamshield.repository.ResourceRepository.BlacklistResourceProjecti
 import com.be.scamshield.repository.WhitelistResourceRepository;
 import com.be.scamshield.service.IResourceService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class ResourceServiceImpl implements IResourceService {
@@ -63,11 +67,19 @@ public class ResourceServiceImpl implements IResourceService {
         Map<Long, List<String>> publicEvidence = ids.isEmpty() ? Map.of()
                 : resourceRepository.findPublicEvidenceForBlacklistIds(ids).stream()
                 .collect(Collectors.groupingBy(ResourceRepository.PublicEvidenceRow::getBlacklistId,
-                        Collectors.mapping(row -> evidenceStorage.createReportPublicationImageUrl(row.getObjectKey()),
-                                Collectors.toList())));
+                        Collectors.flatMapping(this::signOptionalBlacklistImage, Collectors.toList())));
         Page<BlacklistResourceResponse> page = rows.map(row ->
                 toResponse(row, publicEvidence.getOrDefault(row.getId(), List.of())));
         return PaginatedResponse.buildPaginatedResponse(page);
+    }
+
+    private Stream<String> signOptionalBlacklistImage(ResourceRepository.PublicEvidenceRow row) {
+        try {
+            return Stream.of(evidenceStorage.createReportPublicationImageUrl(row.getObjectKey()));
+        } catch (ResponseStatusException ex) {
+            log.warn("Unable to sign an optional image for blacklist entry {}: {}", row.getBlacklistId(), ex.getStatusCode());
+            return Stream.empty();
+        }
     }
 
     @Override

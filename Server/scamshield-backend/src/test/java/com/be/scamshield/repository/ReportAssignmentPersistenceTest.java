@@ -79,7 +79,8 @@ class ReportAssignmentPersistenceTest extends PostgresIntegrationTest {
         var image = new MockMultipartFile("publicImage", "proof.png", "image/png", bytes.toByteArray());
         String key = "published-reports/redacted.jpg";
         String secondKey = "published-reports/redacted-2.jpg";
-        when(storage.storeReportPublicationImage(any(byte[].class))).thenReturn(key, secondKey);
+        String laterKey = "published-reports/redacted-later.jpg";
+        when(storage.storeReportPublicationImage(any(byte[].class))).thenReturn(key, secondKey, laterKey);
 
         moderatorReports.makeDecision(report.getId(), principal, request,
                 List.of(evidence.getId(), secondEvidence.getId()), List.of(image, image));
@@ -100,6 +101,21 @@ class ReportAssignmentPersistenceTest extends PostgresIntegrationTest {
                 .isEqualTo(firstUrl);
         assertThat(moderatorReports.getPublishedEvidenceImage(report.getId(), secondEvidence.getId(), principal))
                 .isEqualTo(secondUrl);
+
+        Report laterReport = Report.builder().reporterUser(reporter).assignedModerator(moderator).indicator(indicator)
+                .status(ReportStatus.IN_REVIEW).createdAt(now).updatedAt(now).build();
+        em.persist(laterReport);
+        ReportEvidence laterEvidence = ReportEvidence.builder().report(laterReport).evidenceType(ReportEvidenceType.PNG)
+                .createdAt(now).build();
+        em.persist(laterEvidence);
+        moderatorReports.makeDecision(laterReport.getId(), principal, request,
+                List.of(laterEvidence.getId()), List.of(image));
+        em.flush();
+
+        assertThat(laterReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
+        assertThat(laterEvidence.getPublicImageObjectKey()).isEqualTo(laterKey);
+        assertThat(entry.getSourceReport().getId()).isEqualTo(report.getId());
+        assertThat(resources.findBlackListImageKeys(entry.getId())).containsExactly(key, secondKey);
 
         entry.setStatus(ConfirmedIndicatorStatus.RETRACTED);
         em.flush();
