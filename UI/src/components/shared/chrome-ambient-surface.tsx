@@ -43,7 +43,7 @@ interface ChromeAmbientOverlayProps {
   glowLayerRef: RefObject<HTMLDivElement | null>
   theme: ScamCheckThemeConfig
   /** Which border receives the interactive specular hairline accent. */
-  edge?: "bottom" | "right" | "left" | "none"
+  edge?: "top" | "bottom" | "right" | "left" | "none"
 }
 
 export function ChromeAmbientOverlay({
@@ -76,6 +76,7 @@ export function ChromeAmbientOverlay({
           <div
             className={cn(
               "absolute",
+              edge === "top" && "inset-x-0 top-0 h-[1.5px]",
               edge === "bottom" && "inset-x-0 bottom-0 h-[1.5px]",
               edge === "right" && "inset-y-0 right-0 w-[1.5px]",
               edge === "left" && "inset-y-0 left-0 w-[1.5px]",
