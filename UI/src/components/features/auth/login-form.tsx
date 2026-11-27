@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { authServices } from "@/features/auth/services/auth-services"
 import { toast } from "react-toastify"
 import { GoogleAuthButton } from "@/components/features/auth/google-auth-button"
+import { useScamCheckTheme } from "@/components/features/check/scam-check-theme"
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -94,6 +95,7 @@ function validatePassword(value: string): string | null {
 
 export function LoginForm() {
   const router = useRouter()
+  const { theme } = useScamCheckTheme()
 
   const [showPassword, setShowPassword] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
@@ -223,376 +225,374 @@ export function LoginForm() {
   }
 
   return (
-    <section className="px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        {/* Split Card Container */}
+    <section className="flex flex-1 items-center px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-5xl">
+        {/* Two-Layer Tactile Bezel Shell */}
         <div
           className={cn(
-            "overflow-hidden rounded-3xl bg-white shadow-2xl",
-            "dark:bg-card dark:shadow-xl dark:shadow-black/20",
-            "grid grid-cols-1 lg:grid-cols-12"
+            "rounded-3xl border p-1.5 transition-[border-color,box-shadow] duration-200",
+            theme.composerBezel
           )}
         >
-          {/* ─── Left Column: Security Showcase ─── */}
-          <div
-            className={cn(
-              "relative overflow-hidden p-8 lg:col-span-5 lg:p-12",
-              "flex flex-col justify-between"
-            )}
-            style={{
-              background:
-                "linear-gradient(114deg, #0B132B 0%, #111C3D 50%, #1C2A4A 100%)",
-            }}
-          >
-            {/* Ambient Glow Rings */}
+          {/* Split Card Container */}
+          <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-black/8 bg-card/95 backdrop-blur-md lg:grid-cols-12 dark:border-white/10">
+            {/* ─── Left Column: Security Showcase (Theme-Synced) ─── */}
             <div
-              className="pointer-events-none absolute -top-24 -left-24 size-80 rounded-full opacity-100"
-              style={{
-                background: "rgba(208, 217, 253, 0.1)",
-                filter: "blur(32px)",
-              }}
-            />
-            <div
-              className="pointer-events-none absolute right-[-40px] bottom-[-20px] size-80 rounded-full opacity-100"
-              style={{
-                background: "rgba(14, 165, 233, 0.15)",
-                filter: "blur(32px)",
-              }}
-            />
+              className={cn(
+                "relative flex flex-col justify-between overflow-hidden p-8 transition-colors duration-200 lg:col-span-5 lg:p-10",
+                theme.authPanelBg
+              )}
+            >
+              {/* Subtle Blueprint Dot-Grid inside Left Panel */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:radial-gradient(rgba(255,255,255,0.45)_1px,transparent_1px)] [background-size:20px_20px] [mask-image:radial-gradient(ellipse_90%_80%_at_25%_20%,#000_35%,transparent_100%)]"
+              />
 
-            {/* Top Section */}
-            <div className="relative z-10 flex flex-col gap-6">
-              {/* Brand */}
-              <div className="flex items-center gap-3">
-                <div className="flex size-12 items-center justify-center rounded-2xl bg-white/10 shadow-inner backdrop-blur-md">
-                  <ShieldCheck size={24} weight="fill" className="text-white" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-heading text-xl font-bold tracking-tight text-white">
-                      ScamShield
-                    </span>
-                    <span className="rounded bg-white/20 px-2 py-0.5 text-[10px] font-bold tracking-widest text-white uppercase">
-                      VN
-                    </span>
+              {/* Top Section */}
+              <div className="relative z-10 flex flex-col gap-6">
+                {/* Brand */}
+                <div className="flex items-center gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 shadow-inner backdrop-blur-md">
+                    <ShieldCheck
+                      aria-hidden="true"
+                      size={22}
+                      weight="fill"
+                      className={theme.authPanelAccent}
+                    />
                   </div>
-                  <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                    AI Threat Verification • Vietnam
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-heading text-lg font-bold tracking-tight text-white">
+                        ScamShield
+                      </span>
+                      <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-xs font-semibold tracking-wider text-white uppercase">
+                        VN
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-slate-300/80">
+                      AI Threat Verification · Vietnam
+                    </p>
+                  </div>
+                </div>
+
+                {/* Hero Text */}
+                <div className="flex flex-col gap-2.5 pt-2">
+                  <h2 className="font-heading text-2xl leading-tight font-bold tracking-[-0.025em] text-white sm:text-3xl">
+                    Cổng Giám Sát
+                    <br />
+                    An Toàn Số
+                  </h2>
+                  <p className="text-sm leading-relaxed text-slate-300/85">
+                    Hệ thống bảo vệ chủ động 2 tầng, ngăn chặn tin nhắn, liên
+                    kết và giao dịch lừa đảo trực tuyến.
                   </p>
                 </div>
+
+                {/* 3 Feature Pillars */}
+                <div className="flex flex-col gap-3 pt-2">
+                  <FeaturePill
+                    icon={
+                      <ShieldStar
+                        aria-hidden="true"
+                        size={19}
+                        weight="fill"
+                        className={theme.authPanelAccent}
+                      />
+                    }
+                    title="Bảo vệ 24/7"
+                    description="Quét tự động và phát hiện đa tầng."
+                  />
+                  <FeaturePill
+                    icon={
+                      <Fingerprint
+                        aria-hidden="true"
+                        size={18}
+                        weight="fill"
+                        className="text-emerald-400"
+                      />
+                    }
+                    title="Chuẩn Zero-PII"
+                    description="Mã hóa bảo vệ dữ liệu tuyệt đối."
+                  />
+                  <FeaturePill
+                    icon={
+                      <Lightning
+                        aria-hidden="true"
+                        size={19}
+                        weight="fill"
+                        className="text-amber-300"
+                      />
+                    }
+                    title="Liên thông xử lý"
+                    description="Hỗ trợ cảnh báo và phong tỏa nhanh rủi ro."
+                  />
+                </div>
               </div>
 
-              {/* Hero Text */}
-              <div className="flex flex-col gap-3 pt-2">
-                <h2 className="font-heading text-3xl leading-tight font-extrabold tracking-tight text-white lg:text-4xl">
-                  Cổng Giám Sát
-                  <br />
-                  An Toàn Số
-                </h2>
-                <p className="text-base leading-relaxed text-slate-400">
-                  Hệ thống bảo vệ chủ động, ngăn chặn lừa đảo trực tuyến.
-                </p>
-              </div>
-
-              {/* 3 Feature Pillars */}
-              <div className="flex flex-col gap-4 pt-4">
-                <FeaturePill
-                  icon={
-                    <ShieldStar
-                      size={20}
-                      weight="fill"
-                      className="text-[#89CEFF]"
-                    />
-                  }
-                  title="Bảo vệ 24/7"
-                  description="Quét tự động và phát hiện đa tầng."
-                />
-                <FeaturePill
-                  icon={
-                    <Fingerprint
-                      size={18}
-                      weight="fill"
-                      className="text-emerald-400"
-                    />
-                  }
-                  title="Chuẩn Zero-PII"
-                  description="Mã hóa bảo vệ dữ liệu tuyệt đối."
-                />
-                <FeaturePill
-                  icon={
-                    <Lightning
-                      size={20}
-                      weight="fill"
-                      className="text-amber-300"
-                    />
-                  }
-                  title="Liên thông xử lý"
-                  description="Hỗ trợ phong tỏa nhanh rủi ro."
-                />
+              <div className="relative z-10 mt-8 border-t border-white/10 pt-4 text-xs text-slate-300/75">
+                Xác thực an toàn · Mã hóa phiên đăng nhập
               </div>
             </div>
 
-            {/* Bottom spacer for visual balance */}
-            <div className="h-14" />
-          </div>
-
-          {/* ─── Right Column: Login Form ─── */}
-          <div className="flex flex-col justify-between px-6 py-10 sm:px-10 lg:col-span-7 lg:px-14 lg:py-14">
-            <div className="mx-auto w-full max-w-lg">
-              {/* Form Header */}
-              <div className="pt-2 pb-8">
-                <h1 className="font-heading text-4xl font-bold tracking-tight text-[#131B2E] dark:text-foreground">
-                  Đăng Nhập
-                </h1>
-              </div>
-
-              {/* Form Fields */}
-              <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-                {serverError && (
-                  <div
-                    role="alert"
-                    className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-[#BA1A1A] dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400"
-                  >
-                    <WarningCircle
-                      size={18}
-                      weight="fill"
-                      className="shrink-0"
-                    />
-                    <span>{serverError}</span>
-                  </div>
-                )}
-
-                {/* Identifier Input */}
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    htmlFor="identifier"
-                    className="text-sm font-semibold text-[#131B2E] dark:text-foreground"
-                  >
-                    Số điện thoại hoặc Email
-                  </label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#76767E]">
-                      <EnvelopeSimple size={16} weight="regular" />
-                    </div>
-                    <input
-                      id="identifier"
-                      type="text"
-                      value={identifier}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        setIdentifier(val)
-                        if (touched.identifier || errors.identifier) {
-                          setErrors((prev) => ({
-                            ...prev,
-                            identifier: validateIdentifier(val),
-                          }))
-                        }
-                      }}
-                      onBlur={handleIdentifierBlur}
-                      placeholder="0912345678 hoặc email@domain.vn"
-                      aria-invalid={!!errors.identifier}
-                      aria-describedby={
-                        errors.identifier ? "identifier-error" : undefined
-                      }
-                      className={cn(
-                        "h-14 w-full rounded-xl bg-[#FAF8FF] pr-4 pl-12 text-base",
-                        "text-[#131B2E] placeholder:text-[#76767E]/70",
-                        "shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.05)]",
-                        "transition-all outline-none",
-                        "dark:bg-muted dark:text-foreground dark:placeholder:text-muted-foreground",
-                        errors.identifier
-                          ? "border border-[#BA1A1A] ring-2 ring-[#BA1A1A]/20 dark:border-destructive dark:ring-destructive/30"
-                          : "focus:ring-2 focus:ring-[#0B132B]/20 dark:focus:ring-ring/40"
-                      )}
-                    />
-                  </div>
-                  {errors.identifier && (
-                    <div
-                      id="identifier-error"
-                      role="alert"
-                      className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-[#BA1A1A] dark:text-red-400"
-                    >
-                      <WarningCircle
-                        size={15}
-                        weight="fill"
-                        className="shrink-0 text-[#BA1A1A] dark:text-red-400"
-                      />
-                      <span>{errors.identifier}</span>
-                    </div>
-                  )}
+            {/* ─── Right Column: Login Form ─── */}
+            <div className="flex flex-col justify-center px-6 py-9 sm:px-10 lg:col-span-7 lg:px-12 lg:py-12">
+              <div className="mx-auto w-full max-w-md">
+                {/* Form Header */}
+                <div className="mb-7 space-y-1.5">
+                  <h1 className="font-heading text-3xl font-bold tracking-[-0.025em] text-foreground">
+                    Đăng nhập
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Tiếp tục theo dõi lịch sử kiểm tra, báo cáo và cảnh báo của
+                    bạn.
+                  </p>
                 </div>
 
-                {/* Password Input */}
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    htmlFor="password"
-                    className="text-sm font-semibold text-[#131B2E] dark:text-foreground"
-                  >
-                    Mật khẩu bảo mật
-                  </label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#76767E]">
-                      <Lock size={16} weight="regular" />
-                    </div>
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        setPassword(val)
-                        if (touched.password || errors.password) {
-                          setErrors((prev) => ({
-                            ...prev,
-                            password: validatePassword(val),
-                          }))
-                        }
-                      }}
-                      onBlur={handlePasswordBlur}
-                      placeholder="••••••••••••"
-                      aria-invalid={!!errors.password}
-                      aria-describedby={
-                        errors.password ? "password-error" : undefined
-                      }
-                      className={cn(
-                        "h-14 w-full rounded-xl bg-[#FAF8FF] px-12 text-base",
-                        "text-[#131B2E] placeholder:text-[#76767E]/70",
-                        "shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.05)]",
-                        "transition-all outline-none",
-                        "dark:bg-muted dark:text-foreground dark:placeholder:text-muted-foreground",
-                        errors.password
-                          ? "border border-[#BA1A1A] ring-2 ring-[#BA1A1A]/20 dark:border-destructive dark:ring-destructive/30"
-                          : "focus:ring-2 focus:ring-[#0B132B]/20 dark:focus:ring-ring/40"
-                      )}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="absolute top-1/2 right-3 -translate-y-1/2 text-[#76767E] hover:bg-transparent hover:text-[#131B2E] dark:hover:bg-transparent dark:hover:text-foreground"
-                      aria-label={
-                        showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"
-                      }
-                    >
-                      {showPassword ? (
-                        <EyeSlash size={20} weight="regular" />
-                      ) : (
-                        <Eye size={20} weight="regular" />
-                      )}
-                    </Button>
-                  </div>
-                  {errors.password && (
+                {/* Form Fields */}
+                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                  {serverError && (
                     <div
-                      id="password-error"
                       role="alert"
-                      className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-[#BA1A1A] dark:text-red-400"
+                      className="flex items-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 p-3 text-sm font-medium text-rose-800 dark:text-rose-300"
                     >
                       <WarningCircle
-                        size={15}
+                        aria-hidden="true"
+                        size={18}
                         weight="fill"
-                        className="shrink-0 text-[#BA1A1A] dark:text-red-400"
+                        className="shrink-0"
                       />
-                      <span>{errors.password}</span>
+                      <span>{serverError}</span>
                     </div>
                   )}
-                </div>
 
-                {/* Options Row */}
-                <div className="flex items-center justify-between pt-1">
-                  <label className="flex cursor-pointer items-center gap-2.5">
+                  {/* Identifier Input */}
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="identifier"
+                      className="text-sm font-semibold text-foreground"
+                    >
+                      Số điện thoại hoặc Email
+                    </label>
+                    <div className="relative">
+                      <div className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground">
+                        <EnvelopeSimple
+                          aria-hidden="true"
+                          size={16}
+                          weight="regular"
+                        />
+                      </div>
+                      <input
+                        id="identifier"
+                        type="text"
+                        value={identifier}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setIdentifier(val)
+                          if (touched.identifier || errors.identifier) {
+                            setErrors((prev) => ({
+                              ...prev,
+                              identifier: validateIdentifier(val),
+                            }))
+                          }
+                        }}
+                        onBlur={handleIdentifierBlur}
+                        placeholder="0912345678 hoặc email@domain.vn"
+                        aria-invalid={!!errors.identifier}
+                        aria-describedby={
+                          errors.identifier ? "identifier-error" : undefined
+                        }
+                        className={cn(
+                          "h-12 w-full rounded-xl border bg-background/85 pr-4 pl-10 text-sm text-foreground placeholder:text-muted-foreground/75",
+                          "border-border shadow-2xs transition-[border-color,box-shadow] outline-none",
+                          "dark:border-white/12 dark:bg-white/[0.04]",
+                          errors.identifier
+                            ? "border-rose-500/70 ring-2 ring-rose-500/20"
+                            : "focus:border-foreground/40 focus:ring-2 focus:ring-ring/25 dark:focus:border-white/30"
+                        )}
+                      />
+                    </div>
+                    {errors.identifier && (
+                      <div
+                        id="identifier-error"
+                        role="alert"
+                        className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-rose-700 dark:text-rose-400"
+                      >
+                        <WarningCircle
+                          aria-hidden="true"
+                          size={14}
+                          weight="fill"
+                          className="shrink-0"
+                        />
+                        <span>{errors.identifier}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Password Input */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        htmlFor="password"
+                        className="text-sm font-semibold text-foreground"
+                      >
+                        Mật khẩu bảo mật
+                      </label>
+                      <Link
+                        href="/forgot-password"
+                        className="shrink-0 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        Quên mật khẩu?
+                      </Link>
+                    </div>
+                    <div className="relative">
+                      <div className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground">
+                        <Lock aria-hidden="true" size={16} weight="regular" />
+                      </div>
+                      <input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setPassword(val)
+                          if (touched.password || errors.password) {
+                            setErrors((prev) => ({
+                              ...prev,
+                              password: validatePassword(val),
+                            }))
+                          }
+                        }}
+                        onBlur={handlePasswordBlur}
+                        placeholder="••••••••••••"
+                        aria-invalid={!!errors.password}
+                        aria-describedby={
+                          errors.password ? "password-error" : undefined
+                        }
+                        className={cn(
+                          "h-12 w-full rounded-xl border bg-background/85 px-10 text-sm text-foreground placeholder:text-muted-foreground/75",
+                          "border-border shadow-2xs transition-[border-color,box-shadow] outline-none",
+                          "dark:border-white/12 dark:bg-white/[0.04]",
+                          errors.password
+                            ? "border-rose-500/70 ring-2 ring-rose-500/20"
+                            : "focus:border-foreground/40 focus:ring-2 focus:ring-ring/25 dark:focus:border-white/30"
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute top-1/2 right-2.5 -translate-y-1/2 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                        aria-label={
+                          showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"
+                        }
+                      >
+                        {showPassword ? (
+                          <EyeSlash
+                            aria-hidden="true"
+                            size={18}
+                            weight="regular"
+                          />
+                        ) : (
+                          <Eye aria-hidden="true" size={18} weight="regular" />
+                        )}
+                      </Button>
+                    </div>
+                    {errors.password && (
+                      <div
+                        id="password-error"
+                        role="alert"
+                        className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-rose-700 dark:text-rose-400"
+                      >
+                        <WarningCircle
+                          aria-hidden="true"
+                          size={14}
+                          weight="fill"
+                          className="shrink-0"
+                        />
+                        <span>{errors.password}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Remember Row */}
+                  <label className="flex cursor-pointer items-center gap-2.5 pt-0.5">
                     <input
                       type="checkbox"
-                      className={cn(
-                        "size-4 rounded-sm accent-[#0075FF]",
-                        "dark:accent-primary"
-                      )}
+                      className="size-4 rounded-sm accent-foreground"
                     />
-                    <span className="text-sm leading-snug text-[#45464D] dark:text-muted-foreground">
+                    <span className="text-xs leading-snug text-muted-foreground">
                       Ghi nhớ đăng nhập trên thiết bị an toàn này
                     </span>
                   </label>
-                  <Link
-                    href="/forgot-password"
-                    className="shrink-0 text-[11px] font-semibold tracking-wider text-[#545D7C] uppercase transition-colors hover:text-[#131B2E] dark:text-muted-foreground dark:hover:text-foreground"
+
+                  {/* Primary Submit Button (Pill + Theme-Synced) */}
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className={cn(
+                      "group mt-1 h-12 w-full cursor-pointer gap-2.5 rounded-full border-transparent text-sm font-semibold active:scale-[0.99] disabled:pointer-events-none disabled:opacity-70",
+                      theme.ctaButton
+                    )}
                   >
-                    Quên mật khẩu?
-                  </Link>
-                </div>
+                    {isLoading ? (
+                      <span className="inline-flex size-4 rounded-full border-2 border-current/30 border-t-current motion-safe:animate-spin" />
+                    ) : (
+                      <ShieldCheck
+                        aria-hidden="true"
+                        size={18}
+                        weight="fill"
+                      />
+                    )}
+                    <span>{isLoading ? "Đang xử lý..." : "Đăng nhập"}</span>
+                    {!isLoading && (
+                      <ArrowRight
+                        aria-hidden="true"
+                        size={15}
+                        weight="bold"
+                        className="transition-transform group-hover:translate-x-0.5"
+                      />
+                    )}
+                  </Button>
 
-                {/* Primary Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className={cn(
-                    "group mt-2 h-14 w-full gap-3 rounded-xl border-transparent",
-                    "bg-[#0B132B] text-white shadow-lg shadow-black/10",
-                    "hover:bg-[#111A36] active:scale-[0.99]",
-                    "disabled:pointer-events-none disabled:opacity-70",
-                    "dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
-                  )}
-                >
-                  {isLoading ? (
-                    <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  ) : (
-                    <ShieldCheck
-                      size={18}
-                      weight="fill"
-                      className="text-[#89CEFF]"
-                    />
-                  )}
-                  <span className="font-heading text-xl font-bold tracking-tight">
-                    {isLoading ? "Đang xử lý..." : "Đăng Nhập"}
-                  </span>
-                  {!isLoading && (
-                    <ArrowRight
-                      size={16}
-                      weight="bold"
-                      className="ml-1 text-white transition-transform group-hover:translate-x-0.5"
-                    />
-                  )}
-                </Button>
+                  {/* Divider */}
+                  <div className="relative flex items-center justify-center py-1.5">
+                    <div className="absolute inset-x-0 top-1/2 h-px bg-border dark:bg-white/10" />
+                    <span className="relative bg-card px-3 text-xs font-medium text-muted-foreground">
+                      Hoặc tiếp tục với
+                    </span>
+                  </div>
 
-                {/* Divider */}
-                <div className="relative flex items-center justify-center py-2">
-                  <div className="absolute inset-x-0 top-1/2 h-px bg-[#E2E7FF] dark:bg-border" />
-                  <span className="relative bg-white px-4 text-[11px] font-bold tracking-widest text-[#45464D] uppercase dark:bg-card dark:text-muted-foreground">
-                    Hoặc tiếp tục với
-                  </span>
-                </div>
+                  {/* Google Sign-In via OAuth 2.0 */}
+                  <GoogleAuthButton
+                    text="signin_with"
+                    onSuccess={handleGoogleOAuthSuccess}
+                    onError={(err) => {
+                      const msg = err || "Đăng nhập Google OAuth 2.0 thất bại"
+                      setServerError(msg)
+                      toast.error(msg)
+                    }}
+                    isLoading={isGoogleLoading}
+                    disabled={isLoading}
+                  />
 
-                {/* Google Sign-In via OAuth 2.0 */}
-                <GoogleAuthButton
-                  text="signin_with"
-                  onSuccess={handleGoogleOAuthSuccess}
-                  onError={(err) => {
-                    const msg = err || "Đăng nhập Google OAuth 2.0 thất bại"
-                    setServerError(msg)
-                    toast.error(msg)
-                  }}
-                  isLoading={isGoogleLoading}
-                  disabled={isLoading}
-                />
-
-                {/* Registration Link */}
-                <p className="pt-4 text-center text-sm text-[#45464D] dark:text-muted-foreground">
-                  Chưa có tài khoản?{" "}
-                  <Link
-                    href="/register"
-                    className="font-bold text-[#131B2E] underline transition-colors hover:text-[#0B132B] dark:text-foreground dark:hover:text-primary"
-                  >
-                    Đăng ký ngay
-                  </Link>
-                </p>
-              </form>
+                  {/* Registration Link */}
+                  <p className="pt-2 text-center text-sm text-muted-foreground">
+                    Chưa có tài khoản?{" "}
+                    <Link
+                      href="/register"
+                      className="font-semibold text-foreground underline underline-offset-4 transition-colors hover:opacity-80"
+                    >
+                      Đăng ký ngay
+                    </Link>
+                  </p>
+                </form>
+              </div>
             </div>
-
-            {/* Bottom spacer for visual balance */}
-            <div className="h-14" />
           </div>
         </div>
       </div>
-
     </section>
   )
 }
@@ -608,13 +608,13 @@ function FeaturePill({
   description: string
 }) {
   return (
-    <div className="flex items-center gap-3.5 rounded-2xl bg-white/5 p-3 backdrop-blur-sm">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
+    <div className="flex items-center gap-3.5 rounded-xl border border-white/10 bg-white/[0.06] p-3 backdrop-blur-xs">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10">
         {icon}
       </div>
-      <div className="flex flex-col gap-px">
-        <span className="text-sm font-bold text-white">{title}</span>
-        <span className="text-sm text-slate-400">{description}</span>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-semibold text-white">{title}</span>
+        <span className="text-xs text-slate-300/80">{description}</span>
       </div>
     </div>
   )

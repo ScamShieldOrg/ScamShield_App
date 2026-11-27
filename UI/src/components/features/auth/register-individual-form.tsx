@@ -30,6 +30,7 @@ import {
   PrivilegePill,
   SocialProofBanner,
 } from "@/components/features/auth/auth-shared-components"
+import { useScamCheckTheme } from "@/components/features/check/scam-check-theme"
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -90,6 +91,7 @@ interface FormErrors {
 }
 
 export function RegisterIndividualForm() {
+  const { theme } = useScamCheckTheme()
   const [showPassword, setShowPassword] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [isGoogleRegisterModalOpen, setIsGoogleRegisterModalOpen] =
@@ -309,157 +311,183 @@ export function RegisterIndividualForm() {
   }
 
   return (
-    <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-12 lg:gap-10">
-      {/* ─── Left Column: Sentinel Community Privileges Card ─── */}
-      <div
-        className={cn(
-          "relative flex flex-col justify-between overflow-hidden rounded-2xl p-8 sm:p-10 lg:col-span-5",
-          "shadow-xl"
-        )}
-        style={{
-          background:
-            "linear-gradient(110deg, #131A33 0%, #283044 50%, #000000 100%)",
-        }}
-      >
-        {/* Ambient Glow Orbs */}
+    <div
+      className={cn(
+        "rounded-3xl border p-1.5 transition-[border-color,box-shadow] duration-200",
+        theme.composerBezel
+      )}
+    >
+      <div className="grid grid-cols-1 items-stretch overflow-hidden rounded-2xl border border-black/8 bg-card/95 backdrop-blur-md lg:grid-cols-12 dark:border-white/10">
+        {/* ─── Left Column: Sentinel Community Privileges Card ─── */}
         <div
-          className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full opacity-60"
-          style={{
-            background: "rgba(208, 217, 253, 0.12)",
-            filter: "blur(32px)",
-          }}
-        />
-        <div
-          className="pointer-events-none absolute -bottom-12 -left-12 size-56 rounded-full opacity-50"
-          style={{
-            background: "rgba(201, 230, 255, 0.1)",
-            filter: "blur(24px)",
-          }}
-        />
-
-        <div className="relative z-10 flex flex-col gap-6">
-          {/* Initial Sentinel Rank Badge */}
-          <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold tracking-wider text-[#DBE1FF] uppercase backdrop-blur-md">
-              <ShieldChevron
-                size={14}
-                weight="fill"
-                className="text-[#DBE1FF]"
-              />
-              <span>CẤP BẬC KHỞI ĐẦU: SENTINEL LV.1</span>
-            </div>
-          </div>
-
-          {/* Hero Title & Subtitle */}
-          <div className="space-y-2">
-            <h2 className="font-heading text-3xl font-bold tracking-tight text-white lg:text-[34px]">
-              Chung sức bảo vệ cộng đồng
-            </h2>
-            <p className="text-sm leading-relaxed text-[#DAE2FD]/80">
-              Chung tay bảo vệ gia đình và cộng đồng mạng Việt Nam.
-            </p>
-          </div>
-
-          {/* Key Privileges Checklist */}
-          <div className="mt-2 flex flex-col gap-3">
-            <PrivilegePill
-              icon={<Sparkle size={20} weight="fill" />}
-              title="Tính năng AI"
-              description="Tra cứu chuyên sâu Deepfake, STK lừa đảo, SMS độc hại."
-            />
-            <PrivilegePill
-              icon={<BellRinging size={20} weight="fill" />}
-              title="Cảnh báo sớm 24h"
-              description="Cập nhật mối đe dọa, trạm phát giả mạo theo khu vực."
-            />
-            <PrivilegePill
-              icon={<SealCheck size={20} weight="fill" />}
-              title="Bảo chứng A05 & NCSC"
-              description="Được kết nối xử lý và xác thực chính thống."
-            />
-            <PrivilegePill
-              icon={<Gift size={20} weight="fill" />}
-              title="Điểm thưởng hàng tháng"
-              description="Đổi bản quyền bảo mật số và đặc quyền công dân."
-            />
-          </div>
-        </div>
-
-        {/* Social Proof Stats Banner */}
-        <SocialProofBanner
-          avatars={[
-            { text: "AN", bg: "#EAEDFF", color: "#131B2E" },
-            { text: "TH", bg: "#D0D9FD", color: "#555E7D" },
-            { text: "DK", bg: "#C9E6FF", color: "#001E2F" },
-          ]}
-          badgeText="+128k"
-          title="128.450+ Người đã tham gia"
-          subtitle="Đang hoạt động trên toàn quốc"
-        />
-      </div>
-
-      {/* ─── Right Column: Registration Form Card ─── */}
-      <div className="flex flex-col rounded-2xl border border-[#E2E7FF] bg-white p-6 shadow-sm sm:p-10 lg:col-span-7 dark:border-border dark:bg-card">
-        <div className="mx-auto w-full">
-          {/* Form Header */}
-          <div className="mb-6">
-            <h1 className="font-heading text-3xl font-bold tracking-tight text-[#131B2E] dark:text-foreground">
-              Đăng Ký Tài Khoản
-            </h1>
-          </div>
-
-          {serverError && (
-            <div
-              role="alert"
-              className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-            >
-              {serverError}
-            </div>
+          className={cn(
+            "relative flex flex-col justify-between overflow-hidden p-8 transition-colors duration-200 sm:p-10 lg:col-span-5",
+            theme.authPanelBg
           )}
+        >
+          {/* Subtle Blueprint Dot-Grid inside Left Panel */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:radial-gradient(rgba(255,255,255,0.45)_1px,transparent_1px)] [background-size:20px_20px] [mask-image:radial-gradient(ellipse_90%_80%_at_25%_20%,#000_35%,transparent_100%)]"
+          />
 
-          {/* Success Banner */}
-          {isSubmittedSuccess && (
-            <div
-              role="alert"
-              className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-            >
-              <ShieldCheck
-                size={24}
-                weight="fill"
-                className="shrink-0 text-emerald-600 dark:text-emerald-400"
-              />
-              <div className="text-sm">
-                <p className="font-semibold">Đăng ký thành công!</p>
-                <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">
-                  Thông tin tài khoản của bạn đã được tiếp nhận. Đăng nhập để
-                  kích hoạt quyền Sentinel.
-                </p>
+          <div className="relative z-10 flex flex-col gap-6">
+            {/* Initial Sentinel Rank Badge */}
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-white backdrop-blur-md">
+                <ShieldChevron
+                  aria-hidden="true"
+                  size={14}
+                  weight="fill"
+                  className={theme.authPanelAccent}
+                />
+                <span>Cấp bậc khởi đầu: Sentinel Lv.1</span>
               </div>
             </div>
-          )}
 
-          {/* Quick Google SSO */}
-          <div className="flex flex-col gap-5">
-            <GoogleAuthButton
-              text="signup_with"
-              label="Đăng ký bằng Google"
-              onSuccess={handleGoogleOAuthSuccess}
-              onError={(err) => {
-                toast.error(err || "Kết nối Google OAuth 2.0 thất bại")
-              }}
-              isLoading={isGoogleLoading}
-              disabled={isSubmitting}
-            />
+            {/* Hero Title & Subtitle */}
+            <div className="space-y-2">
+              <h2 className="font-heading text-2xl font-bold tracking-[-0.025em] text-white sm:text-3xl">
+                Chung sức bảo vệ cộng đồng
+              </h2>
+              <p className="text-sm leading-relaxed text-slate-300/85">
+                Chung tay bảo vệ gia đình và cộng đồng mạng Việt Nam.
+              </p>
+            </div>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-[#D1DEFF] dark:bg-border" />
-              <span className="text-[11px] font-bold tracking-wider text-[#45464D] uppercase dark:text-muted-foreground">
-                HOẶC BIỂU MẪU
-              </span>
-              <div className="h-px flex-1 bg-[#D1DEFF] dark:bg-border" />
+            {/* Key Privileges Checklist */}
+            <div className="mt-1 flex flex-col gap-3">
+              <PrivilegePill
+                icon={
+                  <Sparkle
+                    aria-hidden="true"
+                    size={19}
+                    weight="fill"
+                    className={theme.authPanelAccent}
+                  />
+                }
+                title="Tính năng AI"
+                description="Tra cứu chuyên sâu Deepfake, STK lừa đảo, SMS độc hại."
+              />
+              <PrivilegePill
+                icon={
+                  <BellRinging
+                    aria-hidden="true"
+                    size={19}
+                    weight="fill"
+                    className="text-amber-300"
+                  />
+                }
+                title="Cảnh báo sớm 24h"
+                description="Cập nhật mối đe dọa, trạm phát giả mạo theo khu vực."
+              />
+              <PrivilegePill
+                icon={
+                  <SealCheck
+                    aria-hidden="true"
+                    size={19}
+                    weight="fill"
+                    className="text-emerald-400"
+                  />
+                }
+                title="Bảo chứng A05 & NCSC"
+                description="Được kết nối xử lý và xác thực chính thống."
+              />
+              <PrivilegePill
+                icon={
+                  <Gift
+                    aria-hidden="true"
+                    size={19}
+                    weight="fill"
+                    className="text-sky-300"
+                  />
+                }
+                title="Điểm thưởng hàng tháng"
+                description="Đổi bản quyền bảo mật số và đặc quyền công dân."
+              />
             </div>
           </div>
+
+          {/* Social Proof Stats Banner */}
+          <SocialProofBanner
+            avatars={[
+              { text: "AN", bg: "#E2E8F0", color: "#0F172A" },
+              { text: "TH", bg: "#CBD5E1", color: "#0F172A" },
+              { text: "DK", bg: "#BAE6FD", color: "#0C4A6E" },
+            ]}
+            badgeText="+128k"
+            title="128.450+ Người đã tham gia"
+            subtitle="Đang hoạt động trên toàn quốc"
+          />
+        </div>
+
+        {/* ─── Right Column: Registration Form Card ─── */}
+        <div className="flex flex-col p-6 sm:p-10 lg:col-span-7">
+          <div className="mx-auto w-full">
+            {/* Form Header */}
+            <div className="mb-6 space-y-1">
+              <h1 className="font-heading text-2xl font-bold tracking-[-0.025em] text-foreground sm:text-3xl">
+                Đăng ký tài khoản
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Tạo tài khoản cá nhân để lưu lịch sử kiểm tra và gửi báo cáo lừa
+                đảo.
+              </p>
+            </div>
+
+            {serverError && (
+              <div
+                role="alert"
+                className="mb-6 rounded-xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm font-medium text-rose-800 dark:text-rose-300"
+              >
+                {serverError}
+              </div>
+            )}
+
+            {/* Success Banner */}
+            {isSubmittedSuccess && (
+              <div
+                role="alert"
+                className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-emerald-800 dark:text-emerald-300"
+              >
+                <ShieldCheck
+                  aria-hidden="true"
+                  size={24}
+                  weight="fill"
+                  className="shrink-0 text-emerald-600 dark:text-emerald-400"
+                />
+                <div className="text-sm">
+                  <p className="font-semibold">Đăng ký thành công!</p>
+                  <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-300/90">
+                    Thông tin tài khoản của bạn đã được tiếp nhận. Đăng nhập để
+                    kích hoạt quyền Sentinel.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Google SSO */}
+            <div className="flex flex-col gap-5">
+              <GoogleAuthButton
+                text="signup_with"
+                label="Đăng ký bằng Google"
+                onSuccess={handleGoogleOAuthSuccess}
+                onError={(err) => {
+                  toast.error(err || "Kết nối Google OAuth 2.0 thất bại")
+                }}
+                isLoading={isGoogleLoading}
+                disabled={isSubmitting}
+              />
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-border dark:bg-white/10" />
+                <span className="text-xs font-medium text-muted-foreground">
+                  Hoặc điền biểu mẫu
+                </span>
+                <div className="h-px flex-1 bg-border dark:bg-white/10" />
+              </div>
+            </div>
 
           {/* Detailed Registration Form */}
           <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
@@ -629,32 +657,32 @@ export function RegisterIndividualForm() {
                 type="submit"
                 disabled={isSubmitting}
                 className={cn(
-                  "disabled:cursor-not-allowed disabled:opacity-60",
-                  "flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#131A33] px-6 text-sm font-bold text-white shadow-md transition-all",
-                  "hover:bg-[#131A33]/90 active:scale-[0.99] dark:bg-primary dark:hover:bg-primary/90"
+                  "flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full px-6 text-sm font-semibold transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60",
+                  theme.ctaButton
                 )}
               >
-                <ShieldCheck size={20} weight="fill" />
+                <ShieldCheck aria-hidden="true" size={18} weight="fill" />
                 <span>
-                  {isSubmitting ? "Đang xử lý..." : "Tạo Tài Khoản An Toàn"}
+                  {isSubmitting ? "Đang xử lý..." : "Tạo tài khoản an toàn"}
                 </span>
               </button>
             </div>
           </form>
 
           {/* Form Footer */}
-          <div className="mt-6 border-t border-[#EAEDFF] pt-4 text-center sm:text-left dark:border-border">
-            <p className="text-sm text-[#45464D] dark:text-muted-foreground">
+          <div className="mt-6 border-t border-border/80 pt-4 text-center sm:text-left dark:border-white/10">
+            <p className="text-sm text-muted-foreground">
               Đã có tài khoản?{" "}
               <Link
                 href="/login"
-                className="font-bold text-[#131B2E] underline underline-offset-2 hover:opacity-80 dark:text-foreground"
+                className="font-semibold text-foreground underline underline-offset-4 hover:opacity-80"
               >
                 Đăng nhập
               </Link>
             </p>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Google Registration Phone & OTP Verification Modal */}

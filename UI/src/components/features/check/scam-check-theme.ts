@@ -41,6 +41,8 @@ export interface ScamCheckThemeConfig {
   tier2Icon: string
   sidebarBg: string
   sidebarHighlight: string
+  authPanelBg: string
+  authPanelAccent: string
 }
 
 export const SCAM_CHECK_THEME_STORAGE_KEY = "scamshield.scam-check-theme"
@@ -104,6 +106,9 @@ export const SCAM_CHECK_THEMES: Record<ScamCheckThemeId, ScamCheckThemeConfig> =
         "border-slate-900/10 bg-[#F7FAFB]/90 dark:border-emerald-400/12 dark:bg-[#0D1524]/92",
       sidebarHighlight:
         "border-emerald-600/20 bg-emerald-500/[0.06] dark:border-emerald-400/20 dark:bg-emerald-500/10",
+      authPanelBg:
+        "bg-[#0B1420] text-slate-100 [background-image:radial-gradient(ellipse_90%_70%_at_15%_0%,rgba(16,185,129,0.28),transparent_68%)]",
+      authPanelAccent: "text-emerald-400",
     },
 
     "sentinel-crimson": {
@@ -162,6 +167,9 @@ export const SCAM_CHECK_THEMES: Record<ScamCheckThemeId, ScamCheckThemeConfig> =
         "border-stone-900/10 bg-[#FAF8F6]/90 dark:border-rose-400/12 dark:bg-[#191115]/92",
       sidebarHighlight:
         "border-rose-600/20 bg-rose-500/[0.06] dark:border-rose-400/20 dark:bg-rose-500/10",
+      authPanelBg:
+        "bg-[#170C11] text-stone-100 [background-image:radial-gradient(ellipse_90%_70%_at_15%_0%,rgba(244,63,94,0.28),transparent_68%)]",
+      authPanelAccent: "text-rose-400",
     },
 
     "cobalt-vault": {
@@ -220,6 +228,9 @@ export const SCAM_CHECK_THEMES: Record<ScamCheckThemeId, ScamCheckThemeConfig> =
         "border-blue-950/10 bg-[#F6F9FD]/90 dark:border-blue-400/12 dark:bg-[#0B1328]/92",
       sidebarHighlight:
         "border-blue-600/20 bg-blue-500/[0.06] dark:border-blue-400/20 dark:bg-blue-500/10",
+      authPanelBg:
+        "bg-[#091229] text-slate-100 [background-image:radial-gradient(ellipse_90%_70%_at_15%_0%,rgba(59,130,246,0.32),transparent_68%)]",
+      authPanelAccent: "text-blue-400",
     },
   }
 

@@ -33,6 +33,7 @@ import {
   PrivilegePill,
   SocialProofBanner,
 } from "@/components/features/auth/auth-shared-components"
+import { useScamCheckTheme } from "@/components/features/check/scam-check-theme"
 import {
   authServices,
   PartnerRegistrationOutcomeUnknownError,
@@ -268,6 +269,7 @@ function FileUploadBox({
 }
 
 export function RegisterPartnerForm() {
+  const { theme } = useScamCheckTheme()
   const [businessLicenseFiles, setBusinessLicenseFiles] = useState<File[]>([])
   const [ownershipProofFiles, setOwnershipProofFiles] = useState<File[]>([])
   const [authorizationFiles, setAuthorizationFiles] = useState<File[]>([])
@@ -304,49 +306,54 @@ export function RegisterPartnerForm() {
 
   // Khôi phục dữ liệu form, cooldown và trạng thái pop-up OTP khi chuyển trang hoặc tải lại trang
   useEffect(() => {
-    // 1. Khôi phục thông tin form đã điền
-    try {
-      const savedForm = sessionStorage.getItem(FORM_STORAGE_KEY)
-      if (savedForm) {
-        const parsed = JSON.parse(savedForm)
-        setForm((prev) => ({ ...prev, ...parsed }))
-      }
-    } catch {
-      // ignore
-    }
-
-    // 2. Khôi phục cooldown 60s
-    let remaining = 0
-    try {
-      const savedExpire = localStorage.getItem(COOLDOWN_STORAGE_KEY)
-      if (savedExpire) {
-        remaining = Math.ceil((parseInt(savedExpire, 10) - Date.now()) / 1000)
-        if (remaining > 0) {
-          setCooldown(remaining)
-        } else {
-          localStorage.removeItem(COOLDOWN_STORAGE_KEY)
+    const rafId = window.requestAnimationFrame(() => {
+      // 1. Khôi phục thông tin form đã điền
+      try {
+        const savedForm = sessionStorage.getItem(FORM_STORAGE_KEY)
+        if (savedForm) {
+          const parsed = JSON.parse(savedForm)
+          setForm((prev) => ({ ...prev, ...parsed }))
         }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
 
-    // 3. Khôi phục hồ sơ đang chờ xác nhận hoặc pop-up OTP.
-    try {
-      const pendingDraft = sessionStorage.getItem(PENDING_DRAFT_STORAGE_KEY)
-      if (pendingDraft) {
-        setPendingDraftToken(pendingDraft)
-        return
+      // 2. Khôi phục cooldown 60s
+      let remaining = 0
+      try {
+        const savedExpire = localStorage.getItem(COOLDOWN_STORAGE_KEY)
+        if (savedExpire) {
+          remaining = Math.ceil(
+            (parseInt(savedExpire, 10) - Date.now()) / 1000
+          )
+          if (remaining > 0) {
+            setCooldown(remaining)
+          } else {
+            localStorage.removeItem(COOLDOWN_STORAGE_KEY)
+          }
+        }
+      } catch {
+        // ignore
       }
-      if (
-        remaining > 0 &&
-        sessionStorage.getItem(OTP_OPEN_STORAGE_KEY) === "true"
-      ) {
-        setIsOtpOpen(true)
+
+      // 3. Khôi phục hồ sơ đang chờ xác nhận hoặc pop-up OTP.
+      try {
+        const pendingDraft = sessionStorage.getItem(PENDING_DRAFT_STORAGE_KEY)
+        if (pendingDraft) {
+          setPendingDraftToken(pendingDraft)
+          return
+        }
+        if (
+          remaining > 0 &&
+          sessionStorage.getItem(OTP_OPEN_STORAGE_KEY) === "true"
+        ) {
+          setIsOtpOpen(true)
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
+    })
+    return () => window.cancelAnimationFrame(rafId)
   }, [])
 
   // Lưu thông tin form vào sessionStorage để không bị mất dữ liệu khi rời trang
@@ -775,104 +782,129 @@ export function RegisterPartnerForm() {
   }
 
   return (
-    <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-12 lg:gap-10">
-      {/* ─── Left Column: Enterprise Partner Privileges Card ─── */}
-      <div
-        className={cn(
-          "relative flex flex-col justify-between overflow-hidden rounded-2xl p-8 sm:p-10 lg:col-span-5",
-          "shadow-xl"
-        )}
-        style={{
-          background:
-            "linear-gradient(96deg, #131A33 0%, #283044 50%, #000000 100%)",
-        }}
-      >
-        {/* Ambient Glow Orbs */}
+    <div
+      className={cn(
+        "rounded-3xl border p-1.5 transition-[border-color,box-shadow] duration-200",
+        theme.composerBezel
+      )}
+    >
+      <div className="grid grid-cols-1 items-stretch overflow-hidden rounded-2xl border border-black/8 bg-card/95 backdrop-blur-md lg:grid-cols-12 dark:border-white/10">
+        {/* ─── Left Column: Enterprise Partner Privileges Card ─── */}
         <div
-          className="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full opacity-60"
-          style={{
-            background: "rgba(208, 217, 253, 0.12)",
-            filter: "blur(32px)",
-          }}
-        />
-        <div
-          className="pointer-events-none absolute -bottom-12 -left-12 size-56 rounded-full opacity-50"
-          style={{
-            background: "rgba(201, 230, 255, 0.1)",
-            filter: "blur(24px)",
-          }}
-        />
+          className={cn(
+            "relative flex flex-col justify-between overflow-hidden p-8 transition-colors duration-200 sm:p-10 lg:col-span-5",
+            theme.authPanelBg
+          )}
+        >
+          {/* Subtle Blueprint Dot-Grid inside Left Panel */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:radial-gradient(rgba(255,255,255,0.45)_1px,transparent_1px)] [background-size:20px_20px] [mask-image:radial-gradient(ellipse_90%_80%_at_25%_20%,#000_35%,transparent_100%)]"
+          />
 
-        <div className="relative z-10 flex flex-col gap-6">
-          {/* Sentinel Enterprise Rank Badge */}
-          <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold tracking-wider text-[#DBE1FF] uppercase backdrop-blur-md">
-              <ShieldCheck size={15} weight="fill" className="text-[#DBE1FF]" />
-              <span>ĐỐI TÁC AN NINH SỐ: SENTINEL ENTERPRISE</span>
+          <div className="relative z-10 flex flex-col gap-6">
+            {/* Sentinel Enterprise Rank Badge */}
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-white backdrop-blur-md">
+                <ShieldCheck
+                  aria-hidden="true"
+                  size={15}
+                  weight="fill"
+                  className={theme.authPanelAccent}
+                />
+                <span>Đối tác an ninh số: Sentinel Enterprise</span>
+              </div>
+            </div>
+
+            {/* Hero Title & Subtitle */}
+            <div className="space-y-2">
+              <h2 className="font-heading text-2xl font-bold tracking-[-0.025em] text-white sm:text-3xl">
+                Bảo vệ thương hiệu &amp; danh tiếng số
+              </h2>
+              <p className="text-sm leading-relaxed text-slate-300/85">
+                Đồng hành cùng ScamShield, Trung tâm NCSC &amp; Cục An ninh mạng
+                A05 bảo vệ khách hàng khỏi nạn lừa đảo giả mạo.
+              </p>
+            </div>
+
+            {/* Key Privileges Checklist (Enterprise) */}
+            <div className="mt-1 flex flex-col gap-3">
+              <PrivilegePill
+                icon={
+                  <ShieldWarning
+                    aria-hidden="true"
+                    size={19}
+                    weight="fill"
+                    className={theme.authPanelAccent}
+                  />
+                }
+                title="Bảo vệ thương hiệu trước vấn nạn giả mạo"
+                description="Ngăn chặn kịp thời các chiến dịch phishing, SMS Brandname lậu và website lừa đảo mạo danh."
+              />
+              <PrivilegePill
+                icon={
+                  <Globe
+                    aria-hidden="true"
+                    size={19}
+                    weight="fill"
+                    className="text-sky-300"
+                  />
+                }
+                title="Cập nhật Whitelist hệ thống toàn quốc"
+                description="Đồng bộ hotline, domain và brandname chính chủ tới người dân, nhà mạng và các tổ chức tín dụng."
+              />
+              <PrivilegePill
+                icon={
+                  <ChartLineUp
+                    aria-hidden="true"
+                    size={19}
+                    weight="fill"
+                    className="text-emerald-400"
+                  />
+                }
+                title="Dashboard giám sát mạo danh Real-time"
+                description="Truy cập bảng điều khiển cảnh báo sớm các vector tấn công giả mạo tổ chức theo thời gian thực."
+              />
+              <PrivilegePill
+                icon={
+                  <Scales
+                    aria-hidden="true"
+                    size={19}
+                    weight="fill"
+                    className="text-amber-300"
+                  />
+                }
+                title="Hỗ trợ can thiệp pháp lý ưu tiên"
+                description="Cơ chế phối hợp xử lý và triệt phá nhanh từ các cơ quan điều tra chuyên trách."
+              />
             </div>
           </div>
 
-          {/* Hero Title & Subtitle */}
-          <div className="space-y-2">
-            <h2 className="font-heading text-3xl font-bold tracking-tight text-white lg:text-[34px]">
-              Bảo vệ thương hiệu & danh tiếng số
-            </h2>
-            <p className="text-sm leading-relaxed text-[#DAE2FD]/80">
-              Đồng hành cùng ScamShield, Trung tâm NCSC & Cục An ninh mạng A05
-              bảo vệ khách hàng khỏi nạn lừa đảo giả mạo.
-            </p>
-          </div>
-
-          {/* Key Privileges Checklist (Enterprise) */}
-          <div className="mt-2 flex flex-col gap-3">
-            <PrivilegePill
-              icon={<ShieldWarning size={20} weight="fill" />}
-              title="Bảo vệ thương hiệu trước vấn nạn giả mạo"
-              description="Ngăn chặn kịp thời các chiến dịch phishing, SMS Brandname lậu và website lừa đảo mạo danh."
-            />
-            <PrivilegePill
-              icon={<Globe size={20} weight="fill" />}
-              title="Cập nhật Whitelist hệ thống toàn quốc"
-              description="Đồng bộ hotline, domain và brandname chính chủ tới người dân, nhà mạng và các tổ chức tín dụng."
-            />
-            <PrivilegePill
-              icon={<ChartLineUp size={20} weight="fill" />}
-              title="Dashboard giám sát mạo danh Real-time"
-              description="Truy cập bảng điều khiển cảnh báo sớm các vector tấn công giả mạo tổ chức theo thời gian thực."
-            />
-            <PrivilegePill
-              icon={<Scales size={20} weight="fill" />}
-              title="Hỗ trợ can thiệp pháp lý ưu tiên"
-              description="Cơ chế phối hợp xử lý và triệt phá nhanh từ các cơ quan điều tra chuyên trách."
-            />
-          </div>
+          {/* Social Proof Footer Banner */}
+          <SocialProofBanner
+            avatars={[
+              { text: "VCB", bg: "#E2E8F0", color: "#0F172A" },
+              { text: "BIDV", bg: "#CBD5E1", color: "#0F172A" },
+              { text: "TCB", bg: "#BAE6FD", color: "#0C4A6E" },
+            ]}
+            badgeText="+520"
+            title="520+ Ngân hàng & Tổ chức đã tham gia"
+            subtitle="Hệ thống phòng vệ số liên kết chính thức"
+          />
         </div>
 
-        {/* Social Proof Footer Banner */}
-        <SocialProofBanner
-          avatars={[
-            { text: "VCB", bg: "#EAEDFF", color: "#131B2E" },
-            { text: "BIDV", bg: "#D0D9FD", color: "#555E7D" },
-            { text: "TCB", bg: "#C9E6FF", color: "#001E2F" },
-          ]}
-          badgeText="+520"
-          title="520+ Ngân hàng & Tổ chức đã tham gia"
-          subtitle="Hệ thống phòng vệ số liên kết chính thức"
-        />
-      </div>
-
-      {/* ─── Right Column: Enterprise Partner KYB & Whitelist Form ─── */}
-      <div className="flex flex-col rounded-2xl border border-[#E2E7FF] bg-white p-6 shadow-sm sm:p-10 lg:col-span-7 dark:border-border dark:bg-card">
-        <div className="mx-auto w-full">
-          {/* Form Header */}
-          <div className="mb-6">
-            <h1 className="font-heading text-3xl font-bold tracking-tight text-[#131B2E] dark:text-foreground">
-              Đăng Ký Đối Tác Doanh Nghiệp
-            </h1>
-            <p className="mt-1 text-sm text-[#45464D] dark:text-muted-foreground">
-              Bảo vệ thương hiệu, số tổng đài và tên miền chính thống.
-            </p>
-          </div>
+        {/* ─── Right Column: Enterprise Partner KYB & Whitelist Form ─── */}
+        <div className="flex flex-col p-6 sm:p-10 lg:col-span-7">
+          <div className="mx-auto w-full">
+            {/* Form Header */}
+            <div className="mb-6 space-y-1">
+              <h1 className="font-heading text-2xl font-bold tracking-[-0.025em] text-foreground sm:text-3xl">
+                Đăng ký đối tác doanh nghiệp
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Bảo vệ thương hiệu, số tổng đài và tên miền chính thống.
+              </p>
+            </div>
 
           {/* Registration completion */}
           {isSubmittedSuccess && (
@@ -1228,9 +1260,8 @@ export function RegisterPartnerForm() {
                     isGettingRecaptcha || !form.agreeCommitment || cooldown > 0
                   }
                   className={cn(
-                    "flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#131A33] px-6 text-sm font-bold text-white shadow-md transition-all",
-                    "hover:bg-[#131A33]/90 active:scale-[0.99] dark:bg-primary dark:hover:bg-primary/90",
-                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#131A33] disabled:active:scale-100 dark:disabled:hover:bg-primary"
+                    "flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full px-6 text-sm font-semibold transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
+                    theme.ctaButton
                   )}
                 >
                   {cooldown > 0 ? (
@@ -1374,13 +1405,17 @@ export function RegisterPartnerForm() {
               type="button"
               onClick={handleStatusRetry}
               disabled={checkingStatus}
-              className="mt-5 h-11 w-full rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
+              className={cn(
+                "mt-5 h-11 w-full cursor-pointer rounded-full px-4 text-sm font-semibold disabled:opacity-50",
+                theme.ctaButton
+              )}
             >
               {checkingStatus ? "Đang kiểm tra..." : "Kiểm tra trạng thái"}
             </button>
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
