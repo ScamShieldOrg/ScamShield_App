@@ -7,11 +7,13 @@ import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.constant.ReportEvidenceType;
 import com.be.scamshield.constant.ReportStatus;
 import com.be.scamshield.dto.request.ModeratorDecisionRequest;
+import com.be.scamshield.dto.request.BlacklistResourceFilterRequest;
 import com.be.scamshield.entity.*;
 import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.serviceImpl.ReportAssignmentService;
 import com.be.scamshield.serviceImpl.ModeratorReportServiceImpl;
+import com.be.scamshield.serviceImpl.ResourceServiceImpl;
 import com.be.scamshield.support.PostgresIntegrationTest;
 import com.be.scamshield.util.ModeratorReportScope;
 import jakarta.persistence.EntityManager;
@@ -36,7 +38,8 @@ import static org.mockito.Mockito.when;
 
 @DataJpaTest(showSql = false)
 @ActiveProfiles("test")
-@Import({ReportAssignmentService.class, ModeratorReportServiceImpl.class, EvidenceComparisonService.class, EvidenceAnalysisProperties.class})
+@Import({ReportAssignmentService.class, ModeratorReportServiceImpl.class, EvidenceComparisonService.class,
+        EvidenceAnalysisProperties.class, ResourceServiceImpl.class})
 class ReportAssignmentPersistenceTest extends PostgresIntegrationTest {
     @Autowired EntityManager em;
     @Autowired ReportAssignmentService service;
@@ -44,6 +47,7 @@ class ReportAssignmentPersistenceTest extends PostgresIntegrationTest {
     @Autowired ModeratorReportServiceImpl moderatorReports;
     @Autowired ModerationActionRepository moderation;
     @Autowired ResourceRepository resources;
+    @Autowired ResourceServiceImpl resourceService;
     @MockitoBean SupabaseStorageService storage;
 
     @Test
@@ -57,6 +61,7 @@ class ReportAssignmentPersistenceTest extends PostgresIntegrationTest {
                 .createdAt(now).updatedAt(now).build();
         em.persist(indicator);
         Report report = Report.builder().reporterUser(reporter).assignedModerator(moderator).indicator(indicator)
+                .description("Đối tượng yêu cầu nộp phí trước khi nhận quà.")
                 .status(ReportStatus.IN_REVIEW).createdAt(now).updatedAt(now).build();
         em.persist(report);
         ReportEvidence evidence = ReportEvidence.builder().report(report).evidenceType(ReportEvidenceType.PNG)
@@ -85,7 +90,6 @@ class ReportAssignmentPersistenceTest extends PostgresIntegrationTest {
         assertThat(resources.findBlackListImageKeys(entry.getId())).containsExactly(key, secondKey);
         assertThat(resources.findBlackListResources(null, null, PageRequest.of(0, 5)).getContent())
                 .singleElement().satisfies(row -> assertThat(row.getPublicImageCount()).isEqualTo(2));
-
         String firstUrl = "https://storage.example/published-first";
         String secondUrl = "https://storage.example/published-second";
         when(storage.createReportPublicationImageUrl(key)).thenReturn(firstUrl);

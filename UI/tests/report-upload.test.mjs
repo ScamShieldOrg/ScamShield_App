@@ -48,10 +48,10 @@ test("OCR masks cover the number and email without covering surrounding words", 
     words(["Email", "user@example.test", "để", "liên hệ"], 38),
     words(["SĐT", "090", "123", "4567"], 56),
   ], 100, 70), [
-    { label: "Mã OTP", mask: { x: 22, y: 0, width: 26, height: 16 } },
-    { label: "Mã OTP", mask: { x: 0, y: 17, width: 23, height: 18 } },
-    { label: "Email", mask: { x: 22, y: 35, width: 26, height: 18 } },
-    { label: "Số điện thoại, tài khoản hoặc giấy tờ", mask: { x: 22, y: 53, width: 76, height: 17 } },
+    { text: "135790", mask: { x: 22, y: 0, width: 26, height: 16 } },
+    { text: "123456", mask: { x: 0, y: 17, width: 23, height: 18 } },
+    { text: "user@example.test", mask: { x: 22, y: 35, width: 26, height: 18 } },
+    { text: "090 123 4567", mask: { x: 22, y: 53, width: 76, height: 17 } },
   ])
 })
 
@@ -65,7 +65,7 @@ test("OCR uses OTP context from the adjacent line and masks only the code", () =
   assert.deepEqual(findEvidenceSuggestions([
     [{ text: "OTP:", bbox: { x0: 20, y0: 0, x1: 45, y1: 10 } }],
     [{ text: "123456", bbox: { x0: 0, y0: 20, x1: 40, y1: 30 } }],
-  ], 100, 70), [{ label: "Mã OTP", mask: { x: 0, y: 17, width: 43, height: 16 } }])
+  ], 100, 70), [{ text: "123456", mask: { x: 0, y: 17, width: 43, height: 16 } }])
 })
 
 test("OCR abort terminates the worker even while language data is loading", async () => {

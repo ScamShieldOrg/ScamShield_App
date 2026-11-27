@@ -6,6 +6,7 @@ import { validateReportFiles } from "@/features/report/utils/report-upload"
 export interface ReportAttachment {
   id: string
   file: File
+  originalFile: File
   previewUrl: string
   reviewed: boolean
 }
@@ -41,7 +42,7 @@ export function useReportAttachments() {
       const id = crypto.randomUUID()
       const previewUrl = URL.createObjectURL(file)
       urls.current.set(id, previewUrl)
-      return { id, file, previewUrl, reviewed: file.name.toLowerCase().endsWith(".pdf") }
+      return { id, file, originalFile: file, previewUrl, reviewed: file.name.toLowerCase().endsWith(".pdf") }
     })
     setAttachments(previous => [...previous, ...added])
   }
@@ -61,7 +62,7 @@ export function useReportAttachments() {
     const previewUrl = URL.createObjectURL(file)
     urls.current.set(id, previewUrl)
     URL.revokeObjectURL(previousUrl)
-    setAttachments(previous => previous.map(item => item.id === id ? { id, file, previewUrl, reviewed: true } : item))
+    setAttachments(previous => previous.map(item => item.id === id ? { ...item, file, previewUrl, reviewed: true } : item))
     setEditingId(null)
     setError(null)
   }

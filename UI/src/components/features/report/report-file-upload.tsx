@@ -225,6 +225,7 @@ export function ReportFileUpload({
             <EvidenceImageEditor
               key={editing.id}
               source={editing.previewUrl}
+              originalFile={editing.file === editing.originalFile ? undefined : editing.originalFile}
               fileName={editing.file.name}
               saveLabel="Xác nhận"
               onSave={file => onReview(editing.id, file)}

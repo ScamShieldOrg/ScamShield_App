@@ -635,7 +635,35 @@ class ModeratorReportServiceImplTest {
     }
 
     @Test
-    void makeDecision_WhenReactivatingRetractedIndicator_NonAdmin_ThrowsBadRequestException() {
+    void makeDecision_WhenIndicatorAlreadyActive_PreservesFirstApproval() {
+        Report firstReport = Report.builder().id(1890L).status(ReportStatus.APPROVED).build();
+        LocalDateTime firstApprovalAt = LocalDateTime.of(2024, 1, 15, 10, 0);
+        ConfirmedIndicator existing = ConfirmedIndicator.builder()
+                .indicator(testIndicator)
+                .sourceReport(firstReport)
+                .confirmedAt(firstApprovalAt)
+                .publicReason("Cảnh báo từ báo cáo đầu tiên")
+                .status(ConfirmedIndicatorStatus.ACTIVE)
+                .build();
+        when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
+        when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
+        when(userRepository.findByIdForUpdate(testUser.getId())).thenReturn(Optional.of(testUser));
+        when(confirmedIndicatorRepository.findByIndicatorId(100L)).thenReturn(Optional.of(existing));
+        when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
+
+        service.makeDecision(1891L, moderatorPrincipal, ModeratorDecisionRequest.builder()
+                .decision(ModeratorDecisionRequest.DecisionType.APPROVE).build());
+
+        assertThat(testReport.getStatus()).isEqualTo(ReportStatus.APPROVED);
+        assertThat(existing.getSourceReport()).isSameAs(firstReport);
+        assertThat(existing.getConfirmedAt()).isEqualTo(firstApprovalAt);
+        assertThat(existing.getPublicReason()).isEqualTo("Cảnh báo từ báo cáo đầu tiên");
+        verify(confirmedIndicatorRepository, never()).save(any());
+    }
+
+    @Test
+    void makeDecision_WhenIndicatorRetracted_NonAdmin_ThrowsBadRequestException() {
         ConfirmedIndicator retractedIndicator = ConfirmedIndicator.builder()
                 .id(50L)
                 .indicator(testIndicator)
@@ -646,7 +674,6 @@ class ModeratorReportServiceImplTest {
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(99L)).thenReturn(Optional.of(moderatorUser));
-        when(userRepository.findByIdForUpdate(testUser.getId())).thenReturn(Optional.of(testUser));
         when(confirmedIndicatorRepository.findByIndicatorId(100L)).thenReturn(Optional.of(retractedIndicator));
 
         ModeratorDecisionRequest request = ModeratorDecisionRequest.builder()
@@ -656,13 +683,13 @@ class ModeratorReportServiceImplTest {
 
         assertThatThrownBy(() -> service.makeDecision(1891L, moderatorPrincipal, request))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Chỉ số này đã được gỡ bỏ khỏi Blacklist qua quy trình khiếu nại (Dispute)");
+                .hasMessageContaining("Không thể phê duyệt báo cáo cho chỉ số đã thu hồi");
 
         verify(confirmedIndicatorRepository, never()).save(any());
     }
 
     @Test
-    void makeDecision_WhenReactivatingRetractedIndicator_AsAdministrator_WithoutAssignment_Success() {
+    void makeDecision_WhenIndicatorRetracted_AsAdministrator_ThrowsBadRequestException() {
         ConfirmedIndicator retractedIndicator = ConfirmedIndicator.builder()
                 .id(50L)
                 .indicator(testIndicator)
@@ -690,22 +717,22 @@ class ModeratorReportServiceImplTest {
 
         when(reportRepository.findById(1891L)).thenReturn(Optional.of(testReport));
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
-        when(userRepository.findByIdForUpdate(testUser.getId())).thenReturn(Optional.of(testUser));
         when(confirmedIndicatorRepository.findByIndicatorId(100L)).thenReturn(Optional.of(retractedIndicator));
-        when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(reportEvidenceRepository.findByReportId(1891L)).thenReturn(List.of(testEvidence));
 
         ModeratorDecisionRequest request = ModeratorDecisionRequest.builder()
                 .decision(ModeratorDecisionRequest.DecisionType.APPROVE)
                 .reason("Quản trị viên xác thực căn cứ vi phạm mới xác đáng sau khi gỡ blacklist")
                 .build();
 
-        ModeratorReportResponse response = service.makeDecision(1891L, adminPrincipal, request);
+        assertThatThrownBy(() -> service.makeDecision(1891L, adminPrincipal, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Không thể phê duyệt báo cáo cho chỉ số đã thu hồi");
 
-        assertThat(retractedIndicator.getStatus()).isEqualTo(ConfirmedIndicatorStatus.ACTIVE);
-        assertThat(retractedIndicator.getRetractedAt()).isNull();
-        assertThat(retractedIndicator.getRetractionReason()).isNull();
-        verify(confirmedIndicatorRepository, times(1)).save(retractedIndicator);
+        assertThat(retractedIndicator.getStatus()).isEqualTo(ConfirmedIndicatorStatus.RETRACTED);
+        assertThat(retractedIndicator.getRetractedAt()).isNotNull();
+        assertThat(retractedIndicator.getRetractionReason()).isEqualTo("Dispute accepted");
+        verify(reportRepository, never()).save(any());
+        verify(confirmedIndicatorRepository, never()).save(any());
         verify(reviewAssignments, never()).requireAssigned(any(), eq(adminPrincipal));
     }
 

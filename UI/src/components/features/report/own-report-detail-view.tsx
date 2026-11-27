@@ -601,7 +601,7 @@ export function OwnReportDetailView({
                   <section className={cn(cardClass, "space-y-4")} aria-labelledby="report-content-title">
                     <h2 id="report-content-title" className={sectionHeadingClass}>
                       <span className={sectionIconClass}><FileText size={19} aria-hidden="true" /></span>
-                      Nội dung báo cáo
+                      Mô tả ngắn gọn hành vi
                     </h2>
                     <p className="max-w-prose text-sm leading-7 whitespace-pre-wrap [overflow-wrap:anywhere]">
                       {report.description || "Chưa có mô tả."}

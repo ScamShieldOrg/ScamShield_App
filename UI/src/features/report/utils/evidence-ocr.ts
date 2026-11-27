@@ -1,12 +1,12 @@
 export type EvidenceMask = { x: number; y: number; width: number; height: number }
 type Word = { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }
-export type EvidenceSuggestion = { mask: EvidenceMask; label: string }
+export type EvidenceSuggestion = { mask: EvidenceMask; text: string }
 
 const patterns = [
-  { label: "Email", regex: /[\w.%+-]+@[\w.-]+\.[a-z]{2,}/gi },
-  { label: "Mã OTP", regex: /\b(?:OTP|PIN)[ \t]*[:=-]?[ \t]*(?:\n[ \t]*)?(\d{4,8})\b/gi, valueOffset: "end" },
-  { label: "Mã OTP", regex: /\b(\d{4,8})[ \t]*(?:\n[ \t]*)?(?:là\s+|is\s+)?(?:mã\s+)?(?:OTP|PIN)\b/gi, valueOffset: "start" },
-  { label: "Số điện thoại, tài khoản hoặc giấy tờ", regex: /(?<!\d)\+?\d(?:[ .()-]?\d){8,18}(?!\d)/g },
+  { regex: /[\w.%+-]+@[\w.-]+\.[a-z]{2,}/gi },
+  { regex: /\b(?:OTP|PIN)[ \t]*[:=-]?[ \t]*(?:\n[ \t]*)?(\d{4,8})\b/gi, valueOffset: "end" },
+  { regex: /\b(\d{4,8})[ \t]*(?:\n[ \t]*)?(?:là\s+|is\s+)?(?:mã\s+)?(?:OTP|PIN)\b/gi, valueOffset: "start" },
+  { regex: /(?<!\d)\+?\d(?:[ .()-]?\d){8,18}(?!\d)/g },
 ]
 
 export function findEvidenceSuggestions(lines: Word[][], width: number, height: number): EvidenceSuggestion[] {
@@ -19,7 +19,7 @@ export function findEvidenceSuggestions(lines: Word[][], width: number, height: 
       text += word.text + " "
       return { start, end: text.length - 1, bbox: word.bbox }
     })
-    for (const { label, regex, valueOffset } of patterns) {
+    for (const { regex, valueOffset } of patterns) {
       for (const match of text.matchAll(regex)) {
         const matchEnd = match.index + match[0].length
         if (text.slice(0, match.index).includes("\n")) continue
@@ -34,7 +34,7 @@ export function findEvidenceSuggestions(lines: Word[][], width: number, height: 
         if (right > x && bottom > y) {
           const key = [x, y, right, bottom].join(",")
           if (!suggestions.has(key)) {
-            suggestions.set(key, { label, mask: { x, y, width: right - x, height: bottom - y } })
+            suggestions.set(key, { text: text.slice(start, end), mask: { x, y, width: right - x, height: bottom - y } })
           }
         }
       }

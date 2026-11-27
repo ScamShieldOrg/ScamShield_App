@@ -56,9 +56,11 @@ class ResourceControllerTest {
 
     @Test
     void blacklistBindsFiltersAndReturnsPaginatedItemsWithoutAuthentication() throws Exception {
-        var item = BlacklistResourceResponse.builder().id(3L).title("0900000000").severity("HIGH").build();
+        var item = BlacklistResourceResponse.builder().id(3L).title("0900000000").severity("HIGH")
+                .build();
+        var legacyItem = BlacklistResourceResponse.builder().id(4L).build();
         when(service.getBlackListResources(any())).thenReturn(
-                new PaginatedResponse<>(List.of(item), 1, 12, 3, 5, true, true));
+                new PaginatedResponse<>(List.of(item, legacyItem), 1, 12, 3, 5, true, true));
 
         mvc.perform(get("/api/resources/blacklist")
                         .param("page", "1").param("size", "5")

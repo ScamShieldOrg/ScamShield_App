@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, Warning, Bell, List } from "@phosphor-icons/react"
+import { House, Bell, List } from "@phosphor-icons/react"
 import { getActiveUserNavItem } from "@/config/navigation/user-nav"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 
@@ -20,7 +20,7 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[#C6C6CE]/40 bg-[#FAF8FF]/90 px-4 backdrop-blur-md sm:px-6 dark:border-border dark:bg-background/90">
       {/* Left side: Mobile Menu Toggle & Breadcrumbs & Connection Badge */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
         {/* Mobile menu button */}
         <button
           type="button"
@@ -32,32 +32,23 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
         </button>
 
         {/* Breadcrumb path */}
-        <div className="flex items-center gap-2 text-xs font-semibold p-10">
+        <nav aria-label="Đường dẫn trang" className="flex min-w-0 items-center gap-2 text-xs font-semibold">
           <Link
-            href="/user"
-            className="flex items-center gap-1.5 text-[#45464D] hover:text-[#131B2E] dark:text-muted-foreground dark:hover:text-foreground"
+            href="/"
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            <House size={15} weight="bold" />
-            <span className="hidden sm:inline">Cổng Người Dùng</span>
+            <House size={16} weight="bold" aria-hidden="true" />
+            Trang chủ
           </Link>
-          <span className="text-[#C6C6CE]">/</span>
-          <span className="max-w-[140px] truncate font-bold text-[#131B2E] sm:max-w-none dark:text-foreground">
+          <span aria-hidden="true" className="text-muted-foreground">/</span>
+          <span aria-current="page" className="truncate font-bold text-foreground">
             {pageTitle}
           </span>
-        </div>
+        </nav>
       </div>
 
-      {/* Right side: Quick Action Button & Notification Bell & User Avatar */}
-      <div className="flex items-center gap-3">
-        {/* Quick Alert CTA */}
-        <Link
-          href="/user/reports/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFDAD6] px-3 py-1.5 text-xs font-bold text-[#93000A] shadow-xs transition-all hover:bg-[#FFDAD6]/80 active:scale-95 dark:bg-rose-950/60 dark:text-rose-300 dark:hover:bg-rose-950/80"
-        >
-          <Warning size={15} weight="fill" />
-          <span className="xs:inline hidden">Tạo Cảnh Báo Nhanh</span>
-        </Link>
-
+      {/* Right side: Notification Bell & User Avatar */}
+      <div className="ml-2 flex shrink-0 items-center gap-3">
         {/* Notification Bell */}
         <Link
           href="/user/notifications"

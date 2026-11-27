@@ -1,7 +1,11 @@
 "use client"
 
 import { getReportTargetTypeWarning } from "@/features/report/utils/report-target"
-import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
+import {
+  formatReportPhoneInput,
+  isCompleteReportPhone,
+  limitReportPhoneInput,
+} from "@/features/report/utils/report-phone"
 
 import { Combobox } from "@base-ui/react/combobox"
 
@@ -212,7 +216,10 @@ function ReportFormContent({
   const submittingRef = useRef(false)
   const activeRef = useRef(true)
   const isBusy = Boolean(isLoading || isSubmitting)
-  const typeWarning = getReportTargetTypeWarning(threatType, targetIdentifier)
+  const typeWarning =
+    threatType === "PHONE" && targetIdentifier.trim() && !isCompleteReportPhone(targetIdentifier)
+      ? "Nhập 10 chữ số bắt đầu bằng 0, hoặc +84 theo sau bởi 9 chữ số (bỏ số 0 đầu)."
+      : getReportTargetTypeWarning(threatType, targetIdentifier)
   const showTypeWarning = (targetTouched || hasAttemptedSubmit) && typeWarning
   const isComplete = Boolean(
     threatType &&
@@ -445,6 +452,7 @@ function ReportFormContent({
                 ref={targetRef}
                 id="report-target-identifier"
                 type="text"
+                inputMode={threatType === "PHONE" ? "tel" : undefined}
                 required
                 disabled={!threatType}
                 aria-invalid={targetMissing || Boolean(showTypeWarning)}
@@ -460,13 +468,18 @@ function ReportFormContent({
                     ? formatReportPhoneInput(targetIdentifier)
                     : targetIdentifier
                 }
-                onChange={(e) => setTargetIdentifier(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setTargetIdentifier((previous) =>
+                    threatType === "PHONE" ? limitReportPhoneInput(value, previous) : value
+                  )
+                }}
                 onBlur={() => setTargetTouched(true)}
                 placeholder={
                   !threatType
                     ? "Chọn loại đối tượng báo cáo trước"
                     : threatType === "PHONE"
-                      ? "Nhập số điện thoại kẻ lừa đảo..."
+                      ? "VD: 0912 345 678 hoặc +84 912 345 678"
                       : threatType === "WEBSITE"
                         ? "Nhập URL website giả mạo..."
                         : "Nhập số tài khoản ngân hàng thụ hưởng..."

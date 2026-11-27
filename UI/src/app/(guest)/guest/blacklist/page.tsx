@@ -1,7 +1,5 @@
 "use client"
 
-import { BlacklistEvidenceImage } from "@/components/features/resources/blacklist-evidence-image"
-
 import { Suspense, useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -1094,10 +1092,6 @@ function GuestBlacklistContent({
                   {selectedBlacklistItem.title}
                 </p>
               </div>
-
-              {selectedBlacklistItem.hasPublicImage && (
-                <BlacklistEvidenceImage key={selectedBlacklistItem.id} itemId={selectedBlacklistItem.id} />
-              )}
 
               {/* Technical Dossier Grid */}
               <div className="grid grid-cols-2 gap-3">

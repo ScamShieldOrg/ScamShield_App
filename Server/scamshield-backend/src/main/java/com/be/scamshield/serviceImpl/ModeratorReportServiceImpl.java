@@ -1,5 +1,6 @@
 package com.be.scamshield.serviceImpl;
 
+import com.be.scamshield.constant.IndicatorType;
 import com.be.scamshield.constant.NotificationType;
 import com.be.scamshield.constant.ReportEvidenceType;
 import com.be.scamshield.external.SupabaseStorageService;
@@ -248,6 +249,15 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             throw new BadRequestException("Không thể phê duyệt báo cáo vì đối tượng đang thuộc danh sách tin cậy.");
         }
 
+        boolean createsBlacklistEntry = false;
+        if (newReportStatus == ReportStatus.APPROVED && report.getIndicator() != null) {
+            var existingConfirmed = confirmedIndicatorRepository.findByIndicatorId(report.getIndicator().getId());
+            if (existingConfirmed.filter(entry -> entry.getStatus() == ConfirmedIndicatorStatus.RETRACTED).isPresent()) {
+                throw new BadRequestException("Chỉ số này đã được gỡ bỏ khỏi Blacklist. Không thể phê duyệt báo cáo cho chỉ số đã thu hồi.");
+            }
+            createsBlacklistEntry = existingConfirmed.isEmpty();
+        }
+
         if (publicEvidenceIds.size() != publicImages.size()
                 || new HashSet<>(publicEvidenceIds).size() != publicEvidenceIds.size()) {
             throw new BadRequestException("Mỗi ảnh công khai phải tương ứng với một minh chứng riêng");
@@ -365,37 +375,17 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
             }
         }
 
-        // If APPROVE: Add/Reactivate ConfirmedIndicator (Blacklist) for the indicator
-        if (request.getDecision() == ModeratorDecisionRequest.DecisionType.APPROVE && report.getIndicator() != null) {
-            Optional<ConfirmedIndicator> existingConfirmedOpt = confirmedIndicatorRepository.findByIndicatorId(report.getIndicator().getId());
-            if (existingConfirmedOpt.isPresent()) {
-                ConfirmedIndicator existing = existingConfirmedOpt.get();
-                if (existing.getStatus() == ConfirmedIndicatorStatus.RETRACTED) {
-                    if (!isAdmin) {
-                        throw new BadRequestException("Chỉ số này đã được gỡ bỏ khỏi Blacklist qua quy trình khiếu nại (Dispute). Để bảo vệ khỏi tình trạng bão báo cáo, việc kích hoạt lại Blacklist yêu cầu thẩm định cấp Quản trị viên (ADMIN) kèm căn cứ vi phạm mới.");
-                    }
-                }
-                existing.setStatus(ConfirmedIndicatorStatus.ACTIVE);
-                existing.setRetractedAt(null);
-                existing.setRetractionReason(null);
-                existing.setConfirmedAt(now);
-                existing.setConfirmedByUser(moderatorUser);
-                existing.setSourceReport(report);
-                existing.setCategory(report.getCategory());
-                existing.setPublicReason(PUBLIC_APPROVAL_REASON);
-                confirmedIndicatorRepository.save(existing);
-            } else {
-                ConfirmedIndicator newConfirmed = ConfirmedIndicator.builder()
-                        .indicator(report.getIndicator())
-                        .category(report.getCategory())
-                        .status(ConfirmedIndicatorStatus.ACTIVE)
-                        .confirmedByUser(moderatorUser)
-                        .sourceReport(report)
-                        .confirmedAt(now)
-                        .publicReason(PUBLIC_APPROVAL_REASON)
-                        .build();
-                confirmedIndicatorRepository.save(newConfirmed);
-            }
+        if (createsBlacklistEntry) {
+            ConfirmedIndicator newConfirmed = ConfirmedIndicator.builder()
+                    .indicator(report.getIndicator())
+                    .category(report.getCategory())
+                    .status(ConfirmedIndicatorStatus.ACTIVE)
+                    .confirmedByUser(moderatorUser)
+                    .sourceReport(report)
+                    .confirmedAt(now)
+                    .publicReason(PUBLIC_APPROVAL_REASON)
+                    .build();
+            confirmedIndicatorRepository.save(newConfirmed);
         }
 
         for (var publication : publicationImages.entrySet()) {
@@ -560,6 +550,14 @@ public class ModeratorReportServiceImpl implements IModeratorReportService {
 
                 searchPredicates.add(cb.like(cb.lower(indicatorJoin.get("normalizedValue")), searchLike));
                 searchPredicates.add(cb.like(cb.lower(indicatorJoin.get("displayValue")), searchLike));
+                String compactNumber = searchTrim.replaceAll("[\\s\\p{Z}]+", "");
+                if (!compactNumber.equals(searchTrim) && compactNumber.matches("[0-9]+")) {
+                    String numberLike = "%" + compactNumber + "%";
+                    searchPredicates.add(cb.and(
+                            cb.equal(indicatorJoin.get("type"), IndicatorType.PHONE),
+                            cb.like(indicatorJoin.get("normalizedValue"), numberLike)));
+                    searchPredicates.add(cb.like(userJoin.get("phoneNumber"), numberLike));
+                }
                 searchPredicates.add(cb.like(cb.lower(categoryJoin.get("name")), searchLike));
                 searchPredicates.add(cb.like(cb.lower(categoryJoin.get("code")), searchLike));
                 searchPredicates.add(cb.like(cb.lower(userJoin.get("fullName")), searchLike));

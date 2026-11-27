@@ -96,6 +96,30 @@ class ModeratorQueueBatchPersistenceTest extends PostgresIntegrationTest {
         assertThat(first).usingRecursiveComparison().ignoringFields("evidences", "indicatorContext", "reporterContext").isEqualTo(detail);
     }
 
+    @Test
+    void queueFindsPhoneIndicatorWhenTheSearchContainsSpaces() {
+        LocalDateTime now = LocalDateTime.now().minusHours(1);
+        User moderator = user(1000);
+        User reporter = user(0);
+        Indicator phone = Indicator.builder().type(IndicatorType.PHONE)
+                .normalizedValue("0912345678").displayValue("0912345678")
+                .createdAt(now).updatedAt(now).build();
+        em.persist(phone);
+        Report matching = report(reporter, moderator, phone, ReportStatus.IN_REVIEW, now);
+        report(reporter, moderator, indicator("0912345678.example", now), ReportStatus.IN_REVIEW, now);
+        em.flush();
+        em.clear();
+
+        UserPrincipal viewer = UserPrincipal.builder().id(moderator.getId()).role("MODERATOR").build();
+        ModeratorReportFilterRequest filter = ModeratorReportFilterRequest.builder()
+                .tab("IN_REVIEW").search("0912 345 678").build();
+
+        var result = service.getReportQueue(filter, PageRequest.of(0, 10), viewer);
+
+        assertThat(result.getData()).singleElement().satisfies(item ->
+                assertThat(item.getRawId()).isEqualTo(matching.getId()));
+    }
+
     private User user(int index) {
         User user = User.builder().fullName("User " + index).email("batch-" + index + "@example.test")
                 .phoneNumber(String.format("09%08d", index)).passwordHash("test").status("ACTIVE").build();

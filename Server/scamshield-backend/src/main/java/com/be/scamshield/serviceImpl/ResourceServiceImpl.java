@@ -4,6 +4,7 @@ import com.be.scamshield.dto.PaginatedResponse;
 import com.be.scamshield.dto.request.BlacklistResourceFilterRequest;
 import com.be.scamshield.dto.request.WhitelistResourceFilterRequest;
 import com.be.scamshield.dto.response.BlacklistResourceResponse;
+import com.be.scamshield.dto.response.BlacklistSourceReportResponse;
 import com.be.scamshield.dto.response.WhitelistResourceResponse;
 import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.exception.ResourceNotFoundException;
@@ -53,11 +54,19 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public PaginatedResponse<BlacklistResourceResponse> getBlackListResources(BlacklistResourceFilterRequest filter) {
-        Page<BlacklistResourceResponse> page = resourceRepository.findBlackListResources(
+        Page<BlacklistResourceProjection> rows = resourceRepository.findBlackListResources(
                 keyword(filter.getKeyword()),
                 StringUtils.hasText(filter.getResourceType()) ? filter.getResourceType().trim() : null,
                 PageRequest.of(filter.getPage(), filter.getSize())
-        ).map(this::toResponse);
+        );
+        List<Long> ids = rows.getContent().stream().map(BlacklistResourceProjection::getId).toList();
+        Map<Long, List<String>> publicEvidence = ids.isEmpty() ? Map.of()
+                : resourceRepository.findPublicEvidenceForBlacklistIds(ids).stream()
+                .collect(Collectors.groupingBy(ResourceRepository.PublicEvidenceRow::getBlacklistId,
+                        Collectors.mapping(row -> evidenceStorage.createReportPublicationImageUrl(row.getObjectKey()),
+                                Collectors.toList())));
+        Page<BlacklistResourceResponse> page = rows.map(row ->
+                toResponse(row, publicEvidence.getOrDefault(row.getId(), List.of())));
         return PaginatedResponse.buildPaginatedResponse(page);
     }
 
@@ -110,11 +119,18 @@ public class ResourceServiceImpl implements IResourceService {
                 ? entry.getIndicator().getDisplayValue() : entry.getIndicator().getNormalizedValue();
     }
 
-    private BlacklistResourceResponse toResponse(BlacklistResourceProjection row) {
+    private BlacklistResourceResponse toResponse(BlacklistResourceProjection row, List<String> publicEvidenceUrls) {
         Severity severity = Severity.fromWarningCount(row.getWarningCount());
         return BlacklistResourceResponse.builder()
                 .id(row.getId())
                 .indicatorId(row.getIndicatorId())
+                .sourceReport(row.getSourceReportId() == null ? null : BlacklistSourceReportResponse.builder()
+                        .id(row.getSourceReportId())
+                        .publicEvidenceUrls(publicEvidenceUrls)
+                        .description(row.getSourceReportDescription())
+                        .categoryName(row.getSourceReportCategoryName())
+                        .createdAt(row.getSourceReportCreatedAt())
+                        .build())
                 .resourceType(row.getResourceType())
                 .title(row.getTitle())
                 .categoryCode(row.getCategoryCode())

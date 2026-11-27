@@ -21,6 +21,10 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
                    cast(i.type as string) AS resourceType,
                    COALESCE(i.displayValue, i.normalizedValue) AS title,
                    ci.publicReason AS description,
+                   source.id AS sourceReportId,
+                   source.description AS sourceReportDescription,
+                   source.createdAt AS sourceReportCreatedAt,
+                   sourceCategory.name AS sourceReportCategoryName,
                    sc.code AS categoryCode,
                    sc.name AS categoryName,
                    sc.description AS categoryDescription,
@@ -38,6 +42,8 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
             FROM ConfirmedIndicator ci
             JOIN ci.indicator i
             LEFT JOIN ci.category sc
+            LEFT JOIN ci.sourceReport source ON source.status = com.be.scamshield.constant.ReportStatus.APPROVED
+            LEFT JOIN source.category sourceCategory
             WHERE ci.status = com.be.scamshield.constant.ConfirmedIndicatorStatus.ACTIVE
               AND (:resourceType IS NULL OR cast(i.type as string) = :resourceType)
               AND (:keyword IS NULL
@@ -78,7 +84,29 @@ public interface ResourceRepository extends JpaRepository<ConfirmedIndicator, Lo
         return findBlackListImageKeys(id).stream().findFirst();
     }
 
+
+    interface PublicEvidenceRow {
+        Long getBlacklistId();
+        String getObjectKey();
+    }
+
+    @Query("""
+            SELECT ci.id AS blacklistId, e.publicImageObjectKey AS objectKey
+            FROM ConfirmedIndicator ci, ReportEvidence e
+            WHERE ci.id IN (:ids)
+              AND ci.status = com.be.scamshield.constant.ConfirmedIndicatorStatus.ACTIVE
+              AND e.report = ci.sourceReport
+              AND e.report.status = com.be.scamshield.constant.ReportStatus.APPROVED
+              AND e.publicImageObjectKey IS NOT NULL
+            ORDER BY ci.id, e.id
+            """)
+    List<PublicEvidenceRow> findPublicEvidenceForBlacklistIds(@Param("ids") List<Long> ids);
+
     interface BlacklistResourceProjection {
+        Long getSourceReportId();
+        String getSourceReportDescription();
+        String getSourceReportCategoryName();
+        LocalDateTime getSourceReportCreatedAt();
         Long getPublicImageCount();
         Long getId();
         Long getIndicatorId();

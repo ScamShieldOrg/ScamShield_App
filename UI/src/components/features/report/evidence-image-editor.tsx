@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowCounterClockwise, Check, Minus, Plus, ShieldCheck, TextAa, X } from "@phosphor-icons/react"
+import { ArrowCounterClockwise, Check, CircleNotch, Minus, Plus, Scan, ShieldCheck, X } from "@phosphor-icons/react"
 import { type PointerEvent, useEffect, useId, useRef, useState } from "react"
 import { MAX_REPORT_FILE_BYTES } from "@/features/report/utils/report-upload"
 import { suggestEvidenceMasks, type EvidenceMask, type EvidenceSuggestion } from "@/features/report/utils/evidence-ocr"
@@ -10,6 +10,7 @@ type Mask = EvidenceMask
 
 interface EvidenceImageEditorProps {
   source: string
+  originalFile?: File
   fileName: string
   saveLabel: string
   onSave: (file: File) => void
@@ -41,12 +42,11 @@ function paint(canvas: HTMLCanvasElement, image: HTMLImageElement, masks: Mask[]
   context.fillStyle = "#fff"
   context.fillRect(0, 0, width, height)
   context.drawImage(image, 0, 0, width, height)
-  context.fillStyle = "#dc2626"
+  context.fillStyle = "#ff2020"
   for (const mask of masks) {
     context.fillRect(mask.x, mask.y, mask.width, mask.height)
   }
   if (draft) {
-    context.fillStyle = "#dc2626"
     context.fillRect(draft.x, draft.y, draft.width, draft.height)
   }
   const pixel = width / (canvas.clientWidth || width)
@@ -79,7 +79,7 @@ function paint(canvas: HTMLCanvasElement, image: HTMLImageElement, masks: Mask[]
   return true
 }
 
-export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCancel }: EvidenceImageEditorProps) {
+export function EvidenceImageEditor({ source, originalFile, fileName, saveLabel, onSave, onCancel }: EvidenceImageEditorProps) {
   const discardDialogRef = useRef<HTMLDialogElement>(null)
   const discardDialogId = useId()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -91,6 +91,7 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
   const [draft, setDraft] = useState<Mask | null>(null)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
+  const [restored, setRestored] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [suggestions, setSuggestions] = useState<EvidenceSuggestion[]>([])
   const [hoveredSuggestion, setHoveredSuggestion] = useState<EvidenceSuggestion | null>(null)
@@ -122,13 +123,15 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
     const loaded = new Image()
     loaded.onload = () => setImage(loaded)
     loaded.onerror = () => setError("Không mở được ảnh. Vui lòng chọn ảnh PNG hoặc JPG hợp lệ.")
-    loaded.src = source
+    const originalUrl = restored && originalFile ? URL.createObjectURL(originalFile) : null
+    loaded.src = originalUrl ?? source
     return () => {
       controller.abort()
       loaded.onload = null
       loaded.onerror = null
+      if (originalUrl) URL.revokeObjectURL(originalUrl)
     }
-  }, [source])
+  }, [source, restored, originalFile])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -203,9 +206,25 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
     }
   }
 
+  function restoreOriginal() {
+    if (saving || scanning || drag.current) return
+    if (originalFile && !restored) setImage(null)
+    setRestored(true)
+    setMasks([])
+    setSuggestions([])
+    setHoveredSuggestion(null)
+    setFocusedSuggestion(null)
+    setOcrNotice("")
+    setError("")
+  }
+
   async function save() {
     const signal = sourceScope.current?.signal
     if (!image || !signal || signal.aborted || saving || draft || drag.current) return
+    if (restored && originalFile && masks.length === 0) {
+      onSave(originalFile)
+      return
+    }
     const canvas = document.createElement("canvas")
     setSaving(true)
     setError("")
@@ -292,11 +311,17 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
             </div>
             <button
               type="button"
-              className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-900 transition-colors enabled:cursor-pointer enabled:hover:bg-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100 dark:enabled:hover:bg-sky-900"
+              className="group ml-auto inline-flex min-h-11 max-w-full items-center gap-2.5 rounded-xl border border-slate-800 bg-slate-950 py-1.5 pr-3.5 pl-1.5 text-left text-sm font-semibold text-slate-50 enabled:cursor-pointer enabled:hover:bg-slate-800 enabled:active:bg-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 motion-safe:transition-colors motion-safe:duration-150 dark:border-sky-400/40 dark:bg-slate-900 dark:enabled:hover:bg-slate-800 dark:enabled:active:bg-slate-950"
               disabled={!image || scanning || saving || Boolean(draft)}
               onClick={() => void scanImage()}
             >
-              <TextAa size={17} className="shrink-0" aria-hidden="true" />
+              <span className="grid size-7 shrink-0 place-items-center rounded-md bg-sky-400/15 text-sky-200 group-enabled:group-hover:bg-sky-400/25 motion-safe:transition-colors" aria-hidden="true">
+                {scanning ? (
+                  <CircleNotch size={17} className="motion-safe:animate-spin" />
+                ) : (
+                  <Scan size={17} />
+                )}
+              </span>
               {scanning ? "Đang nhận diện chữ…" : "Gợi ý vùng cần che"}
             </button>
           </div>
@@ -359,7 +384,7 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
                     <span className="grid size-7 shrink-0 place-items-center rounded-md bg-amber-100 text-amber-950 tabular-nums dark:bg-amber-100 dark:text-amber-950">
                       {index + 1}
                     </span>
-                    <span>{suggestion.label}</span>
+                    <span className="min-w-0 wrap-anywhere tabular-nums" dir="auto">{suggestion.text}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1">
                     <button type="button" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-2 font-semibold text-primary-foreground transition-colors enabled:cursor-pointer enabled:hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50" disabled={saving} onClick={() => reviewSuggestion(suggestion, true)}>
@@ -383,6 +408,16 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
           Đã che <strong className="font-semibold text-foreground tabular-nums">{masks.length}</strong> vùng
         </span>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {(originalFile || masks.length > 0 || suggestions.length > 0) && (
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={saving || scanning || Boolean(draft) || (restored && !masks.length && !suggestions.length)}
+              onClick={restoreOriginal}
+            >
+              Khôi phục ảnh gốc
+            </button>
+          )}
           <button type="button" className={buttonClass} disabled={!masks.length || saving} onClick={undo} aria-keyshortcuts="Control+Z">
             <ArrowCounterClockwise size={16} aria-hidden="true" />
             Hoàn tác
@@ -392,7 +427,7 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
             className={buttonClass}
             disabled={saving}
             onClick={() => {
-              if (masks.length > 0) discardDialogRef.current?.showModal()
+              if (masks.length > 0 || restored) discardDialogRef.current?.showModal()
               else onCancel()
             }}
           >

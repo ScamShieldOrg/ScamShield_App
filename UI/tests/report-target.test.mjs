@@ -48,3 +48,17 @@ test("keeps supported phone and URL formats", () => {
   assert.equal(warn("PHONE", "1900 1234"), null)
   assert.equal(warn("WEBSITE", "example.com/path"), null)
 })
+
+test("limits report phone input according to its prefix", () => {
+  const { limitReportPhoneInput, isCompleteReportPhone } = load(
+    "../src/features/report/utils/report-phone.ts"
+  )
+  assert.equal(limitReportPhoneInput("0912 345 6789", ""), "0912345678")
+  assert.equal(limitReportPhoneInput("+84 912 345 6789", ""), "+84912345678")
+  assert.equal(limitReportPhoneInput("+8", "+"), "+8")
+  assert.equal(limitReportPhoneInput("912345678", ""), "")
+  assert.equal(isCompleteReportPhone("0912 345 678"), true)
+  assert.equal(isCompleteReportPhone("+84 912 345 678"), true)
+  assert.equal(isCompleteReportPhone("+84 0912 345 678"), false)
+  assert.equal(isCompleteReportPhone("0912 345"), false)
+})

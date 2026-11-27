@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class BlacklistResourceResponse {
     private Long id;
     private Long indicatorId;
+    private BlacklistSourceReportResponse sourceReport;
     private String resourceType;
     private String title;
     private String categoryCode;

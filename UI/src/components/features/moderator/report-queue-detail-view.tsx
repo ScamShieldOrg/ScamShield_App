@@ -1,7 +1,7 @@
 "use client"
 import { useCallback, useEffect, useState, useRef } from "react"
 import Link from "next/link"
-import { ArrowRight, ClipboardText, Flag, Gavel, ShieldWarning } from "@phosphor-icons/react"
+import { ArrowRight, ClipboardText, Flag, Gavel, ShieldWarning, UserCircle } from "@phosphor-icons/react"
 import type {
   ModeratorReportItem,
   ModerationDecisionPayload,
@@ -61,16 +61,10 @@ function ReviewContext({
       "Tỷ lệ khiếu nại được duyệt",
       approvalRate(reporter.approvedDisputes, reporter.decidedDisputes),
     ],
-    [
-      "Dấu hiệu cần xem xét",
-      reporter.abuseFlags === 0
-        ? "Chưa ghi nhận"
-        : `${reporter.abuseFlags} lượt ghi nhận · ${reporter.openFlags} đang mở`,
-    ],
   ]
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       {[
         {
           title: "Đối tượng bị báo cáo",
@@ -78,44 +72,58 @@ function ReviewContext({
             item.targetType === "PHONE"
               ? formatReportPhoneInput(item.targetIdentifier)
               : item.targetIdentifier,
-          fields: indicatorFields,
+          groups: indicatorFields
+            ? [{ heading: "Lịch sử ghi nhận", fields: indicatorFields }]
+            : [],
         },
-        { title: "Người gửi", name: item.reportedBy, fields: reporterFields },
-      ].map(({ title, name, fields }, index) => (
+        {
+          title: "Người gửi",
+          name: item.reportedBy,
+          groups: reporterFields
+            ? [
+                { heading: "Hồ sơ và liên hệ", fields: reporterFields.slice(0, 4) },
+                { heading: "Hoạt động gửi báo cáo và khiếu nại", fields: reporterFields.slice(4) },
+              ]
+            : [],
+        },
+      ].map(({ title, name, groups }, index) => (
         <section
           key={title}
           className="min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5"
         >
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground">
-            {title}
-          </p>
-          {index === 0 ? (
-            <h1 className="mt-2 text-2xl font-bold break-words tracking-tight text-foreground sm:text-3xl">
-              {name}
-            </h1>
-          ) : (
-            <h2 className="mt-1 text-lg font-bold break-words">{name}</h2>
-          )}
-          {index === 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-muted-foreground">
-                {reportTargetTypeLabel(item.targetType)}
-              </span>
-              {indicator && (
-                <span
-                  className={`rounded-full border px-2.5 py-1 font-semibold ${indicator.blacklistStatus === "ACTIVE" ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200" : "border-border bg-card text-muted-foreground"}`}
-                >
-                  {indicator.blacklistStatus === "ACTIVE"
-                    ? "Đang trong blacklist"
-                    : indicator.blacklistStatus === "RETRACTED"
-                      ? "Đã gỡ khỏi blacklist"
-                      : "Chưa vào blacklist"}
-                </span>
+          <div className={`rounded-xl border px-3 py-3 sm:px-4 ${index === 0 ? "border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/45" : "border-border bg-muted/50"}`}>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              {index === 0 ? (
+                <ClipboardText size={18} className="shrink-0 text-sky-800 dark:text-sky-200" aria-hidden="true" />
+              ) : (
+                <UserCircle size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" />
               )}
-            </div>
-          )}
+              {title}
+            </h2>
+            <p className={`mt-1 font-bold wrap-anywhere tracking-tight ${index === 0 ? "text-2xl sm:text-3xl" : "text-xl"}`}>
+              {name}
+            </p>
+            {index === 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-muted-foreground">
+                  {reportTargetTypeLabel(item.targetType)}
+                </span>
+                {indicator && (
+                  <span
+                    className={`rounded-full border px-2.5 py-1 font-semibold ${indicator.blacklistStatus === "ACTIVE" ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200" : "border-border bg-card text-muted-foreground"}`}
+                  >
+                    {indicator.blacklistStatus === "ACTIVE"
+                      ? "Đang trong blacklist"
+                      : indicator.blacklistStatus === "RETRACTED"
+                        ? "Đã gỡ khỏi blacklist"
+                        : "Chưa vào blacklist"}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
           {index === 0 && indicator && (
-            <dl className="mt-5 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-muted/35">
+            <dl className="mt-3 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-muted/25">
               {[
                 {
                   label: "Tổng báo cáo",
@@ -147,24 +155,71 @@ function ReviewContext({
               ))}
             </dl>
           )}
-          {fields && (
-            <dl className="mt-4 grid gap-x-4 gap-y-3 border-t border-border pt-4 sm:grid-cols-2">
-              {fields.map(([label, value]) => (
-                <div key={label} className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">{label}</dt>
-                  <dd className="mt-1 text-sm font-semibold break-words tabular-nums">
-                    {value}
+          {groups.map(({ heading, fields }) => (
+            <div key={heading} className="mt-4 border-t border-border pt-3">
+              <h3 className="text-sm font-semibold">{heading}</h3>
+              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                {fields.map(([label, value]) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
+                    <dd className="mt-1 text-sm font-semibold wrap-anywhere tabular-nums">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+          {index === 0 && (
+            <div className="mt-4 space-y-3 rounded-xl border border-border bg-muted/25 p-3 sm:p-4">
+              <h3 className="text-sm font-semibold">Nội dung báo cáo</h3>
+              <dl className="flex flex-wrap gap-x-6 gap-y-2">
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">Loại lừa đảo</dt>
+                  <dd className="text-sm font-semibold wrap-anywhere">
+                    {item.category}
                   </dd>
                 </div>
-              ))}
-            </dl>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Ngày gửi</dt>
+                  <dd className="text-sm font-medium tabular-nums">
+                    {item.reportedAt}
+                  </dd>
+                </div>
+                {item.processedAt && (
+                  <div>
+                    <dt className="text-xs text-muted-foreground">
+                      Thời gian đã xử lý
+                    </dt>
+                    <dd className="text-sm font-medium tabular-nums">
+                      {item.processedAt}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              <div className="border-t border-border pt-3">
+                <h4 className="text-sm font-semibold">Mô tả hành vi</h4>
+                <p
+                  className={`mt-2 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap ${item.description?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
+                >
+                  {item.description?.trim() || "Chưa có mô tả."}
+                </p>
+              </div>
+            </div>
           )}
           {index === 1 && (
             <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
-              <p className="flex items-center gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
                 <ShieldWarning size={17} className="shrink-0" aria-hidden="true" />
-                Phát hiện dấu hiệu lạm dụng?
-              </p>
+                Dấu hiệu lạm dụng
+              </h3>
+              {reporter && (
+                <p className="mt-1 text-xs font-medium text-amber-950 dark:text-amber-100">
+                  {reporter.abuseFlags === 0
+                    ? "Chưa ghi nhận"
+                    : `${reporter.abuseFlags} lượt ghi nhận · ${reporter.openFlags} đang mở`}
+                </p>
+              )}
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <button
                   type="button"
@@ -276,42 +331,6 @@ export function ReportQueueDetailView({
         )}
       </header>
       <ReviewContext item={item} onOpenEscalate={() => setIsEscalateOpen(true)} />
-      <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <dl className="grid gap-3 border-b border-border pb-4 text-sm sm:grid-cols-3">
-          <div className="min-w-0 rounded-xl border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-950/50">
-            <dt className="text-xs font-semibold text-red-700 dark:text-red-300">
-              Loại lừa đảo
-            </dt>
-            <dd className="mt-1 text-base font-bold wrap-anywhere text-red-950 dark:text-red-100">
-              {item.category}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Ngày gửi</dt>
-            <dd className="mt-1 font-medium text-foreground tabular-nums">
-              {item.reportedAt}
-            </dd>
-          </div>
-          {item.processedAt && (
-            <div>
-              <dt className="text-xs text-muted-foreground">
-                Thời gian đã xử lý
-              </dt>
-              <dd className="mt-1 font-medium text-foreground tabular-nums">
-                {item.processedAt}
-              </dd>
-            </div>
-          )}
-        </dl>
-        <div>
-          <h2 className="text-base font-semibold">Mô tả hành vi</h2>
-          <p
-            className={`mt-2 max-w-prose text-sm leading-relaxed break-words whitespace-pre-wrap ${item.description?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
-          >
-            {item.description?.trim() || "Chưa có mô tả."}
-          </p>
-        </div>
-      </section>
       {pending &&
         !canReview &&
         !(item.status === "Pending" && item.canReview === true) && (
