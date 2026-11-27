@@ -18,6 +18,12 @@ import { GUEST_NAV_ITEMS } from "@/config/navigation/guest-nav"
 import { useAuthStore } from "@/store/auth.store"
 import { decodeJwt } from "@/lib/utils/jwtUtil"
 import type { UserRole } from "@/types/user"
+import { useScamCheckTheme } from "@/components/features/check/scam-check-theme"
+import { ScamThemePicker } from "@/components/features/check/scam-theme-switcher"
+import {
+  ChromeAmbientOverlay,
+  useChromePointerGlow,
+} from "@/components/shared/chrome-ambient-surface"
 import { cn } from "@/lib/utils"
 
 function getDashboardHref(
@@ -42,6 +48,9 @@ function getDashboardHref(
 export function GuestHeader() {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
+  const { theme: antiScamTheme } = useScamCheckTheme()
+  const { glowLayerRef, handlePointerMove, handlePointerLeave } =
+    useChromePointerGlow()
   const [mounted, setMounted] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const token = useAuthStore((state) => state.token)
@@ -82,15 +91,32 @@ export function GuestHeader() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <header className="sticky top-0 z-40 w-full shrink-0 border-b border-black/10 bg-background/90 font-sans antialiased backdrop-blur-md dark:border-white/10">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+      <header
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        className={cn(
+          "sticky top-0 z-40 w-full shrink-0 border-b font-sans antialiased backdrop-blur-md transition-colors duration-200",
+          antiScamTheme.headerBg
+        )}
+      >
+        <ChromeAmbientOverlay
+          glowLayerRef={glowLayerRef}
+          theme={antiScamTheme}
+          edge="bottom"
+        />
+        <div className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           {/* Left: Brand & Desktop Navigation */}
           <div className="flex min-w-0 items-center gap-5">
             <Link
               href="/guest"
               className="group inline-flex min-h-10 shrink-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs transition-transform duration-120 group-hover:scale-[1.03]">
+              <div
+                className={cn(
+                  "flex size-9 items-center justify-center rounded-lg border shadow-xs transition-[transform,background-color,color] duration-150 group-hover:scale-[1.03]",
+                  antiScamTheme.brandBadge
+                )}
+              >
                 <ShieldCheck aria-hidden="true" size={20} weight="fill" />
               </div>
               <span className="font-heading text-base font-bold tracking-[-0.02em] text-foreground sm:text-lg">
@@ -115,9 +141,9 @@ export function GuestHeader() {
                     href={item.href}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
-                      "inline-flex min-h-10 items-center rounded-lg px-3.5 text-sm font-semibold transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                      "inline-flex min-h-10 items-center rounded-full px-3.5 text-sm font-semibold transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-xs"
+                        ? antiScamTheme.guestNavActive
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                   >
@@ -158,10 +184,12 @@ export function GuestHeader() {
               </>
             )}
 
+            <ScamThemePicker variant="header-compact" />
+
             <button
               type="button"
               onClick={() => setTheme(isDark ? "light" : "dark")}
-              className="inline-flex min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-lg border border-black/10 bg-card text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
+              className="inline-flex min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-card text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
               aria-label={
                 isDark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"
               }

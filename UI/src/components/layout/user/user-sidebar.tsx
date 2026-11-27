@@ -26,6 +26,8 @@ import {
 } from "@/config/navigation/user-nav"
 import { useLogout } from "@/hooks/use-logout"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
+import { useScamCheckTheme } from "@/components/features/check/scam-check-theme"
+import { ScamThemePicker } from "@/components/features/check/scam-theme-switcher"
 import { cn } from "@/lib/utils"
 
 interface UserSidebarProps {
@@ -63,6 +65,7 @@ export function UserSidebar({
 }: UserSidebarProps) {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
+  const { theme: antiScamTheme } = useScamCheckTheme()
   const [mounted, setMounted] = useState(false)
   const handleLogout = useLogout()
   const { unreadCount, fetchUnreadCount } = useNotificationStore()
@@ -134,15 +137,18 @@ export function UserSidebar({
       <aside
         aria-label="Điều hướng cổng người dùng"
         className={cn(
-          "flex h-screen shrink-0 flex-col justify-between border-r border-border/80 bg-card font-sans text-card-foreground antialiased select-none transition-[width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none dark:border-white/10 dark:bg-sidebar",
+          "relative z-10 flex h-screen shrink-0 flex-col justify-between font-sans text-card-foreground antialiased select-none transition-[width,background-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+          onCloseMobile
+            ? cn("border-r", antiScamTheme.leftSidebarBg)
+            : "bg-transparent",
           collapsed ? "w-16" : "w-64",
           className
         )}
       >
-        {/* Top Brand & Fold Toggle (aligned with h-16 UserHeader) */}
+        {/* Top Brand & Fold Toggle (aligned with h-14 UserHeader) */}
         <div
           className={cn(
-            "flex h-16 shrink-0 items-center border-b border-border/70 dark:border-white/10",
+            "relative z-10 flex h-14 shrink-0 items-center",
             collapsed ? "justify-center px-2" : "justify-between gap-2 px-4"
           )}
         >
@@ -152,7 +158,12 @@ export function UserSidebar({
               onClick={onCloseMobile}
               className="group flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-black/10 bg-[#0B132B] text-[#89CEFF] shadow-2xs transition-transform duration-120 group-hover:scale-[1.03] dark:border-white/15 dark:bg-primary/15 dark:text-primary">
+              <div
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-lg border shadow-2xs transition-[transform,background-color,color] duration-150 group-hover:scale-[1.03]",
+                  antiScamTheme.brandBadge
+                )}
+              >
                 <ShieldCheck aria-hidden="true" size={20} weight="fill" />
               </div>
               <span className="truncate font-heading text-base font-bold tracking-[-0.02em] text-foreground">
@@ -200,7 +211,7 @@ export function UserSidebar({
         {/* Grouped Tactile Navigation */}
         <div
           className={cn(
-            "flex flex-1 flex-col overflow-y-auto py-4",
+            "relative z-10 flex flex-1 flex-col overflow-y-auto py-4",
             collapsed ? "px-2" : "px-3"
           )}
         >
@@ -265,7 +276,10 @@ export function UserSidebar({
                                 stiffness: 420,
                                 damping: 32,
                               }}
-                              className="absolute inset-0 rounded-lg bg-muted/90 shadow-2xs ring-1 ring-border dark:bg-white/[0.08] dark:shadow-[inset_0_1px_0_rgb(255,255,255,0.08)] dark:ring-white/12"
+                              className={cn(
+                                "absolute inset-0 rounded-lg shadow-2xs transition-colors duration-200",
+                                antiScamTheme.navActivePill
+                              )}
                             />
                           )}
 
@@ -312,12 +326,14 @@ export function UserSidebar({
         {/* Bottom Utility Footer: Theme Switch + Logout */}
         <div
           className={cn(
-            "space-y-2 border-t border-border/80 dark:border-white/10",
+            "relative z-20 space-y-2 border-t border-border/80 dark:border-white/10",
             collapsed ? "flex flex-col items-center p-2.5" : "p-3"
           )}
         >
           {collapsed ? (
             <>
+              <ScamThemePicker variant="sidebar-collapsed" />
+
               <button
                 type="button"
                 onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -346,6 +362,8 @@ export function UserSidebar({
             </>
           ) : (
             <>
+              <ScamThemePicker variant="sidebar-expanded" />
+
               <div
                 role="group"
                 aria-label="Chọn giao diện sáng hoặc tối"

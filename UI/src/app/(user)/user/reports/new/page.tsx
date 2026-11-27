@@ -97,7 +97,7 @@ export default function UserReportsNewPage() {
               className="inline-flex min-h-9 items-center gap-1.5 rounded-lg text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <ArrowLeft aria-hidden="true" size={14} weight="bold" />
-              <span>Quay lại danh sách báo cáo</span>
+              <span>Quay lại</span>
             </Link>
             <h1 className="font-heading text-2xl font-bold tracking-[-0.025em] text-foreground">
               Báo cáo đối tượng lừa đảo

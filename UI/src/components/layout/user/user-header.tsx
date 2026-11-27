@@ -7,6 +7,8 @@ import { getActiveUserNavItem } from "@/config/navigation/user-nav"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 import { useAuthStore } from "@/store/auth.store"
 import { ExpandableIconLink } from "@/components/shared/expandable-icon-action"
+import { useScamCheckTheme } from "@/components/features/check/scam-check-theme"
+import { cn } from "@/lib/utils"
 
 const DEFAULT_PAGE_TITLE = "Giám Sát & Phòng Vệ Số"
 
@@ -28,11 +30,12 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const user = useAuthStore((state) => state.user)
   const initials = getInitials(user?.email)
+  const { theme: antiScamTheme } = useScamCheckTheme()
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full shrink-0 items-center justify-between gap-3 border-b border-black/10 bg-background/90 px-4 font-sans antialiased backdrop-blur-md sm:px-6 dark:border-white/10">
+    <header className="relative z-30 flex h-14 w-full shrink-0 items-center justify-between gap-3 bg-transparent px-4 font-sans antialiased sm:px-5">
       {/* Left: Mobile Menu Toggle & Breadcrumb */}
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="relative z-10 flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={onToggleMobileMenu}
@@ -66,7 +69,7 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
       </div>
 
       {/* Right: Quick Report CTA, Notifications & Profile */}
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="relative z-10 flex shrink-0 items-center gap-2">
         <ExpandableIconLink
           href="/user/reports/new"
           icon={<Warning aria-hidden="true" size={16} weight="fill" />}
@@ -93,7 +96,10 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
 
         <Link
           href="/user/profile"
-          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-black/10 bg-primary font-heading text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
+          className={cn(
+            "inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-black/10 font-heading text-xs font-bold shadow-2xs transition-[opacity,background-color,color] duration-150 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12",
+            antiScamTheme.avatarBg
+          )}
           aria-label="Hồ sơ người dùng"
           title={user?.email || "Hồ sơ người dùng"}
         >

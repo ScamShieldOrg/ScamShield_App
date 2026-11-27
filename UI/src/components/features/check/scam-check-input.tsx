@@ -30,6 +30,10 @@ import {
   type QuickScenario,
 } from "./scam-input-helpers"
 import { ScamQuotaBadge, type QuotaSnapshot } from "./scam-quota-strip"
+import {
+  SCAM_CHECK_THEMES,
+  type ScamCheckThemeConfig,
+} from "./scam-check-theme"
 
 export interface ScamCheckInputProps {
   /** Effective check type (auto-detected by default, or manually pinned). */
@@ -49,8 +53,12 @@ export interface ScamCheckInputProps {
   quotaLoading?: boolean
   quotaError?: string | null
   onRefreshQuota?: () => void
-  /** Shows subtle 1-click starter chips beneath the composer when idle. */
+  /** Shows compact 1-click starter pills beneath the composer when idle. */
   showStarterChips?: boolean
+  /** Compact sticky-dock appearance when anchored beneath an active result. */
+  compact?: boolean
+  /** Active Anti-Scam theme tokens for bezel, CTA, and starter pills. */
+  theme?: ScamCheckThemeConfig
 }
 
 const TAB_ICONS: Record<CheckType, typeof ChatText> = {
@@ -83,6 +91,8 @@ export function ScamCheckInput({
   quotaError = null,
   onRefreshQuota,
   showStarterChips = true,
+  compact = false,
+  theme = SCAM_CHECK_THEMES["shield-emerald"],
 }: ScamCheckInputProps) {
   const fieldId = useId()
   const errorId = useId()
@@ -109,14 +119,16 @@ export function ScamCheckInput({
   const tabMeta = CHECK_TAB_META[activeTab]
   const ActiveIcon = TAB_ICONS[activeTab]
 
-  // Auto-resize textarea cleanly like Claude Web (min 72px, max 220px)
+  // Auto-resize textarea cleanly like Claude Web (compact dock: 42-140px, hero: 72-220px)
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
     el.style.height = "auto"
-    const nextHeight = Math.min(220, Math.max(72, el.scrollHeight))
+    const minHeight = compact ? 42 : 72
+    const maxHeight = compact ? 140 : 220
+    const nextHeight = Math.min(maxHeight, Math.max(minHeight, el.scrollHeight))
     el.style.height = `${nextHeight}px`
-  }, [content, activeTab])
+  }, [content, activeTab, compact])
 
   // Auto-expire Undo bar
   useEffect(() => {
@@ -335,57 +347,73 @@ export function ScamCheckInput({
     .join(" ")
 
   return (
-    <div className="space-y-4">
-      <form
-        ref={formRef}
-        onSubmit={handleSubmit}
-        aria-busy={isLoading}
-        noValidate
+    <div className={cn(compact ? "space-y-2" : "space-y-4")}>
+      {/* Two-Layer Tactile Bezel Shell */}
+      <div
         className={cn(
-          "scroll-mt-24 rounded-xl border bg-card text-card-foreground transition-[border-color,box-shadow] duration-180 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          "border-black/10 shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)]",
-          "focus-within:border-ring/60 focus-within:shadow-[0_12px_36px_rgb(14,165,233,0.10),0_0_0_3px_color-mix(in_oklch,var(--ring)_14%,transparent)]",
-          "dark:border-white/12 dark:bg-card/95 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]",
-          "dark:focus-within:border-sky-400/50 dark:focus-within:shadow-[0_16px_48px_rgb(0,0,0,0.55),0_0_0_3px_rgba(56,189,248,0.16),inset_0_1px_0_rgb(255,255,255,0.12)]",
+          "rounded-2xl border transition-[border-color,box-shadow,background-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          compact
+            ? "border-black/10 bg-background/85 p-1 shadow-[0_12px_36px_rgb(15,23,42,0.14)] backdrop-blur-xl dark:border-white/12 dark:bg-card/85 dark:shadow-[0_16px_44px_rgb(0,0,0,0.58)]"
+            : cn("p-1.5", theme.composerBezel),
+          theme.composerFocus,
           visibleInlineError &&
-            "border-rose-500/50 focus-within:border-rose-500/70 focus-within:shadow-[0_0_0_3px_rgba(244,63,94,0.14)]"
+            "border-rose-500/45 focus-within:border-rose-500/65 focus-within:shadow-[0_0_0_3px_rgba(244,63,94,0.14)]"
         )}
       >
-        <fieldset disabled={isLoading} className="min-w-0">
-          <legend className="sr-only">Nhập nội dung cần kiểm tra lừa đảo</legend>
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          aria-busy={isLoading}
+          noValidate
+          className={cn(
+            "scroll-mt-24 rounded-xl border bg-card text-card-foreground transition-[border-color] duration-180 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            "border-black/8 dark:border-white/10 dark:bg-card/95 dark:shadow-[inset_0_1px_0_rgb(255,255,255,0.06)]",
+            visibleInlineError && "border-rose-500/50"
+          )}
+        >
+          <fieldset disabled={isLoading} className="min-w-0">
+            <legend className="sr-only">Nhập nội dung cần kiểm tra lừa đảo</legend>
 
-          {/* Main Seamless Prompt Area (Claude Web Style) */}
-          <div className="px-4 pt-4 pb-2 sm:px-5 sm:pt-5">
-            <label htmlFor={fieldId} className="sr-only">
-              {tabMeta.label}
-            </label>
-
-            <textarea
-              ref={textareaRef}
-              id={fieldId}
-              rows={2}
-              value={content}
-              inputMode={tabMeta.inputMode}
-              spellCheck={!isMonoMode && activeTab !== "URL"}
-              onChange={(e) => applyInputChange(e.target.value)}
-              onBlur={() => {
-                if (trimmedContent && inlineFormatError) {
-                  setShowInlineValidation(true)
-                }
-              }}
-              onKeyDown={handleFieldKeyDown}
-              aria-invalid={Boolean(visibleInlineError)}
-              aria-describedby={describedBy || undefined}
-              placeholder={
-                manualModePinned
-                  ? tabMeta.placeholder
-                  : CHECK_TAB_META.TEXT.placeholder
-              }
+            {/* Main Seamless Prompt Area (Claude Web Style) */}
+            <div
               className={cn(
-                "w-full resize-none bg-transparent text-sm leading-relaxed text-foreground caret-primary selection:bg-primary/15 placeholder:text-muted-foreground/75 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-[15px]",
-                isMonoMode && trimmedContent && "font-mono tracking-tight"
+                compact
+                  ? "px-3.5 pt-3 pb-1.5 sm:px-4"
+                  : "px-4 pt-4 pb-2 sm:px-5 sm:pt-5"
               )}
-            />
+            >
+              <label htmlFor={fieldId} className="sr-only">
+                {tabMeta.label}
+              </label>
+
+              <textarea
+                ref={textareaRef}
+                id={fieldId}
+                rows={compact ? 1 : 2}
+                value={content}
+                inputMode={tabMeta.inputMode}
+                spellCheck={!isMonoMode && activeTab !== "URL"}
+                onChange={(e) => applyInputChange(e.target.value)}
+                onBlur={() => {
+                  if (trimmedContent && inlineFormatError) {
+                    setShowInlineValidation(true)
+                  }
+                }}
+                onKeyDown={handleFieldKeyDown}
+                aria-invalid={Boolean(visibleInlineError)}
+                aria-describedby={describedBy || undefined}
+                placeholder={
+                  compact
+                    ? "Dán tin nhắn, đường link, SĐT hoặc STK khác để kiểm tra tiếp…"
+                    : manualModePinned
+                      ? tabMeta.placeholder
+                      : CHECK_TAB_META.TEXT.placeholder
+                }
+                className={cn(
+                  "w-full resize-none bg-transparent text-sm leading-relaxed text-foreground caret-primary selection:bg-primary/15 placeholder:text-muted-foreground/75 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-[15px]",
+                  isMonoMode && trimmedContent && "font-mono tracking-tight"
+                )}
+              />
 
             {/* Inline Status / Validation / Undo / Scope Messages */}
             <AnimatePresence initial={false}>
@@ -425,7 +453,7 @@ export function ScamCheckInput({
                   <button
                     type="button"
                     onClick={handleUndoClear}
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-background px-2.5 py-1 text-xs font-semibold text-foreground ring-1 ring-border transition-colors duration-120 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:ring-white/15"
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-background px-3 py-1 text-xs font-semibold text-foreground ring-1 ring-border transition-colors duration-120 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:ring-white/15"
                   >
                     <ArrowCounterClockwise
                       aria-hidden="true"
@@ -480,7 +508,14 @@ export function ScamCheckInput({
           </div>
 
           {/* Sleek Bottom Control Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-2 pb-3 sm:px-4 sm:pb-4">
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-2",
+              compact
+                ? "px-3 pt-1 pb-2.5 sm:px-3.5"
+                : "px-3 pt-2 pb-3 sm:px-4 sm:pb-4"
+            )}
+          >
             {/* Left Controls: Auto-Detected Mode Pill + Paste / Clear + Entity Pills */}
             <div className="flex flex-wrap items-center gap-2">
               <div ref={menuContainerRef} className="relative">
@@ -494,7 +529,7 @@ export function ScamCheckInput({
                   className={cn(
                     "inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-[background-color,border-color,color] duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50",
                     autoDetectedActive && activeTab !== "TEXT"
-                      ? "border-sky-500/30 bg-sky-500/10 text-sky-900 hover:bg-sky-500/15 dark:border-sky-400/30 dark:bg-sky-500/15 dark:text-sky-200"
+                      ? theme.modeActiveChip
                       : "border-border bg-muted/50 text-foreground hover:bg-muted dark:border-white/10"
                   )}
                 >
@@ -534,18 +569,21 @@ export function ScamCheckInput({
                   />
                 </button>
 
-                {/* Spring Mode Selector Popover (drops downward cleanly) */}
+                {/* Spring Mode Selector Popover (opens upward when docked at bottom) */}
                 <AnimatePresence>
                   {modeMenuOpen && (
                     <motion.div
                       id={menuId}
                       role="listbox"
                       aria-label="Chọn loại nội dung kiểm tra"
-                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      initial={{ opacity: 0, y: compact ? 6 : -6, scale: 0.98 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                      exit={{ opacity: 0, y: compact ? 4 : -4, scale: 0.98 }}
                       transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute top-full left-0 z-40 mt-2 w-72 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg dark:border-white/12"
+                      className={cn(
+                        "absolute left-0 z-40 w-72 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg dark:border-white/12",
+                        compact ? "bottom-full mb-2" : "top-full mt-2"
+                      )}
                     >
                       <button
                         type="button"
@@ -640,6 +678,9 @@ export function ScamCheckInput({
               >
                 <ClipboardText aria-hidden="true" size={15} weight="bold" />
                 <span>Dán</span>
+                <kbd className="ml-0.5 hidden rounded border border-border/90 bg-muted/80 px-1.5 py-0.5 font-mono text-xs leading-none text-muted-foreground shadow-[0_1px_0_rgba(15,23,42,0.12)] sm:inline-block dark:border-white/15 dark:bg-white/[0.06] dark:shadow-[0_1px_0_rgba(0,0,0,0.45)]">
+                  Ctrl V
+                </kbd>
               </button>
 
               <AnimatePresence initial={false}>
@@ -683,7 +724,7 @@ export function ScamCheckInput({
                 )}
             </div>
 
-            {/* Right Controls: Inline Quota Badge + Tactile Send Button */}
+            {/* Right Controls: Inline Quota Badge + Tactile Shortcut Keycap + Send Button */}
             <div className="ml-auto flex items-center gap-2">
               {onRefreshQuota && (
                 <ScamQuotaBadge
@@ -693,6 +734,29 @@ export function ScamCheckInput({
                   error={quotaError}
                   onRefresh={onRefreshQuota}
                 />
+              )}
+
+              {!compact && (
+                <span
+                  aria-hidden="true"
+                  className="hidden items-center gap-1 text-xs text-muted-foreground md:inline-flex"
+                >
+                  {tabMeta.isMultiline ? (
+                    <>
+                      <kbd className="rounded border border-border/90 bg-muted/80 px-1.5 py-0.5 font-mono text-xs leading-none text-muted-foreground shadow-[0_1px_0_rgba(15,23,42,0.12)] dark:border-white/15 dark:bg-white/[0.06] dark:shadow-[0_1px_0_rgba(0,0,0,0.45)]">
+                        Ctrl
+                      </kbd>
+                      <span>+</span>
+                      <kbd className="rounded border border-border/90 bg-muted/80 px-1.5 py-0.5 font-mono text-xs leading-none text-muted-foreground shadow-[0_1px_0_rgba(15,23,42,0.12)] dark:border-white/15 dark:bg-white/[0.06] dark:shadow-[0_1px_0_rgba(0,0,0,0.45)]">
+                        Enter
+                      </kbd>
+                    </>
+                  ) : (
+                    <kbd className="rounded border border-border/90 bg-muted/80 px-1.5 py-0.5 font-mono text-xs leading-none text-muted-foreground shadow-[0_1px_0_rgba(15,23,42,0.12)] dark:border-white/15 dark:bg-white/[0.06] dark:shadow-[0_1px_0_rgba(0,0,0,0.45)]">
+                      Enter
+                    </kbd>
+                  )}
+                </span>
               )}
 
               <motion.button
@@ -716,9 +780,10 @@ export function ScamCheckInput({
                       : tabMeta.submitLabel
                 }
                 className={cn(
-                  "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-[background-color,color,opacity,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed",
+                  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-full text-sm font-semibold transition-[background-color,color,opacity,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed",
+                  compact ? "h-9 px-4" : "h-10 px-5",
                   canSubmit
-                    ? "bg-primary text-primary-foreground shadow-sm hover:opacity-95"
+                    ? theme.ctaButton
                     : "bg-muted text-muted-foreground opacity-70"
                 )}
               >
@@ -744,10 +809,11 @@ export function ScamCheckInput({
           </div>
         </fieldset>
       </form>
+      </div>
 
-      {/* Tactile 1-Click Starter Scenario Chips (Claude Web Feel, Idle Only) */}
+      {/* Compact 1-Click Starter Pills (Classic Pill Layout, Idle Only) */}
       <AnimatePresence initial={false}>
-        {showStarterChips && !trimmedContent && !isLoading && (
+        {showStarterChips && !compact && !trimmedContent && !isLoading && (
           <motion.div
             key="starter-chips"
             initial={{ opacity: 0, y: 6 }}
@@ -756,7 +822,9 @@ export function ScamCheckInput({
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             className="flex flex-wrap items-center justify-center gap-2"
           >
-            <span className="text-xs text-muted-foreground">Thử nhanh:</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Thử nhanh:
+            </span>
             {QUICK_SCENARIOS.map((scenario, idx) => {
               const Icon = TAB_ICONS[scenario.type]
               return (
@@ -773,12 +841,16 @@ export function ScamCheckInput({
                   whileHover={{ y: -1 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => handleSelectScenario(scenario)}
-                  className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border/80 bg-card/75 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-2xs transition-[border-color,color,background-color] duration-120 hover:border-foreground/20 hover:bg-card hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10 dark:hover:border-white/20"
+                  className={cn(
+                    "inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border border-black/10 bg-white/85 px-3.5 py-1.5 text-xs font-medium text-foreground/80 shadow-2xs transition-[border-color,color,background-color] duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12 dark:bg-card/85 dark:text-foreground/85",
+                    theme.pillHover
+                  )}
                 >
                   <Icon
                     aria-hidden="true"
                     size={14}
-                    className="shrink-0 text-primary/80"
+                    weight="bold"
+                    className={cn("shrink-0", theme.pillIcon)}
                   />
                   <span className="whitespace-nowrap">{scenario.label}</span>
                 </motion.button>

@@ -338,14 +338,15 @@ export function OwnReportDetailView({
       <div className="mx-auto max-w-5xl space-y-6 font-sans antialiased">
         <Link
           href="/user/reports"
-          className="group inline-flex min-h-9 items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="group inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
         >
           <ArrowLeft
             aria-hidden="true"
-            size={16}
+            size={15}
+            weight="bold"
             className="transition-transform group-hover:-translate-x-0.5 motion-reduce:transform-none"
           />
-          <span>Danh sách báo cáo</span>
+          <span>Quay lại</span>
         </Link>
 
         {loading ? (
