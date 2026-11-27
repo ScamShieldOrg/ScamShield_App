@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { CloudArrowUp, FilePdf, ShieldCheck, Warning, X } from "@phosphor-icons/react"
+import { CloudArrowUp, FilePdf, Shield, ShieldCheck, X } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import type { ReportAttachment } from "@/features/report/hooks/use-report-attachments"
 import { EvidenceImageEditor } from "./evidence-image-editor"
@@ -121,7 +121,7 @@ export function ReportFileUpload({
               PNG, JPG hoặc PDF · Tối đa {MAX_REPORT_FILES} tệp, 5 MB mỗi tệp
             </span>
             <span className="block text-[11px] text-muted-foreground">
-              Rà soát từng ảnh trước khi gửi. Với PDF, hãy che thông tin nhạy cảm trước khi chọn tệp.
+              Bạn có thể che thông tin nhạy cảm trên ảnh nếu cần.
             </span>
           </span>
         </button>
@@ -211,10 +211,10 @@ export function ReportFileUpload({
                       "mt-1 flex min-h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50",
                       reviewed
                         ? "border-border bg-background hover:bg-muted"
-                        : "border-amber-300 bg-amber-100 text-amber-950 hover:bg-amber-200 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
+                        : "border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100 dark:hover:bg-sky-900"
                     )}
                   >
-                    {reviewed ? <ShieldCheck size={16} aria-hidden="true" /> : <Warning size={16} aria-hidden="true" />}
+                    {reviewed ? <ShieldCheck size={16} aria-hidden="true" /> : <Shield size={16} aria-hidden="true" />}
                     {reviewed ? "Đã rà soát" : "Che thông tin nhạy cảm"}
                   </button>
                 )}

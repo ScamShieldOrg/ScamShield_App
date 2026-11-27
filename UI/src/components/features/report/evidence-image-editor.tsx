@@ -1,7 +1,7 @@
 "use client"
 
-import { ShieldCheck, TextAa, X } from "@phosphor-icons/react"
-import { type PointerEvent, useEffect, useRef, useState } from "react"
+import { ArrowCounterClockwise, Check, Minus, Plus, ShieldCheck, TextAa, X } from "@phosphor-icons/react"
+import { type PointerEvent, useEffect, useId, useRef, useState } from "react"
 import { MAX_REPORT_FILE_BYTES } from "@/features/report/utils/report-upload"
 import { suggestEvidenceMasks, type EvidenceMask, type EvidenceSuggestion } from "@/features/report/utils/evidence-ocr"
 
@@ -16,7 +16,8 @@ interface EvidenceImageEditorProps {
   onCancel: () => void
 }
 
-const buttonClass = "rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50"
+const buttonClass = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold transition-colors enabled:cursor-pointer enabled:hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 motion-reduce:transition-none"
+const zoomButtonClass = `${buttonClass} w-11 px-0`
 
 function maskBetween(start: Point, end: Point): Mask {
   const x = Math.floor(Math.min(start.x, end.x))
@@ -79,6 +80,8 @@ function paint(canvas: HTMLCanvasElement, image: HTMLImageElement, masks: Mask[]
 }
 
 export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCancel }: EvidenceImageEditorProps) {
+  const discardDialogRef = useRef<HTMLDialogElement>(null)
+  const discardDialogId = useId()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ pointerId: number; origin: Point } | null>(null)
@@ -164,7 +167,7 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
       if (scan.signal.aborted) return
       setSuggestions(matches)
       setOcrNotice(matches.length
-        ? "Đối chiếu số trên ảnh với từng gợi ý bên dưới. Giữ lại thông tin cần để xác minh đối tượng bị báo cáo."
+        ? "Đối chiếu số trên ảnh với danh sách vùng gợi ý trước khi che."
         : "OCR chưa tìm thấy vùng gợi ý. Hãy kiểm tra ảnh và che thủ công nếu cần.")
     } catch {
       if (!scan.signal.aborted) {
@@ -231,7 +234,7 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
 
   return (
     <div
-      className="space-y-3 rounded-xl border border-border bg-background p-3 text-sm"
+      className="@container min-w-0 rounded-2xl border border-border bg-card text-sm shadow-xs"
       onKeyDown={event => {
         if (!event.ctrlKey || event.altKey || event.shiftKey || event.metaKey ||
             event.key.toLowerCase() !== "z" || event.repeat || event.defaultPrevented ||
@@ -242,146 +245,199 @@ export function EvidenceImageEditor({ source, fileName, saveLabel, onSave, onCan
         undo()
       }}
     >
-      <div className="space-y-3">
-        <p className="text-sm font-semibold">Che thông tin nhạy cảm</p>
-        <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 dark:border-primary/30 dark:bg-primary/10">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
-            <ShieldCheck aria-hidden="true" size={18} weight="bold" />
-          </span>
-          <div className="min-w-0 flex-1 space-y-3">
-            <p className="text-sm font-bold text-foreground">
-              Kéo trực tiếp trên ảnh để che thông tin cá nhân.
+      <header className="flex items-start gap-3 border-b border-border px-4 py-3.5 sm:px-5">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200">
+          <ShieldCheck aria-hidden="true" size={22} />
+        </span>
+        <div className="min-w-0">
+          <p className="font-heading text-base font-bold text-foreground">Che thông tin nhạy cảm</p>
+          <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{fileName}</p>
+        </div>
+      </header>
+      <div
+        data-has-suggestions={suggestions.length > 0 || undefined}
+        className="grid min-w-0 grid-cols-1 items-start gap-3 p-3 sm:p-4 @min-[740px]:data-[has-suggestions=true]:grid-cols-[minmax(0,1fr)_15rem]"
+      >
+        <div className="col-span-full space-y-2 rounded-xl border border-border bg-muted/25 px-3 py-2.5">
+          <p className="text-sm font-semibold text-foreground">Kéo trên ảnh để vẽ vùng che.</p>
+          <dl className="grid gap-x-4 gap-y-2 text-xs leading-relaxed @min-[560px]:grid-cols-2">
+            <div className="border-l-2 border-amber-400 pl-2.5 dark:border-amber-500">
+              <dt className="font-semibold text-amber-900 dark:text-amber-200">Thông tin cần che</dt>
+              <dd className="mt-0.5 text-foreground">
+                Tên, email, số điện thoại riêng, địa chỉ, số giấy tờ, mã OTP và giao dịch cá nhân.
+              </dd>
+            </div>
+            <div className="border-l-2 border-sky-400 pl-2.5 dark:border-sky-500">
+              <dt className="font-semibold text-sky-900 dark:text-sky-200">Thông tin cần giữ</dt>
+              <dd className="mt-0.5 text-foreground">
+                Đối tượng bị báo cáo và nội dung cần để đối chiếu.
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div className="min-w-0 overflow-hidden rounded-xl border border-border">
+          {!image && !error && <p role="status" className="p-3 text-muted-foreground">Đang mở ảnh…</p>}
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 p-2">
+            <div role="group" aria-label="Thu phóng ảnh" className="flex flex-wrap items-center gap-2">
+              <button type="button" className={zoomButtonClass} aria-label="Thu nhỏ" title="Thu nhỏ" disabled={!image || saving || Boolean(draft) || zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - 0.5))}>
+                <Minus size={16} aria-hidden="true" />
+              </button>
+              <output className="min-w-12 text-center text-xs tabular-nums" aria-live="polite">{Math.round(zoom * 100)}%</output>
+              <button type="button" className={zoomButtonClass} aria-label="Phóng to" title="Phóng to" disabled={!image || saving || Boolean(draft) || zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.5))}>
+                <Plus size={16} aria-hidden="true" />
+              </button>
+              <button type="button" className={buttonClass} disabled={saving || Boolean(draft) || zoom === 1} onClick={() => setZoom(1)}>
+                Vừa khung
+              </button>
+            </div>
+            <button
+              type="button"
+              className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-900 transition-colors enabled:cursor-pointer enabled:hover:bg-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100 dark:enabled:hover:bg-sky-900"
+              disabled={!image || scanning || saving || Boolean(draft)}
+              onClick={() => void scanImage()}
+            >
+              <TextAa size={17} className="shrink-0" aria-hidden="true" />
+              {scanning ? "Đang nhận diện chữ…" : "Gợi ý vùng cần che"}
+            </button>
+          </div>
+          {(scanning || ocrNotice) && (
+            <p role="status" className="m-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 dark:border-sky-900 dark:bg-sky-950/30 text-xs leading-relaxed text-sky-950 dark:text-sky-100">
+              {scanning ? "Đang phân tích ảnh trên thiết bị." : ocrNotice}
             </p>
-            <dl className="grid gap-2 text-xs leading-relaxed sm:grid-cols-2">
-              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/50">
-                <dt className="font-bold text-amber-900 dark:text-amber-200">Cần che</dt>
-                <dd className="mt-1 text-foreground">
-                  Tên, email, số điện thoại riêng, địa chỉ, số giấy tờ, mã OTP
-                  và thông tin giao dịch cá nhân.
-                </dd>
-              </div>
-              <div className="rounded-lg border border-sky-300 bg-sky-50 p-3 dark:border-sky-700 dark:bg-sky-950/50">
-                <dt className="font-bold text-sky-900 dark:text-sky-200">Cần giữ lại</dt>
-                <dd className="mt-1 text-foreground">
-                  Đối tượng bị báo cáo và nội dung cần để đối chiếu.
-                </dd>
-              </div>
-            </dl>
+          )}
+          <div ref={viewportRef} className="max-h-[65vh] overflow-auto bg-muted/60 [container-type:inline-size]">
+            <canvas
+              ref={canvasRef}
+              tabIndex={0}
+              aria-label="Ảnh minh chứng. Kéo trên ảnh để thêm vùng che."
+              hidden={!image}
+              className="mx-auto block h-auto max-w-none touch-none cursor-crosshair focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+              style={image ? { width: `calc(min(100cqw, ${65 * image.naturalWidth / image.naturalHeight}vh) * ${zoom})` } : undefined}
+              onPointerDown={event => {
+                if (saving || drag.current || event.button !== 0) return
+                event.currentTarget.focus({ preventScroll: true })
+                const origin = point(event)
+                drag.current = { pointerId: event.pointerId, origin }
+                event.currentTarget.setPointerCapture(event.pointerId)
+              }}
+              onPointerMove={event => {
+                if (drag.current?.pointerId === event.pointerId) {
+                  setDraft(maskBetween(drag.current.origin, point(event)))
+                }
+              }}
+              onPointerUp={event => {
+                if (drag.current?.pointerId !== event.pointerId) return
+                const mask = maskBetween(drag.current.origin, point(event))
+                if (mask.width >= 2 && mask.height >= 2) setMasks(previous => [...previous, mask])
+                drag.current = null
+                setDraft(null)
+              }}
+              onLostPointerCapture={event => {
+                if (drag.current?.pointerId !== event.pointerId) return
+                drag.current = null
+                setDraft(null)
+              }}
+            />
           </div>
         </div>
+        {suggestions.length > 0 && (
+          <div className="min-w-0 space-y-2">
+            <p className="text-sm font-semibold text-foreground">Vùng gợi ý trên ảnh</p>
+            <ol className="space-y-2" aria-label="Các vùng gợi ý trên ảnh">
+              {suggestions.map((suggestion, index) => (
+                <li
+                  key={JSON.stringify(suggestion.mask)}
+                  onPointerEnter={() => setHoveredSuggestion(suggestion)}
+                  onPointerLeave={() => setHoveredSuggestion(null)}
+                  onFocus={() => setFocusedSuggestion(suggestion)}
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setFocusedSuggestion(null)
+                  }}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-2.5 text-xs transition-colors hover:border-amber-500 focus-within:border-amber-500 dark:border-amber-900 dark:bg-amber-950/25 dark:hover:border-amber-500 dark:focus-within:border-amber-500"
+                >
+                  <div className="flex min-w-0 items-center gap-2.5 font-semibold">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-amber-100 text-amber-950 tabular-nums dark:bg-amber-100 dark:text-amber-950">
+                      {index + 1}
+                    </span>
+                    <span>{suggestion.label}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <button type="button" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-2 font-semibold text-primary-foreground transition-colors enabled:cursor-pointer enabled:hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50" disabled={saving} onClick={() => reviewSuggestion(suggestion, true)}>
+                      <ShieldCheck size={15} aria-hidden="true" />
+                      Che vùng {index + 1}
+                    </button>
+                    <button type="button" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 font-semibold text-muted-foreground transition-colors enabled:cursor-pointer enabled:hover:bg-muted enabled:hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50" disabled={saving} onClick={() => reviewSuggestion(suggestion, false)}>
+                      <X size={14} aria-hidden="true" />
+                      Bỏ gợi ý {index + 1}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
       </div>
-      {!image && !error && <p role="status">Đang mở ảnh…</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Thu phóng ảnh" className="flex flex-wrap items-center gap-2">
-          <button type="button" className={buttonClass} disabled={!image || saving || Boolean(draft) || zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - 0.5))}>
-            Thu nhỏ
+      {error && <p role="alert" className="px-4 pb-3 text-xs text-destructive sm:px-5">{error}</p>}
+      <footer className="flex flex-wrap items-center justify-between gap-2.5 rounded-b-2xl border-t border-border bg-muted/25 px-4 py-3 sm:px-5">
+        <span className="text-xs text-muted-foreground" role="status">
+          Đã che <strong className="font-semibold text-foreground tabular-nums">{masks.length}</strong> vùng
+        </span>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <button type="button" className={buttonClass} disabled={!masks.length || saving} onClick={undo} aria-keyshortcuts="Control+Z">
+            <ArrowCounterClockwise size={16} aria-hidden="true" />
+            Hoàn tác
           </button>
-          <output className="min-w-12 text-center text-xs tabular-nums" aria-live="polite">{Math.round(zoom * 100)}%</output>
-          <button type="button" className={buttonClass} disabled={!image || saving || Boolean(draft) || zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.5))}>
-            Phóng to
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={saving}
+            onClick={() => {
+              if (masks.length > 0) discardDialogRef.current?.showModal()
+              else onCancel()
+            }}
+          >
+            Hủy
           </button>
-          <button type="button" className={buttonClass} disabled={saving || Boolean(draft) || zoom === 1} onClick={() => setZoom(1)}>
-            Vừa khung
+          <button
+            type="button"
+            disabled={!image || saving || Boolean(draft)}
+            onClick={() => void save()}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors enabled:cursor-pointer enabled:hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 motion-reduce:transition-none"
+          >
+            <Check size={16} aria-hidden="true" />
+            {saving ? "Đang lưu ảnh…" : saveLabel}
           </button>
         </div>
-        <button
-          type="button"
-          className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-900 transition-colors enabled:cursor-pointer enabled:hover:bg-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100 dark:enabled:hover:bg-sky-900"
-          disabled={!image || scanning || saving || Boolean(draft)}
-          onClick={() => void scanImage()}
-        >
-          <TextAa size={17} className="shrink-0" aria-hidden="true" />
-          {scanning ? "Đang nhận diện chữ…" : "Gợi ý vùng cần che"}
-        </button>
-      </div>
-      {(scanning || ocrNotice) && (
-        <p role="status" className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 dark:border-sky-900 dark:bg-sky-950/30 text-xs leading-relaxed text-sky-950 dark:text-sky-100">
-          {scanning ? "Đang phân tích ảnh trên thiết bị." : ocrNotice}
+      </footer>
+      <dialog
+        ref={discardDialogRef}
+        role="alertdialog"
+        aria-labelledby={`${discardDialogId}-title`}
+        aria-describedby={`${discardDialogId}-description`}
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-xl backdrop:bg-black/50"
+      >
+        <h2 id={`${discardDialogId}-title`} className="text-base font-bold">
+          Hủy chỉnh sửa ảnh?
+        </h2>
+        <p id={`${discardDialogId}-description`} className="mt-2 leading-relaxed text-muted-foreground">
+          Toàn bộ vùng che chưa lưu trên ảnh này sẽ mất nếu bạn hủy chỉnh sửa.
         </p>
-      )}
-      <div ref={viewportRef} className="max-h-[65vh] overflow-auto rounded-lg bg-muted [container-type:inline-size]">
-        <canvas
-          ref={canvasRef}
-          tabIndex={0}
-          aria-label="Ảnh minh chứng. Kéo trên ảnh để thêm vùng che."
-          hidden={!image}
-          className="mx-auto block h-auto max-w-none touch-none cursor-crosshair"
-          style={image ? { width: `calc(min(100cqw, ${65 * image.naturalWidth / image.naturalHeight}vh) * ${zoom})` } : undefined}
-          onPointerDown={event => {
-            if (saving || drag.current || event.button !== 0) return
-            event.currentTarget.focus({ preventScroll: true })
-            const origin = point(event)
-            drag.current = { pointerId: event.pointerId, origin }
-            event.currentTarget.setPointerCapture(event.pointerId)
-          }}
-          onPointerMove={event => {
-            if (drag.current?.pointerId === event.pointerId) {
-              setDraft(maskBetween(drag.current.origin, point(event)))
-            }
-          }}
-          onPointerUp={event => {
-            if (drag.current?.pointerId !== event.pointerId) return
-            const mask = maskBetween(drag.current.origin, point(event))
-            if (mask.width >= 2 && mask.height >= 2) setMasks(previous => [...previous, mask])
-            drag.current = null
-            setDraft(null)
-          }}
-          onLostPointerCapture={event => {
-            if (drag.current?.pointerId !== event.pointerId) return
-            drag.current = null
-            setDraft(null)
-          }}
-        />
-      </div>
-      {suggestions.length > 0 && (
-        <ol className="space-y-2" aria-label="Các vùng OCR gợi ý">
-          {suggestions.map((suggestion, index) => (
-            <li
-              key={JSON.stringify(suggestion.mask)}
-              onPointerEnter={() => setHoveredSuggestion(suggestion)}
-              onPointerLeave={() => setHoveredSuggestion(null)}
-              onFocus={() => setFocusedSuggestion(suggestion)}
-              onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) setFocusedSuggestion(null)
-              }}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-2.5 text-xs transition-colors hover:border-amber-500 focus-within:border-amber-500 dark:border-amber-900 dark:bg-amber-950/25 dark:hover:border-amber-500 dark:focus-within:border-amber-500"
-            >
-              <div className="flex min-w-0 items-center gap-2.5 font-semibold">
-                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-amber-100 text-amber-950 tabular-nums dark:bg-amber-100 dark:text-amber-950">
-                  {index + 1}
-                </span>
-                <span>{suggestion.label}</span>
-              </div>
-              <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-                <button type="button" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-primary px-3 font-semibold text-primary-foreground transition-colors enabled:cursor-pointer enabled:hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50" disabled={saving} onClick={() => reviewSuggestion(suggestion, true)}>
-                  <ShieldCheck size={15} aria-hidden="true" />
-                  Che vùng {index + 1}
-                </button>
-                <button type="button" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 font-semibold text-muted-foreground transition-colors enabled:cursor-pointer enabled:hover:bg-muted enabled:hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50" disabled={saving} onClick={() => reviewSuggestion(suggestion, false)}>
-                  <X size={14} aria-hidden="true" />
-                  Bỏ gợi ý {index + 1}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-      <span className="sr-only" role="status">Số vùng đã che {masks.length}</span>
-      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={buttonClass} disabled={!masks.length || saving} onClick={undo} aria-keyshortcuts="Control+Z">
-          Hoàn tác
-        </button>
-        <button type="button" className={buttonClass} disabled={saving} onClick={onCancel}>Hủy</button>
-        <button
-          type="button"
-          disabled={!image || saving || Boolean(draft)}
-          onClick={() => void save()}
-          className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-        >
-          {saving ? "Đang lưu ảnh…" : saveLabel}
-        </button>
-      </div>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <button type="button" className={buttonClass} onClick={() => discardDialogRef.current?.close()}>
+            Tiếp tục chỉnh sửa
+          </button>
+          <button
+            type="button"
+            className="min-h-11 cursor-pointer rounded-lg bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:bg-red-600 dark:hover:bg-red-700"
+            onClick={() => {
+              discardDialogRef.current?.close()
+              onCancel()
+            }}
+          >
+            Hủy chỉnh sửa
+          </button>
+        </div>
+      </dialog>
     </div>
   )
 }

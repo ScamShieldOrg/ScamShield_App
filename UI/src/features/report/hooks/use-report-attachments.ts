@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react"
 import { validateReportFiles } from "@/features/report/utils/report-upload"
 
-export const IMAGE_REVIEW_REQUIRED = "Vui lòng rà soát thông tin nhạy cảm trong tất cả ảnh minh chứng."
-
 export interface ReportAttachment {
   id: string
   file: File
