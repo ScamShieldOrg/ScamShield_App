@@ -21,25 +21,25 @@ export function ReportThreatTypeSelector({
     subLabel: string
     icon: typeof Phone
   }[] = [
-    {
-      type: "PHONE",
-      label: "Số điện thoại",
-      subLabel: "Cuộc gọi hoặc tin nhắn",
-      icon: Phone,
-    },
-    {
-      type: "WEBSITE",
-      label: "Website",
-      subLabel: "Trang giả mạo hoặc đường dẫn lừa đảo",
-      icon: Globe,
-    },
-    {
-      type: "BANK_ACCOUNT",
-      label: "Tài khoản ngân hàng",
-      subLabel: "Số tài khoản nhận tiền",
-      icon: Bank,
-    },
-  ]
+      {
+        type: "PHONE",
+        label: "Số điện thoại",
+        subLabel: "Cuộc gọi hoặc tin nhắn",
+        icon: Phone,
+      },
+      {
+        type: "WEBSITE",
+        label: "Website",
+        subLabel: "Trang giả mạo hoặc đường dẫn lừa đảo",
+        icon: Globe,
+      },
+      {
+        type: "BANK_ACCOUNT",
+        label: "Tài khoản ngân hàng",
+        subLabel: "Số tài khoản nhận tiền",
+        icon: Bank,
+      },
+    ]
 
   return (
     <div

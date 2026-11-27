@@ -150,10 +150,16 @@ class ScamCheckAiClientTest {
             assertThat(protocol.get()).isEqualTo("HTTP/1.1");
             assertThat(authorization.get()).isEqualTo("Bearer test-service-token");
             assertThat(upgrade.get()).isNull();
-            assertThat(json.readTree(payload.get()).path("check_type").asText()).isEqualTo("SMS");
-            assertThat(json.readTree(payload.get()).path("content").asText()).isEqualTo(original);
-            assertThat(json.readTree(payload.get()).path("core_check_id").asLong()).isEqualTo(1L);
-            assertThat(json.readTree(payload.get()).path("force_tier2").asBoolean()).isFalse();
+            var sent = json.readTree(payload.get());
+            assertThat(sent.path("check_type").asText()).isEqualTo("SMS");
+            assertThat(sent.path("content").asText()).isEqualTo(original);
+            assertThat(sent.path("core_check_id").asLong()).isEqualTo(1L);
+            assertThat(sent.path("force_tier2").asBoolean()).isFalse();
+            assertThat(sent.has("raw_input")).isFalse();
+            assertThat(sent.has("normalized_content")).isFalse();
+            assertThat(sent.has("extracted_entities")).isFalse();
+            assertThat(client.scan(1L, "MESSAGE", original, true).verdict()).isEqualTo("SCAM_RISK");
+            assertThat(json.readTree(payload.get()).path("force_tier2").asBoolean()).isTrue();
             assertThat(client.scan(2L, "URL", "https://example.test").unknownReason()).isEqualTo("AI_UNAVAILABLE");
             assertThat(json.readTree(payload.get()).path("check_type").asText()).isEqualTo("URL");
         } finally {
@@ -204,6 +210,63 @@ class ScamCheckAiClientTest {
         try {
             var client = new ScamCheckAiClient(json, "http://127.0.0.1:" + server.getAddress().getPort(), 1000, 1000, true, "test-service-token");
             assertThat(client.scan(1L, "MESSAGE", "private content").unknownReason()).isEqualTo("AI_UNAVAILABLE");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void mapsTier2CacheHitToCacheTier2StageWhilePreservingTier2Details() throws Exception {
+        String body = """
+                {
+                  "status": "success",
+                  "data": {
+                    "scan_id": "SC-CACHE-001",
+                    "timestamp": "2026-11-25T08:00:00+00:00",
+                    "tier_executed": 2,
+                    "verdict": {
+                      "risk_level": "UNKNOWN",
+                      "risk_score": null,
+                      "scam_category": "Chưa đủ cơ sở kết luận",
+                      "confidence": 0.55,
+                      "summary": "Tái sử dụng kết quả phân tích chuyên sâu trước đó.",
+                      "decided_by": "CACHE"
+                    },
+                    "council_breakdown": {
+                      "consensus_ratio": "0/3",
+                      "lead_model": "ForensicCouncil-v1.1 (FullPanel)",
+                      "early_exit": false,
+                      "defender_intervened": true,
+                      "agents": [
+                        {"role": "Linguistic", "verdict": "UNKNOWN", "score": 55.0}
+                      ]
+                    },
+                    "actionable_recommendations": ["Xác minh qua kênh chính thức."],
+                    "telemetry": {
+                      "routing_path": "CACHE_HIT_TIER_2",
+                      "total_cost_usd": 0.0
+                    }
+                  },
+                  "error": null
+                }
+                """;
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/scan", exchange -> {
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var client = new ScamCheckAiClient(json, "http://127.0.0.1:" + server.getAddress().getPort(), 1000, 1000, true, "test-service-token");
+            var result = client.scan(10L, "MESSAGE", "Chao Nam Moi 2026");
+            assertThat(result.verdict()).isEqualTo("UNKNOWN");
+            assertThat(result.stage()).isEqualTo("CACHE_TIER2");
+            assertThat(result.unknownReason()).isEqualTo("AI_UNCERTAIN");
+            assertThat(result.aiDetails()).isNotNull();
+            assertThat(result.aiDetails().tierExecuted()).isEqualTo(2);
+            assertThat(result.aiDetails().councilAudit()).isNotNull();
         } finally {
             server.stop(0);
         }

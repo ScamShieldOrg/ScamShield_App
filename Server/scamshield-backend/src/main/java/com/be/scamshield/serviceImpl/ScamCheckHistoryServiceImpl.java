@@ -119,6 +119,7 @@ public class ScamCheckHistoryServiceImpl implements IScamCheckHistoryService {
                 .verdictLabel(raw.verdictLabel() != null ? raw.verdictLabel() : "Chưa Đủ Dữ Liệu")
                 .verdictStatus(raw.verdictStatus() != null ? raw.verdictStatus() : "UNKNOWN")
                 .riskScore(raw.riskScore())
+                .decidedByStage(raw.decidedByStage())
                 .build();
     }
 
@@ -161,19 +162,10 @@ public class ScamCheckHistoryServiceImpl implements IScamCheckHistoryService {
         if (raw.maskedInput() != null && !raw.maskedInput().isBlank()) {
             return raw.maskedInput();
         }
-        if (raw.normalizedInput() != null && !raw.normalizedInput().isBlank()) {
-            return raw.normalizedInput();
-        }
-        if (raw.rawInput() != null && !raw.rawInput().isBlank()) {
-            return raw.rawInput();
-        }
         return "N/A";
     }
 
     private String resolveSnippet(RawCheckHistoryItem raw, String targetValue) {
-        if (raw.rawInput() != null && !raw.rawInput().isBlank()) {
-            return raw.rawInput();
-        }
         if (raw.maskedInput() != null && !raw.maskedInput().isBlank()) {
             return raw.maskedInput();
         }

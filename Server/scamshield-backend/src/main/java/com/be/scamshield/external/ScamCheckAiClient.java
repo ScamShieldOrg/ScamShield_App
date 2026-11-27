@@ -126,14 +126,10 @@ public class ScamCheckAiClient {
 
 
     public Result scan(Long checkId, String inputType, String content) {
-
-        return scan(checkId, inputType, content, null, null);
-
+        return scan(checkId, inputType, content, false);
     }
 
-
-
-    public Result scan(Long checkId, String inputType, String content, String normalizedContent, List<?> candidates) {
+    public Result scan(Long checkId, String inputType, String content, boolean forceTier2) {
 
         long started = System.nanoTime();
 
@@ -171,25 +167,11 @@ public class ScamCheckAiClient {
 
             body.put("content", content);
 
-            body.put("raw_input", content);
-
-            if (normalizedContent != null && !normalizedContent.isBlank()) {
-
-                body.put("normalized_content", normalizedContent);
-
-            }
-
             body.put("check_type", type);
 
             body.put("core_check_id", checkId);
 
-            body.put("force_tier2", false);
-
-            if (candidates != null && !candidates.isEmpty()) {
-
-                body.put("extracted_entities", candidates);
-
-            }
+            body.put("force_tier2", forceTier2);
 
 
 
@@ -556,12 +538,18 @@ public class ScamCheckAiClient {
                 features = json.convertValue(featNode, Map.class);
             }
 
+            boolean cacheHit = "CACHE".equalsIgnoreCase(verdict.path("decided_by").asText(""))
+                    || "CACHE_HIT_TIER_2".equalsIgnoreCase(data.path("telemetry").path("routing_path").asText(""));
+            String stage = cacheHit ? "CACHE_TIER2"
+                    : "URL".equals(inputType) ? "URL_REPUTATION"
+                    : tier == 1 ? "VISOBERT" : "LLM";
+
             var details = new ScamCheckAiDetails(scanId, createdAt, tier,
                     new ScamCheckAiDetails.AiVerdict(risk, "UNKNOWN".equals(risk) ? null : riskScore.decimalValue(),
                             scamType, confidence.decimalValue(), summary),
                     radar.isEmpty() ? null : radar, advice, council, deliberation, features);
 
-            return new Result(risk, "URL".equals(inputType) ? "URL_REPUTATION" : tier == 1 ? "VISOBERT" : "LLM",
+            return new Result(risk, stage,
 
                     confidence.decimalValue(), summary, guidance.toString(),
 

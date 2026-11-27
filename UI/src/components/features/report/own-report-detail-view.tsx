@@ -1,10 +1,15 @@
 "use client"
 
-import { reportStatusClasses } from "@/features/report/utils/report-status"
+import {
+  reportStatusDotClasses,
+  reportStatusLabels,
+} from "@/features/report/utils/report-status"
 import { formatReportHotline } from "@/features/report/utils/report-phone"
+import { formatReportPhoneDisplay } from "./report-helpers"
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { MotionConfig } from "motion/react"
 import { toast } from "react-toastify"
 import {
   ArrowLeft,
@@ -14,10 +19,12 @@ import {
   Bank,
   CalendarBlank,
   Check,
+  CircleNotch,
   Clock,
   ClipboardText,
   FileText,
   Globe,
+  Info,
   MapPin,
   Paperclip,
   PencilSimple,
@@ -25,6 +32,8 @@ import {
   ShieldCheck,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
+import { ScamErrorCallout } from "@/components/features/check/scam-error-callout"
+import { ExpandableIconButton } from "@/components/shared/expandable-icon-action"
 import {
   getOwnReport,
   getReportCategories,
@@ -50,15 +59,22 @@ const statusNames: Record<string, string> = {
   REJECTED: "Bị từ chối",
   WITHDRAWN: "Đã thu hồi",
 }
+const bannerStatusClasses: Record<string, string> = {
+  PENDING: "border-amber-300 bg-amber-100 text-amber-950",
+  IN_REVIEW: "border-sky-300 bg-sky-100 text-sky-950",
+  APPROVED: "border-emerald-300 bg-emerald-100 text-emerald-950",
+  REJECTED: "border-rose-300 bg-rose-100 text-rose-950",
+  WITHDRAWN: "border-slate-300 bg-slate-100 text-slate-900",
+}
 const buttonClass =
   "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
 const secondaryButton = cn(
   buttonClass,
-  "border border-border bg-card text-foreground hover:border-primary/30 hover:bg-muted"
+  "border border-black/10 bg-card text-foreground hover:bg-muted dark:border-white/10"
 )
 const primaryButton = cn(
   buttonClass,
-  "bg-primary text-primary-foreground hover:bg-primary/90"
+  "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
 )
 const dangerButton = cn(
   buttonClass,
@@ -90,7 +106,8 @@ function safeUrl(value: string | null) {
     return undefined
   }
 }
-function date(value: string) {
+
+function formatDateTime(value: string) {
   return new Date(value).toLocaleString("vi-VN")
 }
 
@@ -101,7 +118,7 @@ function EvidenceThumbnail({ item }: { item: OwnReportEvidence }) {
     item.evidenceType.toUpperCase()
   )
   return (
-    <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 bg-muted text-primary">
+    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted text-muted-foreground">
       {isImage && url && !failed ? (
         // Original evidence URLs may be signed; load directly without an optimization proxy.
         // eslint-disable-next-line @next/next/no-img-element
@@ -123,6 +140,21 @@ function EvidenceThumbnail({ item }: { item: OwnReportEvidence }) {
   )
 }
 
+const MODERATION_ACTION_META: Record<string, { label: string; dot: string }> = {
+  APPROVE: {
+    label: "Đã chấp nhận",
+    dot: "bg-emerald-500 dark:bg-emerald-400",
+  },
+  REJECT: {
+    label: "Từ chối",
+    dot: "bg-rose-500 dark:bg-rose-400",
+  },
+  IN_REVIEW: {
+    label: "Bắt đầu kiểm duyệt",
+    dot: "bg-sky-500 dark:bg-sky-400",
+  },
+}
+
 export function OwnReportDetailView({
   reportId,
   initialEdit = false,
@@ -131,14 +163,16 @@ export function OwnReportDetailView({
   initialEdit?: boolean
 }) {
   const id = Number(reportId.replace(/^#?RPT-/i, ""))
+  const validId = Number.isSafeInteger(id) && id > 0
+
   const [report, setReport] = useState<OwnReportDetail | null>(null)
   const [categories, setCategories] = useState<ScamCategoryItem[]>([])
   const [regions, setRegions] = useState<DashboardRegionOption[]>([])
-  const validId = Number.isSafeInteger(id) && id > 0
   const [loading, setLoading] = useState(validId)
   const [error, setError] = useState(validId ? "" : "Mã báo cáo không hợp lệ.")
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [description, setDescription] = useState("")
   const [categoryId, setCategoryId] = useState("")
   const [region, setRegion] = useState("")
@@ -164,6 +198,7 @@ export function OwnReportDetailView({
       setLoading(false)
     }
   }, [id])
+
   useEffect(() => {
     if (!validId) return
     let active = true
@@ -181,8 +216,9 @@ export function OwnReportDetailView({
         }
       })
       .catch((e) => {
-        if (active)
+        if (active) {
           setError(e instanceof Error ? e.message : "Không thể tải báo cáo.")
+        }
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -195,12 +231,14 @@ export function OwnReportDetailView({
       .then((data) => {
         if (active) setRegions(data.regions)
       })
-      .catch(() => {})
+      .catch(() => { })
     return () => {
       active = false
     }
   }, [id, validId, initialEdit])
+
   const editable = report?.status === "PENDING"
+
   function startEdit() {
     if (!report) return
     setDescription(report.description ?? "")
@@ -211,6 +249,18 @@ export function OwnReportDetailView({
     attachmentUpload.clear()
     setEditing(true)
   }
+
+  async function handleCopyTarget() {
+    if (!report) return
+    try {
+      await navigator.clipboard.writeText(report.targetValue)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error("Không thể sao chép nội dung.")
+    }
+  }
+
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!description.trim()) {
@@ -249,19 +299,20 @@ export function OwnReportDetailView({
       const replacement =
         evidenceChanged || files.length > 0
           ? [
-              ...evidence.map((item) => ({
-                fileUrl: item.fileUrl ?? "",
-                fileName: item.fileName,
-                fileHash: item.fileHash,
-                evidenceType: item.evidenceType,
-              })),
-              ...uploaded,
-            ]
+            ...evidence.map((item) => ({
+              fileUrl: item.fileUrl ?? "",
+              fileName: item.fileName,
+              fileHash: item.fileHash,
+              evidenceType: item.evidenceType,
+            })),
+            ...uploaded,
+          ]
           : undefined
-      if (replacement?.some((item) => !safeUrl(item.fileUrl)))
+      if (replacement?.some((item) => !safeUrl(item.fileUrl))) {
         throw new Error(
           "Có bằng chứng không có đường dẫn hợp lệ. Hãy bỏ bằng chứng đó hoặc hủy chỉnh sửa."
         )
+      }
       const updated = await updateOwnReport(id, {
         description: description.trim(),
         categoryId: categoryId ? Number(categoryId) : null,
@@ -281,6 +332,7 @@ export function OwnReportDetailView({
       setBusy(false)
     }
   }
+
   async function withdraw() {
     setBusy(true)
     try {
@@ -299,6 +351,7 @@ export function OwnReportDetailView({
       setBusy(false)
     }
   }
+
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl space-y-4 sm:space-y-5">
       <Link
@@ -340,7 +393,7 @@ export function OwnReportDetailView({
                   <span
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
-                      reportStatusClasses[report.status] ?? "border-slate-200 bg-slate-100 text-slate-800"
+                      bannerStatusClasses[report.status] ?? "border-white/30 bg-white/10 text-slate-100"
                     )}
                   >
                     <ShieldCheck size={15} aria-hidden="true" />
@@ -384,7 +437,7 @@ export function OwnReportDetailView({
                     <CalendarBlank size={15} aria-hidden="true" /> Ngày gửi
                   </dt>
                   <dd className="mt-1 font-semibold tabular-nums">
-                    <time dateTime={report.createdAt}>{date(report.createdAt)}</time>
+                    <time dateTime={report.createdAt}>{formatDateTime(report.createdAt)}</time>
                   </dd>
                 </div>
                 <div>
@@ -609,7 +662,7 @@ export function OwnReportDetailView({
                     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
                       <Clock size={15} aria-hidden="true" />
                       Cập nhật lần cuối
-                      <time dateTime={report.updatedAt} className="tabular-nums">{date(report.updatedAt)}</time>
+                      <time dateTime={report.updatedAt} className="tabular-nums">{formatDateTime(report.updatedAt)}</time>
                     </p>
                   </section>
                 )}
@@ -686,7 +739,7 @@ export function OwnReportDetailView({
                           )[step.action] ?? "Cập nhật kiểm duyệt"}
                         </p>
                         <time dateTime={step.createdAt} className="mt-0.5 block text-xs text-muted-foreground tabular-nums">
-                          {date(step.createdAt)}
+                          {formatDateTime(step.createdAt)}
                         </time>
                         {step.reason && (
                           <p className="mt-2 rounded-lg bg-muted/40 px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">

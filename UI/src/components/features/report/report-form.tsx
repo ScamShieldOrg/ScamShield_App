@@ -8,7 +8,6 @@ import {
 } from "@/features/report/utils/report-phone"
 
 import { Combobox } from "@base-ui/react/combobox"
-
 import { dashboardService } from "@/features/dashboard/services/dashboard.service"
 import type { DashboardRegionOption } from "@/features/dashboard/types/dashboard.types"
 import { Suspense, useEffect, useRef, useState } from "react"
@@ -153,13 +152,10 @@ function ReportFormContent({
   isLoading,
   uploadProgress = 0,
 }: ReportFormProps) {
-  // `useSearchParams` must be called inside the Suspense boundary above.
   const searchParams = useSearchParams()
   const scanIdParam = searchParams.get("scanId")?.trim() ?? ""
   const checkIdParam = searchParams.get("checkId")?.trim() ?? ""
-  // The check action bar hands a one-shot draft over in `sessionStorage`. It is
-  // read during the first render - never inside an effect - so the fields are
-  // seeded without cascading re-renders.
+
   const [prefillDraft] = useState(() => peekReportPrefill())
   const [threatType, setThreatType] = useState<ReportThreatType | null>(() =>
     threatTypeFromInputType(prefillDraft?.inputType)
@@ -168,36 +164,56 @@ function ReportFormContent({
     () => prefillDraft?.targetIdentifier?.trim() ?? ""
   )
   const [targetTouched, setTargetTouched] = useState(false)
+
   const [regions, setRegions] = useState<DashboardRegionOption[]>([])
   const [regionName, setRegionName] = useState("")
   const [regionError, setRegionError] = useState("")
+  const [regionRevision, setRegionRevision] = useState(0)
   const regionRef = useRef<HTMLInputElement>(null)
   const regionCode = regions.find((r) => r.name === regionName)?.code ?? ""
-  const loadRegions = () =>
-    dashboardService
+
+  useEffect(() => {
+    let active = true
+    void dashboardService
       .getFilters()
       .then((data) => {
+        if (!active) return
         setRegions(data.regions)
         setRegionError("")
       })
-      .catch(() =>
-        setRegionError("Không thể tải tỉnh/thành. Vui lòng thử lại.")
-      )
-  useEffect(() => {
-    void loadRegions()
-  }, [])
-  const [categories, setCategories] = useState<ScamCategoryItem[]>([])
-  const [categoriesLoading, setCategoriesLoading] = useState(true)
-  const loadCategories = async () => {
-    try {
-      setCategories(await getReportCategories())
-    } finally {
-      setCategoriesLoading(false)
+      .catch(() => {
+        if (active) {
+          setRegionError("Không thể tải tỉnh/thành. Vui lòng thử lại.")
+        }
+      })
+    return () => {
+      active = false
     }
-  }
+  }, [regionRevision])
+
+  const [categories, setCategories] = useState<ScamCategoryItem[]>([])
+  const [categoriesRevision, setCategoriesRevision] = useState(0)
+  const [settledCategoriesRevision, setSettledCategoriesRevision] =
+    useState(-1)
+  const categoriesLoading = settledCategoriesRevision !== categoriesRevision
+
   useEffect(() => {
-    void loadCategories()
-  }, [])
+    let active = true
+    void getReportCategories()
+      .then((data) => {
+        if (active) setCategories(data)
+      })
+      .catch(() => {
+        if (active) setCategories([])
+      })
+      .finally(() => {
+        if (active) setSettledCategoriesRevision(categoriesRevision)
+      })
+    return () => {
+      active = false
+    }
+  }, [categoriesRevision])
+
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
   const attachmentUpload = useReportAttachments()
@@ -207,6 +223,8 @@ function ReportFormContent({
   const [isConfirmed, setIsConfirmed] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
+
+  const formRef = useRef<HTMLFormElement>(null)
   const threatGroupRef = useRef<HTMLDivElement>(null)
   const targetRef = useRef<HTMLInputElement>(null)
   const categoryRef = useRef<HTMLSelectElement>(null)
@@ -215,6 +233,8 @@ function ReportFormContent({
   const confirmationRef = useRef<HTMLInputElement>(null)
   const submittingRef = useRef(false)
   const activeRef = useRef(true)
+  const prefillConsumedRef = useRef(false)
+
   const isBusy = Boolean(isLoading || isSubmitting)
   const typeWarning =
     threatType === "PHONE" && targetIdentifier.trim() && !isCompleteReportPhone(targetIdentifier)
@@ -236,30 +256,19 @@ function ReportFormContent({
   const categoryMissing = hasAttemptedSubmit && !category.trim()
   const descriptionMissing = hasAttemptedSubmit && !description.trim()
   const confirmationMissing = hasAttemptedSubmit && !isConfirmed
-  const prefillConsumedRef = useRef(false)
 
-  // `/user/reports/new` sits behind the user role guard, so the request below
-  // always carries an authorized session.
   useEffect(() => {
-    // The draft was already rendered into the fields above; drop it now so a
-    // later visit starts clean.
     if (prefillDraft) {
       prefillConsumedRef.current = true
       clearReportPrefill()
     }
-    // Never let the weaker deep-link fallback overwrite the draft.
     if (prefillConsumedRef.current) return
-    // A bare `?scanId=` deep link carries no draft. The saved check is the only
-    // source left: it recovers the type, the matched indicator, and the verdict
-    // summary, but never the original pasted content.
     if (!scanIdParam) return
 
     const scanId = scanIdParam
     let cancelled = false
 
     const loadPrefill = async () => {
-      // A bare `?scanId=` deep link may carry an explicit `checkId`; otherwise
-      // the trailing number of the scan id is the only usable hint.
       const checkId = parseCheckId(
         checkIdParam || extractTrailingDigits(scanId)
       )
@@ -268,8 +277,6 @@ function ReportFormContent({
       try {
         const result = await getScamCheckResult(checkId)
         if (cancelled) return
-        // The saved check keeps no raw input, so the matched indicator is the
-        // closest thing to the original target the API still returns.
         const resultThreatType = threatTypeFromInputType(result.inputType)
         if (resultThreatType) setThreatType(resultThreatType)
         const matchedValue = result.matchedIndicator?.value?.trim()
@@ -279,16 +286,14 @@ function ReportFormContent({
           result.explanation?.trim()
         if (summary) setDescription(truncateText(summary, 300))
       } catch {
-        // Expired session or a deleted check: leave the form empty on purpose.
+        // Expired session or deleted check: leave form empty intentionally.
       }
     }
 
     void loadPrefill()
-
     return () => {
       cancelled = true
     }
-    // `prefillDraft` never changes after the first render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkIdParam, scanIdParam])
 
@@ -301,7 +306,7 @@ function ReportFormContent({
 
   useEffect(() => {
     if (!isSuccess) return
-    const timer = setTimeout(() => setIsSuccess(false), 3500)
+    const timer = setTimeout(() => setIsSuccess(false), 4000)
     return () => clearTimeout(timer)
   }, [isSuccess])
 
@@ -338,20 +343,18 @@ function ReportFormContent({
         ? threatGroupRef.current?.querySelector<HTMLButtonElement>("button")
         : !targetIdentifier.trim()
           ? targetRef.current
-          : !category.trim()
-            ? categoryRef.current
-            : !description.trim()
-              ? descriptionRef.current
-              : attachments.length === 0
-                ? fileSectionRef.current?.querySelector<HTMLButtonElement>(
-                  "button"
-                )
-                : confirmationRef.current
-      if (!regionCode) {
-        regionRef.current?.focus()
-        regionRef.current?.scrollIntoView({ block: "center" })
-        return
-      }
+          : !regionCode
+            ? regionRef.current
+            : !category.trim()
+              ? categoryRef.current
+              : !description.trim()
+                ? descriptionRef.current
+                : attachments.length === 0
+                  ? fileSectionRef.current?.querySelector<HTMLButtonElement>(
+                    "button"
+                  )
+                  : confirmationRef.current
+
       firstMissing?.focus({ preventScroll: true })
       firstMissing?.scrollIntoView({
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -361,6 +364,7 @@ function ReportFormContent({
       })
       return
     }
+
     submittingRef.current = true
     setIsSubmitting(true)
     setSubmitError(null)
@@ -381,7 +385,6 @@ function ReportFormContent({
       })
 
       if (!activeRef.current) return
-      // Reset form after successful submission
       setThreatType(null)
       setTargetIdentifier("")
       setTargetTouched(false)
@@ -393,12 +396,13 @@ function ReportFormContent({
       setHasAttemptedSubmit(false)
       setIsSuccess(true)
     } catch (error) {
-      if (activeRef.current)
+      if (activeRef.current) {
         setSubmitError(
           error instanceof Error
             ? error.message
             : "Không thể gửi báo cáo. Vui lòng thử lại."
         )
+      }
     } finally {
       submittingRef.current = false
       if (activeRef.current) setIsSubmitting(false)
@@ -407,6 +411,7 @@ function ReportFormContent({
 
   return (
     <form
+      ref={formRef}
       onSubmit={handleSubmit}
       noValidate
       aria-busy={isBusy}
@@ -423,7 +428,7 @@ function ReportFormContent({
           {threatTypeMissing && (
             <p
               id="report-threat-type-error"
-              className="text-xs text-destructive"
+              className="text-xs font-medium text-rose-700 dark:text-rose-300"
             >
               Vui lòng chọn loại đối tượng báo cáo.
             </p>
@@ -518,8 +523,8 @@ function ReportFormContent({
                 htmlFor="report-region"
                 className="block text-sm font-semibold text-foreground"
               >
-                Tỉnh/thành của bạn khi gửi báo cáo{" "}
-                <span className="text-destructive">*</span>
+                Tỉnh/thành của bạn{" "}
+                <span className="text-rose-600 dark:text-rose-400">*</span>
               </label>
               <Combobox.Root
                 items={regions.map((r) => r.name)}
@@ -534,14 +539,14 @@ function ReportFormContent({
                     size={16}
                     weight="bold"
                     aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-[#45464D] dark:text-muted-foreground"
+                    className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground"
                   />
                   <Combobox.Input
                     ref={regionRef}
                     id="report-region"
                     required
                     autoComplete="off"
-                    placeholder="Nhập tên để tìm và chọn tỉnh/thành"
+                    placeholder="Nhập tên tỉnh/thành..."
                     aria-invalid={hasAttemptedSubmit && !regionCode}
                     aria-describedby={hasAttemptedSubmit && !regionCode ? "report-region-error" : undefined}
                     className={reportInputClass}
@@ -554,8 +559,8 @@ function ReportFormContent({
                     sideOffset={6}
                     className="z-50 w-[var(--anchor-width)] max-w-[var(--available-width)]"
                   >
-                    <Combobox.Popup className="w-full overflow-hidden rounded-xl border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg">
-                      <Combobox.Empty className="px-3 py-3 text-muted-foreground">
+                    <Combobox.Popup className="w-full overflow-hidden rounded-xl border border-black/10 bg-popover py-1 text-sm text-popover-foreground shadow-[0_12px_36px_rgb(15,23,42,0.14)] dark:border-white/12">
+                      <Combobox.Empty className="px-3 py-3 text-xs text-muted-foreground">
                         Không tìm thấy tỉnh/thành phù hợp.
                       </Combobox.Empty>
                       <Combobox.List className="max-h-64 overflow-y-auto overscroll-contain">
@@ -563,7 +568,7 @@ function ReportFormContent({
                           <Combobox.Item
                             key={name}
                             value={name}
-                            className="cursor-pointer px-3 py-2.5 transition-colors outline-none data-[highlighted]:bg-muted data-[selected]:font-semibold"
+                            className="cursor-pointer px-3 py-2.5 text-sm transition-colors outline-none data-[highlighted]:bg-muted data-[selected]:font-semibold"
                           >
                             {name}
                           </Combobox.Item>
@@ -579,24 +584,30 @@ function ReportFormContent({
                 </p>
               )}
               {regionError && (
-                <p role="alert" className="text-xs text-destructive">
+                <p
+                  role="alert"
+                  className="text-xs font-medium text-rose-700 dark:text-rose-300"
+                >
                   {regionError}{" "}
                   <button
                     type="button"
-                    onClick={() => void loadRegions()}
-                    className="underline"
+                    onClick={() => setRegionRevision((v) => v + 1)}
+                    className="cursor-pointer font-semibold underline underline-offset-2"
                   >
                     Tải lại danh sách
                   </button>
                 </p>
               )}
             </div>
+
+            {/* Category select */}
             <div className="space-y-1.5">
               <label
                 htmlFor="report-category"
                 className="block text-sm font-semibold text-foreground"
               >
-                Danh mục thủ đoạn <span className="text-[#BA1A1A]">*</span>
+                Danh mục thủ đoạn{" "}
+                <span className="text-rose-600 dark:text-rose-400">*</span>
               </label>
               <div className="relative">
                 <select
@@ -633,15 +644,15 @@ function ReportFormContent({
                 />
               </div>
               {!categoriesLoading && categories.length === 0 && (
-                <p className="text-xs text-destructive" role="alert">
-                  Không tải được danh mục hoặc chưa có danh mục hoạt động.{" "}
+                <p
+                  className="text-xs font-medium text-rose-700 dark:text-rose-300"
+                  role="alert"
+                >
+                  Không tải được danh mục hoạt động.{" "}
                   <button
                     type="button"
-                    onClick={() => {
-                      setCategoriesLoading(true)
-                      void loadCategories()
-                    }}
-                    className="underline"
+                    onClick={() => setCategoriesRevision((v) => v + 1)}
+                    className="cursor-pointer font-semibold underline underline-offset-2"
                   >
                     Thử lại
                   </button>
@@ -650,7 +661,7 @@ function ReportFormContent({
               {categoryMissing && (
                 <p
                   id="report-category-error"
-                  className="text-xs text-destructive"
+                  className="text-xs font-medium text-rose-700 dark:text-rose-300"
                 >
                   Vui lòng chọn danh mục thủ đoạn.
                 </p>
@@ -665,7 +676,8 @@ function ReportFormContent({
                 htmlFor="report-description"
                 className="text-sm font-semibold text-foreground"
               >
-                Mô tả ngắn gọn hành vi <span className="text-[#BA1A1A]">*</span>
+                Mô tả ngắn gọn hành vi{" "}
+                <span className="text-rose-600 dark:text-rose-400">*</span>
               </label>
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                 {description.length}/2000 ký tự
@@ -675,7 +687,7 @@ function ReportFormContent({
               ref={descriptionRef}
               id="report-description"
               maxLength={2000}
-              rows={3}
+              rows={4}
               required
               aria-invalid={descriptionMissing}
               aria-describedby={
@@ -689,7 +701,7 @@ function ReportFormContent({
             {descriptionMissing && (
               <p
                 id="report-description-error"
-                className="text-xs text-destructive"
+                className="text-xs font-medium text-rose-700 dark:text-rose-300"
               >
                 Vui lòng mô tả ngắn gọn hành vi cần báo cáo.
               </p>
@@ -728,26 +740,33 @@ function ReportFormContent({
         <section id="report-confirmation" tabIndex={-1} aria-labelledby="report-confirmation-heading" className={reportSectionClass}>
           <ReportSectionHeading number={3} id="report-confirmation-heading">Xác nhận và gửi</ReportSectionHeading>
 
-          <div className="flex items-center gap-2 text-xs font-medium text-[#00875A] dark:text-emerald-400">
-            <ShieldCheck size={16} weight="fill" />
-            <span>
-              Báo cáo sẽ được kiểm duyệt độc lập trước khi cảnh báo cộng đồng.
-            </span>
-          </div>
-
-          <div className="flex items-start gap-2 text-xs text-muted-foreground">
-            <Medal
-              size={16}
-              weight="fill"
-              className="shrink-0 text-amber-600 dark:text-amber-400"
-            />
-            <span>
-              Báo cáo được xác thực giúp bạn nhận{" "}
-              <strong className="font-semibold text-foreground">
-                50 điểm uy tín
-              </strong>{" "}
-              và nâng thứ hạng.
-            </span>
+          <div className="space-y-2 rounded-lg bg-muted/35 p-3.5 text-xs">
+            <div className="flex items-start gap-2 text-emerald-800 dark:text-emerald-300">
+              <ShieldCheck
+                aria-hidden="true"
+                size={16}
+                weight="fill"
+                className="mt-0.5 shrink-0"
+              />
+              <span>
+                Báo cáo sẽ được kiểm duyệt độc lập trước khi cảnh báo cộng đồng.
+              </span>
+            </div>
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <Medal
+                aria-hidden="true"
+                size={16}
+                weight="fill"
+                className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+              />
+              <span>
+                Báo cáo được xác thực giúp bạn nhận{" "}
+                <strong className="font-semibold text-foreground">
+                  50 điểm uy tín
+                </strong>{" "}
+                và nâng thứ hạng.
+              </span>
+            </div>
           </div>
 
           <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-semibold text-foreground has-[:checked]:border-primary/50">
@@ -768,7 +787,7 @@ function ReportFormContent({
           {confirmationMissing && (
             <p
               id="report-confirmation-error"
-              className="text-xs text-destructive"
+              className="text-xs font-medium text-rose-700 dark:text-rose-300"
             >
               Vui lòng xác nhận thông tin cung cấp là trung thực.
             </p>
@@ -803,23 +822,24 @@ function ReportFormContent({
                 </>
               ) : (
                 <>
-                  <PaperPlaneTilt size={16} weight="fill" />
+                  <PaperPlaneTilt aria-hidden="true" size={16} weight="fill" />
                   <span>Gửi báo cáo</span>
                 </>
               )}
             </button>
 
             {isSuccess && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#00875A] dark:text-emerald-400">
-                <CheckCircle size={16} weight="fill" />
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                <CheckCircle aria-hidden="true" size={18} weight="fill" />
                 <span>Gửi báo cáo thành công!</span>
               </span>
             )}
           </div>
+
           {isBusy && attachments.length > 0 && (
             <div
               role="status"
-              className="space-y-1.5 text-xs text-muted-foreground"
+              className="space-y-1.5 text-xs text-muted-foreground tabular-nums"
             >
               <span>
                 {uploadProgress < 100
@@ -835,8 +855,10 @@ function ReportFormContent({
                 className="h-1.5 overflow-hidden rounded-full bg-muted"
               >
                 <div
-                  className="h-full rounded-full bg-primary transition-[width]"
-                  style={{ width: `${uploadProgress}%` }}
+                  className="h-full origin-left rounded-full bg-primary transition-transform duration-150"
+                  style={{
+                    transform: `scaleX(${Math.min(100, Math.max(0, uploadProgress)) / 100})`,
+                  }}
                 />
               </div>
             </div>

@@ -4,8 +4,11 @@ import com.be.scamshield.dto.request.ScamCheckRequest;
 import com.be.scamshield.exception.BadRequestException;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 class ScamCheckInputProcessorTest {
     private final ScamCheckInputProcessor processor = new ScamCheckInputProcessor();
@@ -92,5 +95,36 @@ class ScamCheckInputProcessorTest {
         var input = processor.prepare(request("MESSAGE", "Mã 8491234567, CCCD001234567890"));
         assertThat(input.masked()).doesNotContain("001234567890");
         assertThat(input.candidates()).isEmpty();
+    }
+
+    @Test
+    void masksOtpAcrossPersistedFieldsForPunctuatedAndSpaceSeparatedForms() {
+        var punctuated = processor.prepare(request("MESSAGE", "OTP: 1234"));
+        assertThat(punctuated.raw()).isEqualTo("OTP: [OTP]");
+        assertThat(punctuated.normalized()).isEqualTo("OTP: [OTP]");
+        assertThat(punctuated.masked()).isEqualTo("OTP: [OTP]");
+
+        var spaceSeparated = processor.prepare(request("MESSAGE", "OTP 5678"));
+        assertThat(spaceSeparated.raw()).isEqualTo("OTP [OTP]");
+        assertThat(spaceSeparated.normalized()).isEqualTo("OTP [OTP]");
+        assertThat(spaceSeparated.masked()).isEqualTo("OTP [OTP]");
+
+        var vietnamese = processor.prepare(request("MESSAGE", "Mã OTP của bạn là 849201, không chia sẻ"));
+        assertThat(vietnamese.raw()).contains("Mã OTP của bạn là [OTP]").doesNotContain("849201");
+        assertThat(vietnamese.normalized()).contains("Mã OTP của bạn là [OTP]").doesNotContain("849201");
+        assertThat(vietnamese.masked()).contains("Mã OTP của bạn là [OTP]").doesNotContain("849201");
+    }
+
+    @Test
+    void completesWithinBoundedTimeOnTenThousandCharOtpWhitespaceInput() {
+        String payload = "OTP" + " ".repeat(9996) + "!";
+        assertThat(payload).hasSize(10000);
+
+        var input = assertTimeoutPreemptively(Duration.ofSeconds(1),
+                () -> processor.prepare(request("MESSAGE", payload)));
+
+        assertThat(input.raw()).isEqualTo(payload);
+        assertThat(input.normalized()).isEqualTo(payload);
+        assertThat(input.masked()).isEqualTo(payload);
     }
 }

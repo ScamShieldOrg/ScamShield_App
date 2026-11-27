@@ -31,25 +31,22 @@ const QUOTA_EXHAUSTED_MESSAGE =
 
 export function useUserScamCheck() {
   const [inputType, setInputType] = useState<CheckType>("TEXT")
-  // Drafts, results and errors are kept per tab so switching type never
-  // discards what the user already typed or the verdict they were reading.
+  // Drafts, results, submitted content and errors are kept per tab so switching
+  // type or editing text never discards what the user already typed or read.
   const [drafts, setDrafts] = useState<Partial<Record<CheckType, string>>>({})
   const [results, setResults] = useState<
     Partial<Record<CheckType, CheckScanResponse | null>>
+  >({})
+  const [submittedContents, setSubmittedContents] = useState<
+    Partial<Record<CheckType, string>>
   >({})
   const [errors, setErrors] = useState<
     Partial<Record<CheckType, string | null>>
   >({})
   const [isLoading, setIsLoading] = useState(false)
-  // The type that produced the currently displayed scan. Reading through this
-  // key instead of the live tab keeps the resolved scan on screen when the
-  // user switches tabs, and never files it under the wrong type.
   const [lastSubmittedType, setLastSubmittedType] = useState<CheckType | null>(
     null
   )
-  // The exact text that produced the displayed scan. The action bar prefills the
-  // report form from it, and the live draft may have changed since the submit.
-  const [lastSubmittedContent, setLastSubmittedContent] = useState("")
   const locked = useRef(false)
 
   const token = useAuthStore((state) => state.token)
@@ -62,30 +59,38 @@ export function useUserScamCheck() {
   const quota = quotaSourceToken === token ? storedQuota : null
   const quotaExhausted = quota != null && quota.remaining <= 0
 
-  // The sidebar quota card already fetches on mount; the store collapses
-  // concurrent calls into one request, so this also covers pages where that
-  // card is not rendered (e.g. the mobile drawer).
   useEffect(() => {
     if (!token) return
     void fetchQuota()
   }, [token, fetchQuota])
 
   const content = drafts[inputType] ?? ""
-  // Resolve through the submitted type: a scan resolves after `inputType` may
-  // have changed, so the live tab would hide the verdict the user just got.
   const resultType = lastSubmittedType ?? inputType
   const result = results[resultType] ?? null
   const error = errors[resultType] ?? null
+  const lastSubmittedContent = submittedContents[resultType] ?? ""
+  const isResultStale = Boolean(
+    result &&
+      lastSubmittedType === inputType &&
+      content.trim() !== lastSubmittedContent.trim()
+  )
 
   const changeDraft = (type: CheckType, value: string) => {
     if (locked.current) return
     setDrafts((previous) => ({ ...previous, [type]: value }))
-    setResults((previous) => ({ ...previous, [type]: null }))
+    // Clear stale error on edit, but preserve the previous verdict so users do
+    // not lose what they are reading on an accidental keystroke.
     setErrors((previous) => ({ ...previous, [type]: null }))
   }
 
   const changeType = (type: CheckType) => {
     if (!locked.current) setInputType(type)
+  }
+
+  const clearResult = (type: CheckType = resultType) => {
+    if (locked.current) return
+    setResults((previous) => ({ ...previous, [type]: null }))
+    setErrors((previous) => ({ ...previous, [type]: null }))
   }
 
   const analyze = async (
@@ -94,19 +99,13 @@ export function useUserScamCheck() {
   ) => {
     if (locked.current) return
     const type = submittedType ?? inputType
-    // Pin the type before any await: the response must be filed under the type
-    // that was actually submitted, even if the user switches tab mid-flight.
     setLastSubmittedType(type)
     const text = submittedContent ?? drafts[type] ?? ""
-    // Remember the submitted text: the draft may change before the user taps
-    // "gửi báo cáo", and the prefill must quote what was actually checked.
-    setLastSubmittedContent(text)
-    // Validate with the backend vocabulary, then send the form the service
-    // actually reads (`check_type`), never the raw `inputType` field.
     const payload = normalizeScamCheckRequest({
       inputType: toRequestInputType(type),
       content: text,
     })
+    setSubmittedContents((previous) => ({ ...previous, [type]: payload.content }))
     const validationError = validateScamCheck(payload)
     setErrors((previous) => ({ ...previous, [type]: validationError }))
     if (validationError) return
@@ -127,22 +126,26 @@ export function useUserScamCheck() {
       })
       setResults((previous) => ({ ...previous, [type]: response }))
     } catch (err) {
-      // checkScamContent already translates axios failures into Vietnamese
-      // Error messages, so surface that text instead of a status-code guess.
       const message =
         err instanceof Error && err.message
           ? err.message
           : "Chưa thể phân tích nội dung. Vui lòng thử lại sau."
       setErrors((previous) => ({ ...previous, [type]: message }))
     } finally {
-      // The backend reserves a quota slot even when the scan fails mid-flight.
       await useUserQuotaStore.getState().fetchQuota()
       locked.current = false
       setIsLoading(false)
     }
   }
 
-  // `ScamCheckInput` expects a complete record, not a sparse one.
+  const retry = () => {
+    const targetType = lastSubmittedType ?? inputType
+    const targetText =
+      drafts[targetType]?.trim() || submittedContents[targetType] || ""
+    if (!targetText) return
+    void analyze(targetText, targetType)
+  }
+
   const draftMap: Record<CheckType, string> = {
     ...EMPTY_DRAFTS,
     ...drafts,
@@ -156,6 +159,7 @@ export function useUserScamCheck() {
     isLoading,
     lastSubmittedType,
     lastSubmittedContent,
+    isResultStale,
     quota,
     quotaExhausted,
     quotaLoading,
@@ -164,6 +168,8 @@ export function useUserScamCheck() {
     drafts: draftMap,
     changeType,
     changeDraft,
+    clearResult,
     analyze,
+    retry,
   }
 }

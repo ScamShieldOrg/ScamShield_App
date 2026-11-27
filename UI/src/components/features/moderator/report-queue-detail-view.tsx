@@ -1,6 +1,7 @@
 "use client"
 import { useCallback, useEffect, useState, useRef } from "react"
 import Link from "next/link"
+import { ExpandableIconButton } from "@/components/shared/expandable-icon-action"
 import { ArrowRight, ClipboardText, Flag, Gavel, ShieldWarning, UserCircle } from "@phosphor-icons/react"
 import type {
   ModeratorReportItem,
@@ -16,6 +17,10 @@ import { ReportEvidencePreview } from "./report-evidence-preview"
 import { ReportDecisionForm } from "./report-decision-form"
 import { ModeratorEscalateModal } from "./abuse-escalation/moderator-escalate-modal"
 import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
+import { cn } from "@/lib/utils"
+
+const panelSurface =
+  "rounded-xl border border-black/10 bg-card p-5 shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)] sm:p-6 dark:border-white/10 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]"
 
 function contextDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString("vi-VN") : "Chưa có dữ liệu"
@@ -81,9 +86,9 @@ function ReviewContext({
           name: item.reportedBy,
           groups: reporterFields
             ? [
-                { heading: "Hồ sơ và liên hệ", fields: reporterFields.slice(0, 4) },
-                { heading: "Hoạt động gửi báo cáo và khiếu nại", fields: reporterFields.slice(4) },
-              ]
+              { heading: "Hồ sơ và liên hệ", fields: reporterFields.slice(0, 4) },
+              { heading: "Hoạt động gửi báo cáo và khiếu nại", fields: reporterFields.slice(4) },
+            ]
             : [],
         },
       ].map(({ title, name, groups }, index) => (
@@ -138,13 +143,10 @@ function ReviewContext({
                 {
                   label: "Bị từ chối",
                   value: indicator.rejectedReports,
-                  color: "text-destructive",
+                  color: "text-rose-700 dark:text-rose-300",
                 },
               ].map(({ label, value, color }) => (
-                <div
-                  key={label}
-                  className="min-w-0 p-2.5 sm:p-3"
-                >
+                <div key={label} className="min-w-0 p-3">
                   <dt className="text-xs text-muted-foreground">{label}</dt>
                   <dd
                     className={`mt-1 text-lg font-bold tabular-nums ${color}`}
@@ -207,6 +209,7 @@ function ReviewContext({
               </div>
             </div>
           )}
+
           {index === 1 && (
             <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
@@ -273,87 +276,107 @@ export function ReportQueueDetailView({
     onDirtyChange?.(formDirty || imageDraftActive)
   }, [formDirty, imageDraftActive, onDirtyChange])
   const decisionRef = useRef<HTMLDivElement>(null)
-  if (!item)
+
+  if (!item) {
     return (
       <div className="mx-auto mt-10 flex max-w-sm flex-col items-center gap-3 p-6 text-center text-sm text-muted-foreground">
         <ClipboardText size={28} aria-hidden="true" />
         <p>Chọn một báo cáo để xem chi tiết.</p>
       </div>
     )
+  }
+
   const pending = item.status === "Pending" || item.status === "In Review"
   const canReview = ownsReportReview(item)
+  const numericId = item.rawId ?? Number(item.id.split("-").at(-1))
+
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 pb-6 sm:px-6">
-      <header className="z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 lg:sticky lg:top-0">
+      <header className="z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/10 bg-card px-4 py-3 shadow-xs lg:sticky lg:top-0 dark:border-white/10">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex items-center gap-2.5">
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-800 dark:bg-sky-950/60 dark:text-sky-200">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-sky-500/20 bg-sky-500/10 text-sky-700 dark:border-sky-400/20 dark:bg-sky-500/15 dark:text-sky-300">
               <ClipboardText size={18} aria-hidden="true" />
             </span>
             <div>
               <p className="text-xs leading-none text-muted-foreground">
                 Mã báo cáo
               </p>
-              <p className="mt-1 text-base leading-none font-semibold tabular-nums">
-                {item.rawId ?? Number(item.id.split("-").at(-1))}
+              <p className="mt-1 font-mono text-base leading-none font-bold text-foreground tabular-nums">
+                {numericId}
               </p>
             </div>
           </div>
           <span
-            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${reportStatusClass[item.status]}`}
+            className={cn(
+              "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold whitespace-nowrap",
+              reportStatusClass[item.status]
+            )}
           >
             {reportStatusLabel[item.status] ?? item.status}
           </span>
         </div>
-        {item.status === "Pending" && item.canReview === true && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void onStartReview()}
-            className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
-          >
-            <Gavel size={16} aria-hidden="true" />
-            {busy ? "Đang mở phiên duyệt..." : "Kiểm duyệt báo cáo"}
-          </button>
-        )}
-        {canReview && (
-          <button
-            type="button"
-            onClick={() => {
-              decisionRef.current?.scrollIntoView({ block: "start" })
-              decisionRef.current?.focus({ preventScroll: true })
-            }}
-            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <Gavel size={16} aria-hidden="true" />
-            Đến phần quyết định
-          </button>
-        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          {item.status === "Pending" && item.canReview === true && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onStartReview()}
+              className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-xs transition-[opacity,transform] duration-120 hover:bg-primary/90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+            >
+              <Gavel size={16} aria-hidden="true" />
+              <span>
+                {busy ? "Đang mở phiên duyệt..." : "Kiểm duyệt báo cáo"}
+              </span>
+            </button>
+          )}
+          {canReview && (
+            <ExpandableIconButton
+              onClick={() => {
+                decisionRef.current?.scrollIntoView({ block: "start" })
+                decisionRef.current?.focus({ preventScroll: true })
+              }}
+              icon={<Gavel size={16} weight="bold" aria-hidden="true" />}
+              label="Đến phần quyết định"
+              variant="outline"
+            />
+          )}
+        </div>
       </header>
       <ReviewContext item={item} onOpenEscalate={() => setIsEscalateOpen(true)} />
       {pending &&
         !canReview &&
         !(item.status === "Pending" && item.canReview === true) && (
-          <p className="text-sm text-muted-foreground">
+          <p className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:border-sky-400/20 dark:bg-sky-500/15 dark:text-sky-200">
             {item.status === "In Review"
               ? "Báo cáo này đang được xử lý bởi kiểm duyệt viên khác (chế độ chỉ xem)."
               : "Báo cáo này chỉ được xem. Bạn chưa có phiên duyệt hoặc không có quyền duyệt."}
           </p>
         )}
+
       {item.whitelisted && (
         <section
           role="status"
-          className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+          className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-950 dark:border-amber-400/25 dark:bg-amber-500/15 dark:text-amber-100"
         >
           <h2 className="flex items-center gap-2 font-semibold">
-            <ShieldWarning size={18} className="shrink-0" aria-hidden="true" />
-            Đối tượng đang thuộc danh sách tin cậy
+            <ShieldWarning
+              size={18}
+              weight="fill"
+              className="shrink-0 text-amber-600 dark:text-amber-400"
+              aria-hidden="true"
+            />
+            <span>Đối tượng đang thuộc danh sách tin cậy</span>
           </h2>
-          {pending && <p className="mt-1">Báo cáo này không thể được phê duyệt.</p>}
-
-          <ul className="mt-2 space-y-1">
+          {pending && (
+            <p className="mt-1 text-sm">
+              Báo cáo này không thể được phê duyệt.
+            </p>
+          )}
+          <ul className="mt-2 space-y-1 text-xs">
             {item.whitelistMatches?.map((match) => (
-              <li key={match.whitelistEntryId}>
+              <li key={match.whitelistEntryId} className="tabular-nums">
                 {match.legalName}
                 {match.verifiedAt
                   ? ` · Xác minh: ${new Date(match.verifiedAt).toLocaleString("vi-VN")}`
@@ -363,6 +386,7 @@ export function ReportQueueDetailView({
           </ul>
         </section>
       )}
+
       <ReportEvidencePreview
         key={item.id}
         reportId={item.rawId ?? item.id}
@@ -371,19 +395,30 @@ export function ReportQueueDetailView({
         busy={busy}
         onPublicationDraftChange={canReview && !item.whitelisted ? updatePublicationDraft : undefined}
       />
+
       {canReview && item.indicatorContext?.blacklistStatus === "RETRACTED" && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-4 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 flex items-start gap-3">
-          <ShieldWarning size={20} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" weight="fill" />
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-xs text-amber-950 dark:border-amber-400/25 dark:bg-amber-500/15 dark:text-amber-100">
+          <ShieldWarning
+            aria-hidden="true"
+            size={20}
+            className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+            weight="fill"
+          />
           <div className="space-y-1">
-            <p className="font-bold text-slate-900 dark:text-white">
-              Cảnh báo chỉ số nhạy cảm: Đối tượng này đã từng được gỡ khỏi Blacklist qua quy trình khiếu nại (Dispute)
+            <p className="text-sm font-semibold text-foreground">
+              Cảnh báo chỉ số nhạy cảm: Đối tượng đã từng được gỡ khỏi Blacklist
+              qua quy trình khiếu nại (Dispute)
             </p>
-            <p className="text-[11px] leading-relaxed">
-              Để phòng ngừa rủi ro &quot;bão báo cáo&quot; (spam/phá hoại có chủ đích), hệ thống yêu cầu thẩm định kỹ các tài liệu vi phạm. Quyết định phê duyệt kích hoạt lại Blacklist yêu cầu tài khoản Quản trị viên (ADMIN) kèm căn cứ vi phạm mới.
+            <p className="max-w-[65ch] text-xs leading-relaxed text-amber-900/90 dark:text-amber-200/90">
+              Để phòng ngừa rủi ro &quot;bão báo cáo&quot; (spam/phá hoại có chủ
+              đích), hệ thống yêu cầu thẩm định kỹ các tài liệu vi phạm. Quyết
+              định phê duyệt kích hoạt lại Blacklist yêu cầu tài khoản Quản trị
+              viên (ADMIN) kèm căn cứ vi phạm mới.
             </p>
           </div>
         </div>
       )}
+
       {canReview && (
         <div ref={decisionRef} tabIndex={-1} className="scroll-mt-24">
           <ReportDecisionForm
@@ -401,6 +436,7 @@ export function ReportQueueDetailView({
           />
         </div>
       )}
+
       <ModeratorEscalateModal
         isOpen={isEscalateOpen}
         onClose={() => setIsEscalateOpen(false)}

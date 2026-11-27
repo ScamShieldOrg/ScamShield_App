@@ -40,6 +40,10 @@ public interface AbuseFlagRepository extends JpaRepository<AbuseFlag, Long>, Jpa
 
     List<AbuseFlag> findByUserIdAndStatus(Long userId, String status);
 
+    long countByUserId(Long userId);
+
+    long countByUserIdAndStatus(Long userId, String status);
+
     long countByStatus(String status);
 
     boolean existsByUserIdAndStatus(Long userId, String status);

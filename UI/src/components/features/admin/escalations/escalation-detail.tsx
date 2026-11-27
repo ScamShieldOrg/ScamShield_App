@@ -63,11 +63,33 @@ export function EscalationDetail({
 
   const { escalation, accountDetails, activity, reports } = detail
   const alertInfo = formatFlagTypeAlert(escalation.flagType)
+
+  const reportsCount = reports?.length || 0
+  const useActivityWindow = activity.totalReports > 0 && activity.totalReports >= reportsCount
+
+  const totalReportsCount = useActivityWindow ? activity.totalReports : reportsCount
+  const rejectedReportsCount = useActivityWindow
+    ? activity.rejectedReports
+    : reports?.filter(
+        (r) =>
+          r.status === "REJECTED" ||
+          r.status === "WITHDRAWN" ||
+          r.latestModeration?.action === "REJECT" ||
+          Boolean(r.latestModeration?.reason)
+      ).length || 0
+
+  const distinctTargetsCount = useActivityWindow
+    ? activity.distinctIndicators
+    : new Set(reports?.map((r) => r.targetValue || r.indicatorId).filter(Boolean)).size ||
+      reportsCount
+
   const rejectionRate =
-    activity.rejectedPercentage !== null && activity.rejectedPercentage !== undefined
+    useActivityWindow &&
+    activity.rejectedPercentage !== null &&
+    activity.rejectedPercentage !== undefined
       ? Math.round(Number(activity.rejectedPercentage))
-      : activity.totalReports > 0
-      ? Math.round((activity.rejectedReports / activity.totalReports) * 100)
+      : totalReportsCount > 0
+      ? Math.round((rejectedReportsCount / totalReportsCount) * 100)
       : 0
 
   return (
@@ -123,26 +145,26 @@ export function EscalationDetail({
             Hoạt động gửi báo cáo
           </h2>
           <span className="font-mono text-[10px] font-semibold tracking-wider text-muted-foreground">
-            24 GIỜ QUA
+            {useActivityWindow ? "24 GIỜ QUA" : "TỔNG HỢP HỒ SƠ"}
           </span>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <MetricCard
             label="Báo cáo đã gửi"
-            value={String(activity.totalReports)}
-            context="Trong 24 giờ qua"
+            value={String(totalReportsCount)}
+            context={useActivityWindow ? "Trong 24 giờ qua" : `${totalReportsCount} báo cáo trong hệ thống`}
             tone="danger"
           />
           <MetricCard
             label="Bị từ chối / trùng lặp"
             value={`${rejectionRate}%`}
-            context={`${activity.rejectedReports}/${activity.totalReports} báo cáo`}
+            context={`${rejectedReportsCount}/${totalReportsCount} báo cáo`}
             tone="warning"
           />
           <MetricCard
             label="Đối tượng khác nhau"
-            value={String(activity.distinctIndicators)}
-            context={`${activity.distinctIndicators} đối tượng`}
+            value={String(distinctTargetsCount)}
+            context={`${distinctTargetsCount} đối tượng`}
           />
         </div>
       </section>
@@ -157,7 +179,7 @@ export function EscalationDetail({
             Bằng chứng báo cáo liên quan
           </h2>
           <span className="font-mono text-[10px] text-muted-foreground">
-            {reports?.length || 0}/{activity.totalReports} báo cáo liên quan
+            {reportsCount}/{Math.max(reportsCount, totalReportsCount)} báo cáo liên quan
           </span>
         </div>
         <div className="mt-3 overflow-x-auto">
@@ -188,7 +210,7 @@ export function EscalationDetail({
                   return (
                     <tr key={report.id} className="hover:bg-muted/30 transition-colors">
                       <th scope="row" className="py-3 font-mono font-medium text-foreground">
-                        {report.reportCode || `RPT-${report.id}`}
+                        {(report.reportCode || `RPT-${report.id}`).replace(/^#/, "")}
                       </th>
                       <td className="py-3 pr-3 text-foreground/90 font-medium">
                         {report.targetValue || "Đối tượng báo cáo"}

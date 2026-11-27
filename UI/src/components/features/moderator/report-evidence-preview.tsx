@@ -385,10 +385,10 @@ export function ReportEvidencePreview({
     }
   }, [reportId, awaitingAnalysis])
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <h2 className="flex items-center gap-2 text-base font-semibold">
+    <section className="space-y-4 rounded-xl border border-black/10 bg-card p-5 shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)] sm:p-6 dark:border-white/10 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]">
+      <h2 className="flex items-center gap-2 font-heading text-base font-bold tracking-[-0.02em] text-foreground">
         <FileText size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" />
-        Bằng chứng đính kèm ({displayed.length})
+        <span>Bằng chứng đính kèm ({displayed.length})</span>
       </h2>
       {awaitingAnalysis && (
         <p role="status" className="text-xs text-muted-foreground">
@@ -400,17 +400,17 @@ export function ReportEvidencePreview({
           Không có bằng chứng đính kèm.
         </p>
       ) : (
-        <div className="space-y-4">
+        <div className="divide-y divide-border/70">
           {displayed.map((evidence) => {
             const url = safeEvidenceUrl(evidence.url)
             const content = (
               <>
                 <EvidenceThumbnail key={evidence.url} evidence={evidence} />
-                <span className="min-w-0 space-y-2">
-                  <span className="inline-flex rounded-md border border-border bg-muted/40 px-2 py-1 font-semibold text-foreground tabular-nums">
-                    Minh chứng {evidence.rawId ?? evidence.id}
+                <span className="min-w-0 space-y-1.5">
+                  <span className="inline-flex rounded-md border border-border bg-muted/40 px-2 py-0.5 font-mono text-xs font-semibold text-foreground tabular-nums">
+                    Minh chứng #{evidence.rawId ?? evidence.id}
                   </span>
-                  <span className="block font-semibold">{evidence.name}</span>
+                  <span className="block text-sm font-semibold">{evidence.name}</span>
                 </span>
               </>
             )
@@ -485,36 +485,36 @@ export function ReportEvidencePreview({
                 )}
                 {canCheckImage && evidence.rawId != null && evidenceId !== evidence.rawId && confirmedImage && (
                   <fieldset disabled={busy || evidenceId != null}>
-                      <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3 text-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p role="status" className="font-semibold">
-                            Đã xác nhận bản chỉnh
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              aria-expanded={showConfirmedImage}
-                              className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
-                              onClick={() => setVisibleImageId(showConfirmedImage ? undefined : evidence.rawId)}
-                            >
-                              <Eye size={16} aria-hidden="true" />
-                              {showConfirmedImage ? "Ẩn bản đã chỉnh" : "Xem bản đã chỉnh"}
-                            </button>
-                            <button
-                              type="button"
-                              className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 font-semibold text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-ring"
-                              onClick={() => chooseImage(evidence.rawId)}
-                            >
-                              <ArrowCounterClockwise size={16} aria-hidden="true" />
-                              Rà soát lại từ đầu
-                            </button>
-                          </div>
+                    <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p role="status" className="font-semibold">
+                          Đã xác nhận bản chỉnh
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            aria-expanded={showConfirmedImage}
+                            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                            onClick={() => setVisibleImageId(showConfirmedImage ? undefined : evidence.rawId)}
+                          >
+                            <Eye size={16} aria-hidden="true" />
+                            {showConfirmedImage ? "Ẩn bản đã chỉnh" : "Xem bản đã chỉnh"}
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 font-semibold text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-ring"
+                            onClick={() => chooseImage(evidence.rawId)}
+                          >
+                            <ArrowCounterClockwise size={16} aria-hidden="true" />
+                            Rà soát lại từ đầu
+                          </button>
                         </div>
-                        {showConfirmedImage && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={confirmedImage.url} alt="Minh chứng đã chỉnh" className="mx-auto max-h-96 max-w-full rounded-lg object-contain" />
-                        )}
                       </div>
+                      {showConfirmedImage && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={confirmedImage.url} alt="Minh chứng đã chỉnh" className="mx-auto max-h-96 max-w-full rounded-lg object-contain" />
+                      )}
+                    </div>
                   </fieldset>
                 )}
                 <EvidenceComparison evidence={evidence} />

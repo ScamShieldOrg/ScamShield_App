@@ -1,33 +1,73 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { AnimatePresence, motion } from "motion/react"
 import {
+  ArrowCounterClockwise,
+  ArrowUp,
   Bank,
+  CaretDown,
   ChatText,
+  Check,
+  CircleNotch,
+  ClipboardText,
+  Info,
   Link as LinkIcon,
   Phone,
-  ClipboardText,
+  Sparkle,
   Trash,
-  Lightning,
-  CircleNotch,
-  Info,
+  WarningCircle,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import type { CheckType } from "@/features/check/types/check.types"
+import {
+  CHECK_TAB_META,
+  CHECK_TAB_ORDER,
+  QUICK_SCENARIOS,
+  countMessageEntities,
+  getInlineFormatError,
+  inferCheckTypeFromContent,
+  type QuickScenario,
+} from "./scam-input-helpers"
+import { ScamQuotaBadge, type QuotaSnapshot } from "./scam-quota-strip"
 
 export interface ScamCheckInputProps {
-  /** Tab the user is composing in. The parent owns it so drafts survive switches. */
+  /** Effective check type (auto-detected by default, or manually pinned). */
   activeTab: CheckType
   onTabChange: (type: CheckType) => void
-  /** One draft per tab: switching tabs must never drop what the user typed. */
+  /** Per-tab drafts preserved by parent hook. */
   drafts: Record<CheckType, string>
   onDraftChange: (type: CheckType, value: string) => void
   onAnalyze: (content: string, type: CheckType) => void
   isLoading?: boolean
   /** Blocks submitting and explains why when the daily quota is used up. */
   quotaExhausted?: boolean
+  /** Increment to smoothly scroll to and focus the composer input. */
+  focusSignal?: number
+  /** Compact inline quota indicator inside the composer footer. */
+  quota?: QuotaSnapshot | null
+  quotaLoading?: boolean
+  quotaError?: string | null
+  onRefreshQuota?: () => void
+  /** Shows subtle 1-click starter chips beneath the composer when idle. */
+  showStarterChips?: boolean
 }
+
+const TAB_ICONS: Record<CheckType, typeof ChatText> = {
+  TEXT: ChatText,
+  URL: LinkIcon,
+  PHONE: Phone,
+  BANK_ACCOUNT: Bank,
+}
+
+const MODE_DESCRIPTIONS: Record<CheckType, string> = {
+  TEXT: "Phân tích ngữ cảnh SMS, Zalo, email bằng AI",
+  URL: "Kiểm tra tên miền giả mạo & liên kết độc hại",
+  PHONE: "Tra cứu số di động & tổng đài trong danh bạ",
+  BANK_ACCOUNT: "Đối chiếu số tài khoản trong danh sách cảnh báo",
+}
+
+const UNDO_TIMEOUT_MS = 7000
 
 export function ScamCheckInput({
   activeTab,
@@ -37,223 +77,716 @@ export function ScamCheckInput({
   onAnalyze,
   isLoading = false,
   quotaExhausted = false,
+  focusSignal = 0,
+  quota = null,
+  quotaLoading = false,
+  quotaError = null,
+  onRefreshQuota,
+  showStarterChips = true,
 }: ScamCheckInputProps) {
+  const fieldId = useId()
+  const errorId = useId()
+  const noteId = useId()
+  const menuId = useId()
+
+  const formRef = useRef<HTMLFormElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const modeButtonRef = useRef<HTMLButtonElement>(null)
+  const menuContainerRef = useRef<HTMLDivElement>(null)
+
+  // Auto-detect mode is active by default so users can paste anything freely.
+  const [manualModePinned, setManualModePinned] = useState(false)
+  const [modeMenuOpen, setModeMenuOpen] = useState(false)
   const [clipboardError, setClipboardError] = useState<string | null>(null)
+  const [showInlineValidation, setShowInlineValidation] = useState(false)
+  const [undoSnapshot, setUndoSnapshot] = useState<{
+    tab: CheckType
+    value: string
+  } | null>(null)
 
-  // The draft of the visible tab only: each tab keeps its own text.
   const content = drafts[activeTab] ?? ""
+  const trimmedContent = content.trim()
+  const tabMeta = CHECK_TAB_META[activeTab]
+  const ActiveIcon = TAB_ICONS[activeTab]
 
-  const updateContent = (value: string) => onDraftChange(activeTab, value)
+  // Auto-resize textarea cleanly like Claude Web (min 72px, max 220px)
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = "auto"
+    const nextHeight = Math.min(220, Math.max(72, el.scrollHeight))
+    el.style.height = `${nextHeight}px`
+  }, [content, activeTab])
 
-  const tabs: { type: CheckType; label: string; icon: typeof ChatText }[] = [
-    {
-      type: "TEXT",
-      label: "Tin nhắn / Nội dung văn bản",
-      icon: ChatText,
-    },
-    {
-      type: "URL",
-      label: "Đường dẫn (URL / Domain)",
-      icon: LinkIcon,
-    },
-    {
-      type: "PHONE",
-      label: "Số điện thoại / Đầu số",
-      icon: Phone,
-    },
-    {
-      type: "BANK_ACCOUNT",
-      label: "Ngân hàng / Số tài khoản",
-      icon: Bank,
-    },
-  ]
+  // Auto-expire Undo bar
+  useEffect(() => {
+    if (!undoSnapshot) return
+    const timer = window.setTimeout(() => setUndoSnapshot(null), UNDO_TIMEOUT_MS)
+    return () => window.clearTimeout(timer)
+  }, [undoSnapshot])
+
+  // Close mode selector on outside click or Escape
+  useEffect(() => {
+    if (!modeMenuOpen) return
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        menuContainerRef.current &&
+        !menuContainerRef.current.contains(event.target as Node)
+      ) {
+        setModeMenuOpen(false)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setModeMenuOpen(false)
+        modeButtonRef.current?.focus()
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("keydown", handleKeyDown)
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [modeMenuOpen])
+
+  // Scroll & focus when parent triggers "Kiểm tra nội dung khác"
+  useEffect(() => {
+    if (focusSignal <= 0) return
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+    textareaRef.current?.focus()
+  }, [focusSignal])
+
+  const entities = useMemo(
+    () => (activeTab === "TEXT" ? countMessageEntities(content) : null),
+    [activeTab, content]
+  )
+
+  const inlineFormatError = useMemo(
+    () => getInlineFormatError(content, activeTab),
+    [activeTab, content]
+  )
+
+  const visibleInlineError = showInlineValidation ? inlineFormatError : null
+  const canSubmit =
+    Boolean(trimmedContent) &&
+    !isLoading &&
+    !quotaExhausted &&
+    !(showInlineValidation && inlineFormatError)
+
+  const applyInputChange = (nextValue: string) => {
+    setClipboardError(null)
+    if (nextValue.length > 0 && undoSnapshot) {
+      setUndoSnapshot(null)
+    }
+
+    let targetTab = activeTab
+    if (!manualModePinned) {
+      targetTab = nextValue.trim() ? inferCheckTypeFromContent(nextValue) : "TEXT"
+    }
+
+    if (targetTab !== activeTab) {
+      onDraftChange(targetTab, nextValue)
+      onDraftChange(activeTab, "")
+      onTabChange(targetTab)
+    } else {
+      onDraftChange(activeTab, nextValue)
+    }
+
+    if (showInlineValidation && !getInlineFormatError(nextValue, targetTab)) {
+      setShowInlineValidation(false)
+    }
+  }
+
+  const handleSelectMode = (nextMode: CheckType | "AUTO") => {
+    setModeMenuOpen(false)
+    setClipboardError(null)
+    setShowInlineValidation(false)
+
+    if (nextMode === "AUTO") {
+      setManualModePinned(false)
+      const inferred = trimmedContent
+        ? inferCheckTypeFromContent(trimmedContent)
+        : "TEXT"
+      if (inferred !== activeTab) {
+        onDraftChange(inferred, content)
+        onDraftChange(activeTab, "")
+        onTabChange(inferred)
+      }
+      textareaRef.current?.focus()
+      return
+    }
+
+    setManualModePinned(true)
+    if (nextMode !== activeTab) {
+      // Carry current text along seamlessly if user switches mode manually
+      if (content && !(drafts[nextMode] ?? "").trim()) {
+        onDraftChange(nextMode, content)
+        onDraftChange(activeTab, "")
+      }
+      onTabChange(nextMode)
+    }
+    textareaRef.current?.focus()
+  }
 
   const handlePaste = async () => {
     setClipboardError(null)
     try {
       const text = await navigator.clipboard.readText()
       if (text) {
-        updateContent(text)
+        applyInputChange(text)
+        textareaRef.current?.focus()
       }
     } catch {
       setClipboardError(
-        "Không thể đọc bộ nhớ tạm. Vui lòng dán trực tiếp vào ô nhập nội dung."
+        "Trình duyệt chưa cấp quyền đọc bộ nhớ tạm. Hãy bấm vào ô nhập và dán bằng Ctrl+V."
       )
     }
   }
 
   const handleClear = () => {
-    updateContent("")
+    if (!content) return
+    setUndoSnapshot({ tab: activeTab, value: content })
+    onDraftChange(activeTab, "")
+    if (!manualModePinned && activeTab !== "TEXT") {
+      onTabChange("TEXT")
+    }
     setClipboardError(null)
+    setShowInlineValidation(false)
+    textareaRef.current?.focus()
+  }
+
+  const handleUndoClear = () => {
+    if (!undoSnapshot) return
+    onDraftChange(undoSnapshot.tab, undoSnapshot.value)
+    if (undoSnapshot.tab !== activeTab) {
+      onTabChange(undoSnapshot.tab)
+    }
+    setUndoSnapshot(null)
+    window.requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
+  const handleSelectScenario = (scenario: QuickScenario) => {
+    setManualModePinned(false)
+    setClipboardError(null)
+    setShowInlineValidation(false)
+    setUndoSnapshot(null)
+    if (scenario.type !== activeTab) {
+      onDraftChange(activeTab, "")
+      onTabChange(scenario.type)
+    }
+    onDraftChange(scenario.type, scenario.sample)
+    window.requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
+  const triggerSubmit = () => {
+    if (!trimmedContent || isLoading || quotaExhausted) return
+    if (inlineFormatError) {
+      setShowInlineValidation(true)
+      return
+    }
+    onAnalyze(trimmedContent, activeTab)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!content.trim() || isLoading || quotaExhausted) return
-    onAnalyze(content.trim(), activeTab)
+    triggerSubmit()
   }
 
-  // Count characters, links, and phone numbers in content
-  const charCount = content.length
-  // Full URLs (scheme or www.) always count; bare domains need a known lowercase TLD,
-  // so a missing space after a period ("khac.Do") is not miscounted as a link.
-  const urlPattern = new RegExp(
-    "https?:\\/\\/[^\\s<>\"']+|www\\.[^\\s<>\"']+|(?<![\\w@.])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:com|net|org|info|biz|vn|io|co|me|to|cc|tv|xyz|top|vip|shop|online|site|club|app|link|live|store|asia|tk|ml|ga|cf|gq|icu|cyou|bond|sbs|click|fun|pro|win|bet|best|life|world|today|news|space|website|tech|dev|ly|gl|gd|in|us|uk|cn|ru)\\b(?:\\/[^\\s<>\"']*)?",
-    "g"
-  )
-  const linksCount = new Set(content.match(urlPattern) || []).size
-  const phoneCount = (content.match(/(0\d{9,10}|\+84\d{9,10})/g) || []).length
+  const handleFieldKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl+Z on an empty box restores recently cleared text
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      e.key.toLowerCase() === "z" &&
+      !content &&
+      undoSnapshot
+    ) {
+      e.preventDefault()
+      handleUndoClear()
+      return
+    }
+
+    // Enter submits immediately for single-value modes (URL / PHONE / BANK_ACCOUNT)
+    if (
+      !tabMeta.isMultiline &&
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing
+    ) {
+      e.preventDefault()
+      triggerSubmit()
+      return
+    }
+
+    // Ctrl+Enter / Cmd+Enter submits from any mode (including multiline TEXT)
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault()
+      triggerSubmit()
+    }
+  }
+
+  const autoDetectedActive = !manualModePinned && Boolean(trimmedContent)
+  const isMonoMode = activeTab === "PHONE" || activeTab === "BANK_ACCOUNT"
+  const describedBy = [
+    visibleInlineError ? errorId : null,
+    tabMeta.scopeNote ? noteId : null,
+  ]
+    .filter(Boolean)
+    .join(" ")
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      aria-busy={isLoading}
-      className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm"
-    >
-      <fieldset disabled={isLoading} className="min-w-0 space-y-4">
-        {/* Navigation Tabs */}
-        <div>
-          <legend className="sr-only">Chọn phương thức kiểm tra</legend>
-          <div className="flex flex-wrap gap-2 border-b border-border pb-4">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              const isActive = activeTab === tab.type
-              return (
+    <div className="space-y-4">
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        aria-busy={isLoading}
+        noValidate
+        className={cn(
+          "scroll-mt-24 rounded-xl border bg-card text-card-foreground transition-[border-color,box-shadow] duration-180 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          "border-black/10 shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)]",
+          "focus-within:border-ring/60 focus-within:shadow-[0_12px_36px_rgb(14,165,233,0.10),0_0_0_3px_color-mix(in_oklch,var(--ring)_14%,transparent)]",
+          "dark:border-white/12 dark:bg-card/95 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]",
+          "dark:focus-within:border-sky-400/50 dark:focus-within:shadow-[0_16px_48px_rgb(0,0,0,0.55),0_0_0_3px_rgba(56,189,248,0.16),inset_0_1px_0_rgb(255,255,255,0.12)]",
+          visibleInlineError &&
+            "border-rose-500/50 focus-within:border-rose-500/70 focus-within:shadow-[0_0_0_3px_rgba(244,63,94,0.14)]"
+        )}
+      >
+        <fieldset disabled={isLoading} className="min-w-0">
+          <legend className="sr-only">Nhập nội dung cần kiểm tra lừa đảo</legend>
+
+          {/* Main Seamless Prompt Area (Claude Web Style) */}
+          <div className="px-4 pt-4 pb-2 sm:px-5 sm:pt-5">
+            <label htmlFor={fieldId} className="sr-only">
+              {tabMeta.label}
+            </label>
+
+            <textarea
+              ref={textareaRef}
+              id={fieldId}
+              rows={2}
+              value={content}
+              inputMode={tabMeta.inputMode}
+              spellCheck={!isMonoMode && activeTab !== "URL"}
+              onChange={(e) => applyInputChange(e.target.value)}
+              onBlur={() => {
+                if (trimmedContent && inlineFormatError) {
+                  setShowInlineValidation(true)
+                }
+              }}
+              onKeyDown={handleFieldKeyDown}
+              aria-invalid={Boolean(visibleInlineError)}
+              aria-describedby={describedBy || undefined}
+              placeholder={
+                manualModePinned
+                  ? tabMeta.placeholder
+                  : CHECK_TAB_META.TEXT.placeholder
+              }
+              className={cn(
+                "w-full resize-none bg-transparent text-sm leading-relaxed text-foreground caret-primary selection:bg-primary/15 placeholder:text-muted-foreground/75 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-[15px]",
+                isMonoMode && trimmedContent && "font-mono tracking-tight"
+              )}
+            />
+
+            {/* Inline Status / Validation / Undo / Scope Messages */}
+            <AnimatePresence initial={false}>
+              {visibleInlineError && (
+                <motion.p
+                  key="inline-error"
+                  id={errorId}
+                  role="alert"
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                  className="mt-2 flex items-start gap-2 text-xs font-medium text-rose-700 dark:text-rose-400"
+                >
+                  <WarningCircle
+                    aria-hidden="true"
+                    size={15}
+                    weight="fill"
+                    className="mt-0.5 shrink-0"
+                  />
+                  <span>{visibleInlineError}</span>
+                </motion.p>
+              )}
+
+              {undoSnapshot && !content && (
+                <motion.div
+                  key="undo-bar"
+                  role="status"
+                  aria-live="polite"
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                  className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-foreground dark:border-white/10"
+                >
+                  <span>Đã xóa nội dung vừa nhập.</span>
+                  <button
+                    type="button"
+                    onClick={handleUndoClear}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-background px-2.5 py-1 text-xs font-semibold text-foreground ring-1 ring-border transition-colors duration-120 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:ring-white/15"
+                  >
+                    <ArrowCounterClockwise
+                      aria-hidden="true"
+                      size={13}
+                      weight="bold"
+                    />
+                    <span>Hoàn tác</span>
+                  </button>
+                </motion.div>
+              )}
+
+              {clipboardError && (
+                <motion.p
+                  key="clipboard-error"
+                  role="alert"
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="mt-2 flex items-start gap-2 text-xs font-medium text-rose-700 dark:text-rose-400"
+                >
+                  <WarningCircle
+                    aria-hidden="true"
+                    size={15}
+                    weight="fill"
+                    className="mt-0.5 shrink-0"
+                  />
+                  <span>{clipboardError}</span>
+                </motion.p>
+              )}
+
+              {tabMeta.scopeNote && (
+                <motion.p
+                  key="scope-note"
+                  id={noteId}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="mt-2 flex items-start gap-2 text-xs text-muted-foreground"
+                >
+                  <Info
+                    aria-hidden="true"
+                    size={14}
+                    weight="bold"
+                    className="mt-0.5 shrink-0"
+                  />
+                  <span>{tabMeta.scopeNote}</span>
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Sleek Bottom Control Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-2 pb-3 sm:px-4 sm:pb-4">
+            {/* Left Controls: Auto-Detected Mode Pill + Paste / Clear + Entity Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div ref={menuContainerRef} className="relative">
                 <button
-                  key={tab.type}
+                  ref={modeButtonRef}
                   type="button"
-                  aria-pressed={isActive}
-                  onClick={() => {
-                    onTabChange(tab.type)
-                    setClipboardError(null)
-                  }}
+                  aria-haspopup="listbox"
+                  aria-expanded={modeMenuOpen}
+                  aria-controls={menuId}
+                  onClick={() => setModeMenuOpen((prev) => !prev)}
                   className={cn(
-                    "inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold outline-hidden transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
-                    isActive
-                      ? "bg-[#008CC7] text-white shadow-xs dark:bg-primary dark:text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
+                    "inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-[background-color,border-color,color] duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50",
+                    autoDetectedActive && activeTab !== "TEXT"
+                      ? "border-sky-500/30 bg-sky-500/10 text-sky-900 hover:bg-sky-500/15 dark:border-sky-400/30 dark:bg-sky-500/15 dark:text-sky-200"
+                      : "border-border bg-muted/50 text-foreground hover:bg-muted dark:border-white/10"
                   )}
                 >
-                  <Icon aria-hidden="true" size={16} />
-                  <span>{tab.label}</span>
+                  <ActiveIcon
+                    aria-hidden="true"
+                    size={15}
+                    weight="fill"
+                    className={cn(
+                      "shrink-0",
+                      autoDetectedActive && activeTab !== "TEXT"
+                        ? "text-sky-600 dark:text-sky-300"
+                        : "text-primary"
+                    )}
+                  />
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={`${activeTab}-${manualModePinned}`}
+                      initial={{ opacity: 0, y: 3 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -3 }}
+                      transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+                      className="whitespace-nowrap"
+                    >
+                      {autoDetectedActive && activeTab !== "TEXT"
+                        ? `Tự nhận diện: ${tabMeta.shortLabel}`
+                        : tabMeta.shortLabel}
+                    </motion.span>
+                  </AnimatePresence>
+                  <CaretDown
+                    aria-hidden="true"
+                    size={12}
+                    weight="bold"
+                    className={cn(
+                      "text-muted-foreground transition-transform duration-150",
+                      modeMenuOpen && "rotate-180"
+                    )}
+                  />
                 </button>
+
+                {/* Spring Mode Selector Popover (drops downward cleanly) */}
+                <AnimatePresence>
+                  {modeMenuOpen && (
+                    <motion.div
+                      id={menuId}
+                      role="listbox"
+                      aria-label="Chọn loại nội dung kiểm tra"
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                      transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+                      className="absolute top-full left-0 z-40 mt-2 w-72 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg dark:border-white/12"
+                    >
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={!manualModePinned}
+                        onClick={() => handleSelectMode("AUTO")}
+                        className={cn(
+                          "flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors duration-120 hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+                          !manualModePinned && "bg-muted/70"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Sparkle
+                            aria-hidden="true"
+                            size={15}
+                            weight="fill"
+                            className="text-sky-600 dark:text-sky-400"
+                          />
+                          <div>
+                            <p className="font-semibold text-foreground">
+                              Tự động nhận diện
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Tự phân loại khi bạn dán nội dung
+                            </p>
+                          </div>
+                        </div>
+                        {!manualModePinned && (
+                          <Check
+                            aria-hidden="true"
+                            size={14}
+                            weight="bold"
+                            className="shrink-0 text-primary"
+                          />
+                        )}
+                      </button>
+
+                      <div className="my-1 h-px bg-border/80 dark:bg-white/10" />
+
+                      {CHECK_TAB_ORDER.map((type) => {
+                        const Icon = TAB_ICONS[type]
+                        const meta = CHECK_TAB_META[type]
+                        const selected = manualModePinned && activeTab === type
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            onClick={() => handleSelectMode(type)}
+                            className={cn(
+                              "flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors duration-120 hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
+                              selected && "bg-muted/70"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Icon
+                                aria-hidden="true"
+                                size={15}
+                                weight={selected ? "fill" : "regular"}
+                                className="shrink-0 text-muted-foreground"
+                              />
+                              <div>
+                                <p className="font-semibold text-foreground">
+                                  {meta.label}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {MODE_DESCRIPTIONS[type]}
+                                </p>
+                              </div>
+                            </div>
+                            {selected && (
+                              <Check
+                                aria-hidden="true"
+                                size={14}
+                                weight="bold"
+                                className="shrink-0 text-primary"
+                              />
+                            )}
+                          </button>
+                        )
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handlePaste()}
+                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-[color,background-color] duration-120 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ClipboardText aria-hidden="true" size={15} weight="bold" />
+                <span>Dán</span>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {content.length > 0 && (
+                  <motion.button
+                    key="clear-btn"
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={handleClear}
+                    className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-muted-foreground transition-[color,background-color] duration-120 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <Trash aria-hidden="true" size={15} weight="bold" />
+                    <span className="hidden sm:inline">Xóa</span>
+                  </motion.button>
+                )}
+              </AnimatePresence>
+
+              {/* Live Detected Entity Chips (only when detected in message text) */}
+              {activeTab === "TEXT" &&
+                entities &&
+                (entities.urls > 0 || entities.phones > 0) && (
+                  <div
+                    role="status"
+                    aria-atomic="true"
+                    className="hidden items-center gap-1.5 text-xs tabular-nums sm:flex"
+                  >
+                    {entities.urls > 0 && (
+                      <span className="rounded-md bg-sky-500/10 px-2 py-0.5 font-medium whitespace-nowrap text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
+                        {entities.urls} liên kết
+                      </span>
+                    )}
+                    {entities.phones > 0 && (
+                      <span className="rounded-md bg-amber-500/10 px-2 py-0.5 font-medium whitespace-nowrap text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                        {entities.phones} SĐT
+                      </span>
+                    )}
+                  </div>
+                )}
+            </div>
+
+            {/* Right Controls: Inline Quota Badge + Tactile Send Button */}
+            <div className="ml-auto flex items-center gap-2">
+              {onRefreshQuota && (
+                <ScamQuotaBadge
+                  quota={quota}
+                  isLoading={quotaLoading}
+                  isBusy={isLoading}
+                  error={quotaError}
+                  onRefresh={onRefreshQuota}
+                />
+              )}
+
+              <motion.button
+                type="submit"
+                disabled={!canSubmit}
+                whileHover={canSubmit ? { scale: 1.02 } : undefined}
+                whileTap={canSubmit ? { scale: 0.96 } : undefined}
+                transition={{ type: "spring", stiffness: 450, damping: 28 }}
+                title={
+                  quotaExhausted
+                    ? "Bạn đã dùng hết lượt kiểm tra hôm nay"
+                    : !trimmedContent
+                      ? "Dán hoặc nhập nội dung để kiểm tra"
+                      : `${tabMeta.submitLabel} (${tabMeta.isMultiline ? "Ctrl+Enter" : "Enter"})`
+                }
+                aria-label={
+                  isLoading
+                    ? tabMeta.loadingLabel
+                    : quotaExhausted
+                      ? "Hết lượt hôm nay"
+                      : tabMeta.submitLabel
+                }
+                className={cn(
+                  "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-[background-color,color,opacity,box-shadow] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed",
+                  canSubmit
+                    ? "bg-primary text-primary-foreground shadow-sm hover:opacity-95"
+                    : "bg-muted text-muted-foreground opacity-70"
+                )}
+              >
+                {isLoading ? (
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex motion-safe:animate-spin"
+                  >
+                    <CircleNotch size={16} weight="bold" />
+                  </span>
+                ) : (
+                  <ArrowUp aria-hidden="true" size={16} weight="bold" />
+                )}
+                <span>
+                  {isLoading
+                    ? tabMeta.loadingLabel
+                    : quotaExhausted
+                      ? "Hết lượt"
+                      : tabMeta.submitLabel}
+                </span>
+              </motion.button>
+            </div>
+          </div>
+        </fieldset>
+      </form>
+
+      {/* Tactile 1-Click Starter Scenario Chips (Claude Web Feel, Idle Only) */}
+      <AnimatePresence initial={false}>
+        {showStarterChips && !trimmedContent && !isLoading && (
+          <motion.div
+            key="starter-chips"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-wrap items-center justify-center gap-2"
+          >
+            <span className="text-xs text-muted-foreground">Thử nhanh:</span>
+            {QUICK_SCENARIOS.map((scenario, idx) => {
+              const Icon = TAB_ICONS[scenario.type]
+              return (
+                <motion.button
+                  key={scenario.id}
+                  type="button"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.16,
+                    delay: idx * 0.03,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleSelectScenario(scenario)}
+                  className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border/80 bg-card/75 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-2xs transition-[border-color,color,background-color] duration-120 hover:border-foreground/20 hover:bg-card hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10 dark:hover:border-white/20"
+                >
+                  <Icon
+                    aria-hidden="true"
+                    size={14}
+                    className="shrink-0 text-primary/80"
+                  />
+                  <span className="whitespace-nowrap">{scenario.label}</span>
+                </motion.button>
               )
             })}
-          </div>
-        </div>
-
-        {/* Main Input Box */}
-        <div className="rounded-2xl border border-[#C6C6CE]/40 bg-white p-5 shadow-xs dark:border-border dark:bg-card">
-          {/* Header / Stats */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
-            <label
-              htmlFor="user-check-content"
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <ChatText
-                size={16}
-                weight="bold"
-                className="text-[#131B2E] dark:text-foreground"
-                aria-hidden="true"
-              />
-              <span className="text-xs font-bold text-[#131B2E] dark:text-foreground">
-                Nội dung khả nghi cần phân tích
-              </span>
-            </label>
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-              {charCount} ký tự • Đã phát hiện {linksCount} liên kết,{" "}
-              {phoneCount} số điện thoại
-            </span>
-          </div>
-
-          {/* Textarea */}
-          <textarea
-            id="user-check-content"
-            aria-label="Nội dung khả nghi cần phân tích"
-            rows={4}
-            value={content}
-            onChange={(e) => updateContent(e.target.value)}
-            placeholder={
-              activeTab === "URL"
-                ? "Nhập hoặc dán đường dẫn website (URL) nghi vấn..."
-                : activeTab === "PHONE"
-                  ? "Nhập số điện thoại hoặc đầu số tổng đài khả nghi..."
-                  : activeTab === "BANK_ACCOUNT"
-                    ? "Nhập số tài khoản nghi vấn (chữ số, có thể cách nhau bằng dấu cách, dấu chấm hoặc gạch nối — ví dụ: 0123 456 789)..."
-                    : "Nhập hoặc dán nội dung tin nhắn, đường link hoặc số điện thoại đáng ngờ..."
-            }
-            className="w-full resize-none rounded-xl bg-[#FAF8FF] p-4 text-xs leading-relaxed text-[#131B2E] placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-[#008CC7] focus:outline-hidden dark:bg-muted/40 dark:text-foreground"
-          />
-
-          {activeTab === "BANK_ACCOUNT" && (
-            <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              <Info aria-hidden="true" size={14} className="mt-0.5 shrink-0" />
-              <span>
-                Chỉ tra cứu trong danh sách cảnh báo và danh bạ xác minh — không
-                dùng AI phán đoán. Số tài khoản không có trong danh sách không
-                đồng nghĩa với an toàn.
-              </span>
-            </p>
-          )}
-
-          {/* Action Toolbar & CTA */}
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#C6C6CE]/30 pt-4 dark:border-border">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void handlePaste()}
-              >
-                <ClipboardText aria-hidden="true" />
-                <span>Dán nhanh</span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleClear}
-              >
-                <Trash size={15} weight="bold" />
-                <span>Xóa nội dung</span>
-              </Button>
-            </div>
-            <Button
-              type="submit"
-              disabled={isLoading || quotaExhausted || !content.trim()}
-              className="cursor-pointer bg-[#008CC7] text-white hover:bg-[#007AB0] dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
-            >
-              {isLoading ? (
-                <CircleNotch
-                  aria-hidden="true"
-                  className="motion-safe:animate-spin"
-                />
-              ) : (
-                <Lightning aria-hidden="true" weight="fill" />
-              )}
-              <span>{isLoading ? "Đang phân tích…" : "Phân tích"}</span>
-            </Button>
-          </div>
-
-          {quotaExhausted && (
-            <p
-              role="alert"
-              className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400"
-            >
-              <Info aria-hidden="true" size={14} className="mt-0.5 shrink-0" />
-              <span>
-                Bạn đã dùng hết hạn mức kiểm tra hôm nay nên chưa thể gửi nội
-                dung mới. Hạn mức được đặt lại lúc 00:00 giờ Việt Nam.
-              </span>
-            </p>
-          )}
-        </div>
-      </fieldset>
-      {clipboardError && (
-        <p role="alert" className="mt-3 text-sm text-destructive">
-          {clipboardError}
-        </p>
-      )}
-    </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }

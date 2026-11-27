@@ -25,4 +25,5 @@ public class ScamCheckHistoryItemResponse {
     private String verdictLabel;
     private String verdictStatus;
     private Integer riskScore;
+    private String decidedByStage;
 }

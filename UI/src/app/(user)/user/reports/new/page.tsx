@@ -1,12 +1,12 @@
 "use client"
 
-import { ReportSubmissionError } from "@/components/features/report/report-submission-error"
-
 import { useState, useEffect } from "react"
 import { ArrowDown, ShieldCheck } from "@phosphor-icons/react"
 import { toast } from "react-toastify"
+import { ReportSubmissionError } from "@/components/features/report/report-submission-error"
 import { ReportForm } from "@/components/features/report/report-form"
 import { RecentReportsTable } from "@/components/features/report/recent-reports-table"
+import { ScamErrorCallout } from "@/components/features/check/scam-error-callout"
 import {
   submitScamReport,
   getMyReports,
@@ -20,22 +20,36 @@ export default function UserReportsNewPage() {
   const [reports, setReports] = useState<RecentReportItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [isLoadingReports, setIsLoadingReports] = useState(true)
+  const [reportsRevision, setReportsRevision] = useState(0)
+  const [settledRevision, setSettledRevision] = useState(-1)
+  const [reportsError, setReportsError] = useState<string | null>(null)
+
+  const isLoadingReports = settledRevision !== reportsRevision
 
   useEffect(() => {
-    async function loadReports() {
-      setIsLoadingReports(true)
-      try {
-        const data = await getMyReports()
+    let active = true
+    void getMyReports()
+      .then((data) => {
+        if (!active) return
         setReports(data || [])
-      } catch {
+        setReportsError(null)
+      })
+      .catch((err) => {
+        if (!active) return
         setReports([])
-      } finally {
-        setIsLoadingReports(false)
-      }
+        setReportsError(
+          err instanceof Error
+            ? err.message
+            : "Không thể tải danh sách báo cáo gần đây."
+        )
+      })
+      .finally(() => {
+        if (active) setSettledRevision(reportsRevision)
+      })
+    return () => {
+      active = false
     }
-    loadReports()
-  }, [])
+  }, [reportsRevision])
 
   const handleSubmit = async (payload: CreateReportPayload) => {
     if (isSubmitting) return

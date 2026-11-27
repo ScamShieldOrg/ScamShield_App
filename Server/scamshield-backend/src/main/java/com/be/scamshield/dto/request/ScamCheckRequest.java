@@ -15,4 +15,5 @@ public class ScamCheckRequest {
     @NotBlank(message = "Nội dung kiểm tra không được để trống")
     @Size(max = 10000, message = "Nội dung kiểm tra không được vượt quá 10.000 ký tự")
     private String content;
+    private Boolean forceTier2;
 }

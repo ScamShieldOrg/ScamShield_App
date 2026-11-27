@@ -1,8 +1,13 @@
 "use client"
 
-import { XCircle, Warning, ShieldCheck, Question } from "@phosphor-icons/react"
+import type { KeyboardEvent } from "react"
+import { motion } from "motion/react"
 import { cn } from "@/lib/utils"
-import { HistoryRiskStatus, ScamCheckRiskCounts } from "@/features/history/types/history.types"
+import type {
+  HistoryRiskStatus,
+  ScamCheckRiskCounts,
+} from "@/features/history/types/history.types"
+import { getHistoryRiskMeta } from "./history-helpers"
 
 interface HistoryRiskPillsProps {
   currentStatus: "ALL" | HistoryRiskStatus
@@ -10,89 +15,110 @@ interface HistoryRiskPillsProps {
   counts?: ScamCheckRiskCounts | null
 }
 
+const STATUS_ORDER: ("ALL" | HistoryRiskStatus)[] = [
+  "ALL",
+  "DANGEROUS",
+  "SUSPICIOUS",
+  "SAFE",
+  "UNKNOWN",
+]
+
 export function HistoryRiskPills({
   currentStatus,
   onSelectStatus,
   counts,
 }: HistoryRiskPillsProps) {
-  const pills: {
-    status: "ALL" | HistoryRiskStatus
-    label: string
-    count: number
-    icon?: typeof XCircle
-    colorClass: string
-    activeClass: string
-  }[] = [
-    {
-      status: "ALL",
-      label: "Tất cả",
-      count: counts?.all ?? 0,
-      colorClass: "text-[#131B2E] border-[#C6C6CE]/50 dark:text-foreground",
-      activeClass:
-        "bg-[#0B132B] text-white border-[#0B132B] dark:bg-primary dark:text-primary-foreground",
-    },
-    {
-      status: "DANGEROUS",
-      label: "Lừa đảo nguy cơ cao",
-      count: counts?.dangerous ?? 0,
-      icon: XCircle,
-      colorClass:
-        "text-[#BA1A1A] border-rose-200 dark:text-rose-400 dark:border-rose-900/40",
-      activeClass:
-        "bg-rose-100 text-[#BA1A1A] border-[#BA1A1A] font-bold dark:bg-rose-950/60 dark:text-rose-300",
-    },
-    {
-      status: "SUSPICIOUS",
-      label: "Nghi vấn rủi ro",
-      count: counts?.suspicious ?? 0,
-      icon: Warning,
-      colorClass:
-        "text-[#B45309] border-amber-200 dark:text-amber-400 dark:border-amber-900/40",
-      activeClass:
-        "bg-amber-100 text-[#B45309] border-[#B45309] font-bold dark:bg-amber-950/60 dark:text-amber-300",
-    },
-    {
-      status: "SAFE",
-      label: "An toàn chính hãng",
-      count: counts?.safe ?? 0,
-      icon: ShieldCheck,
-      colorClass:
-        "text-[#00875A] border-emerald-200 dark:text-emerald-400 dark:border-emerald-900/40",
-      activeClass:
-        "bg-emerald-100 text-[#00875A] border-[#00875A] font-bold dark:bg-emerald-950/60 dark:text-emerald-300",
-    },
-    {
-      status: "UNKNOWN",
-      label: "Chưa xác định - Unknown",
-      count: counts?.unknown ?? 0,
-      icon: Question,
-      colorClass:
-        "text-[#475569] border-slate-200 dark:text-slate-400 dark:border-slate-800",
-      activeClass:
-        "bg-slate-100 text-[#475569] border-[#475569] font-bold dark:bg-slate-900 dark:text-slate-300",
-    },
-  ]
+  const pills = STATUS_ORDER.map((status) => {
+    if (status === "ALL") {
+      return {
+        status,
+        label: "Tất cả",
+        count: counts?.all ?? 0,
+        dotClass: "bg-foreground/70",
+      }
+    }
+    const meta = getHistoryRiskMeta(status)
+    const countMap: Record<HistoryRiskStatus, number> = {
+      DANGEROUS: counts?.dangerous ?? 0,
+      SUSPICIOUS: counts?.suspicious ?? 0,
+      SAFE: counts?.safe ?? 0,
+      UNKNOWN: counts?.unknown ?? 0,
+    }
+    return {
+      status,
+      label: meta.pillLabel,
+      count: countMap[status],
+      dotClass: meta.dotClass,
+    }
+  })
+
+  const handleKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return
+    event.preventDefault()
+    const direction = event.key === "ArrowRight" ? 1 : -1
+    const nextIndex = (index + direction + pills.length) % pills.length
+    onSelectStatus(pills[nextIndex].status)
+    const container = event.currentTarget.parentElement
+    const nextButton = container?.querySelectorAll<HTMLButtonElement>(
+      '[role="tab"]'
+    )[nextIndex]
+    nextButton?.focus()
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {pills.map((pill) => {
-        const Icon = pill.icon
+    <div
+      role="tablist"
+      aria-label="Lọc lịch sử theo mức độ rủi ro"
+      className="flex flex-wrap items-center gap-2"
+    >
+      {pills.map((pill, index) => {
         const isActive = currentStatus === pill.status
         return (
           <button
             key={pill.status}
             type="button"
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
             onClick={() => onSelectStatus(pill.status)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
             className={cn(
-              "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold shadow-2xs transition-all",
+              "relative inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold transition-colors duration-120 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               isActive
-                ? pill.activeClass
-                : `bg-white hover:bg-[#FAF8FF] dark:bg-card ${pill.colorClass}`
+                ? "border-primary/25 text-primary-foreground dark:border-white/15"
+                : "border-black/10 bg-card text-foreground/85 hover:bg-muted/60 hover:text-foreground dark:border-white/10"
             )}
           >
-            {Icon && <Icon size={14} weight="fill" />}
-            <span>
-              {pill.label} ({pill.count})
+            {isActive && (
+              <motion.span
+                layoutId="history-risk-active-pill"
+                transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                aria-hidden="true"
+                className="absolute inset-0 rounded-lg bg-primary shadow-xs"
+              />
+            )}
+            <span className="relative z-10 inline-flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "size-2 shrink-0 rounded-full",
+                  isActive ? "bg-primary-foreground" : pill.dotClass
+                )}
+              />
+              <span>{pill.label}</span>
+              <span
+                className={cn(
+                  "rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums",
+                  isActive
+                    ? "bg-primary-foreground/15 text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {pill.count}
+              </span>
             </span>
           </button>
         )

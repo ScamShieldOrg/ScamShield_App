@@ -9,7 +9,7 @@ export function ReportPrivacyNotice({ forPublication = false }: { forPublication
     <Popover.Root>
       <Popover.Trigger
         type="button"
-        className="inline-flex cursor-pointer items-center gap-1 rounded-sm font-semibold text-primary underline decoration-primary/30 underline-offset-4 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary dark:text-sky-400 dark:decoration-sky-400/40"
+        className="inline-flex cursor-pointer items-center gap-1 rounded-md font-semibold text-primary underline decoration-primary/35 underline-offset-4 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-sky-400 dark:decoration-sky-400/40"
       >
         <Info size={14} aria-hidden="true" />
         {forPublication ? "Bảo vệ thông tin Zero-PII" : "Bảo vệ thông tin (Zero-PII)"}
@@ -21,10 +21,11 @@ export function ReportPrivacyNotice({ forPublication = false }: { forPublication
           collisionPadding={16}
           className="z-50"
         >
-          <Popover.Popup className="w-88 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none">
+          <Popover.Popup className="w-88 max-w-[calc(100vw-2rem)] rounded-xl border border-black/10 bg-popover p-4 text-popover-foreground shadow-[0_12px_36px_rgb(15,23,42,0.14),0_1px_2px_rgb(15,23,42,0.06)] outline-none dark:border-white/12 dark:shadow-[0_20px_50px_rgb(0,0,0,0.6),inset_0_1px_0_rgb(255,255,255,0.08)]">
             <div className="flex items-start justify-between gap-3">
               <Popover.Title className="flex items-center gap-2 text-sm font-bold">
                 <ShieldCheck
+                  aria-hidden="true"
                   size={18}
                   weight="duotone"
                   className="shrink-0 text-emerald-600 dark:text-emerald-400"
@@ -34,9 +35,9 @@ export function ReportPrivacyNotice({ forPublication = false }: { forPublication
               <Popover.Close
                 type="button"
                 aria-label="Đóng hướng dẫn bảo vệ thông tin"
-                className="-mt-1 -mr-1 rounded-md p-1 text-muted-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary"
+                className="-mt-1 -mr-1 inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
-                <X size={15} />
+                <X aria-hidden="true" size={15} />
               </Popover.Close>
             </div>
             <Popover.Description className="mt-2 text-xs leading-relaxed text-muted-foreground">
@@ -47,10 +48,8 @@ export function ReportPrivacyNotice({ forPublication = false }: { forPublication
               <li className="flex items-start gap-2">
                 <span
                   aria-hidden="true"
-                  className="shrink-0 text-muted-foreground"
-                >
-                  –
-                </span>
+                  className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/60"
+                />
                 <span>
                   Che tên, ảnh đại diện, địa chỉ và thông tin cá nhân không liên
                   quan trong minh chứng.
@@ -59,10 +58,8 @@ export function ReportPrivacyNotice({ forPublication = false }: { forPublication
               <li className="flex items-start gap-2">
                 <span
                   aria-hidden="true"
-                  className="shrink-0 text-muted-foreground"
-                >
-                  –
-                </span>
+                  className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/60"
+                />
                 <span>
                   {forPublication
                     ? "Che mật khẩu, mã OTP và thông tin trên giấy tờ tùy thân trước khi công khai."
@@ -72,10 +69,8 @@ export function ReportPrivacyNotice({ forPublication = false }: { forPublication
               <li className="flex items-start gap-2">
                 <span
                   aria-hidden="true"
-                  className="shrink-0 text-muted-foreground"
-                >
-                  –
-                </span>
+                  className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/60"
+                />
                 <span>
                   Giữ lại số điện thoại, đường link hoặc tài khoản của đối tượng
                   bị báo cáo để đối chiếu.

@@ -24,6 +24,7 @@ export interface HistoryItem {
   verdictLabel: string
   verdictStatus: HistoryRiskStatus
   riskScore: number
+  decidedByStage?: string | null
 }
 
 export interface HistoryFilterState {
