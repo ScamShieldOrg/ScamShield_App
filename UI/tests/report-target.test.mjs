@@ -9,13 +9,13 @@ function load(path, dependencies = {}) {
     fs.readFileSync(new URL(path, import.meta.url), "utf8"),
     { compilerOptions: { module: ts.ModuleKind.CommonJS } }
   ).outputText
-  const module = { exports: {} }
+  const testModule = { exports: {} }
   vm.compileFunction(code, ["require", "module", "exports"])(
     (name) => dependencies[name],
-    module,
-    module.exports
+    testModule,
+    testModule.exports
   )
-  return module.exports
+  return testModule.exports
 }
 
 const { getReportTargetTypeWarning: warn } = load(
@@ -47,4 +47,31 @@ test("keeps supported phone and URL formats", () => {
   assert.equal(warn("PHONE", "0084 912 345 678"), null)
   assert.equal(warn("PHONE", "1900 1234"), null)
   assert.equal(warn("WEBSITE", "example.com/path"), null)
+})
+
+test("limits report phone input according to its prefix", () => {
+  const { limitReportPhoneInput, isCompleteReportPhone } = load(
+    "../src/features/report/utils/report-phone.ts"
+  )
+  assert.equal(limitReportPhoneInput("0912 345 6789", ""), "0912345678")
+  assert.equal(limitReportPhoneInput("+84 912 345 6789", ""), "+84912345678")
+  assert.equal(limitReportPhoneInput("+8", "+"), "+8")
+  assert.equal(limitReportPhoneInput("912345678", ""), "")
+  for (const prefix of ["1800", "1900"]) {
+    for (let length = 1; length <= prefix.length; length++) {
+      const partial = prefix.slice(0, length)
+      assert.equal(limitReportPhoneInput(partial, ""), partial)
+      assert.equal(isCompleteReportPhone(partial), false)
+    }
+    assert.equal(limitReportPhoneInput(`${prefix} 1234567`, ""), `${prefix}123456`)
+    assert.equal(isCompleteReportPhone(`${prefix} 123`), false)
+    assert.equal(isCompleteReportPhone(`${prefix} 1234`), true)
+    assert.equal(isCompleteReportPhone(`${prefix} 123456`), true)
+    assert.equal(isCompleteReportPhone(`${prefix} 1234567`), false)
+  }
+  assert.equal(limitReportPhoneInput("1700", "1"), "1")
+  assert.equal(isCompleteReportPhone("0912 345 678"), true)
+  assert.equal(isCompleteReportPhone("+84 912 345 678"), true)
+  assert.equal(isCompleteReportPhone("+84 0912 345 678"), false)
+  assert.equal(isCompleteReportPhone("0912 345"), false)
 })

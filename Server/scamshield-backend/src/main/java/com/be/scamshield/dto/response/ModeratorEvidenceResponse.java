@@ -35,6 +35,7 @@ public class ModeratorEvidenceResponse {
     private String downloadUrl;
 
     @Schema(description = "Có hash để đối chiếu file giống hệt; chỉ dùng hỗ trợ quyết định")
+    private boolean hasPublishedImage;
     private boolean duplicateCheckAvailable;
     private long duplicateCount;
     private List<DuplicateEvidence> duplicates;

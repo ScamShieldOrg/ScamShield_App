@@ -1,15 +1,8 @@
 "use client"
-
-import { useState, useRef } from "react"
+import { useCallback, useEffect, useState, useRef } from "react"
 import Link from "next/link"
-import {
-  ArrowRight,
-  ClipboardText,
-  Flag,
-  Gavel,
-  ShieldWarning,
-} from "@phosphor-icons/react"
 import { ExpandableIconButton } from "@/components/shared/expandable-icon-action"
+import { ArrowRight, ClipboardText, Flag, Gavel, ShieldWarning, UserCircle } from "@phosphor-icons/react"
 import type {
   ModeratorReportItem,
   ModerationDecisionPayload,
@@ -73,16 +66,10 @@ function ReviewContext({
       "Tỷ lệ khiếu nại được duyệt",
       approvalRate(reporter.approvedDisputes, reporter.decidedDisputes),
     ],
-    [
-      "Dấu hiệu cần xem xét",
-      reporter.abuseFlags === 0
-        ? "Chưa ghi nhận"
-        : `${reporter.abuseFlags} lượt ghi nhận · ${reporter.openFlags} đang mở`,
-    ],
   ]
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       {[
         {
           title: "Đối tượng bị báo cáo",
@@ -90,57 +77,58 @@ function ReviewContext({
             item.targetType === "PHONE"
               ? formatReportPhoneInput(item.targetIdentifier)
               : item.targetIdentifier,
-          fields: indicatorFields,
+          groups: indicatorFields
+            ? [{ heading: "Lịch sử ghi nhận", fields: indicatorFields }]
+            : [],
         },
-        { title: "Người gửi", name: item.reportedBy, fields: reporterFields },
-      ].map(({ title, name, fields }, index) => (
-        <section key={title} className={cn("min-w-0", panelSurface)}>
-          <p className="text-xs font-semibold text-muted-foreground">{title}</p>
-          {index === 0 ? (
-            <h1 className="mt-2 font-mono text-2xl font-bold break-words tracking-tight text-foreground sm:text-3xl">
-              {name}
-            </h1>
-          ) : (
-            <h2 className="mt-1.5 font-heading text-lg font-bold break-words tracking-[-0.02em] text-foreground">
-              {name}
-            </h2>
-          )}
-
-          {index === 0 && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-muted-foreground">
-                {reportTargetTypeLabel(item.targetType)}
-              </span>
-              {indicator && (
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 font-semibold",
-                    indicator.blacklistStatus === "ACTIVE"
-                      ? "border-rose-500/25 bg-rose-500/10 text-rose-800 dark:border-rose-400/25 dark:bg-rose-500/15 dark:text-rose-200"
-                      : "border-border bg-muted/50 text-muted-foreground"
-                  )}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "size-1.5 rounded-full",
-                      indicator.blacklistStatus === "ACTIVE"
-                        ? "bg-rose-500 dark:bg-rose-400"
-                        : "bg-muted-foreground/70"
-                    )}
-                  />
-                  {indicator.blacklistStatus === "ACTIVE"
-                    ? "Đang trong blacklist"
-                    : indicator.blacklistStatus === "RETRACTED"
-                      ? "Đã gỡ khỏi blacklist"
-                      : "Chưa vào blacklist"}
-                </span>
+        {
+          title: "Người gửi",
+          name: item.reportedBy,
+          groups: reporterFields
+            ? [
+              { heading: "Hồ sơ và liên hệ", fields: reporterFields.slice(0, 4) },
+              { heading: "Hoạt động gửi báo cáo và khiếu nại", fields: reporterFields.slice(4) },
+            ]
+            : [],
+        },
+      ].map(({ title, name, groups }, index) => (
+        <section
+          key={title}
+          className="min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5"
+        >
+          <div className={`rounded-xl border px-3 py-3 sm:px-4 ${index === 0 ? "border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/45" : "border-border bg-muted/50"}`}>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              {index === 0 ? (
+                <ClipboardText size={18} className="shrink-0 text-sky-800 dark:text-sky-200" aria-hidden="true" />
+              ) : (
+                <UserCircle size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" />
               )}
-            </div>
-          )}
-
+              {title}
+            </h2>
+            <p className={`mt-1 font-bold wrap-anywhere tracking-tight ${index === 0 ? "text-2xl sm:text-3xl" : "text-xl"}`}>
+              {name}
+            </p>
+            {index === 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-muted-foreground">
+                  {reportTargetTypeLabel(item.targetType)}
+                </span>
+                {indicator && (
+                  <span
+                    className={`rounded-full border px-2.5 py-1 font-semibold ${indicator.blacklistStatus === "ACTIVE" ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200" : "border-border bg-card text-muted-foreground"}`}
+                  >
+                    {indicator.blacklistStatus === "ACTIVE"
+                      ? "Đang trong blacklist"
+                      : indicator.blacklistStatus === "RETRACTED"
+                        ? "Đã gỡ khỏi blacklist"
+                        : "Chưa vào blacklist"}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
           {index === 0 && indicator && (
-            <dl className="mt-5 grid grid-cols-3 divide-x divide-border/70 rounded-lg bg-muted/35">
+            <dl className="mt-3 grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-muted/25">
               {[
                 {
                   label: "Tổng báo cáo",
@@ -169,38 +157,87 @@ function ReviewContext({
               ))}
             </dl>
           )}
-
-          {fields && (
-            <dl className="mt-4 grid gap-x-4 gap-y-3 border-t border-border/70 pt-4 sm:grid-cols-2">
-              {fields.map(([label, value]) => (
-                <div key={label} className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">{label}</dt>
-                  <dd className="mt-1 text-sm font-semibold break-words tabular-nums">
-                    {value}
+          {groups.map(({ heading, fields }) => (
+            <div key={heading} className="mt-4 border-t border-border pt-3">
+              <h3 className="text-sm font-semibold">{heading}</h3>
+              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                {fields.map(([label, value]) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
+                    <dd className="mt-1 text-sm font-semibold wrap-anywhere tabular-nums">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+          {index === 0 && (
+            <div className="mt-4 space-y-3 rounded-xl border border-border bg-muted/25 p-3 sm:p-4">
+              <h3 className="text-sm font-semibold">Nội dung báo cáo</h3>
+              <dl className="flex flex-wrap gap-x-6 gap-y-2">
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">Loại lừa đảo</dt>
+                  <dd className="text-sm font-semibold wrap-anywhere">
+                    {item.category}
                   </dd>
                 </div>
-              ))}
-            </dl>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Ngày gửi</dt>
+                  <dd className="text-sm font-medium tabular-nums">
+                    {item.reportedAt}
+                  </dd>
+                </div>
+                {item.processedAt && (
+                  <div>
+                    <dt className="text-xs text-muted-foreground">
+                      Thời gian đã xử lý
+                    </dt>
+                    <dd className="text-sm font-medium tabular-nums">
+                      {item.processedAt}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              <div className="border-t border-border pt-3">
+                <h4 className="text-sm font-semibold">Mô tả hành vi</h4>
+                <p
+                  className={`mt-2 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap ${item.description?.trim() ? "text-foreground" : "text-muted-foreground italic"}`}
+                >
+                  {item.description?.trim() || "Chưa có mô tả."}
+                </p>
+              </div>
+            </div>
           )}
 
           {index === 1 && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3.5">
-              <span className="text-xs text-muted-foreground">
-                Phát hiện dấu hiệu lạm dụng?
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                <ExpandableIconButton
+            <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                <ShieldWarning size={17} className="shrink-0" aria-hidden="true" />
+                Dấu hiệu lạm dụng
+              </h3>
+              {reporter && (
+                <p className="mt-1 text-xs font-medium text-amber-950 dark:text-amber-100">
+                  {reporter.abuseFlags === 0
+                    ? "Chưa ghi nhận"
+                    : `${reporter.abuseFlags} lượt ghi nhận · ${reporter.openFlags} đang mở`}
+                </p>
+              )}
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <button
+                  type="button"
                   onClick={onOpenEscalate}
-                  icon={<Flag aria-hidden="true" size={15} weight="bold" />}
-                  label="Gắn cờ & chuyển Admin"
-                  variant="warning"
-                />
+                  className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-2.5 text-xs font-semibold text-amber-950 transition-colors hover:bg-amber-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-amber-800 dark:bg-amber-900/50 dark:text-amber-100 dark:hover:bg-amber-900/80"
+                >
+                  <Flag size={15} className="shrink-0" aria-hidden="true" />
+                  Gắn cờ và chuyển Admin
+                </button>
                 <Link
                   href="/moderator/flagged-accounts"
-                  className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-1 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
-                  <span>Xử lý lạm dụng</span>
-                  <ArrowRight aria-hidden="true" size={14} weight="bold" />
+                  Xử lý lạm dụng
+                  <ArrowRight size={14} className="shrink-0" aria-hidden="true" />
                 </Link>
               </div>
             </div>
@@ -225,6 +262,19 @@ export function ReportQueueDetailView({
   busy?: boolean
 }) {
   const [isEscalateOpen, setIsEscalateOpen] = useState(false)
+  const [formDirty, setFormDirty] = useState(false)
+  const [imageDraftActive, setImageDraftActive] = useState(false)
+  const [publicImages, setPublicImages] = useState<ModerationDecisionPayload["publicImages"]>()
+  const updatePublicationDraft = useCallback(
+    (active: boolean, images?: ModerationDecisionPayload["publicImages"]) => {
+      setImageDraftActive(active)
+      setPublicImages(images)
+    },
+    []
+  )
+  useEffect(() => {
+    onDirtyChange?.(formDirty || imageDraftActive)
+  }, [formDirty, imageDraftActive, onDirtyChange])
   const decisionRef = useRef<HTMLDivElement>(null)
 
   if (!item) {
@@ -253,7 +303,7 @@ export function ReportQueueDetailView({
                 Mã báo cáo
               </p>
               <p className="mt-1 font-mono text-base leading-none font-bold text-foreground tabular-nums">
-                #{numericId}
+                {numericId}
               </p>
             </div>
           </div>
@@ -294,54 +344,7 @@ export function ReportQueueDetailView({
           )}
         </div>
       </header>
-
-      <ReviewContext
-        item={item}
-        onOpenEscalate={() => setIsEscalateOpen(true)}
-      />
-
-      <section className={cn("space-y-4", panelSurface)}>
-        <dl className="grid gap-3 border-b border-border/70 pb-4 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-xs text-muted-foreground">Danh mục</dt>
-            <dd className="mt-1 font-semibold text-foreground">
-              {item.category}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Ngày gửi</dt>
-            <dd className="mt-1 font-medium text-foreground tabular-nums">
-              {item.reportedAt}
-            </dd>
-          </div>
-          {item.processedAt && (
-            <div>
-              <dt className="text-xs text-muted-foreground">
-                Thời gian đã xử lý
-              </dt>
-              <dd className="mt-1 font-medium text-foreground tabular-nums">
-                {item.processedAt}
-              </dd>
-            </div>
-          )}
-        </dl>
-        <div>
-          <h2 className="font-heading text-base font-bold tracking-[-0.02em] text-foreground">
-            Mô tả hành vi
-          </h2>
-          <p
-            className={cn(
-              "mt-2 max-w-[65ch] text-sm leading-relaxed break-words whitespace-pre-wrap",
-              item.description?.trim()
-                ? "text-foreground"
-                : "text-muted-foreground italic"
-            )}
-          >
-            {item.description?.trim() || "Chưa có mô tả."}
-          </p>
-        </div>
-      </section>
-
+      <ReviewContext item={item} onOpenEscalate={() => setIsEscalateOpen(true)} />
       {pending &&
         !canReview &&
         !(item.status === "Pending" && item.canReview === true) && (
@@ -389,6 +392,8 @@ export function ReportQueueDetailView({
         reportId={item.rawId ?? item.id}
         evidences={item.evidences ?? []}
         completeness={item.evidenceCompleteness}
+        busy={busy}
+        onPublicationDraftChange={canReview && !item.whitelisted ? updatePublicationDraft : undefined}
       />
 
       {canReview && item.indicatorContext?.blacklistStatus === "RETRACTED" && (
@@ -418,12 +423,14 @@ export function ReportQueueDetailView({
         <div ref={decisionRef} tabIndex={-1} className="scroll-mt-24">
           <ReportDecisionForm
             key={item.id}
-            reportId={item.id}
+            reportId={item.rawId ?? item.id}
+            imageDraftActive={imageDraftActive}
+            publicImages={publicImages}
             currentCategoryId={item.categoryId}
             currentCategoryName={item.category}
             selectedTaxonomies={item.taxonomies ?? []}
             onSubmit={onDecisionSubmitted}
-            onDirtyChange={onDirtyChange}
+            onDirtyChange={setFormDirty}
             isSubmitting={busy}
             approvalBlocked={item.whitelisted}
           />

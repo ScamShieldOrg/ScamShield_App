@@ -1,15 +1,19 @@
 "use client"
-import { useEffect, useId, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import Link from "next/link"
-import { ArrowSquareOut, CaretDown, CaretUp, FileText } from "@phosphor-icons/react"
-import type { QueueEvidence } from "@/features/moderator/types/moderator.types"
+import { ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, Eye, FileText, PencilSimple } from "@phosphor-icons/react"
+import type { ModerationDecisionPayload, QueueEvidence } from "@/features/moderator/types/moderator.types"
 import { reportStatusClasses } from "@/features/report/utils/report-status"
 import { safeEvidenceUrl } from "@/features/moderator/report-review"
 import {
   analysisStatusLabels,
   similarityPercentage,
 } from "@/features/moderator/evidence-analysis"
-import { getModeratorReportById } from "@/features/moderator/services/moderator-report.service"
+import { getEvidenceImageSource, getModeratorReportById, getPublishedEvidenceImage } from "@/features/moderator/services/moderator-report.service"
+
+import { EvidenceImageEditor } from "@/components/features/report/evidence-image-editor"
+import { ReportPrivacyNotice } from "@/components/features/report/report-privacy-notice"
 
 function RelatedReportStatus({ status }: { status: string }) {
   const labels: Record<string, string> = {
@@ -203,6 +207,75 @@ function EvidenceThumbnail({ evidence }: { evidence: QueueEvidence }) {
   )
 }
 
+function PublishedEvidenceImage({
+  reportId,
+  evidenceId,
+  children,
+}: {
+  reportId: string | number
+  evidenceId: number
+  children: ReactNode
+}) {
+  const previewId = useId()
+  const [open, setOpen] = useState(false)
+  const [source, setSource] = useState<string>()
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    void getPublishedEvidenceImage(reportId, evidenceId, controller.signal)
+      .then(url => {
+        if (!controller.signal.aborted) setSource(url)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true)
+      })
+    return () => controller.abort()
+  }, [open, reportId, evidenceId])
+
+  function toggleImage() {
+    setSource(undefined)
+    setFailed(false)
+    setOpen(!open)
+  }
+
+  return (
+    <>
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+        {children}
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={previewId}
+          onClick={toggleImage}
+          className="mb-1 ml-2 inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-expanded:bg-blue-100 sm:mr-2 sm:mb-0 sm:ml-0 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/60 dark:aria-expanded:bg-blue-900/60"
+        >
+          <Eye size={16} aria-hidden="true" />
+          {open ? "Ẩn bản công khai" : "Xem bản công khai"}
+        </button>
+      </div>
+      <div id={previewId} hidden={!open} className="rounded-lg border border-border bg-card p-3 text-sm">
+        {open && failed && (
+          <p role="alert" className="text-destructive">Không thể mở ảnh công khai. Vui lòng đóng và mở lại.</p>
+        )}
+        {open && !failed && !source && (
+          <p role="status" className="text-muted-foreground">Đang tải ảnh công khai…</p>
+        )}
+        {open && !failed && source && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={source}
+            alt={`Bản đã công khai của minh chứng ${evidenceId}`}
+            className="mx-auto max-h-[70vh] max-w-full rounded-lg object-contain"
+            onError={() => setFailed(true)}
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
 function formatEvidenceDate(value: string | null): string {
   if (!value) return "Chưa có thông tin"
   const date = new Date(value)
@@ -214,11 +287,71 @@ function formatEvidenceDate(value: string | null): string {
 export function ReportEvidencePreview({
   evidences,
   reportId,
+  onPublicationDraftChange,
+  busy = false,
 }: {
   evidences: QueueEvidence[]
   reportId?: string | number
   completeness?: number
+  onPublicationDraftChange?: (active: boolean, images?: ModerationDecisionPayload["publicImages"]) => void
+  busy?: boolean
 }) {
+  const [evidenceId, setEvidenceId] = useState<number>()
+  const [preview, setPreview] = useState<{ evidenceId: number; source: string }>()
+  const [imageError, setImageError] = useState<{ evidenceId: number; message: string }>()
+  const [confirmedImages, setConfirmedImages] = useState<Record<number, { file: File; url: string }>>({})
+  const [visibleImageId, setVisibleImageId] = useState<number>()
+  const confirmedUrls = useRef(new Map<number, string>())
+
+  useEffect(() => {
+    const urls = confirmedUrls.current
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url)
+      urls.clear()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!evidenceId || reportId == null || !onPublicationDraftChange) return
+    const controller = new AbortController()
+    void getEvidenceImageSource(reportId, evidenceId, controller.signal)
+      .then(source => {
+        if (!controller.signal.aborted) setPreview({ evidenceId, source })
+      })
+      .catch(error => {
+        if (!controller.signal.aborted) setImageError({ evidenceId, message: error.message })
+      })
+    return () => controller.abort()
+  }, [evidenceId, reportId, onPublicationDraftChange])
+
+
+  function chooseImage(id?: number) {
+    const images = Object.entries(confirmedImages).map(([id, { file }]) => ({
+      evidenceId: Number(id),
+      file,
+    }))
+    onPublicationDraftChange?.(id != null || images.length > 0, id == null ? images : undefined)
+    setEvidenceId(id)
+    setPreview(undefined)
+    setImageError(undefined)
+  }
+
+  function confirmImage(id: number, file: File) {
+    const previousUrl = confirmedUrls.current.get(id)
+    const url = URL.createObjectURL(file)
+    confirmedUrls.current.set(id, url)
+    if (previousUrl) URL.revokeObjectURL(previousUrl)
+    const nextImages = { ...confirmedImages, [id]: { file, url } }
+    setConfirmedImages(nextImages)
+    setVisibleImageId(undefined)
+    setEvidenceId(undefined)
+    setPreview(undefined)
+    onPublicationDraftChange?.(true, Object.entries(nextImages).map(([id, { file }]) => ({
+      evidenceId: Number(id),
+      file,
+    })))
+  }
+
   const [updated, setUpdated] = useState<QueueEvidence[] | null>(null)
   const displayed = updated ?? evidences
   const awaitingAnalysis = displayed.some(
@@ -281,35 +414,121 @@ export function ReportEvidencePreview({
                 </span>
               </>
             )
-            const rowClass =
-              "flex max-w-full items-center gap-3 rounded-lg bg-muted/25 p-3 text-left text-xs break-all text-foreground"
+            const cardClass =
+              "flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 text-left text-xs break-all text-foreground"
+            const canCheckImage = onPublicationDraftChange && evidence.type === "image" && evidence.rawId != null
+            const confirmedImage = evidence.rawId == null ? undefined : confirmedImages[evidence.rawId]
+            const showConfirmedImage = visibleImageId === evidence.rawId
+            const fileDetails = url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Mở tệp gốc: ${evidence.name}`}
+                className={`${cardClass} cursor-pointer transition-all hover:border-primary/40 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none`}
+              >
+                {content}
+              </a>
+            ) : (
+              <div className={cardClass}>
+                {content}
+                <span className="text-muted-foreground">
+                  Tệp không khả dụng
+                </span>
+              </div>
+            )
             return (
               <div
                 key={evidence.id}
-                className="min-w-0 space-y-3 py-4 first:pt-0 last:pb-0"
+                className="min-w-0 space-y-3 rounded-xl border border-border/70 p-3"
               >
-                {url ? (
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Mở tệp gốc: ${evidence.name}`}
-                    className={`${rowClass} cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
-                  >
-                    {content}
-                  </a>
-                ) : (
-                  <div className={rowClass}>
-                    {content}
-                    <span className="text-muted-foreground">
-                      Tệp không khả dụng
-                    </span>
-                  </div>
+                <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-2">
+                  {evidence.hasPublishedImage && reportId != null && evidence.rawId != null ? (
+                    <PublishedEvidenceImage key={reportId} reportId={reportId} evidenceId={evidence.rawId}>
+                      {fileDetails}
+                    </PublishedEvidenceImage>
+                  ) : fileDetails}
+                  {canCheckImage && evidenceId !== evidence.rawId && !confirmedImage && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      aria-label={`Kiểm tra minh chứng ${evidence.rawId}`}
+                      className="flex min-h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-300 bg-blue-100 px-3 py-2 text-sm font-semibold text-blue-900 transition-colors hover:bg-blue-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700 dark:bg-blue-900/45 dark:text-blue-200 dark:hover:bg-blue-900/65"
+                      onClick={() => chooseImage(evidence.rawId)}
+                    >
+                      <PencilSimple size={18} aria-hidden="true" />
+                      Kiểm tra minh chứng
+                    </button>
+                  )}
+                </div>
+                {canCheckImage && evidenceId === evidence.rawId && (
+                  <fieldset disabled={busy} className="min-w-0 space-y-3">
+                    {evidenceId && imageError?.evidenceId === evidenceId && <p role="alert" className="text-xs text-destructive">{imageError.message}</p>}
+                    {evidenceId && preview?.evidenceId !== evidenceId && imageError?.evidenceId !== evidenceId &&
+                      <p role="status" className="text-xs text-muted-foreground">Đang mở ảnh minh chứng…</p>}
+                    {preview?.evidenceId !== evidenceId && (
+                      <button type="button" className="rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-muted" onClick={() => chooseImage()}>
+                        Hủy
+                      </button>
+                    )}
+                    {evidenceId && preview?.evidenceId === evidenceId && (
+                      <EvidenceImageEditor
+                        key={evidenceId}
+                        source={preview.source}
+                        fileName={evidence.name}
+                        saveLabel="Xác nhận"
+                        onSave={file => confirmImage(evidenceId, file)}
+                        onCancel={() => chooseImage()}
+                      />
+                    )}
+                  </fieldset>
+                )}
+                {canCheckImage && evidence.rawId != null && evidenceId !== evidence.rawId && confirmedImage && (
+                  <fieldset disabled={busy || evidenceId != null}>
+                    <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p role="status" className="font-semibold">
+                          Đã xác nhận bản chỉnh
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            aria-expanded={showConfirmedImage}
+                            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 font-semibold hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                            onClick={() => setVisibleImageId(showConfirmedImage ? undefined : evidence.rawId)}
+                          >
+                            <Eye size={16} aria-hidden="true" />
+                            {showConfirmedImage ? "Ẩn bản đã chỉnh" : "Xem bản đã chỉnh"}
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 font-semibold text-primary hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-ring"
+                            onClick={() => chooseImage(evidence.rawId)}
+                          >
+                            <ArrowCounterClockwise size={16} aria-hidden="true" />
+                            Rà soát lại từ đầu
+                          </button>
+                        </div>
+                      </div>
+                      {showConfirmedImage && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={confirmedImage.url} alt="Minh chứng đã chỉnh" className="mx-auto max-h-96 max-w-full rounded-lg object-contain" />
+                      )}
+                    </div>
+                  </fieldset>
                 )}
                 <EvidenceComparison evidence={evidence} />
               </div>
             )
           })}
+        </div>
+      )}
+      {onPublicationDraftChange && displayed.some(evidence => evidence.type === "image" && evidence.rawId != null) && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800/60 dark:bg-amber-950/30">
+          <p className="font-semibold text-amber-950 dark:text-amber-100">
+            Che thông tin nhạy cảm trước khi công khai.
+          </p>
+          <ReportPrivacyNotice forPublication />
         </div>
       )}
     </section>

@@ -1,9 +1,10 @@
 "use client"
 
 import { Popover } from "@base-ui/react/popover"
-import { Info, ShieldCheck, X } from "@phosphor-icons/react"
+import { ArrowSquareOut, Info, ShieldCheck, X } from "@phosphor-icons/react"
+import Link from "next/link"
 
-export function ReportPrivacyNotice() {
+export function ReportPrivacyNotice({ forPublication = false }: { forPublication?: boolean }) {
   return (
     <Popover.Root>
       <Popover.Trigger
@@ -11,7 +12,7 @@ export function ReportPrivacyNotice() {
         className="inline-flex cursor-pointer items-center gap-1 rounded-md font-semibold text-primary underline decoration-primary/35 underline-offset-4 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-sky-400 dark:decoration-sky-400/40"
       >
         <Info size={14} aria-hidden="true" />
-        Bảo vệ thông tin (Zero-PII)
+        {forPublication ? "Bảo vệ thông tin Zero-PII" : "Bảo vệ thông tin (Zero-PII)"}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner
@@ -29,7 +30,7 @@ export function ReportPrivacyNotice() {
                   weight="duotone"
                   className="shrink-0 text-emerald-600 dark:text-emerald-400"
                 />
-                Bảo vệ thông tin khi báo cáo
+                {forPublication ? "Bảo vệ thông tin khi công khai" : "Bảo vệ thông tin khi báo cáo"}
               </Popover.Title>
               <Popover.Close
                 type="button"
@@ -60,7 +61,9 @@ export function ReportPrivacyNotice() {
                   className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/60"
                 />
                 <span>
-                  Không gửi mật khẩu, mã OTP hoặc ảnh giấy tờ tùy thân.
+                  {forPublication
+                    ? "Che mật khẩu, mã OTP và thông tin trên giấy tờ tùy thân trước khi công khai."
+                    : "Không gửi mật khẩu, mã OTP hoặc ảnh giấy tờ tùy thân."}
                 </span>
               </li>
               <li className="flex items-start gap-2">
@@ -74,11 +77,22 @@ export function ReportPrivacyNotice() {
                 </span>
               </li>
             </ul>
-            <p className="mt-3 border-t border-border/70 pt-3 text-xs leading-relaxed text-muted-foreground">
-              Báo cáo vẫn gắn với tài khoản của bạn để theo dõi xử lý. Tệp đính
-              kèm được gửi nguyên bản; hãy tự che dữ liệu nhạy cảm trước khi tải
-              lên.
-            </p>
+            {!forPublication && <p className="mt-3 border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
+              Báo cáo vẫn gắn với tài khoản của bạn để theo dõi xử lý. Hãy lưu
+              ảnh sau khi che và kiểm tra lại tệp đính kèm trước khi gửi.
+            </p>}
+            {!forPublication && (
+              <Link
+                href="https://csrc.nist.gov/pubs/sp/800/122/final"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-sm text-xs font-semibold text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:text-sky-400"
+              >
+                Tham khảo hướng dẫn bảo vệ PII của NIST
+                <ArrowSquareOut size={14} aria-hidden="true" />
+                <span className="sr-only"> (mở trong thẻ mới)</span>
+              </Link>
+            )}
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>

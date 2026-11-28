@@ -2,11 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bell, CaretRight, House, List, User, Warning } from "@phosphor-icons/react"
+import { House, Bell, List, User } from "@phosphor-icons/react"
 import { getActiveUserNavItem } from "@/config/navigation/user-nav"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 import { useAuthStore } from "@/store/auth.store"
-import { ExpandableIconLink } from "@/components/shared/expandable-icon-action"
 
 const DEFAULT_PAGE_TITLE = "Giám Sát & Phòng Vệ Số"
 
@@ -30,9 +29,10 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
   const initials = getInitials(user?.email)
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full shrink-0 items-center justify-between gap-3 border-b border-black/10 bg-background/90 px-4 font-sans antialiased backdrop-blur-md sm:px-6 dark:border-white/10">
-      {/* Left: Mobile Menu Toggle & Breadcrumb */}
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between bg-card px-4 sm:px-6 dark:bg-sidebar">
+      {/* Left side: Mobile Menu Toggle & Breadcrumbs & Connection Badge */}
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        {/* Mobile menu button */}
         <button
           type="button"
           onClick={onToggleMobileMenu}
@@ -42,68 +42,55 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
           <List aria-hidden="true" size={20} weight="bold" />
         </button>
 
-        <nav
-          aria-label="Đường dẫn trang"
-          className="flex min-w-0 items-center gap-1.5 text-xs font-medium"
-        >
+        {/* Breadcrumb path */}
+        <nav aria-label="Đường dẫn trang" className="flex min-w-0 items-center gap-2 text-xs font-semibold">
           <Link
-            href="/user"
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            href="/"
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            <House aria-hidden="true" size={15} weight="bold" />
-            <span className="hidden sm:inline">Cổng Người Dùng</span>
+            <House size={16} weight="bold" aria-hidden="true" />
+            Trang chủ
           </Link>
-          <CaretRight
-            aria-hidden="true"
-            size={12}
-            weight="bold"
-            className="shrink-0 text-muted-foreground/60"
-          />
-          <span className="truncate font-semibold text-foreground">
+          <span aria-hidden="true" className="text-muted-foreground">/</span>
+          <span aria-current="page" className="truncate font-bold text-foreground">
             {pageTitle}
           </span>
         </nav>
       </div>
 
-      {/* Right: Quick Report CTA, Notifications & Profile */}
-      <div className="flex shrink-0 items-center gap-2">
-        <ExpandableIconLink
-          href="/user/reports/new"
-          icon={<Warning aria-hidden="true" size={16} weight="fill" />}
-          label="Báo cáo nhanh"
-          variant="danger"
-        />
+      {/* Right side: Notification Bell & User Avatar */ }
+  <div className="ml-2 flex shrink-0 items-center gap-3">
+    {/* Notification Bell */}
+    <Link
+      href="/user/notifications"
+      className="relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      aria-label={
+        unreadCount > 0
+          ? `Thông báo (${unreadCount} chưa đọc)`
+          : "Thông báo"
+      }
+    >
+      <Bell aria-hidden="true" size={18} weight="bold" />
+      {unreadCount > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full border border-rose-500/30 bg-rose-600 px-1 text-xs leading-none font-bold text-white tabular-nums">
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
+    </Link>
 
-        <Link
-          href="/user/notifications"
-          className="relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          aria-label={
-            unreadCount > 0
-              ? `Thông báo (${unreadCount} chưa đọc)`
-              : "Thông báo"
-          }
-        >
-          <Bell aria-hidden="true" size={18} weight="bold" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full border border-rose-500/30 bg-rose-600 px-1 text-xs leading-none font-bold text-white tabular-nums">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-        </Link>
-
-        <Link
-          href="/user/profile"
-          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-black/10 bg-primary font-heading text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
-          aria-label="Hồ sơ người dùng"
-          title={user?.email || "Hồ sơ người dùng"}
-        >
-          {initials ? (
-            <span>{initials}</span>
-          ) : (
-            <User aria-hidden="true" size={17} weight="bold" />
-          )}
-        </Link>
-      </div>
-    </header>
+    <Link
+      href="/user/profile"
+      className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-black/10 bg-primary font-heading text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
+      aria-label="Hồ sơ người dùng"
+      title={user?.email || "Hồ sơ người dùng"}
+    >
+      {initials ? (
+        <span>{initials}</span>
+      ) : (
+        <User aria-hidden="true" size={17} weight="bold" />
+      )}
+    </Link>
+  </div>
+    </header >
   )
 }

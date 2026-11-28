@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { CheckCircle, XCircle, ShieldWarning } from "@phosphor-icons/react"
-import { ModerationDecisionPayload } from "@/features/moderator/types/moderator.types"
+import type { ModerationDecisionPayload } from "@/features/moderator/types/moderator.types"
+
 import { getReportCategories } from "@/features/report/services/report.service"
 import type { ScamCategoryItem } from "@/features/report/types/report.types"
 import { cn } from "@/lib/utils"
@@ -11,6 +12,8 @@ interface ReportDecisionFormProps {
   currentCategoryId?: number
   currentCategoryName: string
   reportId: string | number
+  imageDraftActive?: boolean
+  publicImages?: ModerationDecisionPayload["publicImages"]
   selectedTaxonomies: string[]
   onSubmit: (payload: ModerationDecisionPayload) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
@@ -24,6 +27,8 @@ export function ReportDecisionForm({
   currentCategoryId,
   currentCategoryName,
   reportId,
+  imageDraftActive,
+  publicImages,
   selectedTaxonomies,
   onSubmit,
   onDirtyChange,
@@ -54,6 +59,7 @@ export function ReportDecisionForm({
     decision !== null &&
     !(decision === "APPROVE" && approvalBlocked) &&
     isReasonValid &&
+    (decision !== "APPROVE" || !imageDraftActive || Boolean(publicImages)) &&
     !isSubmitting
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,6 +72,7 @@ export function ReportDecisionForm({
       reason: reason.trim(),
       selectedTaxonomies,
       categoryId: categoryId === currentCategoryId ? undefined : categoryId,
+      publicImages: decision === "APPROVE" ? publicImages : undefined,
     })
   }
 
@@ -83,11 +90,8 @@ export function ReportDecisionForm({
       <form ref={formRef} onSubmit={handleSubmit} className="mt-4">
         <fieldset disabled={isSubmitting} className="space-y-4">
           <div className="space-y-1.5">
-            <label
-              htmlFor="moderation-category"
-              className="block text-xs font-semibold text-foreground"
-            >
-              Xác nhận lại loại thủ đoạn
+            <label htmlFor="moderation-category" className="block text-xs font-bold">
+              Xác nhận lại loại lừa đảo
             </label>
             <select
               id="moderation-category"
@@ -100,8 +104,8 @@ export function ReportDecisionForm({
                 setCategoryId(nextCategoryId)
                 onDirtyChange?.(
                   nextCategoryId !== undefined ||
-                    decision !== null ||
-                    reason.length > 0
+                  decision !== null ||
+                  reason.length > 0
                 )
               }}
               className="min-h-10 w-full rounded-lg border border-black/10 bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
@@ -136,9 +140,9 @@ export function ReportDecisionForm({
                   className="mt-1 size-4 shrink-0 accent-primary"
                 />
                 <span>
-                  <strong>Khớp đối tượng.</strong> Đối chiếu số điện thoại, tên
-                  miền hoặc tài khoản trong minh chứng. Nếu nghi mạo danh, kiểm
-                  tra kênh chính thức của tổ chức.
+                  <strong>Khớp đối tượng:</strong> Đối chiếu số điện thoại, tên
+                  miền hoặc tài khoản trong minh chứng. Nếu nghi mạo danh,
+                  kiểm tra kênh chính thức của tổ chức.
                 </span>
               </label>
               <a
@@ -157,7 +161,7 @@ export function ReportDecisionForm({
                   className="mt-1 size-4 shrink-0 accent-primary"
                 />
                 <span>
-                  <strong>Khớp dấu hiệu.</strong> Chỉ ra hành vi trong minh
+                  <strong>Khớp dấu hiệu:</strong> Chỉ ra hành vi trong minh
                   chứng và đối chiếu với cảnh báo chính thức.
                 </span>
               </label>
@@ -176,9 +180,9 @@ export function ReportDecisionForm({
                 className="mt-1 size-4 shrink-0 accent-primary"
               />
               <span>
-                <strong>Ghi căn cứ quyết định.</strong> Nêu tệp nào thể hiện
-                hành vi gì và liên quan thế nào đến đối tượng. Nếu thiếu căn cứ,
-                ghi rõ thông tin cần bổ sung.
+                <strong>Ghi căn cứ quyết định:</strong> Nêu tệp nào thể hiện
+                hành vi gì và liên quan thế nào đến đối tượng. Nếu thiếu căn
+                cứ, ghi rõ thông tin cần bổ sung.
               </span>
             </label>
           </fieldset>
@@ -271,8 +275,8 @@ export function ReportDecisionForm({
                 setReason(e.target.value)
                 onDirtyChange?.(
                   decision !== null ||
-                    categoryId !== undefined ||
-                    e.target.value.length > 0
+                  categoryId !== undefined ||
+                  e.target.value.length > 0
                 )
               }}
               onKeyDown={(e) => {
@@ -290,7 +294,12 @@ export function ReportDecisionForm({
             />
           </div>
 
-          {/* Single Primary CTA */}
+          {/* Submit Confirmation Button */}
+          {decision === "APPROVE" && imageDraftActive && !publicImages && (
+            <p className="text-sm text-muted-foreground">
+              Xác nhận hoặc hủy chỉnh ảnh đang mở trong phần Bằng chứng đính kèm để tiếp tục.
+            </p>
+          )}
           <button
             type="submit"
             disabled={!canSubmit}

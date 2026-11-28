@@ -18,6 +18,9 @@ import com.be.scamshield.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -299,6 +302,22 @@ class ModeratorDisputeServiceImplTest {
         assertThat(response.getId()).isEqualTo("AP-2024-0041");
         assertThat(response.getRawId()).isEqualTo(41L);
         assertThat(response.getTargetIdentifier()).isEqualTo("0383 456 789");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"41", " 41 ", "AP-0041", "ap-2024-0041", "00041"})
+    void getDisputeById_AcceptedIdentifiers(String identifier) {
+        when(disputeRepository.findById(41L)).thenReturn(Optional.of(sampleDispute));
+        when(evidenceRepository.findByDisputeIdOrderByCreatedAtAscIdAsc(41L)).thenReturn(Collections.emptyList());
+        assertThat(service.getDisputeById(identifier).getRawId()).isEqualTo(41L);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "-1", "AP-2024-X", "1.5"})
+    void getDisputeById_InvalidIdentifiers(String identifier) {
+        assertThatThrownBy(() -> service.getDisputeById(identifier)).isInstanceOf(BadRequestException.class);
+        verifyNoInteractions(disputeRepository, evidenceRepository);
     }
 
     @Test

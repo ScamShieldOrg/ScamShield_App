@@ -42,11 +42,11 @@ export function UserDashboardShell({ children }: UserDashboardShellProps) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#FAF8FF] text-foreground dark:bg-background">
+    <div className="flex min-h-dvh bg-[#FAF8FF] text-foreground dark:bg-background">
       <NotificationRealtime />
       {/* Desktop Sticky Foldable Sidebar */}
       <UserSidebar
-        className="hidden md:flex"
+        className="sticky top-0 hidden self-start md:flex"
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapse}
       />
@@ -64,19 +64,20 @@ export function UserDashboardShell({ children }: UserDashboardShellProps) {
         </div>
       )}
 
-      {/* Main Scrollable Dashboard Content */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-w-0 flex-1 flex-col bg-card dark:bg-sidebar">
         <UserHeader
           onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
         />
-        <main
-          className={cn(
-            "mx-auto w-full flex-1 p-4 transition-[max-width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] sm:p-6 lg:p-8 motion-reduce:transition-none",
-            sidebarCollapsed ? "max-w-5xl" : "max-w-7xl"
-          )}
-        >
-          {children}
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col rounded-t-3xl bg-[#FAF8FF] md:rounded-tl-[2rem] md:rounded-tr-none dark:bg-background">
+          <main
+            className={cn(
+              "mx-auto w-full flex-1 p-4 transition-[max-width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none sm:p-6 lg:p-8",
+              sidebarCollapsed ? "max-w-5xl" : "max-w-7xl"
+            )}
+          >
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   )

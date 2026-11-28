@@ -134,7 +134,7 @@ export function UserSidebar({
       <aside
         aria-label="Điều hướng cổng người dùng"
         className={cn(
-          "flex h-screen shrink-0 flex-col justify-between border-r border-border/80 bg-card font-sans text-card-foreground antialiased select-none transition-[width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none dark:border-white/10 dark:bg-sidebar",
+          "flex h-screen shrink-0 flex-col justify-between bg-card font-sans text-card-foreground antialiased select-none transition-[width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none dark:bg-sidebar",
           collapsed ? "w-16" : "w-64",
           className
         )}
@@ -142,7 +142,7 @@ export function UserSidebar({
         {/* Top Brand & Fold Toggle (aligned with h-16 UserHeader) */}
         <div
           className={cn(
-            "flex h-16 shrink-0 items-center border-b border-border/70 dark:border-white/10",
+            "flex h-16 shrink-0 items-center",
             collapsed ? "justify-center px-2" : "justify-between gap-2 px-4"
           )}
         >
@@ -214,8 +214,8 @@ export function UserSidebar({
                 className={cn(
                   "space-y-1",
                   collapsed &&
-                    sectionIdx > 0 &&
-                    "border-t border-border/60 pt-3 dark:border-white/10"
+                  sectionIdx > 0 &&
+                  "border-t border-border/60 pt-3 dark:border-white/10"
                 )}
               >
                 {!collapsed && (
@@ -290,10 +290,15 @@ export function UserSidebar({
                             ) : (
                               <span
                                 className={cn(
-                                  "relative z-10 inline-flex min-w-5 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums",
-                                  item.badgeVariant === "danger"
-                                    ? "border border-rose-500/25 bg-rose-500/12 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
-                                    : "bg-primary/12 text-primary"
+                                  "relative z-10 inline-flex shrink-0 items-center justify-center text-xs tabular-nums",
+                                  item.href === "/user/notifications"
+                                    ? "min-h-4.5 min-w-4.5 rounded-full border border-rose-500/30 bg-rose-600 px-1 leading-none font-bold text-white"
+                                    : cn(
+                                        "min-w-5 rounded-md px-1.5 py-0.5 font-semibold",
+                                        item.badgeVariant === "danger"
+                                          ? "border border-rose-500/25 bg-rose-500/12 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+                                          : "bg-primary/12 text-primary"
+                                      )
                                 )}
                               >
                                 {displayBadge}
