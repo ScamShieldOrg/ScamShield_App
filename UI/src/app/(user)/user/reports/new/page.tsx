@@ -84,24 +84,25 @@ export default function UserReportsNewPage() {
   }
 
   return (
-    <MotionConfig reducedMotion="user">
-      <div className="space-y-8 font-sans antialiased">
-        {/* Focused Form Column */}
-        <div className="mx-auto max-w-3xl space-y-5">
-          <div className="space-y-2">
-            <Link
-              href="/user/reports"
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            >
-              <ArrowLeft aria-hidden="true" size={14} weight="bold" />
-              <span>Quay lại</span>
-            </Link>
-            <h1 className="font-heading text-2xl font-bold tracking-[-0.025em] text-foreground">
-              Báo cáo đối tượng lừa đảo
-            </h1>
-            <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-              Chung tay làm sạch không gian mạng. <ReportPrivacyNotice />
-            </p>
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-5">
+      <header className="relative isolate overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white dark:border-slate-700">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,_#164e63_0%,_transparent_65%)]"
+        />
+        <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-5 sm:px-6 sm:py-6">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200 sm:size-12">
+              <ShieldCheck size={25} aria-hidden="true" />
+            </span>
+            <div>
+              <h1 className="font-heading text-2xl leading-tight font-bold tracking-tight sm:text-3xl">
+                Báo cáo đối tượng lừa đảo
+              </h1>
+              <p className="mt-1 max-w-prose text-sm leading-relaxed text-slate-300">
+                Cung cấp thông tin và minh chứng để kiểm duyệt viên xác minh.
+              </p>
+            </div>
           </div>
           <a
             href="#report-recent"
@@ -135,7 +136,16 @@ export default function UserReportsNewPage() {
         uploadProgress={uploadProgress}
       />
 
-      <div id="report-recent" tabIndex={-1} className="min-w-0 scroll-mt-24">
+      <div id="report-recent" tabIndex={-1} className="min-w-0 space-y-4 scroll-mt-24">
+        {reportsError && (
+          <ScamErrorCallout
+            title="Chưa thể tải báo cáo gần đây"
+            message={reportsError}
+            preserveDraftHint={false}
+            isBusy={isLoadingReports}
+            onRetry={() => setReportsRevision((v) => v + 1)}
+          />
+        )}
         <RecentReportsTable items={reports} isLoading={isLoadingReports} />
       </div>
     </div>

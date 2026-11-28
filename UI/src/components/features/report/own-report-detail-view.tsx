@@ -373,10 +373,25 @@ export function OwnReportDetailView({
             role="status"
             className="flex items-center justify-center gap-2.5 py-16 text-sm text-muted-foreground"
           >
-            Thử lại
-          </button>
-        </div>
-      ) : (
+            <CircleNotch
+              aria-hidden="true"
+              size={18}
+              className="animate-spin"
+            />
+            <span>Đang tải báo cáo…</span>
+          </div>
+        ) : error ? (
+          <div role="alert" className="rounded-xl border border-destructive p-5">
+            <p className="text-sm text-destructive">{error}</p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className={cn(secondaryButton, "mt-4")}
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : (
         report && (
           <>
             <header className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
@@ -818,6 +833,7 @@ export function OwnReportDetailView({
           </button>
         </div>
       </dialog>
-    </div>
+      </div>
+    </MotionConfig>
   )
 }

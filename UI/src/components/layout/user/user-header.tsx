@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, Bell, List, User } from "@phosphor-icons/react"
+import { House, Bell, List, User, Warning } from "@phosphor-icons/react"
 import { getActiveUserNavItem } from "@/config/navigation/user-nav"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 import { useAuthStore } from "@/store/auth.store"
