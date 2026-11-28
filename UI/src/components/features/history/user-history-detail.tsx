@@ -58,7 +58,13 @@ function HistoryDetailSkeleton() {
   )
 }
 
-export function UserHistoryDetail({ checkId }: { checkId: number }) {
+export function UserHistoryDetail({
+  checkId,
+  backHref = "/user/history",
+}: {
+  checkId: number
+  backHref?: string
+}) {
   const isValidId = Number.isSafeInteger(checkId) && checkId > 0
   const [retryKey, setRetryKey] = useState(0)
   const [result, setResult] = useState<ScamCheckResult | null>(null)
@@ -124,11 +130,11 @@ export function UserHistoryDetail({ checkId }: { checkId: number }) {
         {/* Top Navigation & Metadata Header */}
         <header className="space-y-3">
           <Link
-            href="/user/history"
+            href={backHref}
             className="inline-flex min-h-10 items-center gap-2 rounded-full border border-black/10 bg-card px-4 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/10"
           >
             <ArrowLeft aria-hidden="true" size={15} weight="bold" />
-            <span>Quay lại lịch sử kiểm tra</span>
+            <span>Quay lại</span>
           </Link>
 
           <div className="space-y-1.5">

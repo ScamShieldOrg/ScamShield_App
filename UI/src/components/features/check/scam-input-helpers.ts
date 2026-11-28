@@ -17,9 +17,14 @@ export interface TabMeta {
   formatExample: string
 }
 
+export type ScenarioTone = "rose" | "amber" | "sky" | "indigo"
+
 export interface QuickScenario {
   id: string
   label: string
+  categoryHint: string
+  preview: string
+  tone: ScenarioTone
   type: CheckType
   sample: string
 }
@@ -28,25 +33,38 @@ export const QUICK_SCENARIOS: readonly QuickScenario[] = [
   {
     id: "bank-sms",
     label: "SMS giả ngân hàng",
+    categoryHint: "Tin nhắn SMS",
+    preview:
+      "Vietcombank: Tài khoản sẽ bị khóa trong 24h do chưa xác thực sinh trắc học…",
+    tone: "rose",
     type: "TEXT",
     sample:
       "Vietcombank: Tai khoan cua quy khach se bi khoa trong 24h do chua xac thuc sinh trac hoc. Truy cap https://vcb-xacthuc-vn.xyz ngay de tranh bi phong toa.",
   },
   {
     id: "phishing-url",
-    label: "Liên kết lạ",
+    label: "Liên kết nhận quà lạ",
+    categoryHint: "Đường dẫn URL",
+    preview: "https://nhanqua-shopee-2026.xyz/claim",
+    tone: "amber",
     type: "URL",
     sample: "https://nhanqua-shopee-2026.xyz/claim",
   },
   {
     id: "unknown-phone",
-    label: "Số điện thoại lạ",
+    label: "Số điện thoại nghi vấn",
+    categoryHint: "Số điện thoại",
+    preview: "0912 345 678 · Đối chiếu danh sách cảnh báo & tổng đài",
+    tone: "sky",
     type: "PHONE",
     sample: "0912 345 678",
   },
   {
     id: "bank-account",
-    label: "Tra cứu tài khoản",
+    label: "Tài khoản ngân hàng lạ",
+    categoryHint: "Số tài khoản",
+    preview: "1903 6281 9283 01 · Tra cứu nhanh trước khi chuyển khoản",
+    tone: "indigo",
     type: "BANK_ACCOUNT",
     sample: "1903 6281 9283 01",
   },

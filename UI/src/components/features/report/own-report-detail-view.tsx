@@ -353,34 +353,45 @@ export function OwnReportDetailView({
   }
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-4 sm:space-y-5">
-      <Link
-        href="/user/reports"
-        className="group inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none"
-      >
-        <ArrowLeft
-          size={16}
-          aria-hidden="true"
-          className="transition-transform group-hover:-translate-x-0.5 motion-reduce:transform-none"
-        />
-        Danh sách báo cáo
-      </Link>
-      {loading ? (
-        <p role="status" className="py-12 text-center text-muted-foreground">
-          Đang tải báo cáo…
-        </p>
-      ) : error ? (
-        <div role="alert" className="rounded-xl border border-destructive p-5">
-          <p>{error}</p>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className={cn(secondaryButton, "mt-4")}
+    <MotionConfig reducedMotion="user">
+      <div className="mx-auto max-w-5xl space-y-6 font-sans antialiased">
+        <Link
+          href="/user/reports"
+          className="group inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
+        >
+          <ArrowLeft
+            aria-hidden="true"
+            size={15}
+            weight="bold"
+            className="transition-transform group-hover:-translate-x-0.5 motion-reduce:transform-none"
+          />
+          <span>Quay lại</span>
+        </Link>
+
+        {loading ? (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2.5 py-16 text-sm text-muted-foreground"
           >
-            Thử lại
-          </button>
-        </div>
-      ) : (
+            <CircleNotch
+              aria-hidden="true"
+              size={18}
+              className="animate-spin"
+            />
+            <span>Đang tải báo cáo…</span>
+          </div>
+        ) : error ? (
+          <div role="alert" className="rounded-xl border border-destructive p-5">
+            <p className="text-sm text-destructive">{error}</p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className={cn(secondaryButton, "mt-4")}
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : (
         report && (
           <>
             <header className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
@@ -822,6 +833,7 @@ export function OwnReportDetailView({
           </button>
         </div>
       </dialog>
-    </div>
+      </div>
+    </MotionConfig>
   )
 }

@@ -2,10 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, Bell, List, User } from "@phosphor-icons/react"
+import { House, Bell, List, User, Warning } from "@phosphor-icons/react"
 import { getActiveUserNavItem } from "@/config/navigation/user-nav"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 import { useAuthStore } from "@/store/auth.store"
+import { ExpandableIconLink } from "@/components/shared/expandable-icon-action"
+import { useScamCheckTheme } from "@/components/features/check/scam-check-theme"
+import { cn } from "@/lib/utils"
 
 const DEFAULT_PAGE_TITLE = "Giám Sát & Phòng Vệ Số"
 
@@ -27,12 +30,12 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const user = useAuthStore((state) => state.user)
   const initials = getInitials(user?.email)
+  const { theme: antiScamTheme } = useScamCheckTheme()
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between bg-card px-4 sm:px-6 dark:bg-sidebar">
-      {/* Left side: Mobile Menu Toggle & Breadcrumbs & Connection Badge */}
-      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-        {/* Mobile menu button */}
+    <header className="relative z-30 flex h-14 w-full shrink-0 items-center justify-between gap-3 bg-transparent px-4 font-sans antialiased sm:px-5">
+      {/* Left: Mobile Menu Toggle & Breadcrumb */}
+      <div className="relative z-10 flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={onToggleMobileMenu}
@@ -58,39 +61,48 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
         </nav>
       </div>
 
-      {/* Right side: Notification Bell & User Avatar */ }
-  <div className="ml-2 flex shrink-0 items-center gap-3">
-    {/* Notification Bell */}
-    <Link
-      href="/user/notifications"
-      className="relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      aria-label={
-        unreadCount > 0
-          ? `Thông báo (${unreadCount} chưa đọc)`
-          : "Thông báo"
-      }
-    >
-      <Bell aria-hidden="true" size={18} weight="bold" />
-      {unreadCount > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full border border-rose-500/30 bg-rose-600 px-1 text-xs leading-none font-bold text-white tabular-nums">
-          {unreadCount > 99 ? "99+" : unreadCount}
-        </span>
-      )}
-    </Link>
+      {/* Right: Quick Report CTA, Notifications & Profile */}
+      <div className="relative z-10 flex shrink-0 items-center gap-2">
+        <ExpandableIconLink
+          href="/user/reports/new"
+          icon={<Warning aria-hidden="true" size={16} weight="fill" />}
+          label="Báo cáo nhanh"
+          variant="danger"
+        />
 
-    <Link
-      href="/user/profile"
-      className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-black/10 bg-primary font-heading text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12"
-      aria-label="Hồ sơ người dùng"
-      title={user?.email || "Hồ sơ người dùng"}
-    >
-      {initials ? (
-        <span>{initials}</span>
-      ) : (
-        <User aria-hidden="true" size={17} weight="bold" />
-      )}
-    </Link>
-  </div>
-    </header >
+        <Link
+          href="/user/notifications"
+          className="relative inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={
+            unreadCount > 0
+              ? `Thông báo (${unreadCount} chưa đọc)`
+              : "Thông báo"
+          }
+        >
+          <Bell aria-hidden="true" size={18} weight="bold" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full border border-rose-500/30 bg-rose-600 px-1 text-xs leading-none font-bold text-white tabular-nums">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </Link>
+
+        <Link
+          href="/user/profile"
+          className={cn(
+            "inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-black/10 font-heading text-xs font-bold shadow-2xs transition-[opacity,background-color,color] duration-150 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring dark:border-white/12",
+            antiScamTheme.avatarBg
+          )}
+          aria-label="Hồ sơ người dùng"
+          title={user?.email || "Hồ sơ người dùng"}
+        >
+          {initials ? (
+            <span>{initials}</span>
+          ) : (
+            <User aria-hidden="true" size={17} weight="bold" />
+          )}
+        </Link>
+      </div>
+    </header>
   )
 }

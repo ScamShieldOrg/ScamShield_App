@@ -86,7 +86,10 @@ export default function UserReportsNewPage() {
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl space-y-5">
       <header className="relative isolate overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white dark:border-slate-700">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,_#164e63_0%,_transparent_65%)]" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,_#164e63_0%,_transparent_65%)]"
+        />
         <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-5 sm:px-6 sm:py-6">
           <div className="flex items-start gap-3 sm:gap-4">
             <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200 sm:size-12">
@@ -133,7 +136,16 @@ export default function UserReportsNewPage() {
         uploadProgress={uploadProgress}
       />
 
-      <div id="report-recent" tabIndex={-1} className="min-w-0 scroll-mt-24">
+      <div id="report-recent" tabIndex={-1} className="min-w-0 space-y-4 scroll-mt-24">
+        {reportsError && (
+          <ScamErrorCallout
+            title="Chưa thể tải báo cáo gần đây"
+            message={reportsError}
+            preserveDraftHint={false}
+            isBusy={isLoadingReports}
+            onRetry={() => setReportsRevision((v) => v + 1)}
+          />
+        )}
         <RecentReportsTable items={reports} isLoading={isLoadingReports} />
       </div>
     </div>

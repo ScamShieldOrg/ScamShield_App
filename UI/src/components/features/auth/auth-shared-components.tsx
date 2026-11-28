@@ -38,20 +38,22 @@ export function AuthInput({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <label
           htmlFor={inputId}
-          className="flex items-center gap-1 text-sm font-semibold text-[#131B2E] dark:text-foreground"
+          className="flex items-center gap-1 text-sm font-semibold text-foreground"
         >
           <span>{label}</span>
-          {required && <span className="text-[#BA1A1A]">*</span>}
+          {required && (
+            <span className="text-rose-600 dark:text-rose-400">*</span>
+          )}
         </label>
         {actionLabel && !inlineAction && (
           <button
             type="button"
             onClick={onActionClick}
             disabled={actionDisabled}
-            className="text-[11px] font-semibold tracking-wider text-[#545D7C] uppercase hover:text-[#131B2E] dark:text-muted-foreground dark:hover:text-foreground"
+            className="cursor-pointer text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
             {actionLabel}
           </button>
@@ -60,7 +62,7 @@ export function AuthInput({
 
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
-          <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[#76767E]">
+          <div className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground">
             {icon}
           </div>
           <input
@@ -69,20 +71,19 @@ export function AuthInput({
             aria-required={required}
             aria-describedby={error ? `${inputId}-error` : undefined}
             className={cn(
-              "h-12 w-full rounded-lg bg-white pr-4 pl-11 text-sm",
+              "h-11 w-full rounded-xl bg-background/85 pr-4 pl-10 text-sm text-foreground placeholder:text-muted-foreground/75",
               suffix && "pr-11",
-              "text-[#131B2E] placeholder:text-[#76767E]/70",
-              "border border-[#C6C6CE] shadow-xs transition-all outline-none",
-              "dark:border-border dark:bg-muted/30 dark:text-foreground dark:placeholder:text-muted-foreground",
+              "border border-border shadow-2xs transition-[border-color,box-shadow] outline-none",
+              "dark:border-white/12 dark:bg-white/[0.04]",
               error
-                ? "border-[#BA1A1A] ring-2 ring-[#BA1A1A]/20 dark:border-destructive dark:ring-destructive/30"
-                : "focus:border-[#0B132B] focus:ring-2 focus:ring-[#0B132B]/20 dark:focus:border-primary dark:focus:ring-ring/40",
+                ? "border-rose-500/70 ring-2 ring-rose-500/20"
+                : "focus:border-foreground/40 focus:ring-2 focus:ring-ring/25 dark:focus:border-white/30",
               className
             )}
             {...props}
           />
           {suffix && (
-            <div className="absolute top-1/2 right-3.5 -translate-y-1/2 text-[#76767E]">
+            <div className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground">
               {suffix}
             </div>
           )}
@@ -92,7 +93,7 @@ export function AuthInput({
             type="button"
             onClick={onActionClick}
             disabled={actionDisabled}
-            className="h-12 shrink-0 rounded-lg border border-input bg-muted/30 px-3 text-xs font-semibold text-foreground shadow-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-11 shrink-0 cursor-pointer rounded-full border border-border bg-card px-4 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/12"
           >
             {actionLabel}
           </button>
@@ -100,8 +101,13 @@ export function AuthInput({
       </div>
 
       {error && (
-        <div className="flex items-center gap-1 pt-0.5 text-xs text-[#BA1A1A] dark:text-red-400">
-          <WarningCircle size={14} weight="fill" className="shrink-0" />
+        <div className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-rose-700 dark:text-rose-400">
+          <WarningCircle
+            aria-hidden="true"
+            size={14}
+            weight="fill"
+            className="shrink-0"
+          />
           <span id={`${inputId}-error`}>{error}</span>
         </div>
       )}
@@ -139,24 +145,29 @@ export function AuthCheckbox({
           />
           <div
             className={cn(
-              "flex size-4.5 items-center justify-center rounded-xs border transition-colors",
+              "flex size-4.5 items-center justify-center rounded-sm border transition-colors",
               checked
-                ? "border-[#131A33] bg-[#131A33] text-white dark:border-primary dark:bg-primary"
-                : "border-[#767676] bg-white dark:border-border dark:bg-card",
-              error && !checked && "border-[#BA1A1A]",
+                ? "border-foreground bg-foreground text-background"
+                : "border-border bg-background dark:border-white/20 dark:bg-card",
+              error && !checked && "border-rose-500",
               boxClassName
             )}
           >
-            {checked && <Check size={12} weight="bold" />}
+            {checked && <Check aria-hidden="true" size={12} weight="bold" />}
           </div>
         </div>
-        <div className="text-xs leading-relaxed text-[#45464D] dark:text-muted-foreground">
+        <div className="text-xs leading-relaxed text-muted-foreground">
           {children}
         </div>
       </label>
       {error && (
-        <div className="mt-1 flex items-center gap-1 text-xs text-[#BA1A1A] dark:text-red-400">
-          <WarningCircle size={14} weight="fill" className="shrink-0" />
+        <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-rose-700 dark:text-rose-400">
+          <WarningCircle
+            aria-hidden="true"
+            size={14}
+            weight="fill"
+            className="shrink-0"
+          />
           <span>{error}</span>
         </div>
       )}
@@ -179,13 +190,13 @@ export function PrivilegePill({
   description,
 }: PrivilegePillProps) {
   return (
-    <div className="flex items-start gap-3.5 rounded-xl border border-white/5 bg-white/5 p-3 backdrop-blur-xs">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#BDC5E9]/20 text-[#DBE1FF]">
+    <div className="flex items-start gap-3.5 rounded-xl border border-white/10 bg-white/[0.06] p-3.5 backdrop-blur-xs">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white">
         {icon}
       </div>
       <div className="space-y-0.5">
         <h3 className="text-sm font-semibold text-white">{title}</h3>
-        <p className="text-xs leading-relaxed text-[#DAE2FD]/70">
+        <p className="text-xs leading-relaxed text-slate-300/85">
           {description}
         </p>
       </div>
@@ -212,23 +223,23 @@ export function SocialProofBanner({
   return (
     <div className="relative z-10 mt-8 border-t border-white/10 pt-5">
       <div className="flex items-center gap-4">
-        <div className="flex -space-x-3">
+        <div className="flex -space-x-2.5">
           {avatars.map((item, idx) => (
             <div
               key={idx}
-              className="flex size-9 items-center justify-center rounded-full border-2 border-[#131A33] text-xs font-bold"
+              className="flex size-9 items-center justify-center rounded-full border-2 border-slate-900 text-xs font-bold"
               style={{ backgroundColor: item.bg, color: item.color }}
             >
               {item.text}
             </div>
           ))}
-          <div className="flex size-9 items-center justify-center rounded-full border-2 border-[#131A33] bg-[#DBE1FF] text-[11px] font-bold text-[#131A33]">
+          <div className="flex size-9 items-center justify-center rounded-full border-2 border-slate-900 bg-white/90 text-xs font-bold text-slate-900 tabular-nums">
             {badgeText}
           </div>
         </div>
         <div>
           <p className="text-sm font-bold text-white">{title}</p>
-          <p className="text-xs text-[#DAE2FD]/70">{subtitle}</p>
+          <p className="text-xs text-slate-300/80">{subtitle}</p>
         </div>
       </div>
     </div>

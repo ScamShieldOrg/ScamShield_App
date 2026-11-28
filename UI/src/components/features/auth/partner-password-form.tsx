@@ -6,9 +6,12 @@ import { Eye, EyeSlash } from "@phosphor-icons/react"
 import { toast } from "react-toastify"
 import { Button } from "@/components/ui/button"
 import { authServices } from "@/features/auth/services/auth-services"
+import { useScamCheckTheme } from "@/components/features/check/scam-check-theme"
+import { cn } from "@/lib/utils"
 
 export function PartnerPasswordForm() {
   const router = useRouter()
+  const { theme } = useScamCheckTheme()
   const token = useSearchParams().get("token")
   const [password, setPassword] = useState("")
   const [confirmation, setConfirmation] = useState("")
@@ -52,10 +55,16 @@ export function PartnerPasswordForm() {
 
   return (
     <section className="flex min-h-[calc(100svh-4.5rem)] items-center justify-center px-4 py-10 sm:px-6">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card px-6 py-8 shadow-xs sm:px-8">
-        <h1 className="font-heading text-3xl font-bold tracking-tight text-card-foreground">
-          Đặt lại mật khẩu
-        </h1>
+      <div
+        className={cn(
+          "w-full max-w-md rounded-3xl border p-1.5 transition-[border-color,box-shadow] duration-200",
+          theme.composerBezel
+        )}
+      >
+        <div className="rounded-2xl border border-black/8 bg-card/95 px-6 py-8 backdrop-blur-md sm:px-8 dark:border-white/10">
+          <h1 className="font-heading text-2xl font-bold tracking-[-0.025em] text-card-foreground sm:text-3xl">
+            Đặt lại mật khẩu
+          </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Nhập mật khẩu mới cho tài khoản của bạn.
         </p>
@@ -190,11 +199,15 @@ export function PartnerPasswordForm() {
           <Button
             type="submit"
             disabled={!token || submitting}
-            className="h-12 w-full rounded-lg"
+            className={cn(
+              "h-12 w-full cursor-pointer rounded-full border-transparent text-sm font-semibold disabled:opacity-50",
+              theme.ctaButton
+            )}
           >
             {submitting ? "Đang cập nhật..." : "Thay đổi mật khẩu"}
           </Button>
         </form>
+        </div>
       </div>
     </section>
   )
