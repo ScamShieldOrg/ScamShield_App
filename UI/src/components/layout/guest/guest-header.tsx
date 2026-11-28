@@ -238,7 +238,7 @@ export function GuestHeader() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-              className="border-t border-black/10 bg-card px-4 py-3 shadow-md md:hidden dark:border-white/10"
+              className="border-t border-black/10 bg-card px-4 py-3 shadow-md lg:hidden dark:border-white/10"
             >
               <div className="flex flex-col gap-1">
                 {GUEST_NAV_ITEMS.map((item) => {

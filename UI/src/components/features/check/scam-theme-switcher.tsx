@@ -24,10 +24,15 @@ export function ScamThemePicker({
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
   const menuId = useId()
 
   useEffect(() => {
     if (!open) return
+    const selectedIdx = Math.max(0, SCAM_CHECK_THEME_ORDER.indexOf(themeId))
+    const rafId = window.requestAnimationFrame(() => {
+      optionRefs.current[selectedIdx]?.focus()
+    })
     const onPointerDown = (event: MouseEvent) => {
       if (
         containerRef.current &&
@@ -45,15 +50,41 @@ export function ScamThemePicker({
     document.addEventListener("mousedown", onPointerDown)
     document.addEventListener("keydown", onKeyDown)
     return () => {
+      window.cancelAnimationFrame(rafId)
       document.removeEventListener("mousedown", onPointerDown)
       document.removeEventListener("keydown", onKeyDown)
     }
-  }, [open])
+  }, [open, themeId])
 
   const handleSelect = (next: ScamCheckThemeId) => {
     selectTheme(next)
     setOpen(false)
     buttonRef.current?.focus()
+  }
+
+  const handleListboxKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const count = SCAM_CHECK_THEME_ORDER.length
+    const activeEl = document.activeElement as HTMLButtonElement | null
+    const currentIdx = optionRefs.current.indexOf(activeEl)
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % count : 0
+      optionRefs.current[nextIdx]?.focus()
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault()
+      const prevIdx =
+        currentIdx >= 0 ? (currentIdx - 1 + count) % count : count - 1
+      optionRefs.current[prevIdx]?.focus()
+    } else if (event.key === "Home") {
+      event.preventDefault()
+      optionRefs.current[0]?.focus()
+    } else if (event.key === "End") {
+      event.preventDefault()
+      optionRefs.current[count - 1]?.focus()
+    } else if (event.key === "Tab") {
+      setOpen(false)
+    }
   }
 
   const opensUpward =
@@ -147,6 +178,7 @@ export function ScamThemePicker({
             id={menuId}
             role="listbox"
             aria-label="Chọn bảng màu Anti-Scam"
+            onKeyDown={handleListboxKeyDown}
             initial={{ opacity: 0, y: opensUpward ? 6 : -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: opensUpward ? 4 : -4, scale: 0.98 }}
@@ -162,14 +194,18 @@ export function ScamThemePicker({
               Chủ đề
             </p>
             <div className="space-y-0.5">
-              {SCAM_CHECK_THEME_ORDER.map((id) => {
+              {SCAM_CHECK_THEME_ORDER.map((id, index) => {
                 const item = SCAM_CHECK_THEMES[id]
                 const selected = id === themeId
                 return (
                   <button
                     key={id}
+                    ref={(el) => {
+                      optionRefs.current[index] = el
+                    }}
                     type="button"
                     role="option"
+                    tabIndex={selected ? 0 : -1}
                     aria-selected={selected}
                     onClick={() => handleSelect(id)}
                     className={cn(

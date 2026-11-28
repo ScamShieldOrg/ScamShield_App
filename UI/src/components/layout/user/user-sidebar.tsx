@@ -137,7 +137,7 @@ export function UserSidebar({
       <aside
         aria-label="Điều hướng cổng người dùng"
         className={cn(
-          "relative z-10 flex h-screen shrink-0 flex-col justify-between font-sans text-card-foreground antialiased select-none transition-[width,background-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+          "relative z-20 flex h-screen shrink-0 flex-col justify-between font-sans text-card-foreground antialiased select-none transition-[width,background-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
           onCloseMobile
             ? cn("border-r", antiScamTheme.leftSidebarBg)
             : "bg-transparent",

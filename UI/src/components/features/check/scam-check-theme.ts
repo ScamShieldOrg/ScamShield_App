@@ -259,29 +259,34 @@ function emitChange() {
   }
 }
 
+function readStoredThemeId(): ScamCheckThemeId | null {
+  if (typeof window === "undefined") return null
+  try {
+    const stored = window.localStorage.getItem(SCAM_CHECK_THEME_STORAGE_KEY)
+    return isValidThemeId(stored) ? stored : null
+  } catch {
+    // Ignore storage errors in restricted browsing contexts.
+    return null
+  }
+}
+
 function hydrateFromStorage() {
   if (hydrated || typeof window === "undefined") return
   hydrated = true
-  try {
-    const stored = window.localStorage.getItem(SCAM_CHECK_THEME_STORAGE_KEY)
-    if (isValidThemeId(stored) && stored !== currentThemeId) {
-      currentThemeId = stored
-      emitChange()
-    }
-  } catch {
-    // Ignore storage errors in restricted browsing contexts.
+  const stored = readStoredThemeId()
+  if (stored && stored !== currentThemeId) {
+    currentThemeId = stored
+    emitChange()
   }
 }
 
 function subscribe(listener: () => void) {
   listeners.add(listener)
   const onStorage = (event: StorageEvent) => {
-    if (
-      event.key === SCAM_CHECK_THEME_STORAGE_KEY &&
-      isValidThemeId(event.newValue) &&
-      event.newValue !== currentThemeId
-    ) {
-      currentThemeId = event.newValue
+    if (event.key !== SCAM_CHECK_THEME_STORAGE_KEY) return
+    const stored = readStoredThemeId()
+    if (stored && stored !== currentThemeId) {
+      currentThemeId = stored
       emitChange()
     }
   }

@@ -47,6 +47,7 @@ export function ScamSubmittedBubble({
   const Icon = TYPE_ICONS[resolvedType]
   const isMono = resolvedType !== "TEXT"
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!copied) return
@@ -54,15 +55,23 @@ export function ScamSubmittedBubble({
     return () => window.clearTimeout(timer)
   }, [copied])
 
+  useEffect(() => {
+    if (!copyError) return
+    const timer = window.setTimeout(() => setCopyError(null), 3000)
+    return () => window.clearTimeout(timer)
+  }, [copyError])
+
   const trimmedContent = content.trim()
 
   const handleCopy = async () => {
     if (!trimmedContent) return
     try {
       await navigator.clipboard.writeText(trimmedContent)
+      setCopyError(null)
       setCopied(true)
     } catch {
       setCopied(false)
+      setCopyError("Không thể sao chép nội dung.")
     }
   }
 
@@ -125,6 +134,14 @@ export function ScamSubmittedBubble({
           >
             {trimmedContent}
           </p>
+          {copyError && (
+            <p
+              role="alert"
+              className="mt-1.5 text-xs font-medium text-destructive"
+            >
+              {copyError}
+            </p>
+          )}
         </div>
       )}
     </div>

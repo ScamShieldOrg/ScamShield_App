@@ -67,7 +67,10 @@ export function UserRecentChecksSidebar({
 }: UserRecentChecksSidebarProps) {
   const [items, setItems] = useState<HistoryItem[]>([])
   const [counts, setCounts] = useState<ScamCheckRiskCounts | null>(null)
-  const [settledSignal, setSettledSignal] = useState(-1)
+  const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const fetchKey = `${refreshSignal}:${retryCount}`
+  const [settledKey, setSettledKey] = useState("")
 
   useEffect(() => {
     let active = true
@@ -76,18 +79,24 @@ export function UserRecentChecksSidebar({
         if (!active) return
         setItems(res.items?.data?.slice(0, 8) ?? [])
         setCounts(res.riskCounts ?? null)
-        setSettledSignal(refreshSignal)
+        setError(null)
+        setSettledKey(fetchKey)
       })
       .catch(() => {
         if (!active) return
-        setSettledSignal(refreshSignal)
+        setError("Không thể tải lịch sử kiểm tra.")
+        setSettledKey(fetchKey)
       })
     return () => {
       active = false
     }
-  }, [refreshSignal])
+  }, [fetchKey])
 
-  const isLoading = settledSignal !== refreshSignal && items.length === 0
+  const isLoading = settledKey !== fetchKey && items.length === 0
+  const handleRetry = () => {
+    setError(null)
+    setRetryCount((prev) => prev + 1)
+  }
   const threatCount = counts
     ? (counts.dangerous ?? 0) + (counts.suspicious ?? 0)
     : 0
@@ -175,6 +184,20 @@ export function UserRecentChecksSidebar({
               />
             ))}
           </div>
+        ) : error && items.length === 0 ? (
+          <div
+            role="alert"
+            className="rounded-xl border border-destructive/30 bg-destructive/5 px-3.5 py-5 text-center"
+          >
+            <p className="text-xs font-medium text-destructive">{error}</p>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="mt-3 inline-flex h-8 cursor-pointer items-center justify-center rounded-full border border-border bg-card px-3.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              Thử lại
+            </button>
+          </div>
         ) : items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/80 px-3.5 py-6 text-center dark:border-white/12">
             <p className="text-xs font-medium text-foreground">
@@ -186,7 +209,23 @@ export function UserRecentChecksSidebar({
             </p>
           </div>
         ) : (
-          items.map((item) => {
+          <>
+            {error && (
+              <div
+                role="alert"
+                className="flex items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+              >
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="shrink-0 cursor-pointer font-semibold underline underline-offset-2 hover:opacity-80"
+                >
+                  Thử lại
+                </button>
+              </div>
+            )}
+            {items.map((item) => {
             const risk = RISK_META[item.verdictStatus] ?? RISK_META.UNKNOWN
             const displayText =
               item.targetValue?.trim() ||
@@ -227,7 +266,8 @@ export function UserRecentChecksSidebar({
                 </div>
               </Link>
             )
-          })
+          })}
+          </>
         )}
       </div>
 

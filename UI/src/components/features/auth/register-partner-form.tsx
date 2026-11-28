@@ -286,6 +286,7 @@ export function RegisterPartnerForm() {
   const [checkingStatus, setCheckingStatus] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
+  const [isRestored, setIsRestored] = useState(false)
 
   const [form, setForm] = useState<PartnerFormState>({
     companyName: "",
@@ -307,50 +308,54 @@ export function RegisterPartnerForm() {
   // Khôi phục dữ liệu form, cooldown và trạng thái pop-up OTP khi chuyển trang hoặc tải lại trang
   useEffect(() => {
     const rafId = window.requestAnimationFrame(() => {
-      // 1. Khôi phục thông tin form đã điền
       try {
-        const savedForm = sessionStorage.getItem(FORM_STORAGE_KEY)
-        if (savedForm) {
-          const parsed = JSON.parse(savedForm)
-          setForm((prev) => ({ ...prev, ...parsed }))
-        }
-      } catch {
-        // ignore
-      }
-
-      // 2. Khôi phục cooldown 60s
-      let remaining = 0
-      try {
-        const savedExpire = localStorage.getItem(COOLDOWN_STORAGE_KEY)
-        if (savedExpire) {
-          remaining = Math.ceil(
-            (parseInt(savedExpire, 10) - Date.now()) / 1000
-          )
-          if (remaining > 0) {
-            setCooldown(remaining)
-          } else {
-            localStorage.removeItem(COOLDOWN_STORAGE_KEY)
+        // 1. Khôi phục thông tin form đã điền
+        try {
+          const savedForm = sessionStorage.getItem(FORM_STORAGE_KEY)
+          if (savedForm) {
+            const parsed = JSON.parse(savedForm)
+            setForm((prev) => ({ ...prev, ...parsed }))
           }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      }
 
-      // 3. Khôi phục hồ sơ đang chờ xác nhận hoặc pop-up OTP.
-      try {
-        const pendingDraft = sessionStorage.getItem(PENDING_DRAFT_STORAGE_KEY)
-        if (pendingDraft) {
-          setPendingDraftToken(pendingDraft)
-          return
+        // 2. Khôi phục cooldown 60s
+        let remaining = 0
+        try {
+          const savedExpire = localStorage.getItem(COOLDOWN_STORAGE_KEY)
+          if (savedExpire) {
+            remaining = Math.ceil(
+              (parseInt(savedExpire, 10) - Date.now()) / 1000
+            )
+            if (remaining > 0) {
+              setCooldown(remaining)
+            } else {
+              localStorage.removeItem(COOLDOWN_STORAGE_KEY)
+            }
+          }
+        } catch {
+          // ignore
         }
-        if (
-          remaining > 0 &&
-          sessionStorage.getItem(OTP_OPEN_STORAGE_KEY) === "true"
-        ) {
-          setIsOtpOpen(true)
+
+        // 3. Khôi phục hồ sơ đang chờ xác nhận hoặc pop-up OTP.
+        try {
+          const pendingDraft = sessionStorage.getItem(PENDING_DRAFT_STORAGE_KEY)
+          if (pendingDraft) {
+            setPendingDraftToken(pendingDraft)
+            return
+          }
+          if (
+            remaining > 0 &&
+            sessionStorage.getItem(OTP_OPEN_STORAGE_KEY) === "true"
+          ) {
+            setIsOtpOpen(true)
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
+      } finally {
+        setIsRestored(true)
       }
     })
     return () => window.cancelAnimationFrame(rafId)
@@ -358,16 +363,18 @@ export function RegisterPartnerForm() {
 
   // Lưu thông tin form vào sessionStorage để không bị mất dữ liệu khi rời trang
   useEffect(() => {
+    if (!isRestored) return
     try {
       const { verificationToken, ...saveable } = form
       sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(saveable))
     } catch {
       // ignore
     }
-  }, [form])
+  }, [form, isRestored])
 
   // Lưu trạng thái pop-up OTP vào sessionStorage
   useEffect(() => {
+    if (!isRestored) return
     try {
       if (isOtpOpen) {
         sessionStorage.setItem(OTP_OPEN_STORAGE_KEY, "true")
@@ -377,9 +384,10 @@ export function RegisterPartnerForm() {
     } catch {
       // ignore
     }
-  }, [isOtpOpen])
+  }, [isOtpOpen, isRestored])
 
   useEffect(() => {
+    if (!isRestored) return
     if (cooldown <= 0) {
       localStorage.removeItem(COOLDOWN_STORAGE_KEY)
       return
@@ -400,7 +408,7 @@ export function RegisterPartnerForm() {
       }
     }, 1000)
     return () => clearTimeout(timer)
-  }, [cooldown])
+  }, [cooldown, isRestored])
 
   function validateField(
     name: keyof PartnerFormState,
@@ -1325,6 +1333,7 @@ export function RegisterPartnerForm() {
           )}
         </div>
       </div>
+      </div>
 
       {/* OTP Verification Pop-up */}
       <OtpVerificationPopup
@@ -1415,7 +1424,6 @@ export function RegisterPartnerForm() {
           </div>
         </div>
       )}
-      </div>
     </div>
   )
 }
