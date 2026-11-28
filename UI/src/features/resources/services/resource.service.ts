@@ -9,10 +9,6 @@ import {
 } from "@/types/resource"
 
 export const resourceService = {
-  getBlackListImageUrls: async (id: number, signal: AbortSignal): Promise<string[]> => {
-    const response = await publicApi.get<{ data: string[] }>(`/resources/blacklist/${id}/images`, { signal })
-    return response.data.data
-  },
   getBlackList: async (
     params?: BlacklistResourceFilterRequest,
     signal?: AbortSignal

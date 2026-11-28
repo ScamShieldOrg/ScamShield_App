@@ -238,7 +238,7 @@ function ReportFormContent({
   const isBusy = Boolean(isLoading || isSubmitting)
   const typeWarning =
     threatType === "PHONE" && targetIdentifier.trim() && !isCompleteReportPhone(targetIdentifier)
-      ? "Nhập 10 chữ số bắt đầu bằng 0, hoặc +84 theo sau bởi 9 chữ số (bỏ số 0 đầu)."
+      ? "Nhập 10 chữ số bắt đầu bằng 0, +84 theo sau bởi 9 chữ số (bỏ số 0 đầu), hoặc tổng đài 1800/1900 theo sau bởi 4–6 chữ số."
       : getReportTargetTypeWarning(threatType, targetIdentifier)
   const showTypeWarning = (targetTouched || hasAttemptedSubmit) && typeWarning
   const isComplete = Boolean(

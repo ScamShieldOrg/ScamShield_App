@@ -1,20 +1,24 @@
 const reportPhoneSeparator = /[\s().-]/g
+const completeReportHotline = /^(?:1800|1900)\d{4,6}$/
 
 export function limitReportPhoneInput(value: string, previousValue: string): string {
   const compact = value.replace(reportPhoneSeparator, "")
   if (/^0\d*$/.test(compact)) return compact.slice(0, 10)
   if (/^\+84\d*$/.test(compact)) return compact.slice(0, 12)
+  if (/^(?:1800|1900)\d*$/.test(compact)) return compact.slice(0, 10)
+  if (/^(?:1|1[89]|1[89]0)$/.test(compact)) return compact
   if (compact === "" || compact === "+" || compact === "+8") return compact
   return previousValue
 }
 
 export function isCompleteReportPhone(value: string): boolean {
-  return /^(?:0\d{9}|\+84[1-9]\d{8})$/.test(value.replace(reportPhoneSeparator, ""))
+  const compact = value.replace(reportPhoneSeparator, "")
+  return /^(?:0\d{9}|\+84[1-9]\d{8})$/.test(compact) || completeReportHotline.test(compact)
 }
 
 export function formatReportHotline(value: string): string {
   const compact = value.replace(/[\s().-]/g, "")
-  if (!/^(1800|1900)\d{4,6}$/.test(compact)) return value
+  if (!completeReportHotline.test(compact)) return value
   const middle = Math.ceil(compact.length / 2)
   return `${compact.slice(0, middle)} ${compact.slice(middle)}`
 }

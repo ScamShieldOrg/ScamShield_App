@@ -290,10 +290,15 @@ export function UserSidebar({
                             ) : (
                               <span
                                 className={cn(
-                                  "relative z-10 inline-flex min-w-5 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums",
-                                  item.badgeVariant === "danger"
-                                    ? "border border-rose-500/25 bg-rose-500/12 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
-                                    : "bg-primary/12 text-primary"
+                                  "relative z-10 inline-flex shrink-0 items-center justify-center text-xs tabular-nums",
+                                  item.href === "/user/notifications"
+                                    ? "min-h-4.5 min-w-4.5 rounded-full border border-rose-500/30 bg-rose-600 px-1 leading-none font-bold text-white"
+                                    : cn(
+                                        "min-w-5 rounded-md px-1.5 py-0.5 font-semibold",
+                                        item.badgeVariant === "danger"
+                                          ? "border border-rose-500/25 bg-rose-500/12 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+                                          : "bg-primary/12 text-primary"
+                                      )
                                 )}
                               >
                                 {displayBadge}
