@@ -15,6 +15,7 @@ import com.be.scamshield.security.JwtAuthenticationEntryPoint;
 import com.be.scamshield.security.JwtTokenProvider;
 import com.be.scamshield.security.UserPrincipal;
 import com.be.scamshield.serviceImpl.PartnerProfileServiceImpl;
+import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.serviceImpl.ResourceServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -61,6 +62,7 @@ class PartnerProfileControllerTest {
     @MockitoBean private UserRepository users;
     @MockitoBean private PasswordEncoder passwordEncoder;
     @MockitoBean private ResourceRepository resources;
+    @MockitoBean private SupabaseStorageService storage;
     @MockitoBean private WhitelistResourceRepository whitelist;
     @MockitoBean private JwtTokenProvider tokenProvider;
     @MockitoBean private CustomUserDetailsService customUserDetailsService;

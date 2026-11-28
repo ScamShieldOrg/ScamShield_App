@@ -36,6 +36,13 @@ jobs:
           cache: maven
           cache-dependency-path: Server/scamshield-backend/pom.xml
 
+      - name: Verify no hardcoded secrets in application.yml
+        run: |
+          if grep -E "secret:\s*\$\{.*:.+\}" src/main/resources/application.yml; then
+            echo "ERROR: Hardcoded default secret detected in application.yml!"
+            exit 1
+          fi
+
       - name: Make Maven wrapper executable
         run: chmod +x ./mvnw
 

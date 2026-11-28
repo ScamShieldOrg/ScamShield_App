@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bell, CaretRight, House, List, User, Warning } from "@phosphor-icons/react"
+import { House, Bell, List, User } from "@phosphor-icons/react"
 import { getActiveUserNavItem } from "@/config/navigation/user-nav"
 import { useNotificationStore } from "@/features/notification/store/notification.store"
 import { useAuthStore } from "@/store/auth.store"
@@ -45,24 +45,17 @@ export function UserHeader({ onToggleMobileMenu }: UserHeaderProps) {
           <List aria-hidden="true" size={20} weight="bold" />
         </button>
 
-        <nav
-          aria-label="Đường dẫn trang"
-          className="flex min-w-0 items-center gap-1.5 text-xs font-medium"
-        >
+        {/* Breadcrumb path */}
+        <nav aria-label="Đường dẫn trang" className="flex min-w-0 items-center gap-2 text-xs font-semibold">
           <Link
-            href="/user"
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            href="/"
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
-            <House aria-hidden="true" size={15} weight="bold" />
-            <span className="hidden sm:inline">Cổng Người Dùng</span>
+            <House size={16} weight="bold" aria-hidden="true" />
+            Trang chủ
           </Link>
-          <CaretRight
-            aria-hidden="true"
-            size={12}
-            weight="bold"
-            className="shrink-0 text-muted-foreground/60"
-          />
-          <span className="truncate font-semibold text-foreground">
+          <span aria-hidden="true" className="text-muted-foreground">/</span>
+          <span aria-current="page" className="truncate font-bold text-foreground">
             {pageTitle}
           </span>
         </nav>

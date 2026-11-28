@@ -6,6 +6,8 @@ import com.be.scamshield.constant.PartnerVerificationStatus;
 import com.be.scamshield.dto.request.BlacklistResourceFilterRequest;
 import com.be.scamshield.dto.request.WhitelistResourceFilterRequest;
 import com.be.scamshield.entity.Indicator;
+import com.be.scamshield.exception.ResourceNotFoundException;
+import com.be.scamshield.external.SupabaseStorageService;
 import com.be.scamshield.entity.PartnerProfile;
 import com.be.scamshield.entity.WhitelistEntry;
 import com.be.scamshield.repository.ResourceRepository;
@@ -15,11 +17,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
@@ -32,12 +38,57 @@ class ResourceServiceImplTest {
     private ResourceRepository resourceRepository;
     private WhitelistResourceRepository whitelistRepository;
     private ResourceServiceImpl service;
+    private SupabaseStorageService evidenceStorage;
 
     @BeforeEach
     void setUp() {
         resourceRepository = mock(ResourceRepository.class);
         whitelistRepository = mock(WhitelistResourceRepository.class);
-        service = new ResourceServiceImpl(resourceRepository, whitelistRepository);
+        evidenceStorage = mock(SupabaseStorageService.class);
+        service = new ResourceServiceImpl(resourceRepository, whitelistRepository, evidenceStorage);
+    }
+
+    @Test
+    void blacklistOnlySignsAnImageWhenAnActiveEntryHasAnApprovedPublicationKey() {
+        when(resourceRepository.findBlackListImageKey(4L)).thenReturn(Optional.of("published-reports/sample.jpg"));
+        when(evidenceStorage.createReportPublicationImageUrl("published-reports/sample.jpg"))
+                .thenReturn("https://example.test/signed.jpg");
+
+        assertThat(service.getBlackListImageUrl(4L)).isEqualTo("https://example.test/signed.jpg");
+    }
+
+    @Test
+    void blacklistDoesNotReturnAnImageWhenNoPublicationKeyIsEligible() {
+        assertThatThrownBy(() -> service.getBlackListImageUrl(4L))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(evidenceStorage);
+    }
+
+    @Test
+    void blacklistReturnsMetadataAndOtherImagesWhenOneImageCannotBeSigned() {
+        var filter = new BlacklistResourceFilterRequest();
+        var row = mock(BlacklistResourceProjection.class);
+        when(row.getId()).thenReturn(4L);
+        when(row.getSourceReportId()).thenReturn(12L);
+        when(resourceRepository.findBlackListResources(null, null, PageRequest.of(filter.getPage(), filter.getSize())))
+                .thenReturn(new PageImpl<>(List.of(row)));
+        var unavailable = mock(ResourceRepository.PublicEvidenceRow.class);
+        when(unavailable.getBlacklistId()).thenReturn(4L);
+        when(unavailable.getObjectKey()).thenReturn("unavailable.jpg");
+        var available = mock(ResourceRepository.PublicEvidenceRow.class);
+        when(available.getBlacklistId()).thenReturn(4L);
+        when(available.getObjectKey()).thenReturn("available.jpg");
+        when(resourceRepository.findPublicEvidenceForBlacklistIds(List.of(4L))).thenReturn(List.of(unavailable, available));
+        when(evidenceStorage.createReportPublicationImageUrl("unavailable.jpg"))
+                .thenThrow(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE));
+        when(evidenceStorage.createReportPublicationImageUrl("available.jpg"))
+                .thenReturn("https://example.test/signed.jpg");
+
+        assertThat(service.getBlackListResources(filter).getData()).singleElement().satisfies(item -> {
+            assertThat(item.getId()).isEqualTo(4L);
+            assertThat(item.getSourceReport().getId()).isEqualTo(12L);
+            assertThat(item.getSourceReport().getPublicEvidenceUrls()).containsExactly("https://example.test/signed.jpg");
+        });
     }
 
     @Test
@@ -51,6 +102,7 @@ class ResourceServiceImplTest {
         when(row.getId()).thenReturn(4L);
         when(row.getTitle()).thenReturn("Scam number");
         when(row.getWarningCount()).thenReturn(500L);
+        when(row.getPublicImageCount()).thenReturn(1L);
         when(resourceRepository.findBlackListResources("%scam%", "PHONE", PageRequest.of(1, 2)))
                 .thenReturn(new PageImpl<>(List.of(row), PageRequest.of(1, 2), 5));
 
@@ -61,10 +113,34 @@ class ResourceServiceImplTest {
         assertThat(result.isHasNext()).isTrue();
         assertThat(result.getData()).singleElement().satisfies(item -> {
             assertThat(item.getTitle()).isEqualTo("Scam number");
+            assertThat(item.isHasPublicImage()).isTrue();
             assertThat(item.getSeverity()).isEqualTo("URGENT");
             assertThat(item.getDescription()).isEqualTo("ScamShield confirmed this resource as unsafe.");
         });
         verifyNoInteractions(whitelistRepository);
+    }
+
+    @Test
+    void blacklistReturnsCategoryAndUsesItsDescriptionWhenPublicReasonIsBlank() {
+        var filter = new BlacklistResourceFilterRequest();
+        var categorizedRow = mock(BlacklistResourceProjection.class);
+        var confirmedRow = mock(BlacklistResourceProjection.class);
+        when(categorizedRow.getCategoryCode()).thenReturn("IMPERSONATION");
+        when(categorizedRow.getCategoryName()).thenReturn("Giả danh");
+        when(categorizedRow.getCategoryDescription()).thenReturn("Giả danh để yêu cầu chuyển tiền.");
+        when(categorizedRow.getDescription()).thenReturn(" ");
+        when(confirmedRow.getCategoryDescription()).thenReturn("Mô tả chung.");
+        when(confirmedRow.getDescription()).thenReturn("Lý do công khai đã xác minh.");
+        when(resourceRepository.findBlackListResources(eq(null), eq(null), eq(PageRequest.of(filter.getPage(), filter.getSize()))))
+                .thenReturn(new PageImpl<>(List.of(categorizedRow, confirmedRow)));
+
+        var items = service.getBlackListResources(filter).getData();
+
+        assertThat(items.get(0).getCategoryCode()).isEqualTo("IMPERSONATION");
+        assertThat(items.get(0).getCategoryName()).isEqualTo("Giả danh");
+        assertThat(items.get(0).getCategoryDescription()).isEqualTo("Giả danh để yêu cầu chuyển tiền.");
+        assertThat(items.get(0).getDescription()).isEqualTo("Giả danh để yêu cầu chuyển tiền.");
+        assertThat(items.get(1).getDescription()).isEqualTo("Lý do công khai đã xác minh.");
     }
 
     @Test

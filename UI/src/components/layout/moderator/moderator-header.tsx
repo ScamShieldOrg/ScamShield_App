@@ -89,7 +89,7 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
             >
-              Hàng chờ kiểm duyệt
+              Hàng chờ báo cáo
             </Link>
             <Link
               href="/moderator/disputes"
@@ -124,14 +124,8 @@ export function ModeratorHeader({ className = "" }: ModeratorHeaderProps) {
           </nav>
         </div>
 
-        {/* Right: Sync Status & Officer Profile */}
+        {/* Right: Notifications & Officer Profile */}
         <div className="flex items-center gap-3">
-          {/* Sync Status Badge */}
-          <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            Đồng bộ 24/7
-          </div>
-
           {/* Notification Bell */}
           <button
             type="button"

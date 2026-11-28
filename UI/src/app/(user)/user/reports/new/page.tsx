@@ -1,13 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
-import { MotionConfig } from "motion/react"
-import { ArrowLeft } from "@phosphor-icons/react"
+import { ArrowDown, ShieldCheck } from "@phosphor-icons/react"
 import { toast } from "react-toastify"
 import { ReportSubmissionError } from "@/components/features/report/report-submission-error"
 import { ReportForm } from "@/components/features/report/report-form"
-import { ReportPrivacyNotice } from "@/components/features/report/report-privacy-notice"
 import { RecentReportsTable } from "@/components/features/report/recent-reports-table"
 import { ScamErrorCallout } from "@/components/features/check/scam-error-callout"
 import {
@@ -106,32 +103,41 @@ export default function UserReportsNewPage() {
               Chung tay làm sạch không gian mạng. <ReportPrivacyNotice />
             </p>
           </div>
-
-          <ReportForm
-            onSubmit={handleSubmit}
-            isLoading={isSubmitting}
-            uploadProgress={uploadProgress}
-          />
+          <a
+            href="#report-recent"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 motion-reduce:transition-none"
+          >
+            Báo cáo gần đây
+            <ArrowDown size={15} aria-hidden="true" />
+          </a>
         </div>
+        <nav aria-label="Các phần của báo cáo" className="border-t border-white/15 bg-white/5 px-2 sm:px-4">
+          <ol className="grid grid-cols-3 divide-x divide-white/15">
+            {[
+              ["report-target", "Đối tượng"],
+              ["report-evidence", "Thông tin và minh chứng"],
+              ["report-confirmation", "Xác nhận"],
+            ].map(([id, label], index) => (
+              <li key={id} className="min-w-0 p-1">
+                <a href={`#${id}`} className="flex min-h-12 items-center gap-1.5 rounded-lg px-1.5 py-2 text-xs leading-snug font-semibold text-slate-100 transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan-200 motion-reduce:transition-none sm:gap-2 sm:px-3 sm:text-sm">
+                  <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-cyan-300/15 text-[11px] text-cyan-100 sm:size-6">{index + 1}</span>
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      </header>
 
-        {/* Recent User Reports */}
-        <div className="space-y-4">
-          {reportsError && (
-            <ScamErrorCallout
-              title="Chưa thể tải báo cáo gần đây"
-              message={reportsError}
-              preserveDraftHint={false}
-              isBusy={isLoadingReports}
-              onRetry={() => setReportsRevision((v) => v + 1)}
-            />
-          )}
-          <RecentReportsTable
-            items={reports}
-            isLoading={isLoadingReports}
-            onRefresh={() => setReportsRevision((v) => v + 1)}
-          />
-        </div>
+      <ReportForm
+        onSubmit={handleSubmit}
+        isLoading={isSubmitting}
+        uploadProgress={uploadProgress}
+      />
+
+      <div id="report-recent" tabIndex={-1} className="min-w-0 scroll-mt-24">
+        <RecentReportsTable items={reports} isLoading={isLoadingReports} />
       </div>
-    </MotionConfig>
+    </div>
   )
 }

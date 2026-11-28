@@ -150,10 +150,16 @@ class ScamCheckAiClientTest {
             assertThat(protocol.get()).isEqualTo("HTTP/1.1");
             assertThat(authorization.get()).isEqualTo("Bearer test-service-token");
             assertThat(upgrade.get()).isNull();
-            assertThat(json.readTree(payload.get()).path("check_type").asText()).isEqualTo("SMS");
-            assertThat(json.readTree(payload.get()).path("content").asText()).isEqualTo(original);
-            assertThat(json.readTree(payload.get()).path("core_check_id").asLong()).isEqualTo(1L);
-            assertThat(json.readTree(payload.get()).path("force_tier2").asBoolean()).isFalse();
+            var sent = json.readTree(payload.get());
+            assertThat(sent.path("check_type").asText()).isEqualTo("SMS");
+            assertThat(sent.path("content").asText()).isEqualTo(original);
+            assertThat(sent.path("core_check_id").asLong()).isEqualTo(1L);
+            assertThat(sent.path("force_tier2").asBoolean()).isFalse();
+            assertThat(sent.has("raw_input")).isFalse();
+            assertThat(sent.has("normalized_content")).isFalse();
+            assertThat(sent.has("extracted_entities")).isFalse();
+            assertThat(client.scan(1L, "MESSAGE", original, true).verdict()).isEqualTo("SCAM_RISK");
+            assertThat(json.readTree(payload.get()).path("force_tier2").asBoolean()).isTrue();
             assertThat(client.scan(2L, "URL", "https://example.test").unknownReason()).isEqualTo("AI_UNAVAILABLE");
             assertThat(json.readTree(payload.get()).path("check_type").asText()).isEqualTo("URL");
         } finally {

@@ -32,6 +32,10 @@ public class ScamCheckDecisionService {
     public record Decision(CheckVerdict verdict, List<Indicator> knownIndicators) { }
 
     public Decision decide(CheckRequest check, List<ScamCheckInputProcessor.Candidate> candidates) {
+        return decide(check, candidates, false);
+    }
+
+    public Decision decide(CheckRequest check, List<ScamCheckInputProcessor.Candidate> candidates, boolean forceTier2) {
         Map<Long, Indicator> known = new LinkedHashMap<>();
         for (var candidate : candidates) {
             IndicatorType type = switch (candidate.type()) {
@@ -108,7 +112,7 @@ public class ScamCheckDecisionService {
         }
         log.info("Scam check routed to AI: checkId={}, inputType={}, reason=NO_DECISIVE_CURATED_MATCH",
                 check.getId(), check.getInputType());
-        var result = aiClient.scan(check.getId(), check.getInputType(), check.getRawInput());
+        var result = aiClient.scan(check.getId(), check.getInputType(), check.getRawInput(), forceTier2);
         verdict.setVerdict(result.verdict());
         verdict.setDecidedByStage(result.stage());
         verdict.setConfidence(result.confidence());

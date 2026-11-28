@@ -36,7 +36,7 @@ export function ReportQueueItemCard({
       <span className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 font-mono font-semibold text-foreground tabular-nums">
-            #{numericId}
+            {numericId}
           </span>
           {item.assignedToMe && (
             <span className="inline-flex items-center gap-1 rounded-md border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 font-semibold text-sky-800 dark:border-sky-400/25 dark:bg-sky-500/15 dark:text-sky-200">

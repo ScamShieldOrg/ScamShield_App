@@ -1,15 +1,11 @@
 "use client"
 
 import { getReportTargetTypeWarning } from "@/features/report/utils/report-target"
-import { formatReportPhoneInput } from "@/features/report/utils/report-phone"
 import {
-  clearReportPrefill,
-  extractTrailingDigits,
-  parseCheckId,
-  peekReportPrefill,
-  threatTypeFromInputType,
-  truncateText,
-} from "./report-prefill-helpers"
+  formatReportPhoneInput,
+  isCompleteReportPhone,
+  limitReportPhoneInput,
+} from "@/features/report/utils/report-phone"
 
 import { Combobox } from "@base-ui/react/combobox"
 import { dashboardService } from "@/features/dashboard/services/dashboard.service"
@@ -17,12 +13,14 @@ import type { DashboardRegionOption } from "@/features/dashboard/types/dashboard
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { ReportSubmissionError } from "./report-submission-error"
+import { ReportPrivacyNotice } from "./report-privacy-notice"
 import { toast } from "react-toastify"
-import { cn } from "@/lib/utils"
+import type { ReactNode } from "react"
 import {
   Phone,
   Globe,
   Bank,
+  CaretDown,
   ShieldCheck,
   PaperPlaneTilt,
   Shield,
@@ -30,11 +28,11 @@ import {
   CheckCircle,
   Medal,
   MapPin,
+  WarningCircle,
 } from "@phosphor-icons/react"
 import { ReportThreatTypeSelector } from "./report-threat-type-selector"
-import { ReportFileUpload, type ReportAttachment } from "./report-file-upload"
-import { validateReportFiles } from "@/features/report/utils/report-upload"
-import { getReportCategories } from "@/features/report/services/report.service"
+import { ReportFileUpload } from "./report-file-upload"
+import { useReportAttachments } from "@/features/report/hooks/use-report-attachments"
 import {
   ScamCategoryItem,
   ReportThreatType,
@@ -42,8 +40,90 @@ import {
 } from "@/features/report/types/report.types"
 import { getScamCheckResult } from "@/features/check/services/check.service"
 
-const reportInputClass =
-  "min-h-10 w-full scroll-mt-24 rounded-lg border border-black/10 bg-background py-2 pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-invalid:border-rose-500/70 dark:border-white/10"
+/** Keep in sync with `REPORT_PREFILL_KEY` in the check action bar. */
+const REPORT_PREFILL_KEY = "scamshield.report-prefill"
+
+const INPUT_TYPE_TO_THREAT_TYPE: Record<string, ReportThreatType> = {
+  URL: "WEBSITE",
+  PHONE: "PHONE",
+  BANK_ACCOUNT: "BANK_ACCOUNT",
+}
+
+/** Draft written by the check result action bar before navigating here. */
+interface ReportPrefillDraft {
+  scanId?: string | null
+  checkId?: number | null
+  inputType?: string | null
+  targetIdentifier?: string | null
+  reportedMessage?: string | null
+  description?: string | null
+}
+
+/**
+ * Reads the draft without consuming it, so the form can seed its fields during
+ * the first render. `clearReportPrefill` drops it once the form has mounted.
+ */
+function peekReportPrefill(): ReportPrefillDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(REPORT_PREFILL_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== "object") return null
+    return parsed as ReportPrefillDraft
+  } catch {
+    return null
+  }
+}
+
+/** One-shot hand-off: never re-apply stale context on a later visit. */
+function clearReportPrefill() {
+  try {
+    window.sessionStorage.removeItem(REPORT_PREFILL_KEY)
+  } catch {
+    // Private mode or a blocked storage API: there is nothing to clear.
+  }
+}
+
+function threatTypeFromInputType(value: string | null | undefined) {
+  if (!value) return null
+  return INPUT_TYPE_TO_THREAT_TYPE[value] ?? null
+}
+
+function parseCheckId(value: string | number | null | undefined) {
+  const numeric = typeof value === "number" ? value : Number(value)
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : null
+}
+
+function extractTrailingDigits(value: string) {
+  const match = /(\d+)\s*$/.exec(value)
+  return match ? match[1] : null
+}
+
+function truncateText(value: string, maxLength: number) {
+  const trimmed = value.trim()
+  return trimmed.length <= maxLength
+    ? trimmed
+    : `${trimmed.slice(0, maxLength - 3).trimEnd()}...`
+}
+
+import { getReportCategories } from "@/features/report/services/report.service"
+
+const reportControlClass =
+  "w-full scroll-mt-24 rounded-lg border border-input bg-background text-base text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/25 focus:outline-hidden aria-invalid:border-destructive dark:bg-muted/20 sm:text-sm"
+const reportInputClass = `${reportControlClass} min-h-11 py-2.5 pr-3 pl-10`
+const reportSectionClass =
+  "min-w-0 scroll-mt-24 space-y-4 rounded-2xl border border-border bg-card p-4 shadow-xs sm:space-y-5 sm:p-6"
+
+function ReportSectionHeading({ number, id, children }: { number: number; id: string; children: ReactNode }) {
+  return (
+    <h2 id={id} className="flex items-center gap-3 font-heading text-lg font-bold text-foreground sm:text-xl">
+      <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-sky-100 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-200">
+        {number}
+      </span>
+      {children}
+    </h2>
+  )
+}
 
 interface ReportFormProps {
   onSubmit: (payload: CreateReportPayload) => Promise<void>
@@ -55,8 +135,8 @@ export function ReportForm(props: ReportFormProps) {
   return (
     <Suspense
       fallback={
-        <div className="space-y-4 rounded-xl border border-black/10 bg-card p-6 shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)] dark:border-white/10 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]">
-          <p className="text-sm text-muted-foreground">
+        <div className={reportSectionClass}>
+          <p role="status" className="text-sm text-muted-foreground">
             Đang chuẩn bị biểu mẫu báo cáo...
           </p>
         </div>
@@ -135,11 +215,9 @@ function ReportFormContent({
   }, [categoriesRevision])
 
   const [category, setCategory] = useState("")
-  const [description, setDescription] = useState(
-    () => prefillDraft?.description?.trim() ?? ""
-  )
-  const [attachments, setAttachments] = useState<ReportAttachment[]>([])
-  const [fileError, setFileError] = useState<string | null>(null)
+  const [description, setDescription] = useState("")
+  const attachmentUpload = useReportAttachments()
+  const { attachments, error: fileError } = attachmentUpload
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isConfirmed, setIsConfirmed] = useState(false)
@@ -153,23 +231,25 @@ function ReportFormContent({
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const fileSectionRef = useRef<HTMLDivElement>(null)
   const confirmationRef = useRef<HTMLInputElement>(null)
-  const objectUrls = useRef(new Map<string, string>())
   const submittingRef = useRef(false)
   const activeRef = useRef(true)
   const prefillConsumedRef = useRef(false)
 
   const isBusy = Boolean(isLoading || isSubmitting)
-  const typeWarning = getReportTargetTypeWarning(threatType, targetIdentifier)
+  const typeWarning =
+    threatType === "PHONE" && targetIdentifier.trim() && !isCompleteReportPhone(targetIdentifier)
+      ? "Nhập 10 chữ số bắt đầu bằng 0, +84 theo sau bởi 9 chữ số (bỏ số 0 đầu), hoặc tổng đài 1800/1900 theo sau bởi 4–6 chữ số."
+      : getReportTargetTypeWarning(threatType, targetIdentifier)
   const showTypeWarning = (targetTouched || hasAttemptedSubmit) && typeWarning
   const isComplete = Boolean(
     threatType &&
-      targetIdentifier.trim() &&
-      !typeWarning &&
-      category.trim() &&
-      regionCode &&
-      description.trim() &&
-      attachments.length > 0 &&
-      isConfirmed
+    targetIdentifier.trim() &&
+    !typeWarning &&
+    category.trim() &&
+    regionCode &&
+    description.trim() &&
+    attachments.length > 0 &&
+    isConfirmed
   )
   const threatTypeMissing = hasAttemptedSubmit && !threatType
   const targetMissing = hasAttemptedSubmit && !targetIdentifier.trim()
@@ -219,11 +299,8 @@ function ReportFormContent({
 
   useEffect(() => {
     activeRef.current = true
-    const urls = objectUrls.current
     return () => {
       activeRef.current = false
-      urls.forEach((url) => URL.revokeObjectURL(url))
-      urls.clear()
     }
   }, [])
 
@@ -232,32 +309,6 @@ function ReportFormContent({
     const timer = setTimeout(() => setIsSuccess(false), 4000)
     return () => clearTimeout(timer)
   }, [isSuccess])
-
-  const handleRemoveAttachment = (id: string) => {
-    if (submittingRef.current || isLoading) return
-    const url = objectUrls.current.get(id)
-    if (url) URL.revokeObjectURL(url)
-    objectUrls.current.delete(id)
-    setAttachments((prev) => prev.filter((item) => item.id !== id))
-    setFileError(null)
-  }
-
-  const handleAddAttachments = (files: File[]) => {
-    if (submittingRef.current || isLoading || !files.length) return
-    const error = validateReportFiles([
-      ...attachments.map((item) => item.file),
-      ...files,
-    ])
-    setFileError(error)
-    if (error) return
-    const added = files.map((file) => {
-      const id = crypto.randomUUID()
-      const previewUrl = URL.createObjectURL(file)
-      objectUrls.current.set(id, previewUrl)
-      return { id, file, previewUrl }
-    })
-    setAttachments([...attachments, ...added])
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -268,6 +319,10 @@ function ReportFormContent({
       setHasAttemptedSubmit(true)
       setTargetTouched(true)
       targetRef.current?.focus()
+      return
+    }
+    if (attachmentUpload.editingId) {
+      toast.info("Hãy xác nhận hoặc hủy phần chỉnh sửa ảnh đang mở.", { toastId: "report-evidence-editor-open" })
       return
     }
     if (!isComplete || !threatType) {
@@ -296,8 +351,8 @@ function ReportFormContent({
                 ? descriptionRef.current
                 : attachments.length === 0
                   ? fileSectionRef.current?.querySelector<HTMLButtonElement>(
-                      "button"
-                    )
+                    "button"
+                  )
                   : confirmationRef.current
 
       firstMissing?.focus({ preventScroll: true })
@@ -336,10 +391,7 @@ function ReportFormContent({
       setCategory("")
       setRegionName("")
       setDescription("")
-      setAttachments([])
-      objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
-      objectUrls.current.clear()
-      setFileError(null)
+      attachmentUpload.clear()
       setIsConfirmed(false)
       setHasAttemptedSubmit(false)
       setIsSuccess(true)
@@ -363,36 +415,11 @@ function ReportFormContent({
       onSubmit={handleSubmit}
       noValidate
       aria-busy={isBusy}
-      className="rounded-xl border border-black/10 bg-card shadow-[0_8px_30px_rgb(15,23,42,0.06),0_1px_2px_rgb(15,23,42,0.04)] dark:border-white/10 dark:shadow-[0_16px_44px_rgb(0,0,0,0.45),inset_0_1px_0_rgb(255,255,255,0.08)]"
+      className="min-w-0"
     >
-      <fieldset disabled={isBusy} className="min-w-0 divide-y divide-border/70">
-        {/* Form Header */}
-        <div className="flex items-center gap-3 px-5 py-4 sm:px-6">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Shield aria-hidden="true" size={20} weight="fill" />
-          </div>
-          <div>
-            <h2 className="font-heading text-base font-bold tracking-[-0.02em] text-foreground">
-              Biểu mẫu tiếp nhận báo cáo
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Hoàn tất 3 bước ngắn gọn bên dưới để gửi bằng chứng kiểm duyệt.
-            </p>
-          </div>
-        </div>
-
-        {/* STEP 1: Loại đối tượng báo cáo */}
-        <div ref={threatGroupRef} className="space-y-3 px-5 py-5 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-xs font-bold text-primary-foreground tabular-nums">
-              1
-            </span>
-            <h3 className="text-sm font-semibold text-foreground">
-              Loại đối tượng báo cáo{" "}
-              <span className="text-rose-600 dark:text-rose-400">*</span>
-            </h3>
-          </div>
-
+      <fieldset disabled={isBusy} className="min-w-0 space-y-4">
+        <section id="report-target" tabIndex={-1} aria-labelledby="report-target-heading" ref={threatGroupRef} className={reportSectionClass}>
+          <ReportSectionHeading number={1} id="report-target-heading">Đối tượng báo cáo</ReportSectionHeading>
           <ReportThreatTypeSelector
             selectedType={threatType}
             onSelect={setThreatType}
@@ -406,100 +433,95 @@ function ReportFormContent({
               Vui lòng chọn loại đối tượng báo cáo.
             </p>
           )}
-        </div>
-
-        {/* STEP 2: Thông tin & Bằng chứng */}
-        <div className="space-y-4 px-5 py-5 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-xs font-bold text-primary-foreground tabular-nums">
-              2
-            </span>
-            <h3 className="text-sm font-semibold text-foreground">
-              Thông tin & bằng chứng
-            </h3>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {/* Target Identifier Input */}
-            <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
               <label
                 htmlFor="report-target-identifier"
-                className="block text-xs font-semibold text-foreground"
+                className="block text-sm font-semibold text-foreground"
               >
-                Đối tượng bị báo cáo{" "}
-                <span className="text-rose-600 dark:text-rose-400">*</span>
+                Đối tượng bị báo cáo <span className="text-[#BA1A1A]">*</span>
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground">
-                  {!threatType && (
-                    <Shield aria-hidden="true" size={16} weight="bold" />
-                  )}
-                  {threatType === "PHONE" && (
-                    <Phone aria-hidden="true" size={16} weight="bold" />
-                  )}
-                  {threatType === "WEBSITE" && (
-                    <Globe aria-hidden="true" size={16} weight="bold" />
-                  )}
-                  {threatType === "BANK_ACCOUNT" && (
-                    <Bank aria-hidden="true" size={16} weight="bold" />
-                  )}
-                </div>
-                <input
-                  ref={targetRef}
-                  id="report-target-identifier"
-                  type="text"
-                  required
-                  aria-invalid={targetMissing || Boolean(showTypeWarning)}
-                  aria-describedby={
-                    targetMissing
-                      ? "report-target-error"
-                      : showTypeWarning
-                        ? "report-target-type-warning"
-                        : undefined
-                  }
-                  value={
-                    threatType === "PHONE" || threatType === null
-                      ? formatReportPhoneInput(targetIdentifier)
-                      : targetIdentifier
-                  }
-                  onChange={(e) => setTargetIdentifier(e.target.value)}
-                  onBlur={() => setTargetTouched(true)}
-                  placeholder={
-                    !threatType
-                      ? "Nhập số điện thoại, URL hoặc tài khoản cần báo cáo..."
-                      : threatType === "PHONE"
-                        ? "Nhập số điện thoại kẻ lừa đảo..."
-                        : threatType === "WEBSITE"
-                          ? "Nhập URL website giả mạo..."
-                          : "Nhập số tài khoản ngân hàng thụ hưởng..."
-                  }
-                  className={cn(reportInputClass, "font-mono")}
-                />
-              </div>
-              {showTypeWarning && (
-                <p
-                  id="report-target-type-warning"
-                  role="alert"
-                  className="text-xs font-medium text-rose-700 dark:text-rose-300"
-                >
-                  {showTypeWarning}
-                </p>
-              )}
-              {targetMissing && (
-                <p
-                  id="report-target-error"
-                  className="text-xs font-medium text-rose-700 dark:text-rose-300"
-                >
-                  Vui lòng nhập số điện thoại, URL hoặc tài khoản cần báo cáo.
-                </p>
-              )}
             </div>
+            <div className="relative">
+              <div className="absolute top-1/2 left-3.5 -translate-y-1/2 text-[#45464D] dark:text-muted-foreground">
+                {!threatType && <Shield size={16} weight="bold" />}
+                {threatType === "PHONE" && <Phone size={16} weight="bold" />}
+                {threatType === "WEBSITE" && (
+                  <Globe size={16} weight="bold" />
+                )}
+                {threatType === "BANK_ACCOUNT" && (
+                  <Bank size={16} weight="bold" />
+                )}
+              </div>
+              <input
+                ref={targetRef}
+                id="report-target-identifier"
+                type="text"
+                inputMode={threatType === "PHONE" ? "tel" : undefined}
+                required
+                disabled={!threatType}
+                aria-invalid={targetMissing || Boolean(showTypeWarning)}
+                aria-describedby={
+                  targetMissing
+                    ? "report-target-error"
+                    : showTypeWarning
+                      ? "report-target-type-warning"
+                      : undefined
+                }
+                value={
+                  threatType === "PHONE" || threatType === null
+                    ? formatReportPhoneInput(targetIdentifier)
+                    : targetIdentifier
+                }
+                onChange={(e) => {
+                  const value = e.target.value
+                  setTargetIdentifier((previous) =>
+                    threatType === "PHONE" ? limitReportPhoneInput(value, previous) : value
+                  )
+                }}
+                onBlur={() => setTargetTouched(true)}
+                placeholder={
+                  !threatType
+                    ? "Chọn loại đối tượng báo cáo trước"
+                    : threatType === "PHONE"
+                      ? "VD: 0912 345 678 hoặc +84 912 345 678"
+                      : threatType === "WEBSITE"
+                        ? "Nhập URL website giả mạo..."
+                        : "Nhập số tài khoản ngân hàng thụ hưởng..."
+                }
+                className={`${reportInputClass} disabled:cursor-not-allowed disabled:opacity-70`}
+              />
+            </div>
+            {showTypeWarning && (
+              <p
+                id="report-target-type-warning"
+                role="alert"
+                className="text-xs text-destructive"
+              >
+                {showTypeWarning}
+              </p>
+            )}
+            {targetMissing && (
+              <p
+                id="report-target-error"
+                className="text-xs text-destructive"
+              >
+                Vui lòng nhập số điện thoại, URL hoặc tài khoản cần báo cáo.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section id="report-evidence" tabIndex={-1} aria-labelledby="report-evidence-heading" className={reportSectionClass}>
+          <ReportSectionHeading number={2} id="report-evidence-heading">Thông tin và minh chứng</ReportSectionHeading>
+
+          <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
 
             {/* Province selector */}
             <div className="space-y-1.5">
               <label
                 htmlFor="report-region"
-                className="block text-xs font-semibold text-foreground"
+                className="block text-sm font-semibold text-foreground"
               >
                 Tỉnh/thành của bạn{" "}
                 <span className="text-rose-600 dark:text-rose-400">*</span>
@@ -526,6 +548,7 @@ function ReportFormContent({
                     autoComplete="off"
                     placeholder="Nhập tên tỉnh/thành..."
                     aria-invalid={hasAttemptedSubmit && !regionCode}
+                    aria-describedby={hasAttemptedSubmit && !regionCode ? "report-region-error" : undefined}
                     className={reportInputClass}
                   />
                 </div>
@@ -556,10 +579,7 @@ function ReportFormContent({
                 </Combobox.Portal>
               </Combobox.Root>
               {hasAttemptedSubmit && !regionCode && (
-                <p
-                  role="alert"
-                  className="text-xs font-medium text-rose-700 dark:text-rose-300"
-                >
+                <p id="report-region-error" role="alert" className="text-sm text-destructive">
                   Vui lòng chọn một tỉnh/thành trong danh sách.
                 </p>
               )}
@@ -584,37 +604,45 @@ function ReportFormContent({
             <div className="space-y-1.5">
               <label
                 htmlFor="report-category"
-                className="block text-xs font-semibold text-foreground"
+                className="block text-sm font-semibold text-foreground"
               >
                 Danh mục thủ đoạn{" "}
                 <span className="text-rose-600 dark:text-rose-400">*</span>
               </label>
-              <select
-                ref={categoryRef}
-                id="report-category"
-                disabled={
-                  isBusy || categoriesLoading || categories.length === 0
-                }
-                required
-                aria-invalid={categoryMissing}
-                aria-describedby={
-                  categoryMissing ? "report-category-error" : undefined
-                }
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="min-h-10 w-full scroll-mt-24 rounded-lg border border-black/10 bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-invalid:border-rose-500/70 dark:border-white/10"
-              >
-                <option value="" disabled>
-                  {categoriesLoading
-                    ? "Đang tải danh mục..."
-                    : "Chọn thủ đoạn"}
-                </option>
-                {categories.map((item) => (
-                  <option key={item.id} value={item.code}>
-                    {item.name}
+              <div className="relative">
+                <select
+                  ref={categoryRef}
+                  id="report-category"
+                  disabled={
+                    isBusy || categoriesLoading || categories.length === 0
+                  }
+                  required
+                  aria-invalid={categoryMissing}
+                  aria-describedby={
+                    categoryMissing ? "report-category-error" : undefined
+                  }
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className={`${reportControlClass} min-h-11 appearance-none py-2.5 pr-10 pl-3 forced-colors:appearance-auto forced-colors:pr-3`}
+                >
+                  <option value="" disabled>
+                    {categoriesLoading
+                      ? "Đang tải danh mục..."
+                      : "Chọn thủ đoạn"}
                   </option>
-                ))}
-              </select>
+                  {categories.map((item) => (
+                    <option key={item.id} value={item.code}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+                <CaretDown
+                  size={16}
+                  weight="bold"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-[#45464D] dark:text-muted-foreground forced-colors:hidden"
+                />
+              </div>
               {!categoriesLoading && categories.length === 0 && (
                 <p
                   className="text-xs font-medium text-rose-700 dark:text-rose-300"
@@ -646,13 +674,13 @@ function ReportFormContent({
             <div className="flex items-center justify-between gap-3">
               <label
                 htmlFor="report-description"
-                className="text-xs font-semibold text-foreground"
+                className="text-sm font-semibold text-foreground"
               >
                 Mô tả ngắn gọn hành vi{" "}
                 <span className="text-rose-600 dark:text-rose-400">*</span>
               </label>
-              <span className="shrink-0 text-xs font-medium text-muted-foreground tabular-nums">
-                {description.length.toLocaleString("vi-VN")}/2.000 ký tự
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {description.length}/2000 ký tự
               </span>
             </div>
             <textarea
@@ -667,14 +695,8 @@ function ReportFormContent({
               }
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-                  e.preventDefault()
-                  formRef.current?.requestSubmit()
-                }
-              }}
-              placeholder="Mô tả chi tiết kịch bản, lời nói hoặc bằng chứng lừa đảo..."
-              className="w-full resize-y scroll-mt-24 rounded-lg border border-black/10 bg-background p-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-invalid:border-rose-500/70 dark:border-white/10"
+              placeholder="Đối tượng đã tiếp cận bạn bằng cách nào và yêu cầu bạn làm gì?"
+              className={`${reportControlClass} min-h-28 resize-y p-3 leading-relaxed`}
             />
             {descriptionMissing && (
               <p
@@ -687,7 +709,7 @@ function ReportFormContent({
           </div>
 
           {/* Evidence Attachments Upload Zone */}
-          <div ref={fileSectionRef}>
+          <div ref={fileSectionRef} className="space-y-3 border-t border-border pt-4">
             <ReportFileUpload
               attachments={attachments}
               disabled={isBusy}
@@ -697,22 +719,26 @@ function ReportFormContent({
                   ? "Vui lòng đính kèm ít nhất một tệp minh chứng."
                   : null)
               }
-              onAdd={handleAddAttachments}
-              onRemove={handleRemoveAttachment}
+              onAdd={fileList => {
+                if (!submittingRef.current) attachmentUpload.add(fileList)
+              }}
+              onRemove={attachmentUpload.remove}
+              onReview={attachmentUpload.markReviewed}
+              editingId={attachmentUpload.editingId}
+              onEdit={attachmentUpload.setEditingId}
             />
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+              <p className="mb-1">
+                <strong>Bảo vệ thông tin cá nhân.</strong>{" "}
+                Nếu cần, bạn có thể che thông tin trên ảnh đính kèm. Với PDF, hãy che thông tin trước khi chọn tệp.
+              </p>
+              <ReportPrivacyNotice />
+            </div>
           </div>
-        </div>
+        </section>
 
-        {/* STEP 3: Xác nhận & Gửi */}
-        <div className="space-y-4 px-5 py-5 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-xs font-bold text-primary-foreground tabular-nums">
-              3
-            </span>
-            <h3 className="text-sm font-semibold text-foreground">
-              Xác nhận & gửi
-            </h3>
-          </div>
+        <section id="report-confirmation" tabIndex={-1} aria-labelledby="report-confirmation-heading" className={reportSectionClass}>
+          <ReportSectionHeading number={3} id="report-confirmation-heading">Xác nhận và gửi</ReportSectionHeading>
 
           <div className="space-y-2 rounded-lg bg-muted/35 p-3.5 text-xs">
             <div className="flex items-start gap-2 text-emerald-800 dark:text-emerald-300">
@@ -743,7 +769,7 @@ function ReportFormContent({
             </div>
           </div>
 
-          <label className="flex min-h-10 cursor-pointer items-center gap-2.5 text-sm font-medium text-foreground">
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-semibold text-foreground has-[:checked]:border-primary/50">
             <input
               ref={confirmationRef}
               type="checkbox"
@@ -754,7 +780,7 @@ function ReportFormContent({
               }
               checked={isConfirmed}
               onChange={(e) => setIsConfirmed(e.target.checked)}
-              className="size-4 rounded-md border-border accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="size-5 shrink-0 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
             <span>Tôi xác nhận thông tin cung cấp là trung thực.</span>
           </label>
@@ -767,20 +793,31 @@ function ReportFormContent({
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 pt-1">
+          {submitError && (
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-xl border border-red-200 border-l-4 border-l-red-600 bg-red-50 px-3 py-3.5 text-red-950 dark:border-red-900 dark:border-l-red-400 dark:bg-red-950/40 dark:text-red-100 sm:px-4"
+            >
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-red-100 text-red-700 dark:bg-red-900/70 dark:text-red-200">
+                <WarningCircle size={21} weight="fill" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 text-sm leading-relaxed">
+                <p className="font-bold">Không thể gửi báo cáo</p>
+                <p className="mt-0.5 [overflow-wrap:anywhere]">
+                  <ReportSubmissionError message={submitError} />
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4 sm:justify-end">
             <button
               type="submit"
               disabled={isBusy}
-              className={cn(
-                "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-xs transition-[opacity,transform] duration-120 hover:bg-primary/90 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50",
-                !isComplete && "opacity-75"
-              )}
+              className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none sm:w-auto"
             >
               {isBusy ? (
                 <>
-                  <div className="motion-safe:animate-spin">
-                    <CircleNotch aria-hidden="true" size={16} weight="bold" />
-                  </div>
+                  <CircleNotch size={16} aria-hidden="true" className="motion-safe:animate-spin" />
                   <span>Đang gửi báo cáo...</span>
                 </>
               ) : (
@@ -826,16 +863,7 @@ function ReportFormContent({
               </div>
             </div>
           )}
-
-          {submitError && (
-            <div
-              role="alert"
-              className="rounded-lg border border-rose-500/25 bg-rose-500/10 p-3 text-sm text-rose-900 dark:border-rose-400/25 dark:bg-rose-500/15 dark:text-rose-200"
-            >
-              <ReportSubmissionError message={submitError} />
-            </div>
-          )}
-        </div>
+        </section>
       </fieldset>
     </form>
   )

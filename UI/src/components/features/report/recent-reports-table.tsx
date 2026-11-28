@@ -327,7 +327,7 @@ export function RecentReportsTable({
                           href={`/user/reports/${numericId}`}
                           className="font-mono text-xs font-semibold text-muted-foreground tabular-nums hover:text-foreground hover:underline"
                         >
-                          #{numericId}
+                          {numericId}
                         </Link>
                         <span className="text-xs text-muted-foreground tabular-nums">
                           {item.submittedDate}
@@ -421,7 +421,7 @@ export function RecentReportsTable({
                           aria-label={`Xem chi tiết báo cáo ${numericId}`}
                           className="after:absolute after:inset-0 after:cursor-pointer focus-visible:underline"
                         >
-                          #{numericId}
+                          {numericId}
                         </Link>
                       </td>
 

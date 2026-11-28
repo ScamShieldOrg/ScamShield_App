@@ -209,4 +209,40 @@ class ScamCheckHistoryServiceImplTest {
 
         verify(checkRequestRepository).softDeleteByIds(eq(userId), eq(ids));
     }
+
+    @Test
+    void historySnippetAndTargetReadMaskedDataOnlyAndNeverExposeRawInput() {
+        Long userId = 1L;
+        RawCheckHistoryItem maskedRow = new RawCheckHistoryItem(
+                10L, LocalDateTime.of(2025, 5, 16, 10, 0, 0),
+                "MESSAGE", "OTP: 1234", "OTP: 1234", "OTP: [OTP]", "hash10",
+                null, null, null,
+                null, null, null,
+                "UNKNOWN", "Chưa Đủ Dữ Liệu", null, false
+        );
+        RawCheckHistoryItem redactedRow = new RawCheckHistoryItem(
+                11L, LocalDateTime.of(2025, 5, 16, 10, 5, 0),
+                "MESSAGE", "OTP: 9999", "OTP: 9999", null, "hash11",
+                null, null, null,
+                null, null, null,
+                "UNKNOWN", "Chưa Đủ Dữ Liệu", null, false
+        );
+
+        when(scamCheckHistoryRepository.countFilteredHistory(eq(userId), any(), any(), any(), any(), any()))
+                .thenReturn(2L);
+        when(scamCheckHistoryRepository.findFilteredHistory(eq(userId), any(), any(), any(), any(), any(), anyInt(), anyLong()))
+                .thenReturn(List.of(maskedRow, redactedRow));
+        when(scamCheckHistoryRepository.getRiskCounts(userId))
+                .thenReturn(ScamCheckRiskCountsResponse.builder().all(2L).unknown(2L).build());
+
+        ScamCheckHistoryResponse response = service.getCheckHistory(userId, null, "30_days", "all", "ALL", PageRequest.of(0, 10));
+
+        ScamCheckHistoryItemResponse first = response.getItems().getData().get(0);
+        assertThat(first.getSnippet()).isEqualTo("OTP: [OTP]");
+        assertThat(first.getTargetValue()).isEqualTo("OTP: [OTP]");
+
+        ScamCheckHistoryItemResponse second = response.getItems().getData().get(1);
+        assertThat(second.getSnippet()).isEqualTo("N/A").doesNotContain("9999");
+        assertThat(second.getTargetValue()).isEqualTo("N/A").doesNotContain("9999");
+    }
 }

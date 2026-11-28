@@ -11,6 +11,7 @@ export interface QueueEvidence {
   rawId?: number
   name: string
   type: "image" | "video" | "pdf" | string
+  hasPublishedImage?: boolean
   duplicateCheckAvailable?: boolean
   duplicateCount?: number
   analysisStatus?:
@@ -122,6 +123,7 @@ export interface ModerationDecisionPayload {
   reason: string
   categoryId?: number
   selectedTaxonomies?: string[]
+  publicImages?: { evidenceId: number; file: File }[]
 }
 
 export interface BaseApiResponse<T> {

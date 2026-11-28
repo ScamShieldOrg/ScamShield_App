@@ -210,7 +210,7 @@ export function EscalationDetail({
                   return (
                     <tr key={report.id} className="hover:bg-muted/30 transition-colors">
                       <th scope="row" className="py-3 font-mono font-medium text-foreground">
-                        {report.reportCode || `RPT-${report.id}`}
+                        {(report.reportCode || `RPT-${report.id}`).replace(/^#/, "")}
                       </th>
                       <td className="py-3 pr-3 text-foreground/90 font-medium">
                         {report.targetValue || "Đối tượng báo cáo"}

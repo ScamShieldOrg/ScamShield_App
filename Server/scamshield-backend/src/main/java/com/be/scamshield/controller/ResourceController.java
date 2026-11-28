@@ -14,10 +14,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -35,6 +39,20 @@ public class ResourceController {
             @Valid @ModelAttribute @ParameterObject BlacklistResourceFilterRequest filter) {
         return ResponseEntity.ok(new BaseResponse<>(true," Lấy danh sách đen thành công",
                 resourceService.getBlackListResources(filter)));
+    }
+
+    @GetMapping("/blacklist/{id}/image")
+    @Operation(summary = "Mở ảnh minh chứng đã được công khai của mục blacklist đang có hiệu lực")
+    public ResponseEntity<BaseResponse<String>> getBlackListImage(@PathVariable Long id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new BaseResponse<>(true, "Đã tải liên kết ảnh công khai", resourceService.getBlackListImageUrl(id)));
+    }
+
+    @GetMapping("/blacklist/{id}/images")
+    @Operation(summary = "Mở các ảnh minh chứng công khai của mục blacklist đang có hiệu lực")
+    public ResponseEntity<BaseResponse<List<String>>> getBlackListImages(@PathVariable Long id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new BaseResponse<>(true, "Đã tải liên kết ảnh công khai", resourceService.getBlackListImageUrls(id)));
     }
 
     @GetMapping("/whitelist")

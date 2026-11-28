@@ -7,6 +7,7 @@ export interface BlackItem {
   severityLabel: string
   description: string
   warningCount: number
+  hasPublicImage?: boolean
   confirmedAt: string
   updatedAt: string
 }

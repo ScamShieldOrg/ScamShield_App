@@ -46,6 +46,10 @@ public class ReportEvidence {
     @Column(name = "storage_object_key")
     private String storageObjectKey;
 
+    /** Storage key of the redacted image approved for publication. */
+    @Column(name = "public_image_object_key")
+    private String publicImageObjectKey;
+
     @Column(name = "perceptual_hash")
     private Long perceptualHash;
 

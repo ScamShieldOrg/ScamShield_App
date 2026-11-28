@@ -8,6 +8,7 @@ import com.be.scamshield.external.ScamCheckAiClient;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 
 import com.be.scamshield.support.PostgresIntegrationTest;
 
@@ -67,7 +68,7 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        when(scamCheckAiClient.scan(any(), any(), any()))
+        when(scamCheckAiClient.scan(any(), any(), any(), anyBoolean()))
                 .thenReturn(ScamCheckAiClient.Result.failure("AI_UNAVAILABLE"));
         owner = account();
         guest = sessions.createOrGetSession(null, null).getSessionToken();
@@ -109,13 +110,15 @@ class ScamCheckControllerTest extends PostgresIntegrationTest {
 
     @Test
     void authenticatedIdentityWinsOverGuestHeaderAndOtherUsersCannotReadResult() throws Exception {
-        JsonNode result = data(submit("MESSAGE", "Liên hệ example@private.test, số 0912345678", guest, owner)
+        JsonNode result = data(submit("MESSAGE", "Liên hệ example@private.test, số 0912345678, OTP: 7492", guest, owner)
                 .andExpect(status().isOk()));
         long id = result.path("checkId").asLong();
         CheckRequest stored = checks.findById(id).orElseThrow();
         assertThat(stored.getUser().getId()).isEqualTo(owner.getId());
         assertThat(stored.getGuestSession()).isNull();
-        assertThat(stored.getMaskedInput()).doesNotContain("example@private.test", "0912345678");
+        assertThat(stored.getRawInput()).contains("OTP: [OTP]").doesNotContain("7492");
+        assertThat(stored.getNormalizedInput()).contains("OTP: [OTP]").doesNotContain("7492");
+        assertThat(stored.getMaskedInput()).contains("OTP: [OTP]").doesNotContain("example@private.test", "0912345678", "7492");
         mvc.perform(get("/api/scam-checks/{id}", id).with(user(UserPrincipal.create(owner))))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/scam-checks/{id}", id).with(user(UserPrincipal.create(account()))))

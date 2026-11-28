@@ -7,6 +7,8 @@ import com.be.scamshield.exception.DisputeStorageException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.multipart.MultipartFile;
@@ -54,6 +56,12 @@ public class SupabaseStorageService {
 
     @Value("${app.aws.s3.dispute-url-expiration-seconds:${app.supabase.storage.dispute-url-expiration-seconds:${DISPUTE_FILE_URL_EXPIRATION_SECONDS:900}}}")
     private long disputeUrlExpirationSeconds;
+
+    private static final String PUBLICATION_PREFIX = "published-reports/";
+    private static final String SHARED_PUBLICATION_PREFIX = PUBLICATION_PREFIX + "shared/";
+
+    @Value("${REPORT_PUBLIC_IMAGE_BUCKET:report-public-images}")
+    private String legacyReportPublicationBucket;
 
     @jakarta.annotation.PostConstruct
     public void init() {
@@ -215,6 +223,56 @@ public class SupabaseStorageService {
             log.error("Failed to delete file from S3 Storage [key={}]: {}", objectKey, e.getMessage(), e);
             throw new RuntimeException("Failed to delete file from S3 Storage: " + e.getMessage(), e);
         }
+    }
+
+    public String storeReportPublicationImage(byte[] image) {
+        String key = SHARED_PUBLICATION_PREFIX + UUID.randomUUID() + ".jpg";
+        try (S3Client client = createS3Client()) {
+            client.putObject(PutObjectRequest.builder()
+                    .bucket(getBucketName()).key(key).contentType("image/jpeg").cacheControl("no-store").build(),
+                    RequestBody.fromBytes(image));
+            return key;
+        } catch (RuntimeException ex) {
+            try {
+                deleteReportPublicationImage(key);
+            } catch (RuntimeException cleanup) {
+                ex.addSuppressed(cleanup);
+            }
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Không thể lưu ảnh công khai. Vui lòng thử lại hoặc tiếp tục duyệt không kèm ảnh.", ex);
+        }
+    }
+
+    public void deleteReportPublicationImage(String key) {
+        try (S3Client client = createS3Client()) {
+            client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(getReportPublicationBucket(key)).key(key).build());
+        }
+    }
+
+    public String createReportPublicationImageUrl(String key) {
+        try (S3Presigner presigner = createS3Presigner(true)) {
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(getReportPublicationBucket(key)).key(key).build();
+            return enforceHttps(presigner.presignGetObject(GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(1)).getObjectRequest(request).build()).url().toString());
+        } catch (RuntimeException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Không thể mở ảnh công khai lúc này. Vui lòng thử lại.", ex);
+        }
+    }
+
+    private String getReportPublicationBucket(String key) {
+        if (key != null && key.startsWith(SHARED_PUBLICATION_PREFIX)
+                && key.substring(SHARED_PUBLICATION_PREFIX.length()).matches("[a-zA-Z0-9-]+\\.jpg")) {
+            return getBucketName();
+        }
+        if (key != null && key.startsWith(PUBLICATION_PREFIX)
+                && key.substring(PUBLICATION_PREFIX.length()).matches("[a-zA-Z0-9-]+\\.jpg")
+                && StringUtils.hasText(legacyReportPublicationBucket)) {
+            return legacyReportPublicationBucket.trim();
+        }
+        throw new IllegalArgumentException("Invalid report publication image key");
     }
 
     public UploadResult uploadDisputeFile(MultipartFile file) {

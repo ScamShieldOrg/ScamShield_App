@@ -73,7 +73,7 @@ export function UserDashboardShell({ children }: UserDashboardShellProps) {
 
       {/* Desktop Unified L-Frame Left Sidebar (seamless with Header) */}
       <UserSidebar
-        className="hidden md:flex"
+        className="sticky top-0 hidden self-start md:flex"
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapse}
       />

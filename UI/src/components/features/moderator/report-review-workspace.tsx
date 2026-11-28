@@ -259,8 +259,8 @@ export function ReportReviewWorkspace({
       if (e instanceof ModerationApiError && e.status === 409) {
         formDirty.current = false
         setDetail(null)
+        setRevision((value) => value + 1)
       }
-      setRevision((value) => value + 1)
     } finally {
       actionInFlight.current = false
       setBusy(false)

@@ -366,8 +366,10 @@ export function mapBackendDtoToScanResponse(
       scam_type: scamType,
       summary: summary,
       ...(confidence != null ? { confidence } : {}),
-      confidence_level:
-        riskLevel === "DANGEROUS" || riskLevel === "SAFE" ? "HIGH" : "MEDIUM",
+      confidence_level: (() => {
+        const confVal = confidence != null ? confidence : riskLevel === "UNKNOWN" ? 0.5 : 0.85;
+        return confVal >= 0.85 ? "HIGH" : confVal >= 0.6 ? "MEDIUM" : "LOW";
+      })(),
     },
     guidance_type:
       ai?.tierExecuted === 2
